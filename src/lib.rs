@@ -6,3 +6,6 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
+
+pub mod solvers;
+pub mod types;
