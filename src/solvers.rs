@@ -1,4 +1,4 @@
-mod ipasir;
+pub mod ipasir;
 
 use crate::types::{Lit, Solution, Var};
 
@@ -37,7 +37,7 @@ pub trait SolverStats {
     }
     fn get_n_clauses(&self) -> u32;
     fn get_n_vars(&self) -> u32;
-    fn get_n_avg_clause_len(&self) -> f32;
+    fn get_avg_clause_len(&self) -> f32;
     fn get_cpu_solve_time(&self) -> f32;
 }
 
