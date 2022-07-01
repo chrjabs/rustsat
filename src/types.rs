@@ -8,9 +8,6 @@ pub struct Var {
 
 impl Var {
     pub fn new(v: u32) -> Var {
-        if v == 0 {
-            panic!("Variable with value 0 is not allowed");
-        }
         Var { v }
     }
 
