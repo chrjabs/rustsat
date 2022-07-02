@@ -48,28 +48,25 @@ pub trait SolverStats {
 }
 
 enum InternalSolverState {
-    Loading,
+    Input,
     SAT,
     UNSAT(Vec<Lit>),
-    Terminated,
 }
 
 impl InternalSolverState {
     fn to_external(&self) -> SolverState {
         match self {
-            InternalSolverState::Loading => SolverState::Loading,
+            InternalSolverState::Input => SolverState::Input,
             InternalSolverState::SAT => SolverState::SAT,
             InternalSolverState::UNSAT(_) => SolverState::UNSAT,
-            InternalSolverState::Terminated => SolverState::Terminated,
         }
     }
 }
 
 pub enum SolverState {
-    Loading,
+    Input,
     SAT,
     UNSAT,
-    Terminated,
 }
 
 pub enum SolverResult {

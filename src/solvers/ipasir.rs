@@ -22,7 +22,7 @@ impl IpasirSolver {
     pub fn new() -> IpasirSolver {
         IpasirSolver {
             handle: unsafe { ffi::ipasir_init() },
-            state: InternalSolverState::Loading,
+            state: InternalSolverState::Input,
             n_sat: 0,
             n_unsat: 0,
             n_terminated: 0,
@@ -70,7 +70,7 @@ impl Solver for IpasirSolver {
         match unsafe { ffi::ipasir_solve(self.handle) } {
             0 => {
                 self.n_terminated += 1;
-                self.state = InternalSolverState::Terminated;
+                self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
@@ -103,7 +103,7 @@ impl Solver for IpasirSolver {
     }
 
     fn add_clause(&mut self, clause: Vec<crate::types::Lit>) {
-        self.state = InternalSolverState::Loading;
+        self.state = InternalSolverState::Input;
         for lit in clause {
             unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
         }
