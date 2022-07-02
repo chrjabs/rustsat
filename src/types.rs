@@ -1,14 +1,16 @@
 use core::ops::Not;
-use std::collections::HashMap;
+use std::os::raw::c_int;
+
+use crate::solvers::{ipasir::IpasirError, SolverState};
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
 pub struct Var {
-    v: u32,
+    idx: usize,
 }
 
 impl Var {
-    pub fn new(v: u32) -> Var {
-        Var { v }
+    pub fn new(idx: usize) -> Var {
+        Var { idx }
     }
 
     pub fn pos_lit(self) -> Lit {
@@ -24,6 +26,10 @@ impl Var {
             negated: true,
         }
     }
+
+    pub fn index(self) -> usize {
+        self.idx
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
@@ -33,11 +39,11 @@ pub struct Lit {
 }
 
 impl Lit {
-    pub fn new(v: u32, sign: bool) -> Lit {
+    pub fn new(v: usize, negated: bool) -> Lit {
         let var = Var::new(v);
         Lit {
             v: var,
-            negated: sign,
+            negated,
         }
     }
 
@@ -52,6 +58,17 @@ impl Lit {
     pub fn is_neg(&self) -> bool {
         self.negated
     }
+
+    pub fn to_ipasir(self) -> c_int {
+        let idx: i32 = (self.v.idx + 1)
+            .try_into()
+            .expect("Variable index too high to fit in int32_t");
+        if self.negated {
+            -idx
+        } else {
+            idx
+        }
+    }
 }
 
 impl Not for Lit {
@@ -65,15 +82,43 @@ impl Not for Lit {
     }
 }
 
+pub enum LitVal {
+    True,
+    False,
+    DontCare,
+}
+
 pub struct Solution {
-    assignment: HashMap<Var, bool>,
+    assignment: Vec<LitVal>,
 }
 
 impl Solution {
-    pub fn var_value(&self, var: &Var) -> Option<bool> {
-        match self.assignment.get(var) {
-            Some(val) => Some(*val),
-            None => None,
+    pub fn from_vec(assignment: Vec<LitVal>) -> Solution {
+        Solution { assignment }
+    }
+
+    pub fn var_value(&self, var: &Var) -> Option<&LitVal> {
+        if var.idx >= self.assignment.len() {
+            None
+        } else {
+            Some(&self.assignment[var.idx])
         }
     }
+
+    pub fn lit_value(&self, lit: &Lit) -> Option<&LitVal> {
+        if lit.negated {
+            match self.var_value(lit.var())? {
+                LitVal::DontCare => Some(&LitVal::DontCare),
+                LitVal::True => Some(&LitVal::False),
+                LitVal::False => Some(&LitVal::True),
+            }
+        } else {
+            self.var_value(lit.var())
+        }
+    }
+}
+
+pub enum Error {
+    Ipasir(IpasirError),
+    StateError(SolverState),
 }
