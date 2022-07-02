@@ -1,11 +1,17 @@
+//! # IPASIR Interface
+//!
+//! Interface to any SAT solver implementing the
+//! [IPASIR API](https://github.com/biotomas/ipasir) for incremental SAT solvers.
+
 mod ffi;
 
 use std::{ffi::CStr, fmt, os::raw::c_int};
 
-use super::{InternalSolverState, Solver, SolverResult, SolverStats};
-use crate::types::{Error, Lit, LitVal};
+use super::{InternalSolverState, Solver, SolverResult, SolverState, SolverStats};
+use crate::types::{Error, Lit, TernaryVal, Var};
 use ffi::IpasirHandle;
 
+/// Type for an IPASIR solver.
 pub struct IpasirSolver {
     handle: *mut IpasirHandle,
     state: InternalSolverState,
@@ -13,12 +19,13 @@ pub struct IpasirSolver {
     n_unsat: u32,
     n_terminated: u32,
     n_clauses: u32,
-    n_vars: u32,
+    max_var: Option<Var>,
     avg_clause_len: f32,
     cpu_solve_time: f32,
 }
 
 impl IpasirSolver {
+    /// Creates a new IPASIR solver.
     pub fn new() -> IpasirSolver {
         IpasirSolver {
             handle: unsafe { ffi::ipasir_init() },
@@ -27,12 +34,13 @@ impl IpasirSolver {
             n_unsat: 0,
             n_terminated: 0,
             n_clauses: 0,
-            n_vars: 0,
+            max_var: None,
             avg_clause_len: 0.0,
             cpu_solve_time: 0.0,
         }
     }
 
+    /// Get the signature of the linked IPASIR solver.
     pub fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ipasir_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -87,33 +95,49 @@ impl Solver for IpasirSolver {
         }
     }
 
-    fn lit_val(&self, lit: &crate::types::Lit) -> Result<LitVal, Error> {
+    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, Error> {
         match &self.state {
             InternalSolverState::SAT => {
                 let lit = lit.to_ipasir();
                 match unsafe { ffi::ipasir_val(self.handle, lit) } {
-                    0 => Ok(LitVal::DontCare),
-                    p if p == lit => Ok(LitVal::True),
-                    n if n == -lit => Ok(LitVal::False),
+                    0 => Ok(TernaryVal::DontCare),
+                    p if p == lit => Ok(TernaryVal::True),
+                    n if n == -lit => Ok(TernaryVal::False),
                     invalid => Err(Error::Ipasir(IpasirError::Val(invalid))),
                 }
             }
-            other => Err(Error::StateError(other.to_external())),
+            other => Err(Error::StateError(other.to_external(), SolverState::SAT)),
         }
     }
 
-    fn add_clause(&mut self, clause: Vec<crate::types::Lit>) {
+    fn add_clause(&mut self, clause: Vec<Lit>) {
+        // Update wrapper-internal state
+        self.n_clauses += 1;
+        for lit in &clause {
+            match self.max_var {
+                None => self.max_var = Some(*lit.var()),
+                Some(var) => {
+                    if lit.var() > &var {
+                        self.max_var = Some(*lit.var());
+                    }
+                }
+            }
+        }
+        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
+            + clause.len() as f32)
+            / self.n_clauses as f32;
         self.state = InternalSolverState::Input;
+        // Call IPASIR backend
         for lit in clause {
             unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
         }
         unsafe { ffi::ipasir_add(self.handle, 0) }
     }
 
-    fn get_core(&mut self) -> Option<Vec<crate::types::Lit>> {
+    fn get_core(&mut self) -> Result<Vec<Lit>, Error> {
         match &self.state {
-            InternalSolverState::UNSAT(core) => Some(core.clone()),
-            _ => None,
+            InternalSolverState::UNSAT(core) => Ok(core.clone()),
+            other => Err(Error::StateError(other.to_external(), SolverState::UNSAT)),
         }
     }
 }
@@ -135,8 +159,8 @@ impl SolverStats for IpasirSolver {
         self.n_clauses
     }
 
-    fn get_n_vars(&self) -> u32 {
-        self.n_vars
+    fn get_max_var(&self) -> Option<Var> {
+        self.max_var
     }
 
     fn get_avg_clause_len(&self) -> f32 {
@@ -154,10 +178,14 @@ impl Drop for IpasirSolver {
     }
 }
 
+/// Type representing errors that can occur in the IPASIR API.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IpasirError {
+    /// Invalid return value in the `ipasir_solve` function.
     Solve(c_int),
+    /// Invalid return value in the `ipasir_val` function.
     Val(c_int),
+    /// Invalid return value in the `ipasir_failed` function.
     Failed(c_int),
 }
 

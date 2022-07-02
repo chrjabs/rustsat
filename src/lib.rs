@@ -1,11 +1,7 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+//! # rustsat - A Comprehensive SAT Solving Library
+//!
+//! `rustsat` is a collection of interfaces and utilities for working with the
+//! boolean satisfiability problem in Rust.
 
 pub mod solvers;
 pub mod types;
