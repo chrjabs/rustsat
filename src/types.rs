@@ -29,7 +29,7 @@ impl Var {
     /// use rustsat::types::{Var,Lit};
     ///
     /// let var = Var::new(5);
-    /// let lit = Lit::new(5, false);
+    /// let lit = Lit::positive(5);
     ///
     /// assert_eq!(lit, var.pos_lit());
     /// ```
@@ -48,7 +48,7 @@ impl Var {
     /// use rustsat::types::{Var,Lit};
     ///
     /// let var = Var::new(5);
-    /// let lit = Lit::new(5, true);
+    /// let lit = Lit::negative(5);
     ///
     /// assert_eq!(lit, var.neg_lit());
     /// ```
@@ -98,9 +98,19 @@ pub struct Lit {
 
 impl Lit {
     /// Creates a new (negated or not) literal with a given index.
-    pub fn new(idx: usize, negated: bool) -> Lit {
+    fn new(idx: usize, negated: bool) -> Lit {
         let var = Var::new(idx);
         Lit { v: var, negated }
+    }
+
+    /// Creates a new positive literal with a given index.
+    pub fn positive(idx: usize) -> Lit {
+        Lit::new(idx, false)
+    }
+
+    /// Creates a new negated literal with a given index.
+    pub fn negative(idx: usize) -> Lit {
+        Lit::new(idx, true)
     }
 
     /// Gets the variables that the literal corresponds to.
@@ -111,7 +121,7 @@ impl Lit {
     /// use rustsat::types::{Var,Lit};
     ///
     /// let var = Var::new(5);
-    /// let lit = Lit::new(5, true);
+    /// let lit = Lit::negative(5);
     ///
     /// assert_eq!(var, *lit.var());
     /// ```
@@ -174,6 +184,7 @@ impl fmt::Debug for Lit {
 }
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
+#[derive(Clone, Copy, PartialEq)]
 pub enum TernaryVal {
     /// Positive assignment.
     True,
@@ -190,6 +201,28 @@ impl TernaryVal {
             TernaryVal::True => true,
             TernaryVal::False => false,
             TernaryVal::DontCare => def,
+        }
+    }
+}
+
+/// Ternary values can be printed with the [`Display`](std::fmt::Display) trait
+impl fmt::Display for TernaryVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TernaryVal::True => write!(f, "1"),
+            TernaryVal::False => write!(f, "0"),
+            TernaryVal::DontCare => write!(f, "_"),
+        }
+    }
+}
+
+/// Ternary values can be printed with the [`Debug`](std::fmt::Debug) trait
+impl fmt::Debug for TernaryVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TernaryVal::True => write!(f, "1"),
+            TernaryVal::False => write!(f, "0"),
+            TernaryVal::DontCare => write!(f, "_"),
         }
     }
 }
@@ -229,6 +262,35 @@ impl Solution {
             self.var_value(lit.var())
         }
     }
+
+    pub fn replace_dont_care(&mut self, def: bool) {
+        self.assignment.iter_mut().for_each(|tv| match tv {
+            TernaryVal::DontCare => {
+                if def {
+                    *tv = TernaryVal::True;
+                } else {
+                    *tv = TernaryVal::False;
+                }
+            }
+            _ => (),
+        })
+    }
+}
+
+impl fmt::Debug for Solution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.assignment.iter().fold(Ok(()), |result, tv| {
+            result.and_then(|_| write!(f, "{}", tv))
+        })
+    }
+}
+
+impl fmt::Display for Solution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.assignment.iter().fold(Ok(()), |result, tv| {
+            result.and_then(|_| write!(f, "{}", tv))
+        })
+    }
 }
 
 /// General error type for the entire library.
@@ -253,5 +315,154 @@ impl fmt::Display for Error {
                 required_state, true_state
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Lit, Solution, TernaryVal, Var};
+
+    #[test]
+    fn var_index() {
+        let idx = 5;
+        let var = Var::new(idx);
+        assert_eq!(var.index(), idx);
+    }
+
+    #[test]
+    fn var_pos_lit() {
+        let idx = 5;
+        let var = Var::new(idx);
+        let lit = Lit::positive(idx);
+        assert_eq!(var.pos_lit(), lit);
+    }
+
+    #[test]
+    fn var_neg_lit() {
+        let idx = 5;
+        let var = Var::new(idx);
+        let lit = Lit::negative(idx);
+        assert_eq!(var.neg_lit(), lit);
+    }
+
+    #[test]
+    fn var_from_lit() {
+        let idx = 0;
+        let lit = Lit::positive(idx);
+        let var = Var::new(idx);
+        assert_eq!(*lit.var(), var);
+    }
+
+    #[test]
+    fn lit_is_pos() {
+        let lit = Lit::positive(0);
+        assert!(lit.is_pos());
+        assert!(!lit.is_neg());
+    }
+
+    #[test]
+    fn lit_is_neg() {
+        let lit = Lit::negative(0);
+        assert!(!lit.is_pos());
+        assert!(lit.is_neg());
+    }
+
+    #[test]
+    fn lit_negation() {
+        let lit1 = Lit::positive(0);
+        let lit2 = !lit1;
+        assert!(!lit2.is_pos());
+        assert!(lit2.is_neg());
+        assert_eq!(lit1.var(), lit2.var());
+    }
+
+    #[test]
+    fn ipasir_lit_not_zero() {
+        let lit = Lit::positive(0);
+        assert_ne!(lit.to_ipasir(), 0);
+        let lit = !lit;
+        assert_ne!(lit.to_ipasir(), 0);
+    }
+
+    #[test]
+    fn ipasir_lit_idx_plus_one() {
+        let idx = 5;
+        let lit = Lit::positive(idx);
+        assert_eq!(lit.to_ipasir(), idx as i32 + 1);
+        let lit = !lit;
+        assert_eq!(lit.to_ipasir(), -(idx as i32 + 1));
+    }
+
+    #[test]
+    fn ternary_var_true() {
+        let tv = TernaryVal::True;
+        assert_eq!(tv.clone().to_bool_with_def(true), true);
+        assert_eq!(tv.to_bool_with_def(false), true);
+    }
+
+    #[test]
+    fn ternary_var_false() {
+        let tv = TernaryVal::False;
+        assert_eq!(tv.clone().to_bool_with_def(true), false);
+        assert_eq!(tv.to_bool_with_def(false), false);
+    }
+
+    #[test]
+    fn ternary_var_dnc() {
+        let tv = TernaryVal::DontCare;
+        assert_eq!(tv.clone().to_bool_with_def(true), true);
+        assert_eq!(tv.to_bool_with_def(false), false);
+    }
+
+    #[test]
+    fn sol_var_val() {
+        let sol = Solution::from_vec(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+        ]);
+        let val = *sol.var_value(&Var::new(0)).unwrap();
+        assert_eq!(val, TernaryVal::True);
+        let val = *sol.var_value(&Var::new(1)).unwrap();
+        assert_eq!(val, TernaryVal::False);
+        let val = *sol.var_value(&Var::new(2)).unwrap();
+        assert_eq!(val, TernaryVal::DontCare);
+    }
+
+    #[test]
+    fn sol_lit_val() {
+        let sol = Solution::from_vec(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+        ]);
+        let val = *sol.lit_value(&Lit::negative(0)).unwrap();
+        assert_eq!(val, TernaryVal::False);
+        let val = *sol.lit_value(&Lit::positive(0)).unwrap();
+        assert_eq!(val, TernaryVal::True);
+        let val = *sol.lit_value(&Lit::negative(1)).unwrap();
+        assert_eq!(val, TernaryVal::True);
+        let val = *sol.lit_value(&Lit::positive(1)).unwrap();
+        assert_eq!(val, TernaryVal::False);
+        let val = *sol.lit_value(&Lit::negative(2)).unwrap();
+        assert_eq!(val, TernaryVal::DontCare);
+        let val = *sol.lit_value(&Lit::positive(2)).unwrap();
+        assert_eq!(val, TernaryVal::DontCare);
+    }
+
+    #[test]
+    fn sol_repl_dont_care() {
+        let mut sol = Solution::from_vec(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+        ]);
+        sol.replace_dont_care(true);
+        let val = *sol.var_value(&Var::new(0)).unwrap();
+        assert_eq!(val, TernaryVal::True);
+        let val = *sol.var_value(&Var::new(1)).unwrap();
+        assert_eq!(val, TernaryVal::False);
+        let val = *sol.var_value(&Var::new(2)).unwrap();
+        assert_eq!(val, TernaryVal::True);
     }
 }

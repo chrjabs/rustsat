@@ -29,7 +29,7 @@ pub trait Solver {
         let len = high_var.index() + 1;
         assignment.reserve(len);
         for idx in 0..len {
-            let lit = Lit::new(idx, false);
+            let lit = Lit::positive(idx);
             assignment.push(self.lit_val(&lit)?);
         }
         Ok(Solution::from_vec(assignment))
