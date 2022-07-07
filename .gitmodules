@@ -1,0 +1,3 @@
+[submodule "solvers/cadical"]
+	path = solvers/cadical
+	url = git@github.com:arminbiere/cadical.git

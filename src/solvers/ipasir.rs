@@ -198,3 +198,33 @@ impl fmt::Display for IpasirError {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::IpasirSolver;
+    use crate::solvers::{Solver, SolverResult};
+    use crate::types::Lit;
+
+    #[test]
+    fn build_destroy() {
+        let _solver = IpasirSolver::new();
+    }
+
+    #[test]
+    fn build_two() {
+        let _solver1 = IpasirSolver::new();
+        let _solver2 = IpasirSolver::new();
+    }
+
+    #[test]
+    fn tiny_instance() {
+        let mut solver = IpasirSolver::new();
+        solver.add_clause(vec![Lit::positive(0), Lit::negative(1)]);
+        solver.add_clause(vec![Lit::positive(1), Lit::negative(2)]);
+        let ret = solver.solve();
+        match ret {
+            Err(e) => panic!("got error when solving"),
+            Ok(res) => assert_eq!(res, SolverResult::SAT),
+        }
+    }
+}

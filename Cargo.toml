@@ -2,7 +2,15 @@
 name = "rustsat"
 version = "0.1.0"
 edition = "2021"
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+[features]
+default = ["ipamir_solver", "cadical"]
+ipamir_solver = []
+cadical = []
