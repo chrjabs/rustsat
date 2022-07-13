@@ -3,6 +3,7 @@
 //! This module holds types and functions regarding SAT solvers.
 //! The main element is the [`Solver`] trait that every SAT solver in this library implements.
 
+#[cfg(feature = "ipasir")]
 pub mod ipasir;
 
 use crate::types::{Error, Lit, Solution, TernaryVal, Var};
@@ -145,6 +146,15 @@ pub enum SolverResult {
     UNSAT,
     /// The query was prematurely interrupted.
     Interrupted,
+}
+
+/// Return type for solver terminator callbacks
+#[derive(Debug, PartialEq, Eq)]
+pub enum ControlSignal {
+    /// Variant for the solver to continue
+    Continue,
+    /// Variant for the solver to terminate
+    Terminate,
 }
 
 impl fmt::Display for SolverResult {

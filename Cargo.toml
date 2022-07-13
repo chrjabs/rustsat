@@ -11,6 +11,6 @@ build = "build.rs"
 [dependencies]
 
 [features]
-default = ["ipamir_solver", "cadical"]
-ipamir_solver = []
+default = ["ipasir", "cadical"]
+ipasir = []
 cadical = []

@@ -5,16 +5,22 @@
 
 mod ffi;
 
-use std::{ffi::CStr, fmt, os::raw::c_int};
+use std::{
+    ffi::CStr,
+    fmt,
+    os::raw::{c_int, c_void},
+};
 
-use super::{InternalSolverState, Solver, SolverResult, SolverState, SolverStats};
+use super::{ControlSignal, InternalSolverState, Solver, SolverResult, SolverState, SolverStats};
 use crate::types::{Error, Lit, TernaryVal, Var};
 use ffi::IpasirHandle;
 
 /// Type for an IPASIR solver.
-pub struct IpasirSolver {
+pub struct IpasirSolver<'a> {
     handle: *mut IpasirHandle,
     state: InternalSolverState,
+    terminate_cb: Option<Box<Box<dyn FnMut() -> ControlSignal + 'a>>>,
+    learner_cb: Option<Box<Box<dyn FnMut(Vec<Lit>) + 'a>>>,
     n_sat: u32,
     n_unsat: u32,
     n_terminated: u32,
@@ -24,12 +30,14 @@ pub struct IpasirSolver {
     cpu_solve_time: f32,
 }
 
-impl IpasirSolver {
+impl<'a> IpasirSolver<'a> {
     /// Creates a new IPASIR solver.
-    pub fn new() -> IpasirSolver {
+    pub fn new() -> IpasirSolver<'a> {
         IpasirSolver {
             handle: unsafe { ffi::ipasir_init() },
             state: InternalSolverState::Input,
+            terminate_cb: None,
+            learner_cb: None,
             n_sat: 0,
             n_unsat: 0,
             n_terminated: 0,
@@ -61,9 +69,86 @@ impl IpasirSolver {
         }
         Ok(core)
     }
+
+    /// Sets a terminator callback that is regularly called during solving.
+    ///
+    /// # Examples
+    ///
+    /// Terminate solver after 10 callback calls.
+    ///
+    /// ```
+    /// use rustsat::solvers::{ipasir::IpasirSolver, ControlSignal, Solver, SolverResult};
+    ///
+    /// let mut solver = IpasirSolver::new();
+    ///
+    /// // Load instance
+    ///
+    /// let mut cnt = 1;
+    /// solver.set_terminator(move || {
+    ///     if cnt > 10 {
+    ///         ControlSignal::Terminate
+    ///     } else {
+    ///         cnt += 1;
+    ///         ControlSignal::Continue
+    ///     }
+    /// });
+    ///
+    /// let ret = solver.solve().unwrap();
+    ///
+    /// // Assuming an instance is actually loaded and runs long enough
+    /// // assert_eq!(ret, SolverResult::Interrupted);
+    /// ```
+    pub fn set_terminator<CB>(&mut self, cb: CB)
+    where
+        CB: FnMut() -> ControlSignal + 'a,
+    {
+        self.terminate_cb = Some(Box::new(Box::new(cb)));
+        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        unsafe { ffi::ipasir_set_terminate(self.handle, cb_ptr, ffi::ipasir_terminate_cb) }
+    }
+
+    /// Sets a learner callback that gets passed clauses up to a certain length learned by the solver.
+    ///
+    /// The callback goes out of scope with the solver, afterwards captured variables become accessible.
+    ///
+    /// # Examples
+    ///
+    /// Count number of learned clauses up to length 10.
+    ///
+    /// ```
+    /// use rustsat::solvers::{ipasir::IpasirSolver, Solver, SolverResult};
+    ///
+    /// let mut cnt = 0;
+    ///
+    /// {
+    ///     let mut solver = IpasirSolver::new();
+    ///     // Load instance
+    ///
+    ///     solver.set_learner(|_| cnt += 1, 10);
+    ///
+    ///     solver.solve().unwrap();
+    /// }
+    ///
+    /// // cnt variable can be accessed from here on
+    /// ```
+    pub fn set_learner<CB>(&mut self, cb: CB, max_len: usize)
+    where
+        CB: FnMut(Vec<Lit>) + 'a,
+    {
+        self.learner_cb = Some(Box::new(Box::new(cb)));
+        let cb_ptr = self.learner_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        unsafe {
+            ffi::ipasir_set_learn(
+                self.handle,
+                cb_ptr,
+                max_len.try_into().unwrap(),
+                ffi::ipasir_learn_cb,
+            )
+        }
+    }
 }
 
-impl Solver for IpasirSolver {
+impl Solver for IpasirSolver<'_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error> {
         // If already solved, return state
         if let InternalSolverState::SAT = self.state {
@@ -142,7 +227,7 @@ impl Solver for IpasirSolver {
     }
 }
 
-impl SolverStats for IpasirSolver {
+impl SolverStats for IpasirSolver<'_> {
     fn get_n_sat_solves(&self) -> u32 {
         self.n_sat
     }
@@ -172,7 +257,7 @@ impl SolverStats for IpasirSolver {
     }
 }
 
-impl Drop for IpasirSolver {
+impl Drop for IpasirSolver<'_> {
     fn drop(&mut self) {
         unsafe { ffi::ipasir_release(self.handle) }
     }
@@ -202,7 +287,7 @@ impl fmt::Display for IpasirError {
 #[cfg(test)]
 mod test {
     use super::IpasirSolver;
-    use crate::solvers::{Solver, SolverResult};
+    use crate::solvers::{ControlSignal, Solver, SolverResult};
     use crate::types::Lit;
 
     #[test]
@@ -219,12 +304,78 @@ mod test {
     #[test]
     fn tiny_instance() {
         let mut solver = IpasirSolver::new();
-        solver.add_clause(vec![Lit::positive(0), Lit::negative(1)]);
-        solver.add_clause(vec![Lit::positive(1), Lit::negative(2)]);
+        solver.add_pair(Lit::positive(0), Lit::negative(1));
+        solver.add_pair(Lit::positive(1), Lit::negative(2));
         let ret = solver.solve();
         match ret {
-            Err(e) => panic!("got error when solving"),
+            Err(e) => panic!("got error when solving: {}", e),
             Ok(res) => assert_eq!(res, SolverResult::SAT),
+        }
+    }
+
+    #[test]
+    fn termination_callback() {
+        let mut solver = IpasirSolver::new();
+        solver.add_pair(Lit::positive(0), Lit::negative(1));
+        solver.add_pair(Lit::positive(1), Lit::negative(2));
+        solver.add_pair(Lit::positive(2), Lit::negative(3));
+        solver.add_pair(Lit::positive(3), Lit::negative(4));
+        solver.add_pair(Lit::positive(4), Lit::negative(5));
+        solver.add_pair(Lit::positive(5), Lit::negative(6));
+        solver.add_pair(Lit::positive(6), Lit::negative(7));
+        solver.add_pair(Lit::positive(7), Lit::negative(8));
+        solver.add_pair(Lit::positive(8), Lit::negative(9));
+
+        solver.set_terminator(|| ControlSignal::Terminate);
+
+        let ret = solver.solve();
+
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::Interrupted),
+        }
+
+        // Note: since IPASIR doesn't specify _when_ the terminator callback needs
+        // to be called, there is no guarantee that the callback is actually
+        // called during solving. This might cause this test to fail with some solvers.
+    }
+
+    #[test]
+    fn learner_callback() {
+        let mut solver = IpasirSolver::new();
+        solver.add_pair(Lit::positive(0), Lit::negative(1));
+        solver.add_pair(Lit::positive(1), Lit::negative(2));
+        solver.add_pair(Lit::positive(2), Lit::negative(3));
+        solver.add_pair(Lit::positive(3), Lit::negative(4));
+        solver.add_pair(Lit::positive(4), Lit::negative(5));
+        solver.add_pair(Lit::positive(5), Lit::negative(6));
+        solver.add_pair(Lit::positive(6), Lit::negative(7));
+        solver.add_pair(Lit::positive(7), Lit::negative(8));
+        solver.add_pair(Lit::positive(8), Lit::negative(9));
+        solver.add_unit(Lit::positive(9));
+        solver.add_unit(Lit::negative(0));
+
+        let mut cl_len = 0;
+        let ret;
+
+        solver.set_learner(
+            |clause| {
+                cl_len = clause.len();
+            },
+            10,
+        );
+
+        ret = solver.solve();
+
+        drop(solver);
+
+        // Note: it is hard to create a testing instance on which clause learning
+        // actually happens and therefore it is not actually tested if the
+        // callback is called
+
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
         }
     }
 }

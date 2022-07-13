@@ -4,9 +4,13 @@
 
 use core::ops::Not;
 use std::fmt;
-use std::os::raw::c_int;
 
-use crate::solvers::{ipasir::IpasirError, SolverState};
+use crate::solvers::SolverState;
+
+#[cfg(feature = "ipasir")]
+use crate::solvers::ipasir::IpasirError;
+#[cfg(feature = "ipasir")]
+use std::os::raw::c_int;
 
 /// Type representing boolean variables in a SAT problem.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
@@ -113,6 +117,21 @@ impl Lit {
         Lit::new(idx, true)
     }
 
+    #[cfg(feature = "ipasir")]
+    /// Create a literal from an IPASIR integer value
+    pub fn from_ipasir(val: i32) -> Lit {
+        if val == 0 {
+            panic!("Invalid IPASIR literal '0'");
+        }
+        let negated = if val > 0 { false } else { true };
+        let idx: usize = if val > 0 {
+            val.try_into().unwrap()
+        } else {
+            (-val).try_into().unwrap()
+        };
+        Lit::new(idx, negated)
+    }
+
     /// Gets the variables that the literal corresponds to.
     ///
     /// # Examples
@@ -139,6 +158,7 @@ impl Lit {
         self.negated
     }
 
+    #[cfg(feature = "ipasir")]
     /// Converts the literal to an integer as accepted by the IPASIR API.
     /// The IPASIR literal will have idx+1 and be negative if the literal is
     /// negated.
@@ -295,7 +315,9 @@ impl fmt::Display for Solution {
 
 /// General error type for the entire library.
 /// Variants represent more detailed errors.
+#[derive(Debug)]
 pub enum Error {
+    #[cfg(feature = "ipasir")]
     /// Errors from the IPASIR interface.
     Ipasir(IpasirError),
     /// Errors in a SAT solver stemming from the solver being in an invalid
@@ -308,6 +330,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "ipasir")]
             Error::Ipasir(err) => write!(f, "Error in IPASIR API: {}", err),
             Error::StateError(true_state, required_state) => write!(
                 f,
