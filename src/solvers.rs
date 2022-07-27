@@ -6,7 +6,7 @@
 #[cfg(feature = "ipasir")]
 pub mod ipasir;
 
-use crate::types::{Error, Lit, Solution, TernaryVal, Var};
+use crate::{types::{Clause, Error, Lit, Solution, TernaryVal, Var}, clause};
 use std::fmt;
 
 /// Trait for all (incremental) SAT solvers in this library.
@@ -14,6 +14,8 @@ use std::fmt;
 /// use them with this library.
 pub trait Solver {
     /// Solves the internal CNF formula under assumptions.
+    /// Even though assumptions should be unique and theoretically the order shouldn't matter,
+    /// in practice it does for some solvers, therefore the assumptions are a vector rather than a set.
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error>;
     /// Solves the internal CNF formula without any assumptions.
     fn solve(&mut self) -> Result<SolverResult, Error> {
@@ -49,18 +51,18 @@ pub trait Solver {
     /// Adds a clause to the solver
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
-    fn add_clause(&mut self, clause: Vec<Lit>);
+    fn add_clause(&mut self, clause: Clause);
     /// Like [`Solver::add_clause`] but for unit clauses (clauses with one literal).
     fn add_unit(&mut self, lit: Lit) {
-        self.add_clause(vec![lit])
+        self.add_clause(clause![lit])
     }
     /// Like [`Solver::add_clause`] but for clauses with two literals.
     fn add_pair(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(vec![lit1, lit2])
+        self.add_clause(clause![lit1, lit2])
     }
     /// Like [`Solver::add_clause`] but for clauses with three literals.
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(vec![lit1, lit2, lit3])
+        self.add_clause(clause![lit1, lit2, lit3])
     }
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted

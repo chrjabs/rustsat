@@ -5,7 +5,7 @@
 use core::ops::Not;
 use std::fmt;
 
-use crate::solvers::SolverState;
+use crate::{instances::DimacsError, solvers::SolverState};
 
 #[cfg(feature = "ipasir")]
 use crate::solvers::ipasir::IpasirError;
@@ -119,9 +119,9 @@ impl Lit {
 
     #[cfg(feature = "ipasir")]
     /// Create a literal from an IPASIR integer value
-    pub fn from_ipasir(val: i32) -> Lit {
+    pub fn from_ipasir(val: i32) -> Result<Lit, IpasirError> {
         if val == 0 {
-            panic!("Invalid IPASIR literal '0'");
+            return Err(IpasirError::ZeroLiteral);
         }
         let negated = if val > 0 { false } else { true };
         let idx: usize = if val > 0 {
@@ -129,7 +129,7 @@ impl Lit {
         } else {
             (-val).try_into().unwrap()
         };
-        Lit::new(idx, negated)
+        Ok(Lit::new(idx, negated))
     }
 
     /// Gets the variables that the literal corresponds to.
@@ -201,6 +201,137 @@ impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
+}
+
+#[macro_export]
+macro_rules! lit {
+    ($l:expr) => {
+        Lit::positive($l)
+    };
+}
+
+#[macro_export]
+macro_rules! ipasir_lit {
+    ($l:expr) => {
+        Lit::from_ipasir($l).unwrap()
+    };
+}
+
+/// Type representing a clause
+/// Wrapper around a std collection to allow for changing the data structure.
+/// Optional clauses as sets will be included in the future.
+#[derive(Hash, Eq, PartialEq, Clone)]
+pub struct Clause {
+    lits: Vec<Lit>,
+}
+
+impl Clause {
+    /// Creates a new empty clause
+    pub fn new() -> Clause {
+        Clause { lits: Vec::new() }
+    }
+
+    /// Create a new clause from an iterator
+    pub fn from<I>(lits: I) -> Clause
+    where
+        I: Iterator<Item = Lit>,
+    {
+        Clause {
+            lits: lits.collect(),
+        }
+    }
+
+    /// Gets the length of the clause
+    pub fn len(&self) -> usize {
+        self.lits.len()
+    }
+
+    /// Adds a literal to the clause
+    pub fn add(&mut self, lit: Lit) {
+        self.lits.push(lit)
+    }
+
+    /// Removes the first occurrence of a literal from the clause
+    /// Returns true if an occurrence was found
+    pub fn remove(&mut self, lit: &Lit) -> bool {
+        for (i, l) in self.lits.iter().enumerate() {
+            if l == lit {
+                self.lits.swap_remove(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Removes all occurrences of a literal from the clause
+    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
+        let mut idxs = Vec::new();
+        for (i, l) in self.lits.iter().enumerate() {
+            if l == lit {
+                idxs.push(i);
+            }
+        }
+        for i in idxs.iter().rev() {
+            self.lits.remove(*i);
+        }
+        !idxs.is_empty()
+    }
+
+    /// Gets an iterator over the clause
+    pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
+        self.lits.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Clause {
+    type Item = Lit;
+
+    type IntoIter = std::iter::Copied<std::slice::Iter<'a, Self::Item>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter().copied()
+    }
+}
+
+/// Clauses can be printed with the [`Display`](std::fmt::Display) trait
+impl fmt::Display for Clause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(")?;
+        for (i, lit) in self.iter().enumerate() {
+            if i != 0 {
+                write!(f, "|")?;
+            }
+            write!(f, "{}", lit)?
+        }
+        write!(f, ")")
+    }
+}
+
+/// Clauses can be printed with the [`Debug`](std::fmt::Debug) trait
+impl fmt::Debug for Clause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(")?;
+        for (i, lit) in self.iter().enumerate() {
+            if i != 0 {
+                write!(f, "|")?;
+            }
+            write!(f, "{}", lit)?
+        }
+        write!(f, ")")
+    }
+}
+
+#[macro_export]
+macro_rules! clause {
+    ( $($l:expr),* ) => {
+        {
+            let mut tmp_clause = Clause::new();
+            $(
+                tmp_clause.add($l);
+            )*
+            tmp_clause
+        }
+    };
 }
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
@@ -324,7 +455,11 @@ pub enum Error {
     /// state for an operation.
     /// The first [`SolverState`] member holds the state that the solver is in,
     /// the second the required state.
-    StateError(SolverState, SolverState),
+    State(SolverState, SolverState),
+    /// Errors when reading files
+    IO(std::io::Error),
+    /// Errors when parsing DIMACS
+    Dimacs(DimacsError),
 }
 
 impl fmt::Display for Error {
@@ -332,11 +467,13 @@ impl fmt::Display for Error {
         match self {
             #[cfg(feature = "ipasir")]
             Error::Ipasir(err) => write!(f, "Error in IPASIR API: {}", err),
-            Error::StateError(true_state, required_state) => write!(
+            Error::State(true_state, required_state) => write!(
                 f,
                 "Solver needs to be in state {} but was in {}",
                 required_state, true_state
             ),
+            Error::IO(err) => write!(f, "File IO error: {}", err),
+            Error::Dimacs(err) => write!(f, "Error parsing DIMACS: {}", err),
         }
     }
 }

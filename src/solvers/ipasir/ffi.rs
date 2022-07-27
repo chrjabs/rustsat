@@ -52,7 +52,9 @@ pub extern "C" fn ipasir_learn_cb(ptr: *const c_void, clause: *const c_int) {
     let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
     let clause: Vec<Lit> = int_slice
         .into_iter()
-        .map(|il| Lit::from_ipasir(*il))
+        .map(|il| {
+            Lit::from_ipasir(*il).expect("Invalid literal in learned clause from IPASIR solver")
+        })
         .collect();
     cb(clause)
 }

@@ -12,7 +12,7 @@ use std::{
 };
 
 use super::{ControlSignal, InternalSolverState, Solver, SolverResult, SolverState, SolverStats};
-use crate::types::{Error, Lit, TernaryVal, Var};
+use crate::types::{Error, Lit, TernaryVal, Var, Clause};
 use ffi::IpasirHandle;
 
 /// Type for an IPASIR solver.
@@ -191,11 +191,11 @@ impl Solver for IpasirSolver<'_> {
                     invalid => Err(Error::Ipasir(IpasirError::Val(invalid))),
                 }
             }
-            other => Err(Error::StateError(other.to_external(), SolverState::SAT)),
+            other => Err(Error::State(other.to_external(), SolverState::SAT)),
         }
     }
 
-    fn add_clause(&mut self, clause: Vec<Lit>) {
+    fn add_clause(&mut self, clause: Clause) {
         // Update wrapper-internal state
         self.n_clauses += 1;
         for lit in &clause {
@@ -213,7 +213,7 @@ impl Solver for IpasirSolver<'_> {
             / self.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call IPASIR backend
-        for lit in clause {
+        for lit in &clause {
             unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
         }
         unsafe { ffi::ipasir_add(self.handle, 0) }
@@ -222,7 +222,7 @@ impl Solver for IpasirSolver<'_> {
     fn get_core(&mut self) -> Result<Vec<Lit>, Error> {
         match &self.state {
             InternalSolverState::UNSAT(core) => Ok(core.clone()),
-            other => Err(Error::StateError(other.to_external(), SolverState::UNSAT)),
+            other => Err(Error::State(other.to_external(), SolverState::UNSAT)),
         }
     }
 }
@@ -272,6 +272,8 @@ pub enum IpasirError {
     Val(c_int),
     /// Invalid return value in the `ipasir_failed` function.
     Failed(c_int),
+    /// Zero was tried to use as a literal
+    ZeroLiteral,
 }
 
 impl fmt::Display for IpasirError {
@@ -280,6 +282,7 @@ impl fmt::Display for IpasirError {
             IpasirError::Solve(invalid) => write!(f, "invalid response {} from solve", invalid),
             IpasirError::Val(invalid) => write!(f, "invalid response {} from val", invalid),
             IpasirError::Failed(invalid) => write!(f, "invalid response {} from failed", invalid),
+            IpasirError::ZeroLiteral => write!(f, "zero is an invalid IPASIR literal value"),
         }
     }
 }
@@ -287,6 +290,7 @@ impl fmt::Display for IpasirError {
 #[cfg(test)]
 mod test {
     use super::IpasirSolver;
+    use crate::lit;
     use crate::solvers::{ControlSignal, Solver, SolverResult};
     use crate::types::Lit;
 
@@ -304,8 +308,8 @@ mod test {
     #[test]
     fn tiny_instance() {
         let mut solver = IpasirSolver::new();
-        solver.add_pair(Lit::positive(0), Lit::negative(1));
-        solver.add_pair(Lit::positive(1), Lit::negative(2));
+        solver.add_pair(lit![0], !lit![1]);
+        solver.add_pair(lit![1], !lit![2]);
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
@@ -316,15 +320,15 @@ mod test {
     #[test]
     fn termination_callback() {
         let mut solver = IpasirSolver::new();
-        solver.add_pair(Lit::positive(0), Lit::negative(1));
-        solver.add_pair(Lit::positive(1), Lit::negative(2));
-        solver.add_pair(Lit::positive(2), Lit::negative(3));
-        solver.add_pair(Lit::positive(3), Lit::negative(4));
-        solver.add_pair(Lit::positive(4), Lit::negative(5));
-        solver.add_pair(Lit::positive(5), Lit::negative(6));
-        solver.add_pair(Lit::positive(6), Lit::negative(7));
-        solver.add_pair(Lit::positive(7), Lit::negative(8));
-        solver.add_pair(Lit::positive(8), Lit::negative(9));
+        solver.add_pair(lit![0], !lit![1]);
+        solver.add_pair(lit![1], !lit![2]);
+        solver.add_pair(lit![2], !lit![3]);
+        solver.add_pair(lit![3], !lit![4]);
+        solver.add_pair(lit![4], !lit![5]);
+        solver.add_pair(lit![5], !lit![6]);
+        solver.add_pair(lit![6], !lit![7]);
+        solver.add_pair(lit![7], !lit![8]);
+        solver.add_pair(lit![8], !lit![9]);
 
         solver.set_terminator(|| ControlSignal::Terminate);
 
@@ -343,17 +347,17 @@ mod test {
     #[test]
     fn learner_callback() {
         let mut solver = IpasirSolver::new();
-        solver.add_pair(Lit::positive(0), Lit::negative(1));
-        solver.add_pair(Lit::positive(1), Lit::negative(2));
-        solver.add_pair(Lit::positive(2), Lit::negative(3));
-        solver.add_pair(Lit::positive(3), Lit::negative(4));
-        solver.add_pair(Lit::positive(4), Lit::negative(5));
-        solver.add_pair(Lit::positive(5), Lit::negative(6));
-        solver.add_pair(Lit::positive(6), Lit::negative(7));
-        solver.add_pair(Lit::positive(7), Lit::negative(8));
-        solver.add_pair(Lit::positive(8), Lit::negative(9));
-        solver.add_unit(Lit::positive(9));
-        solver.add_unit(Lit::negative(0));
+        solver.add_pair(lit![0], !lit![1]);
+        solver.add_pair(lit![1], !lit![2]);
+        solver.add_pair(lit![2], !lit![3]);
+        solver.add_pair(lit![3], !lit![4]);
+        solver.add_pair(lit![4], !lit![5]);
+        solver.add_pair(lit![5], !lit![6]);
+        solver.add_pair(lit![6], !lit![7]);
+        solver.add_pair(lit![7], !lit![8]);
+        solver.add_pair(lit![8], !lit![9]);
+        solver.add_unit(lit![9]);
+        solver.add_unit(!lit![0]);
 
         let mut cl_len = 0;
         let ret;
