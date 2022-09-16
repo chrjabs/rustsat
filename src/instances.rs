@@ -3,15 +3,42 @@
 //! Types representing general satisfiability and optimization instances with
 //! functionality to convert them to SAT or MaxSAT instances.
 
-use std::{collections::HashMap, fs::File, io::Read, path::Path};
+use std::{collections::HashMap, fs::File, io, io::Read, path::Path};
 
 use crate::{
+    clause, lit,
     solvers::Solver,
-    types::{Clause, Error, Lit}, clause, lit,
+    types::{Clause, Error, Lit},
 };
+
+#[cfg(feature = "compression")]
+use bzip2::read::BzDecoder;
+#[cfg(feature = "compression")]
+use flate2::read::GzDecoder;
+#[cfg(feature = "compression")]
+use std::ffi::OsStr;
 
 mod dimacs;
 pub use dimacs::DimacsError;
+
+/// Opens a buffered reader for the file at Path.
+/// With feature `compression` supports bzip2 and gzip compression.
+fn open_compressed_uncompressed(path: &Path) -> Result<Box<dyn Read>, io::Error> {
+    let raw_reader = File::open(path)?;
+    #[cfg(feature = "compression")]
+    match path.extension() {
+        Some(ext) => {
+            if ext.eq_ignore_ascii_case(OsStr::new("bz2")) {
+                return Ok(Box::new(BzDecoder::new(raw_reader)));
+            }
+            if ext.eq_ignore_ascii_case(OsStr::new("gz")) {
+                return Ok(Box::new(GzDecoder::new(raw_reader)));
+            }
+        }
+        None => (),
+    };
+    Ok(Box::new(raw_reader))
+}
 
 /// Type representing a satisfiability instance.
 /// For now this only supports clausal constraints, but more will be added.
@@ -39,11 +66,10 @@ impl SatInstance {
     }
 
     /// Parse a DIMACS instance from a file path
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<SatInstance, Error> {
-        // TODO: detect compressed files
-        match File::open(&path) {
+    pub fn from_dimacs_path(path: &Path) -> Result<SatInstance, Error> {
+        match open_compressed_uncompressed(path) {
             Err(why) => Err(Error::IO(why)),
-            Ok(file) => SatInstance::from_dimacs_reader(file),
+            Ok(reader) => SatInstance::from_dimacs_reader(reader),
         }
     }
 
@@ -59,13 +85,12 @@ impl SatInstance {
 
     /// Adds an implication of form (a -> b) to the instance
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.add_clause(Clause::from(vec![!a, b].into_iter()))
+        self.add_clause(clause![!a, b])
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
     pub fn add_lit_impl_or(&mut self, a: Lit, b: Vec<Lit>) {
-        let mut cl = Clause::new();
-        cl.add(!a);
+        let mut cl = clause![!a];
         b.into_iter().for_each(|bi| cl.add(bi));
         self.add_clause(cl)
     }
@@ -73,13 +98,12 @@ impl SatInstance {
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_and(&mut self, a: Lit, b: Vec<Lit>) {
         b.into_iter()
-            .for_each(|bi| self.add_clause(Clause::from(vec![!a, bi].into_iter())));
+            .for_each(|bi| self.add_clause(clause![!a, bi]));
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
     pub fn add_and_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        let mut cl = Clause::new();
-        cl.add(b);
+        let mut cl = clause![b];
         a.into_iter().for_each(|ai| cl.add(!ai));
         self.add_clause(cl)
     }
@@ -87,7 +111,7 @@ impl SatInstance {
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     pub fn add_or_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         for ai in &a {
-            self.add_clause(Clause::from(vec![!*ai, b].into_iter()));
+            self.add_clause(clause![!*ai, b]);
         }
     }
 
@@ -102,7 +126,7 @@ impl SatInstance {
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_or_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for ai in a {
-            let mut cl = Clause::new();
+            let mut cl = clause![ai];
             b.iter().for_each(|bi| cl.add(*bi));
             self.add_clause(cl)
         }
@@ -111,16 +135,14 @@ impl SatInstance {
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     pub fn add_or_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for ai in &a {
-            b.iter()
-                .for_each(|bi| self.add_clause(Clause::from(vec![!*ai, *bi].into_iter())));
+            b.iter().for_each(|bi| self.add_clause(clause![!*ai, *bi]));
         }
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     pub fn add_and_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for bi in b {
-            let mut cl = Clause::new();
-            cl.add(bi);
+            let mut cl = clause![bi];
             a.iter().for_each(|ai| cl.add(!*ai));
             self.add_clause(cl)
         }
@@ -132,7 +154,7 @@ impl SatInstance {
     }
 
     /// Adds the instance to a solver
-    pub fn add_to_solver<S>(self, mut solver: S)
+    pub fn add_to_solver<S>(self, solver: &mut S)
     where
         S: Solver,
     {
@@ -171,11 +193,10 @@ impl OptInstance {
     }
 
     /// Parse a DIMACS instance from a file path
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<OptInstance, Error> {
-        // TODO: detect compressed files
-        match File::open(&path) {
+    pub fn from_dimacs_path(path: &Path) -> Result<OptInstance, Error> {
+        match open_compressed_uncompressed(path) {
             Err(why) => Err(Error::IO(why)),
-            Ok(file) => OptInstance::from_dimacs_reader(file),
+            Ok(reader) => OptInstance::from_dimacs_reader(reader),
         }
     }
 
@@ -207,7 +228,7 @@ impl OptInstance {
         self.soft_clauses.reserve(self.soft_lits.len());
         for (l, w) in self.soft_lits {
             self.soft_clauses.insert(clause![!l], w);
-        };
+        }
         (self.constraints.as_clauses(), self.soft_clauses)
     }
 
@@ -221,7 +242,7 @@ impl OptInstance {
             cl.add(relax_lit);
             self.constraints.add_clause(cl);
             self.soft_lits.insert(relax_lit, w);
-        };
+        }
         (self.constraints.as_clauses(), self.soft_lits)
     }
 }

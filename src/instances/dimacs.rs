@@ -109,11 +109,12 @@ fn parse_dimacs<R: BufRead>(reader: R) -> Result<DimacsInstance, DimacsError> {
                 Err(_) => Err(DimacsError::InvalidWCNF),
                 Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)), // n_vars and n_clauses from preamble are intentionally ignored
             },
-            Preamble::WcnfPost22 { first_line } => match parse_wcnf_post22_body(reader, &first_line)
-            {
-                Err(_) => Err(DimacsError::InvalidWCNF),
-                Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)),
-            },
+            Preamble::WcnfPost22 { first_line } => {
+                match parse_wcnf_post22_body(reader, &first_line) {
+                    Err(_) => Err(DimacsError::InvalidWCNF),
+                    Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)),
+                }
+            }
         },
     }
 }
@@ -675,8 +676,7 @@ mod tests {
         let parsed_inst = parse_dimacs(reader).unwrap();
 
         let mut inst = OptInstance::new();
-        inst
-            .get_constraints()
+        inst.get_constraints()
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         inst.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
@@ -694,8 +694,7 @@ mod tests {
         let parsed_inst = parse_dimacs(reader).unwrap();
 
         let mut inst = OptInstance::new();
-        inst
-            .get_constraints()
+        inst.get_constraints()
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         inst.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 

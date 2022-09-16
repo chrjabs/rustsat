@@ -10,9 +10,12 @@ build = "build.rs"
 
 [dependencies]
 nom = "7.1.1"
+bzip2 = { version = "0.4", optional = true }
+flate2 = { version = "1.0", optional = true }
 
 [features]
 default = ["ipasir", "cadical", "optimization"]
 ipasir = []
 cadical = []
 optimization = []
+compression = ["dep:bzip2", "dep:flate2"]
