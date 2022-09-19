@@ -7,7 +7,7 @@ use std::{collections::HashMap, fs::File, io, io::Read, path::Path};
 
 use crate::{
     clause, lit,
-    solvers::Solver,
+    solvers::Solve,
     types::{Clause, Error, Lit},
 };
 
@@ -156,7 +156,7 @@ impl SatInstance {
     /// Adds the instance to a solver
     pub fn add_to_solver<S>(self, solver: &mut S)
     where
-        S: Solver,
+        S: Solve,
     {
         self.clauses
             .into_iter()

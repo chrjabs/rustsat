@@ -11,8 +11,11 @@ use std::{
     os::raw::{c_int, c_void},
 };
 
-use super::{ControlSignal, InternalSolverState, Solver, SolverResult, SolverState, SolverStats};
-use crate::types::{Error, Lit, TernaryVal, Var, Clause};
+use super::{
+    ControlSignal, IncrementalSolve, InternalSolverState, Solve, SolveStats, SolverResult,
+    SolverState,
+};
+use crate::types::{Clause, Error, Lit, TernaryVal, Var};
 use ffi::IpasirHandle;
 
 /// Type for an IPASIR solver.
@@ -77,7 +80,7 @@ impl<'a> IpasirSolver<'a> {
     /// Terminate solver after 10 callback calls.
     ///
     /// ```
-    /// use rustsat::solvers::{ipasir::IpasirSolver, ControlSignal, Solver, SolverResult};
+    /// use rustsat::solvers::{ipasir::IpasirSolver, ControlSignal, Solve, SolverResult};
     ///
     /// let mut solver = IpasirSolver::new();
     ///
@@ -116,7 +119,7 @@ impl<'a> IpasirSolver<'a> {
     /// Count number of learned clauses up to length 10.
     ///
     /// ```
-    /// use rustsat::solvers::{ipasir::IpasirSolver, Solver, SolverResult};
+    /// use rustsat::solvers::{ipasir::IpasirSolver, Solve, SolverResult};
     ///
     /// let mut cnt = 0;
     ///
@@ -148,13 +151,96 @@ impl<'a> IpasirSolver<'a> {
     }
 }
 
-impl Solver for IpasirSolver<'_> {
+impl Solve for IpasirSolver<'_> {
+    fn solve(&mut self) -> Result<SolverResult, Error> {
+        // If already solved, return state
+        if let InternalSolverState::SAT = self.state {
+            return Ok(SolverResult::SAT);
+        } else if let InternalSolverState::UNSAT(_) = self.state {
+            return Ok(SolverResult::UNSAT);
+        } else if let InternalSolverState::Error(desc) = &self.state {
+            return Err(Error::State(
+                SolverState::Error(desc.clone()),
+                SolverState::Input,
+            ));
+        }
+        // Solve with IPASIR backend
+        match unsafe { ffi::ipasir_solve(self.handle) } {
+            0 => {
+                self.n_terminated += 1;
+                self.state = InternalSolverState::Input;
+                Ok(SolverResult::Interrupted)
+            }
+            10 => {
+                self.n_sat += 1;
+                self.state = InternalSolverState::SAT;
+                Ok(SolverResult::SAT)
+            }
+            20 => {
+                self.n_unsat += 1;
+                self.state = InternalSolverState::UNSAT(vec![]);
+                Ok(SolverResult::UNSAT)
+            }
+            invalid => Err(Error::Ipasir(IpasirError::Solve(invalid))),
+        }
+    }
+
+    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, Error> {
+        match &self.state {
+            InternalSolverState::SAT => {
+                let lit = lit.to_ipasir();
+                match unsafe { ffi::ipasir_val(self.handle, lit) } {
+                    0 => Ok(TernaryVal::DontCare),
+                    p if p == lit => Ok(TernaryVal::True),
+                    n if n == -lit => Ok(TernaryVal::False),
+                    invalid => Err(Error::Ipasir(IpasirError::Val(invalid))),
+                }
+            }
+            other => Err(Error::State(other.to_external(), SolverState::SAT)),
+        }
+    }
+
+    fn add_clause(&mut self, clause: Clause) {
+        if let InternalSolverState::Error(_) = self.state {
+            // Don't add clause if already in error state.
+            return;
+        }
+        // Update wrapper-internal state
+        self.n_clauses += 1;
+        for lit in &clause {
+            match self.max_var {
+                None => self.max_var = Some(*lit.var()),
+                Some(var) => {
+                    if lit.var() > &var {
+                        self.max_var = Some(*lit.var());
+                    }
+                }
+            }
+        }
+        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
+            + clause.len() as f32)
+            / self.n_clauses as f32;
+        self.state = InternalSolverState::Input;
+        // Call IPASIR backend
+        for lit in &clause {
+            unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
+        }
+        unsafe { ffi::ipasir_add(self.handle, 0) }
+    }
+}
+
+impl IncrementalSolve for IpasirSolver<'_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error> {
         // If already solved, return state
         if let InternalSolverState::SAT = self.state {
             return Ok(SolverResult::SAT);
         } else if let InternalSolverState::UNSAT(_) = self.state {
             return Ok(SolverResult::UNSAT);
+        } else if let InternalSolverState::Error(desc) = &self.state {
+            return Err(Error::State(
+                SolverState::Error(desc.clone()),
+                SolverState::Input,
+            ));
         }
         // Solve with IPASIR backend
         for a in &assumps {
@@ -180,45 +266,6 @@ impl Solver for IpasirSolver<'_> {
         }
     }
 
-    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, Error> {
-        match &self.state {
-            InternalSolverState::SAT => {
-                let lit = lit.to_ipasir();
-                match unsafe { ffi::ipasir_val(self.handle, lit) } {
-                    0 => Ok(TernaryVal::DontCare),
-                    p if p == lit => Ok(TernaryVal::True),
-                    n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(Error::Ipasir(IpasirError::Val(invalid))),
-                }
-            }
-            other => Err(Error::State(other.to_external(), SolverState::SAT)),
-        }
-    }
-
-    fn add_clause(&mut self, clause: Clause) {
-        // Update wrapper-internal state
-        self.n_clauses += 1;
-        for lit in &clause {
-            match self.max_var {
-                None => self.max_var = Some(*lit.var()),
-                Some(var) => {
-                    if lit.var() > &var {
-                        self.max_var = Some(*lit.var());
-                    }
-                }
-            }
-        }
-        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
-            + clause.len() as f32)
-            / self.n_clauses as f32;
-        self.state = InternalSolverState::Input;
-        // Call IPASIR backend
-        for lit in &clause {
-            unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
-        }
-        unsafe { ffi::ipasir_add(self.handle, 0) }
-    }
-
     fn get_core(&mut self) -> Result<Vec<Lit>, Error> {
         match &self.state {
             InternalSolverState::UNSAT(core) => Ok(core.clone()),
@@ -227,7 +274,7 @@ impl Solver for IpasirSolver<'_> {
     }
 }
 
-impl SolverStats for IpasirSolver<'_> {
+impl SolveStats for IpasirSolver<'_> {
     fn get_n_sat_solves(&self) -> u32 {
         self.n_sat
     }
@@ -291,7 +338,7 @@ impl fmt::Display for IpasirError {
 mod test {
     use super::IpasirSolver;
     use crate::lit;
-    use crate::solvers::{ControlSignal, Solver, SolverResult};
+    use crate::solvers::{ControlSignal, Solve, SolverResult};
     use crate::types::Lit;
 
     #[test]
