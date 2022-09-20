@@ -6,6 +6,8 @@
 
 use crate::{instances::SatInstance, types::Lit};
 
+pub mod totalizer;
+
 pub trait EncodeCard {
     /// Adds new literals to the cardinality encoding
     fn add(&mut self, lits: Vec<Lit>);

@@ -162,6 +162,19 @@ impl SatInstance {
             .into_iter()
             .for_each(|cl| solver.add_clause(cl))
     }
+
+    /// Extends the instance by another instance
+    pub fn extend(&mut self, other: SatInstance) {
+        self.clauses.append(&mut other.clauses);
+        if self.next_free_idx < other.next_free_idx {
+            self.next_free_idx = other.next_free_idx;
+        };
+    }
+
+    /// Gets the next free variable index in the instance
+    pub fn next_free_index(&self) -> usize {
+        self.next_free_idx
+    }
 }
 
 #[cfg(feature = "optimization")]
