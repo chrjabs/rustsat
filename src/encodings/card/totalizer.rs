@@ -10,7 +10,11 @@
 //! [1] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 //! [2] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
-use crate::{encodings::BoundType, instances::SatInstance, types::Lit};
+use crate::{
+    encodings::BoundType,
+    instances::{ManageVars, SatInstance},
+    types::Lit,
+};
 
 pub struct Totalizer {
     /// Input literals already in the tree
@@ -98,42 +102,34 @@ impl TotNode {
         }
     }
 
-    /// Encodes the adder from the children to this node up to a given maximum
-    /// right hand side. Recurses depth first. Returns the new `next_idx` and
-    /// the number of newly added clauses. Always encodes the full totalizer.
-    fn encode(&mut self, max_rhs: u64, mut next_idx: usize, bound_type: BoundType) -> SatInstance {
+    /// Encodes the adder for this node from values `min_enc` to `max_enc`.
+    /// This method only produces the encoding and does _not_ change any of the stats of the node.
+    fn encode_from_till<VM: ManageVars>(
+        &self,
+        min_enc: u64,
+        max_enc: u64,
+        var_manager: &mut VM,
+        bound_type: BoundType,
+    ) -> SatInstance<VM> {
         match self {
             TotNode::Leaf { .. } => return SatInstance::new(),
             TotNode::Internal {
                 out_lits,
-                max_rhs: smax_rhs,
                 max_val,
-                n_clauses,
                 left,
                 right,
                 ..
             } => {
-                // Ignore all previous encoding and encode from scratch
-                *smax_rhs = if max_rhs < *max_val {
-                    max_rhs
-                } else {
-                    *max_val
+                if min_enc > max_val {
+                    return SatInstance::new();
                 };
-                // Recurse
-                let inst = left.encode(max_rhs, next_idx, bound_type);
-                next_idx = inst.next_free_index();
-                inst.extend(right.encode(max_rhs, next_idx, bound_type));
+                let max_enc = if max_enc > max_val { *max_val } else { max_enc };
                 // Reserve vars if needed
-                if (out_lits.len() as u64) < *smax_rhs {
-                    let max_val = *max_val as usize;
-                    out_lits.reserve(max_val - out_lits.len());
-                    for _ in out_lits.len()..max_val {
-                        let new_lit = Lit::positive(next_idx);
-                        next_idx += 1;
-                        out_lits.push(new_lit);
-                    }
+                if (out_lits.len() as u64) < max_enc {
+                    self.reserver_vars_to(max_enc, var_manager);
                 }
                 // Encode adder for current node
+                let inst = SatInstance::new_with_manager(var_manager);
                 let left_lits = match **left {
                     TotNode::Leaf { lit } => &vec![lit][..],
                     TotNode::Internal { out_lits: lits, .. } => &lits[..],
@@ -146,7 +142,7 @@ impl TotNode {
                 for left_val in 0..=left_lits.len() {
                     for right_val in 0..=right_lits.len() {
                         let sum_val = left_val + right_val;
-                        if sum_val as u64 > max_rhs + 1 {
+                        if sum_val > max_enc + 1 || sum_val < min_enc {
                             continue;
                         }
                         // Upper bounding
@@ -162,7 +158,6 @@ impl TotNode {
                                 if lhs.len() > 0 {
                                     // (left > x) & (right > y) -> (out > x+y)
                                     inst.add_and_impl_lit(lhs, out_lits[sum_val - 1]);
-                                    *n_clauses += 1;
                                 }
                             }
                             _ => (),
@@ -180,7 +175,6 @@ impl TotNode {
                                 if lhs.len() > 0 {
                                     // (left <= x) & (right <= y) -> (out <= x+y)
                                     inst.add_and_impl_lit(lhs, !out_lits[sum_val]);
-                                    *n_clauses += 1;
                                 }
                             }
                             _ => (),
@@ -193,50 +187,126 @@ impl TotNode {
     }
 
     /// Encodes the adder from the children to this node up to a given maximum
+    /// right hand side. Recurses depth first. Returns  the number of newly
+    /// added clauses. Always encodes the full totalizer.
+    fn encode_rec<VM: ManageVars>(
+        &mut self,
+        max_enc: u64,
+        var_manager: &mut VM,
+        bound_type: BoundType,
+    ) -> SatInstance<VM> {
+        match self {
+            TotNode::Leaf { .. } => {
+                return self.encode_from_till(0, max_enc, var_manager, bound_type)
+            }
+            TotNode::Internal {
+                max_rhs,
+                max_val,
+                n_clauses,
+                left,
+                right,
+                ..
+            } => {
+                // Ignore all previous encoding and encode from scratch
+                // Recurse
+                let inst = left.encode_rec(max_enc, var_manager, bound_type);
+                inst.extend(right.encode_rec(max_enc, var_manager, bound_type));
+                // Encode adder for current node
+                let local_inst = self.encode_from_till(0, max_enc, var_manager, bound_type);
+                // Update stats
+                *n_clauses += local_inst.n_clauses() as u64;
+                *max_rhs = if max_enc < *max_val {
+                    max_enc
+                } else {
+                    *max_val
+                };
+                inst.extend(local_inst);
+                inst
+            }
+        }
+    }
+
+    /// Encodes the adder from the children to this node up to a given maximum
     /// right hand side. Recurses depth first. Returns the new `next_idx` and
     /// the number of newly added clauses. Incrementally only encodes new
     /// clauses.
-    fn encode_change(
+    fn encode_change_rec<VM: ManageVars>(
         &mut self,
-        max_rhs: u64,
-        next_idx: usize,
+        max_enc: u64,
+        var_manager: &mut VM,
         bound_type: BoundType,
-    ) -> SatInstance {
+    ) -> SatInstance<VM> {
+        match self {
+            TotNode::Leaf { .. } => {
+                return self.encode_from_till(0, max_enc, var_manager, bound_type)
+            }
+            TotNode::Internal {
+                max_rhs,
+                max_val,
+                n_clauses,
+                left,
+                right,
+                ..
+            } => {
+                // Ignore all previous encoding and encode from scratch
+                // Recurse
+                let inst = left.encode_change_rec(max_enc, var_manager, bound_type);
+                inst.extend(right.encode_change_rec(max_enc, var_manager, bound_type));
+                // Encode adder for current node
+                let local_inst = self.encode_from_till(*max_rhs, max_enc, var_manager, bound_type);
+                // Update stats
+                *n_clauses += local_inst.n_clauses() as u64;
+                *max_rhs = if max_enc < *max_val {
+                    max_enc
+                } else {
+                    *max_val
+                };
+                inst.extend(local_inst);
+                inst
+            }
+        }
     }
 
-    /// Reserves all variables this node might need. This is used if variables
-    /// in the totalizer should have consecutive indices. Returns the new
-    /// `next_idx`.
-    fn reserve_vars(&mut self, mut next_idx: usize) -> usize {
+    /// Reserves variables this node might need up to `max_res`.
+    fn reserve_vars_to<VM: ManageVars>(&mut self, max_res: u64, var_manager: &mut VM) {
         match self {
-            TotNode::Leaf { .. } => next_idx,
+            TotNode::Leaf { .. } => (),
             TotNode::Internal {
                 out_lits, max_val, ..
             } => {
-                let max_val = *max_val as usize;
-                out_lits.reserve(max_val - out_lits.len());
-                for _ in out_lits.len()..max_val {
-                    let new_lit = Lit::positive(next_idx);
-                    next_idx += 1;
-                    out_lits.push(new_lit);
+                let max_res = if max_res > max_val {
+                    *max_val as usize
+                } else {
+                    max_res as usize
+                };
+                out_lits.reserve(max_res - out_lits.len());
+                for _ in out_lits.len()..max_res {
+                    out_lits.push(var_manager.next_free().pos_lit());
                 }
-                next_idx
             }
+        }
+    }
+
+    /// Reserves all variables this node might need. This is used if variables
+    /// in the totalizer should have consecutive indices.
+    fn reserve_all_vars<VM: ManageVars>(&mut self, var_manager: &mut VM) {
+        match self {
+            TotNode::Leaf { .. } => (),
+            TotNode::Internal { max_val, .. } => self.reserve_vars_to(*max_val, var_manager),
         }
     }
 
     /// Reserves all variables this node and the lower subtree might need. This
     /// is used if variables in the totalizer should have consecutive indices.
-    /// Returns the new `next_idx`.
-    fn reserve_vars_rec(&mut self, mut next_idx: usize) -> usize {
+    fn reserve_all_vars_rec<VM: ManageVars>(&mut self, var_manager: &mut VM) {
         match self {
-            TotNode::Leaf { .. } => return next_idx,
+            TotNode::Leaf { .. } => (),
             TotNode::Internal { left, right, .. } => {
                 // Recursion
-                next_idx = left.reserve_vars_rec(next_idx);
-                next_idx = right.reserve_vars_rec(next_idx);
+                left.reserve_vars_rec(var_manager);
+                right.reserve_vars_rec(var_manager);
             }
         };
-        self.reserve_vars(next_idx)
+        self.reserve_all_vars(var_manager)
     }
 }

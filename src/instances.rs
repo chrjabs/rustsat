@@ -65,6 +65,14 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
+    /// Creates a new satisfiability instance with a specific var manager
+    pub fn new_with_manager(var_manager: VM) -> SatInstance<VM> {
+        SatInstance {
+            clauses: vec![],
+            var_manager,
+        }
+    }
+
     /// Parse a DIMACS instance from a reader object with a specific variable manager
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<SatInstance<VM>, Error> {
         match dimacs::parse_cnf(reader) {
@@ -79,6 +87,11 @@ impl<VM: ManageVars> SatInstance<VM> {
             Err(why) => Err(Error::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
         }
+    }
+
+    /// Returns the number of clauses in the instance
+    pub fn n_clauses(&self) -> usize {
+        self.clauses.len()
     }
 
     /// Adds a clause to the instance
@@ -209,6 +222,15 @@ impl<VM: ManageVars> OptInstance<VM> {
     pub fn new() -> OptInstance<VM> {
         OptInstance {
             constraints: SatInstance::new(),
+            soft_lits: HashMap::new(),
+            soft_clauses: HashMap::new(),
+        }
+    }
+
+    /// Creates a new optimization instance with a specific var manager
+    pub fn new_with_manager(var_manager: VM) -> OptInstance<VM> {
+        OptInstance {
+            constraints: SatInstance::new_with_manager(var_manager),
             soft_lits: HashMap::new(),
             soft_clauses: HashMap::new(),
         }
