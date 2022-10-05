@@ -322,8 +322,8 @@ impl<VM: ManageVars> SatInstance<VM> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct OptInstance<VM: ManageVars> {
     constraints: SatInstance<VM>,
-    soft_lits: HashMap<Lit, u64>,
-    soft_clauses: HashMap<Clause, u64>,
+    soft_lits: HashMap<Lit, usize>,
+    soft_clauses: HashMap<Clause, usize>,
 }
 
 impl<VM: ManageVars> OptInstance<VM> {
@@ -367,13 +367,13 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Adds a soft literal or updates its weight
-    pub fn add_soft_lit(&mut self, w: u64, l: Lit) {
+    pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
         self.constraints.var_manager.increase_next_free(*l.var());
         self.soft_lits.insert(l, w);
     }
 
     /// Adds a soft clause or updates its weight
-    pub fn add_soft_clause(&mut self, w: u64, cl: Clause) {
+    pub fn add_soft_clause(&mut self, w: usize, cl: Clause) {
         cl.iter().for_each(|l| {
             self.constraints.var_manager.increase_next_free(*l.var());
         });
@@ -381,7 +381,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cl_soft_cl(mut self) -> (CNF, HashMap<Clause, u64>, VM) {
+    pub fn as_hard_cl_soft_cl(mut self) -> (CNF, HashMap<Clause, usize>, VM) {
         self.soft_clauses.reserve(self.soft_lits.len());
         for (l, w) in self.soft_lits {
             self.soft_clauses.insert(clause![!l], w);
@@ -391,7 +391,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cl_soft_lit(mut self) -> (CNF, HashMap<Lit, u64>, VM) {
+    pub fn as_hard_cl_soft_lit(mut self) -> (CNF, HashMap<Lit, usize>, VM) {
         self.soft_lits.reserve(self.soft_clauses.len());
         self.constraints.clauses.reserve(self.soft_clauses.len());
         for (mut cl, w) in self.soft_clauses {

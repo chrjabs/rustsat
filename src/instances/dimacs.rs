@@ -82,7 +82,7 @@ enum Preamble {
     WcnfPre22 {
         n_vars: usize,
         n_clauses: usize,
-        top: u64,
+        top: usize,
     },
     WcnfPost22 {
         first_line: String,
@@ -185,7 +185,7 @@ where
 }
 
 /// Main parser for WCNF pre 22 (with p line)
-fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: u64) -> IResult<R, OptInstance<VM>>
+fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> IResult<R, OptInstance<VM>>
 where
     R: BufRead,
     VM: ManageVars,
@@ -271,7 +271,7 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
                 Preamble::WcnfPre22 {
                     n_vars,
                     n_clauses,
-                    top,
+                    top: top.try_into().unwrap(),
                 },
             ))
         }
@@ -307,7 +307,7 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
 }
 
 /// Parses a WCNF pre 22 line, either a comment or a clause
-fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(u64, Clause)>> {
+fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> {
     let (input, _) = multispace0(input)?;
     match tag::<&str, &str, Error<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
@@ -324,7 +324,7 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(u64, Clause)>> {
 }
 
 /// Parses a WCNF post 22 line, either a comment or a clause
-fn parse_wcnf_post22_line(input: &str) -> IResult<&str, Option<(Option<u64>, Clause)>> {
+fn parse_wcnf_post22_line(input: &str) -> IResult<&str, Option<(Option<usize>, Clause)>> {
     let (input, _) = multispace0(input)?;
     match tag::<&str, &str, Error<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
@@ -355,8 +355,8 @@ fn parse_wcnf_post22_line(input: &str) -> IResult<&str, Option<(Option<u64>, Cla
 }
 
 /// Nuclear parser for weight value
-fn parse_weight(input: &str) -> IResult<&str, u64> {
-    u64(input)
+fn parse_weight(input: &str) -> IResult<&str, usize> {
+    map_res(u64, |w| w.try_into())(input)
 }
 
 /// Nuclear parser for literal
