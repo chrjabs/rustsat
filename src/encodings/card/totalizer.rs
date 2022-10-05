@@ -1,14 +1,14 @@
 //! # Totalizer Encoding
 //!
-//! Implementation of the binary adder tree totalizer encoding [1].
-//! The implementation is incremental as extended in [2].
+//! Implementation of the binary adder tree totalizer encoding \[1\].
+//! The implementation is incremental as extended in \[2\].
 //!
 //! The implementation is recursive.
 //!
 //! ## References
 //!
-//! [1] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
-//! [2] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+//! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
+//! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
 use super::{BoundType, EncodeCard, EncodingError, IncEncodeCard};
 use crate::{
@@ -17,6 +17,15 @@ use crate::{
 };
 use std::slice;
 
+/// Implementation of the binary adder tree totalizer encoding \[1\].
+/// The implementation is incremental as extended in \[2\].
+///
+/// The implementation is recursive.
+///
+/// # References
+///
+/// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
+/// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 pub struct Totalizer {
     /// Input literals already in the tree
     in_lits: Vec<Lit>,

@@ -1,7 +1,7 @@
 //! # Interfaces to SAT Solvers
 //!
 //! This module holds types and functions regarding SAT solvers.
-//! The main element is the [`Solver`] trait that every SAT solver in this library implements.
+//! The main element is the [`Solve`] trait that every SAT solver in this library implements.
 
 #[cfg(feature = "ipasir")]
 pub mod ipasir;
@@ -34,7 +34,7 @@ pub trait Solve {
         }
         Ok(Solution::from_vec(assignment))
     }
-    /// Same as [`Solver::lit_val`], but for variables.
+    /// Same as [`Solve::lit_val`], but for variables.
     fn var_val(&self, var: &Var) -> Result<TernaryVal, Error> {
         self.lit_val(&var.pos_lit())
     }
@@ -49,15 +49,15 @@ pub trait Solve {
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
     fn add_clause(&mut self, clause: Clause);
-    /// Like [`Solver::add_clause`] but for unit clauses (clauses with one literal).
+    /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
     fn add_unit(&mut self, lit: Lit) {
         self.add_clause(clause![lit])
     }
-    /// Like [`Solver::add_clause`] but for clauses with two literals.
+    /// Like [`Solve::add_clause`] but for clauses with two literals.
     fn add_pair(&mut self, lit1: Lit, lit2: Lit) {
         self.add_clause(clause![lit1, lit2])
     }
-    /// Like [`Solver::add_clause`] but for clauses with three literals.
+    /// Like [`Solve::add_clause`] but for clauses with three literals.
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
         self.add_clause(clause![lit1, lit2, lit3])
     }
