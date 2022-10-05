@@ -48,6 +48,115 @@ fn open_compressed_uncompressed(path: &Path) -> Result<Box<dyn Read>, io::Error>
     Ok(Box::new(raw_reader))
 }
 
+/// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
+/// type only supports clauses and does have an internal variable manager.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CNF {
+    clauses: Vec<Clause>,
+}
+
+impl CNF {
+    /// Creates a new CNF
+    pub fn new() -> CNF {
+        CNF { clauses: vec![] }
+    }
+
+    /// Creates a CNF from a vector of clauses
+    pub fn from_clauses(clauses: Vec<Clause>) -> CNF {
+        CNF { clauses }
+    }
+
+    /// Adds a clause to the CNF
+    pub fn add_clause(&mut self, clause: Clause) {
+        self.clauses.push(clause);
+    }
+
+    /// Returns the number of clauses in the instance
+    pub fn n_clauses(&self) -> usize {
+        self.clauses.len()
+    }
+
+    /// Adds an implication of form (a -> b) to the instance
+    pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
+        self.add_clause(clause![!a, b])
+    }
+
+    /// Adds an implication of form a -> (b1 | b2 | ... | bm)
+    pub fn add_lit_impl_or(&mut self, a: Lit, b: Vec<Lit>) {
+        let mut cl = clause![!a];
+        b.into_iter().for_each(|bi| cl.add(bi));
+        self.add_clause(cl)
+    }
+
+    /// Adds an implication of form a -> (b1 & b2 & ... & bm)
+    pub fn add_lit_impl_and(&mut self, a: Lit, b: Vec<Lit>) {
+        b.into_iter()
+            .for_each(|bi| self.add_clause(clause![!a, bi]));
+    }
+
+    /// Adds an implication of form (a1 & a2 & ... & an) -> b
+    pub fn add_and_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        let mut cl = clause![b];
+        a.into_iter().for_each(|ai| cl.add(!ai));
+        self.add_clause(cl)
+    }
+
+    /// Adds an implication of form (a1 | a2 | ... | an) -> b
+    pub fn add_or_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        for ai in &a {
+            self.add_clause(clause![!*ai, b]);
+        }
+    }
+
+    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
+    pub fn add_and_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        let mut cl = Clause::new();
+        a.into_iter().for_each(|ai| cl.add(!ai));
+        b.into_iter().for_each(|bi| cl.add(bi));
+        self.add_clause(cl)
+    }
+
+    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
+    pub fn add_or_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        for ai in a {
+            let mut cl = clause![ai];
+            b.iter().for_each(|bi| cl.add(*bi));
+            self.add_clause(cl)
+        }
+    }
+
+    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
+    pub fn add_or_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        for ai in &a {
+            b.iter().for_each(|bi| self.add_clause(clause![!*ai, *bi]));
+        }
+    }
+
+    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
+    pub fn add_and_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        for bi in b {
+            let mut cl = clause![bi];
+            a.iter().for_each(|ai| cl.add(!*ai));
+            self.add_clause(cl)
+        }
+    }
+
+    /// Extends the CNF by another CNF
+    pub fn extend(&mut self, mut other: CNF) {
+        self.clauses.append(&mut other.clauses);
+    }
+
+    /// Adds the CNF to a solver
+    pub fn add_to_solver<S>(self, solver: &mut S)
+    where
+        S: Solve,
+    {
+        self.clauses
+            .into_iter()
+            .for_each(|cl| solver.add_clause(cl))
+    }
+}
+
 /// Type representing a satisfiability instance.
 /// For now this only supports clausal constraints, but more will be added.
 #[derive(Clone, Debug, PartialEq)]
@@ -185,8 +294,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Converts the instance to a set of clauses
-    pub fn as_clauses(self) -> Vec<Clause> {
-        self.clauses
+    pub fn as_cnf(self) -> (CNF, VM) {
+        (CNF::from_clauses(self.clauses), self.var_manager)
     }
 
     /// Adds the instance to a solver
@@ -272,16 +381,17 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cl_soft_cl(mut self) -> (Vec<Clause>, HashMap<Clause, u64>) {
+    pub fn as_hard_cl_soft_cl(mut self) -> (CNF, HashMap<Clause, u64>, VM) {
         self.soft_clauses.reserve(self.soft_lits.len());
         for (l, w) in self.soft_lits {
             self.soft_clauses.insert(clause![!l], w);
         }
-        (self.constraints.as_clauses(), self.soft_clauses)
+        let (cnf, vm) = self.constraints.as_cnf();
+        (cnf, self.soft_clauses, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cl_soft_lit(mut self) -> (Vec<Clause>, HashMap<Lit, u64>) {
+    pub fn as_hard_cl_soft_lit(mut self) -> (CNF, HashMap<Lit, u64>, VM) {
         self.soft_lits.reserve(self.soft_clauses.len());
         self.constraints.clauses.reserve(self.soft_clauses.len());
         for (mut cl, w) in self.soft_clauses {
@@ -290,7 +400,8 @@ impl<VM: ManageVars> OptInstance<VM> {
             self.constraints.add_clause(cl);
             self.soft_lits.insert(relax_lit, w);
         }
-        (self.constraints.as_clauses(), self.soft_lits)
+        let (cnf, vm) = self.constraints.as_cnf();
+        (cnf, self.soft_lits, vm)
     }
 }
 

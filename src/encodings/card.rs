@@ -5,7 +5,7 @@
 //! and encodings implementing these traits.
 
 use crate::{
-    instances::{ManageVars, SatInstance},
+    instances::{ManageVars, CNF},
     types::Lit,
 };
 
@@ -17,7 +17,7 @@ pub trait EncodeCard {
     /// Encodes the cardinality constraint with a maximum right hand side of
     /// `max_rhs` over all literals in the object. `var_manager` is the variable
     /// manager to use for tracking new variables.
-    fn encode<VM: ManageVars>(&mut self, max_rhs: u64, var_manager: VM) -> SatInstance<VM>;
+    fn encode<VM: ManageVars>(&mut self, max_rhs: u64, var_manager: VM) -> CNF;
     /// Returns assumptions for enforcing an upper bound
     fn enforce_ub(&self, ub: u64) -> Vec<Lit>;
     /// Returns assumptions for enforcing a lower bound
@@ -27,5 +27,5 @@ pub trait EncodeCard {
 pub trait IncEncodeCard: EncodeCard {
     /// Encodes a change in the cardinality encoding.
     /// A change can be added literals, or increased `max_rhs`.
-    fn encode_change<VM: ManageVars>(&mut self, max_rhs: u64, var_manager: VM) -> SatInstance<VM>;
+    fn encode_change<VM: ManageVars>(&mut self, max_rhs: u64, var_manager: VM) -> CNF;
 }
