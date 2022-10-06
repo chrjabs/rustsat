@@ -2,7 +2,6 @@
 //!
 //! Implementation of the binary adder tree totalizer encoding \[1\].
 //! The implementation is incremental as extended in \[2\].
-//!
 //! The implementation is recursive.
 //!
 //! ## References
@@ -19,7 +18,6 @@ use std::slice;
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
-///
 /// The implementation is recursive.
 ///
 /// # References
@@ -146,8 +144,10 @@ impl EncodeCard for Totalizer {
                 if !self.lit_buffer.is_empty() {
                     return Err(EncodingError::NotEncoded);
                 };
-                if lb >= self.in_lits.len() {
+                if lb > self.in_lits.len() {
                     return Err(EncodingError::Unsat);
+                } else if lb == 0 {
+                    return Ok(vec![]);
                 };
                 match &self.root {
                     None => Err(EncodingError::NotEncoded),
@@ -159,7 +159,7 @@ impl EncodeCard for Totalizer {
                             if *max_rhs < lb {
                                 Err(EncodingError::NotEncoded)
                             } else {
-                                Ok(vec![out_lits[lb]])
+                                Ok(vec![out_lits[lb - 1]])
                             }
                         }
                     },

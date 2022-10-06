@@ -32,18 +32,28 @@ pub trait EncodePB: Sized {
     /// Encodes the PB constraint with a maximum right hand side of `max_rhs`
     /// over all literals in the object. `var_manager` is the variable manager to use for tracking new variables.
     fn encode<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF;
-    /// Returns assumptions for enforcing an upper bound (weighted sum of lits
-    /// <= ub) or an error if the encoding does not support upper bounding. Make
-    /// sure  that nothing was added to the encoding between the last call to
-    /// [`EncodePB::encode`] and this method, otherwise
+    /// Returns assumptions for enforcing an upper bound (`weighted sum of lits
+    /// <= ub`) or an error if the encoding does not support upper bounding.
+    /// Make sure that nothing was added to the encoding between the last call
+    /// to [`EncodePB::encode`] and this method, otherwise
     /// [`super::EncodingError::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
-    /// Returns assumptions for enforcing a lower bound (weighted sum of lits >
-    /// lb) or an error if the encoding does not support lower bounding. Make
-    /// sure  that nothing was added to the encoding between the last call to
-    /// [`EncodePB::encode`] and this method, otherwise
+    /// Returns assumptions for enforcing a lower bound (`weighted sum of lits
+    /// >= lb`) or an error if the encoding does not support lower bounding.
+    /// Make sure that nothing was added to the encoding between the last call
+    /// to [`EncodePB::encode`] and this method, otherwise
     /// [`super::EncodingError::NotEncoded`] will be returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError>;
+    /// Returns assumptions for enforcing an equality (`weighted sum of lits =
+    /// b`) or an error if the encoding does not support one of the two required
+    /// bound types. Make sure that nothing was added to the encoding between
+    /// the last call to [`EncodePB::encode`] and this method, otherwise
+    /// [`super::EncodingError::NotEncoded`] will be returned.
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EncodingError> {
+        let mut assumps = self.enforce_ub(b)?;
+        assumps.extend(self.enforce_lb(b)?);
+        Ok(assumps)
+    }
 }
 
 pub trait IncEncodePB: EncodePB {

@@ -38,13 +38,11 @@ fn tot_positive_lits() {
     let mut tot = Totalizer::new(BoundType::BOTH).unwrap();
     tot.add(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
-    tot.encode(1, &mut var_manager).add_to_solver(&mut solver);
-    let assumps = tot.enforce_lb(1).unwrap();
+    tot.encode(2, &mut var_manager).add_to_solver(&mut solver);
+    let assumps = tot.enforce_lb(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    tot.encode_change(2, &mut var_manager)
-        .add_to_solver(&mut solver);
     let assumps = tot.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
@@ -104,7 +102,7 @@ fn tot_negative_lits() {
     let mut tot = Totalizer::new(BoundType::BOTH).unwrap();
     tot.add(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
 
-    tot.encode_change(4, &mut var_manager)
+    tot.encode_change(3, &mut var_manager)
         .add_to_solver(&mut solver);
     let assumps = tot.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -112,11 +110,11 @@ fn tot_negative_lits() {
     println!("{}", model);
     assert_eq!(res, SolverResult::SAT);
 
-    let assumps = tot.enforce_lb(2).unwrap();
+    let assumps = tot.enforce_lb(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    let assumps = tot.enforce_lb(1).unwrap();
+    let assumps = tot.enforce_lb(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 }
