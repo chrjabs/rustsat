@@ -314,7 +314,7 @@ impl Node {
                                 }
                                 if lhs.len() > 0 && sum_val > min_enc {
                                     // (left > x) & (right > y) -> (out > x+y)
-                                    cnf.add_and_impl_lit(lhs, out_lits[sum_val - 1]);
+                                    cnf.add_cube_impl_lit(lhs, out_lits[sum_val - 1]);
                                 }
                             }
                             _ => (),
@@ -331,7 +331,7 @@ impl Node {
                                 }
                                 if lhs.len() > 0 && sum_val <= max_enc {
                                     // (left <= x) & (right <= y) -> (out <= x+y)
-                                    cnf.add_and_impl_lit(lhs, !out_lits[sum_val]);
+                                    cnf.add_cube_impl_lit(lhs, !out_lits[sum_val]);
                                 }
                             }
                             _ => (),

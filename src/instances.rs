@@ -82,34 +82,34 @@ impl CNF {
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
-    pub fn add_lit_impl_or(&mut self, a: Lit, b: Vec<Lit>) {
+    pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
         let mut cl = clause![!a];
         b.into_iter().for_each(|bi| cl.add(bi));
         self.add_clause(cl)
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
-    pub fn add_lit_impl_and(&mut self, a: Lit, b: Vec<Lit>) {
+    pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
         b.into_iter()
             .for_each(|bi| self.add_clause(clause![!a, bi]));
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
-    pub fn add_and_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         let mut cl = clause![b];
         a.into_iter().for_each(|ai| cl.add(!ai));
         self.add_clause(cl)
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
-    pub fn add_or_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         for ai in &a {
             self.add_clause(clause![!*ai, b]);
         }
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
-    pub fn add_and_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         let mut cl = Clause::new();
         a.into_iter().for_each(|ai| cl.add(!ai));
         b.into_iter().for_each(|bi| cl.add(bi));
@@ -117,7 +117,7 @@ impl CNF {
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
-    pub fn add_or_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for ai in a {
             let mut cl = clause![!ai];
             b.iter().for_each(|bi| cl.add(*bi));
@@ -126,14 +126,14 @@ impl CNF {
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
-    pub fn add_or_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for ai in &a {
             b.iter().for_each(|bi| self.add_clause(clause![!*ai, *bi]));
         }
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
-    pub fn add_and_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for bi in b {
             let mut cl = clause![bi];
             a.iter().for_each(|ai| cl.add(!*ai));
@@ -161,7 +161,7 @@ impl CNF {
 /// For now this only supports clausal constraints, but more will be added.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SatInstance<VM: ManageVars> {
-    clauses: Vec<Clause>,
+    cnf: CNF,
     var_manager: VM,
 }
 
@@ -169,7 +169,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Creates a new satisfiability instance
     pub fn new() -> SatInstance<VM> {
         SatInstance {
-            clauses: vec![],
+            cnf: CNF::new(),
             var_manager: VM::new(),
         }
     }
@@ -177,7 +177,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Creates a new satisfiability instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> SatInstance<VM> {
         SatInstance {
-            clauses: vec![],
+            cnf: CNF::new(),
             var_manager,
         }
     }
@@ -200,7 +200,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Returns the number of clauses in the instance
     pub fn n_clauses(&self) -> usize {
-        self.clauses.len()
+        self.cnf.n_clauses()
     }
 
     /// Adds a clause to the instance
@@ -208,72 +208,52 @@ impl<VM: ManageVars> SatInstance<VM> {
         cl.iter().for_each(|l| {
             self.var_manager.increase_next_free(*l.var());
         });
-        self.clauses.push(cl)
+        self.cnf.add_clause(cl);
     }
 
     /// Adds an implication of form (a -> b) to the instance
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.add_clause(clause![!a, b])
+        self.cnf.add_lit_impl_lit(a, b);
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
-    pub fn add_lit_impl_or(&mut self, a: Lit, b: Vec<Lit>) {
-        let mut cl = clause![!a];
-        b.into_iter().for_each(|bi| cl.add(bi));
-        self.add_clause(cl)
+    pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+        self.cnf.add_lit_impl_clause(a, b);
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
-    pub fn add_lit_impl_and(&mut self, a: Lit, b: Vec<Lit>) {
-        b.into_iter()
-            .for_each(|bi| self.add_clause(clause![!a, bi]));
+    pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+        self.cnf.add_lit_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
-    pub fn add_and_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        let mut cl = clause![b];
-        a.into_iter().for_each(|ai| cl.add(!ai));
-        self.add_clause(cl)
+    pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        self.cnf.add_cube_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
-    pub fn add_or_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        for ai in &a {
-            self.add_clause(clause![!*ai, b]);
-        }
+    pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        self.cnf.add_clause_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
-    pub fn add_and_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        let mut cl = Clause::new();
-        a.into_iter().for_each(|ai| cl.add(!ai));
-        b.into_iter().for_each(|bi| cl.add(bi));
-        self.add_clause(cl)
+    pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.cnf.add_cube_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
-    pub fn add_or_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        for ai in a {
-            let mut cl = clause![!ai];
-            b.iter().for_each(|bi| cl.add(*bi));
-            self.add_clause(cl)
-        }
+    pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.cnf.add_clause_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
-    pub fn add_or_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        for ai in &a {
-            b.iter().for_each(|bi| self.add_clause(clause![!*ai, *bi]));
-        }
+    pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.cnf.add_clause_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
-    pub fn add_and_impl_and(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        for bi in b {
-            let mut cl = clause![bi];
-            a.iter().for_each(|ai| cl.add(!*ai));
-            self.add_clause(cl)
-        }
+    pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.cnf.add_cube_impl_cube(a, b);
     }
 
     /// Get a reference to the variable manager
@@ -288,14 +268,14 @@ impl<VM: ManageVars> SatInstance<VM> {
         VMC: Fn(VM) -> VM2,
     {
         SatInstance {
-            clauses: self.clauses,
+            cnf: self.cnf,
             var_manager: vm_converter(self.var_manager),
         }
     }
 
     /// Converts the instance to a set of clauses
     pub fn as_cnf(self) -> (CNF, VM) {
-        (CNF::from_clauses(self.clauses), self.var_manager)
+        (self.cnf, self.var_manager)
     }
 
     /// Adds the instance to a solver
@@ -303,14 +283,12 @@ impl<VM: ManageVars> SatInstance<VM> {
     where
         S: Solve,
     {
-        self.clauses
-            .into_iter()
-            .for_each(|cl| solver.add_clause(cl))
+        self.cnf.add_to_solver(solver);
     }
 
     /// Extends the instance by another instance
-    pub fn extend(&mut self, mut other: SatInstance<VM>) {
-        self.clauses.append(&mut other.clauses);
+    pub fn extend(&mut self, other: SatInstance<VM>) {
+        self.cnf.extend(other.cnf);
         self.var_manager.combine(other.var_manager);
     }
 }
@@ -393,7 +371,10 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Converts the instance to a set of hard clauses and soft literals
     pub fn as_hard_cl_soft_lit(mut self) -> (CNF, HashMap<Lit, usize>, VM) {
         self.soft_lits.reserve(self.soft_clauses.len());
-        self.constraints.clauses.reserve(self.soft_clauses.len());
+        self.constraints
+            .cnf
+            .clauses
+            .reserve(self.soft_clauses.len());
         for (mut cl, w) in self.soft_clauses {
             let relax_lit = self.constraints.var_manager.next_free().pos_lit();
             cl.add(relax_lit);
