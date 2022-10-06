@@ -119,7 +119,7 @@ impl CNF {
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_or_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for ai in a {
-            let mut cl = clause![ai];
+            let mut cl = clause![!ai];
             b.iter().for_each(|bi| cl.add(*bi));
             self.add_clause(cl)
         }
@@ -254,7 +254,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_or_impl_or(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         for ai in a {
-            let mut cl = clause![ai];
+            let mut cl = clause![!ai];
             b.iter().for_each(|bi| cl.add(*bi));
             self.add_clause(cl)
         }

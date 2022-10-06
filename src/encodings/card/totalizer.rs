@@ -57,23 +57,25 @@ impl Totalizer {
 
     /// Extends the tree at the root node with added literals
     fn extend_tree<VM: ManageVars>(&mut self, var_manager: &mut VM) {
-        let n_in_tree = self.in_lits.len();
-        self.in_lits.extend(&self.lit_buffer);
-        let mut subtree = Totalizer::build_tree(&self.in_lits[n_in_tree..]);
-        if self.reserve_vars {
-            subtree.reserve_all_vars_rec(var_manager, &self.bound_type);
-        }
-        self.root = match self.root.take() {
-            None => Some(Box::new(subtree)),
-            Some(old_root) => {
-                let mut new_root = Node::new_internal(*old_root, subtree);
-                if self.reserve_vars {
-                    new_root.reserve_all_vars(var_manager, &self.bound_type)
-                };
-                Some(Box::new(new_root))
+        if !self.lit_buffer.is_empty() {
+            let n_in_tree = self.in_lits.len();
+            self.in_lits.extend(&self.lit_buffer);
+            let mut subtree = Totalizer::build_tree(&self.in_lits[n_in_tree..]);
+            if self.reserve_vars {
+                subtree.reserve_all_vars_rec(var_manager, &self.bound_type);
             }
-        };
-        self.lit_buffer.clear();
+            self.root = match self.root.take() {
+                None => Some(Box::new(subtree)),
+                Some(old_root) => {
+                    let mut new_root = Node::new_internal(*old_root, subtree);
+                    if self.reserve_vars {
+                        new_root.reserve_all_vars(var_manager, &self.bound_type)
+                    };
+                    Some(Box::new(new_root))
+                }
+            };
+            self.lit_buffer.clear();
+        }
     }
 
     /// Gets the maximum depth of the tree
@@ -157,7 +159,7 @@ impl EncodeCard for Totalizer {
                             if *max_rhs < lb {
                                 Err(EncodingError::NotEncoded)
                             } else {
-                                Ok(vec![!out_lits[lb]])
+                                Ok(vec![out_lits[lb]])
                             }
                         }
                     },
@@ -302,7 +304,7 @@ impl Node {
                         }
                         // Upper bounding
                         match bound_type {
-                            BoundType::UB | BoundType::EQ => {
+                            BoundType::UB | BoundType::BOTH => {
                                 let mut lhs = vec![];
                                 if left_val != 0 {
                                     lhs.push(left_lits[left_val - 1]);
@@ -319,12 +321,12 @@ impl Node {
                         };
                         // Lower bounding
                         match bound_type {
-                            BoundType::LB | BoundType::EQ => {
+                            BoundType::LB | BoundType::BOTH => {
                                 let mut lhs = vec![];
                                 if left_val < left_lits.len() {
                                     lhs.push(!left_lits[left_val]);
                                 }
-                                if right_val < left_lits.len() {
+                                if right_val < right_lits.len() {
                                     lhs.push(!right_lits[right_val]);
                                 }
                                 if lhs.len() > 0 && sum_val <= max_enc {
@@ -504,7 +506,7 @@ mod tests {
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::new();
-        let cnf = node.encode_from_till(0, 2, &mut var_manager, &BoundType::EQ);
+        let cnf = node.encode_from_till(0, 2, &mut var_manager, &BoundType::BOTH);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
@@ -537,7 +539,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::new();
-        let cnf = node.encode_from_till(0, 4, &mut var_manager, &BoundType::EQ);
+        let cnf = node.encode_from_till(0, 4, &mut var_manager, &BoundType::BOTH);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -570,7 +572,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::new();
-        let cnf = node.encode_from_till(0, 3, &mut var_manager, &BoundType::EQ);
+        let cnf = node.encode_from_till(0, 3, &mut var_manager, &BoundType::BOTH);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -603,7 +605,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::new();
-        let cnf = node.encode_from_till(2, 3, &mut var_manager, &BoundType::EQ);
+        let cnf = node.encode_from_till(2, 3, &mut var_manager, &BoundType::BOTH);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -613,7 +615,7 @@ mod tests {
 
     #[test]
     fn tot_functions() {
-        let mut tot = Totalizer::new(BoundType::EQ).unwrap();
+        let mut tot = Totalizer::new(BoundType::BOTH).unwrap();
         tot.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(EncodingError::NotEncoded));
@@ -623,5 +625,15 @@ mod tests {
         assert_eq!(cnf.n_clauses(), 28);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
         assert_eq!(tot.enforce_lb(2).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn invalid_useage() {
+        let mut tot = Totalizer::new(BoundType::LB).unwrap();
+        tot.add(vec![lit![0], lit![1]]);
+        assert_eq!(tot.enforce_ub(1), Err(EncodingError::NoObjectSupport));
+        let mut tot = Totalizer::new(BoundType::UB).unwrap();
+        tot.add(vec![lit![0], lit![1]]);
+        assert_eq!(tot.enforce_lb(1), Err(EncodingError::NoObjectSupport));
     }
 }

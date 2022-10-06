@@ -231,12 +231,9 @@ impl Solve for IpasirSolver<'_> {
 
 impl IncrementalSolve for IpasirSolver<'_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error> {
-        // If already solved, return state
-        if let InternalSolverState::SAT = self.state {
-            return Ok(SolverResult::SAT);
-        } else if let InternalSolverState::UNSAT(_) = self.state {
-            return Ok(SolverResult::UNSAT);
-        } else if let InternalSolverState::Error(desc) = &self.state {
+        // If in error state, remain there
+        // If not, need to resolve because assumptions might have changed
+        if let InternalSolverState::Error(desc) = &self.state {
             return Err(Error::State(
                 SolverState::Error(desc.clone()),
                 SolverState::Input,

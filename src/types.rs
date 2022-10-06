@@ -13,6 +13,7 @@ use crate::solvers::ipasir::IpasirError;
 use std::os::raw::c_int;
 
 /// Type representing boolean variables in a SAT problem.
+/// Variables indexing in RustSAT starts from 0.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
 pub struct Var {
     idx: usize,
@@ -93,6 +94,22 @@ impl fmt::Debug for Var {
     }
 }
 
+/// More easily creates variables. Mainly used in tests.
+///
+/// # Examples
+///
+/// ```
+/// use rustsat::{var, types::Var};
+///
+/// assert_eq!(var![42], Var::new(42));
+/// ```
+#[macro_export]
+macro_rules! var {
+    ($v:expr) => {
+        Var::new($v)
+    };
+}
+
 /// Type representing literals, possibly negated boolean variables.
 #[derive(Hash, Eq, PartialEq, Clone, Copy)]
 pub struct Lit {
@@ -129,7 +146,7 @@ impl Lit {
         } else {
             (-val).try_into().unwrap()
         };
-        Ok(Lit::new(idx, negated))
+        Ok(Lit::new(idx - 1, negated))
     }
 
     /// Gets the variables that the literal corresponds to.
@@ -203,6 +220,16 @@ impl fmt::Debug for Lit {
     }
 }
 
+/// More easily creates literals. Mainly used in tests.
+///
+/// # Examples
+///
+/// ```
+/// use rustsat::{lit, types::Lit};
+///
+/// assert_eq!(lit![42], Lit::positive(42));
+/// assert_eq!(!lit![42], Lit::negative(42));
+/// ```
 #[macro_export]
 macro_rules! lit {
     ($l:expr) => {
@@ -210,6 +237,17 @@ macro_rules! lit {
     };
 }
 
+/// More easily creates literals with IPASIR indexing (starts from 1) and
+/// negation (negative value is negation). Mainly used in tests.
+///
+/// # Examples
+///
+/// ```
+/// use rustsat::{lit, ipasir_lit, types::Lit};
+///
+/// assert_eq!(ipasir_lit![42], lit![41]);
+/// assert_eq!(ipasir_lit![-42], !lit![41]);
+/// ```
 #[macro_export]
 macro_rules! ipasir_lit {
     ($l:expr) => {

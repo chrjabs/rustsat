@@ -12,7 +12,7 @@ pub enum BoundType {
     /// Can only enforce upper bounds
     UB,
     /// Can enforce both lower and upper bounds
-    EQ,
+    BOTH,
 }
 
 /// Errors from encodings
