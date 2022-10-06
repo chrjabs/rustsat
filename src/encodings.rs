@@ -6,6 +6,7 @@ pub mod card;
 pub mod pb;
 
 /// Possible bound types for cardinality constraints
+#[derive(Debug, PartialEq)]
 pub enum BoundType {
     /// Can only enforce lower bounds
     LB,

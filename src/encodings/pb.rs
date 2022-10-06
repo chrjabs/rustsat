@@ -11,6 +11,9 @@ use crate::{
 };
 use std::collections::HashMap;
 
+mod gte;
+pub use gte::GeneralizedTotalizer;
+
 pub trait EncodePB: Sized {
     /// Constructs a new pseudo boolean encoding. If the given bound type is not
     /// supported by the implementing type, it returns

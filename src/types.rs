@@ -3,7 +3,7 @@
 //! Common types used throughout the library to guarantee type safety.
 
 use core::ops::Not;
-use std::fmt;
+use std::{cmp, fmt};
 
 use crate::{instances::DimacsError, solvers::SolverState};
 
@@ -14,7 +14,7 @@ use std::os::raw::c_int;
 
 /// Type representing boolean variables in a SAT problem.
 /// Variables indexing in RustSAT starts from 0.
-#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
 pub struct Var {
     idx: usize,
 }
@@ -111,7 +111,7 @@ macro_rules! var {
 }
 
 /// Type representing literals, possibly negated boolean variables.
-#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy)]
 pub struct Lit {
     v: Var,
     negated: bool,
@@ -199,6 +199,26 @@ impl Not for Lit {
         Lit {
             v: self.v,
             negated: !self.negated,
+        }
+    }
+}
+
+/// Trait implementation for literal ordering. Literals are ordered by index
+/// first and negation second, meaning literals are in the following order: `~x0
+/// < x0 < ~x1 < x1 < ~x2 < x2 < ...`. This order is chosen so that weighted
+/// objectives in e.g. a BTreeMap are in order of variable index.
+impl cmp::Ord for Lit {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        if self.v < other.v {
+            cmp::Ordering::Less
+        } else if self.v > other.v {
+            cmp::Ordering::Greater
+        } else if self.negated == other.negated {
+            cmp::Ordering::Equal
+        } else if self.negated {
+            cmp::Ordering::Less
+        } else {
+            cmp::Ordering::Greater
         }
     }
 }
