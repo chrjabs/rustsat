@@ -106,8 +106,6 @@ fn tot_negative_lits() {
         .add_to_solver(&mut solver);
     let assumps = tot.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    let model = solver.get_solution(&var![4]).unwrap();
-    println!("{}", model);
     assert_eq!(res, SolverResult::SAT);
 
     let assumps = tot.enforce_lb(3).unwrap();
