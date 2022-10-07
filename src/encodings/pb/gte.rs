@@ -14,7 +14,7 @@ use crate::{
     types::Lit,
 };
 use std::{
-    cmp::Ord,
+    cmp,
     collections::{BTreeMap, HashMap},
     ops::Bound,
 };
@@ -84,32 +84,35 @@ impl GeneralizedTotalizer {
                     }
                 })
                 .collect();
-            // Add nodes in sorted fashion to minimize clauses
-            new_lits[..].sort_by(|(_, w1), (_, w2)| w1.cmp(w2));
-            let mut subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
-            if self.reserve_vars {
-                subtree.reserve_all_vars_rec(var_manager, &self.bound_type);
+            if !new_lits.is_empty() {
+                // Add nodes in sorted fashion to minimize clauses
+                new_lits[..].sort_by(|(_, w1), (_, w2)| w1.cmp(w2));
+                let mut subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
+                if self.reserve_vars {
+                    subtree.reserve_all_vars_rec(var_manager, &self.bound_type);
+                }
+                self.root = match self.root.take() {
+                    None => Some(Box::new(subtree)),
+                    Some(old_root) => {
+                        let mut new_root = Node::new_internal(*old_root, subtree);
+                        if self.reserve_vars {
+                            new_root.reserve_all_vars(var_manager, &self.bound_type)
+                        };
+                        Some(Box::new(new_root))
+                    }
+                };
+                // Update total weights in tree
+                self.lit_buffer.iter_mut().for_each(|(l, w)| {
+                    if *w <= max_weight {
+                        match self.in_lits.get(l) {
+                            Some(old_w) => self.in_lits.insert(*l, *old_w + *w),
+                            None => self.in_lits.insert(*l, *w),
+                        };
+                        *w = 0;
+                    }
+                });
+                self.lit_buffer.retain(|_, v| *v != 0);
             }
-            self.root = match self.root.take() {
-                None => Some(Box::new(subtree)),
-                Some(old_root) => {
-                    let mut new_root = Node::new_internal(*old_root, subtree);
-                    if self.reserve_vars {
-                        new_root.reserve_all_vars(var_manager, &self.bound_type)
-                    };
-                    Some(Box::new(new_root))
-                }
-            };
-            // Update total weights in tree
-            self.lit_buffer.iter().for_each(|(l, w)| {
-                if w <= &max_weight {
-                    match self.in_lits.get(l) {
-                        Some(old_w) => self.in_lits.insert(*l, *old_w + *w),
-                        None => self.in_lits.insert(*l, *w),
-                    };
-                }
-            });
-            self.lit_buffer.clear();
         }
     }
 
@@ -154,13 +157,13 @@ impl GeneralizedTotalizer {
                 Node::Leaf { .. } => Ok(vec![]),
                 Node::Internal {
                     out_lits,
-                    max_rhs,
+                    max_enc: max_rhs,
                     max_val,
                     ..
                 } => {
                     if ub >= *max_val {
                         Ok(vec![])
-                    } else if *max_rhs < ub + self.max_leaf_weight {
+                    } else if *max_rhs < cmp::min(ub + self.max_leaf_weight, *max_val) {
                         Err(EncodingError::NotEncoded)
                     } else {
                         Ok(out_lits
@@ -330,8 +333,8 @@ enum Node {
         n_clauses: usize,
         /// The maximum output this node can have
         max_val: usize,
-        /// The maximum right hand side encoded by this node
-        max_rhs: usize,
+        /// The maximum output weight that is encoded by this node
+        max_enc: usize,
         /// The left child
         left: Box<Node>,
         /// The right child
@@ -363,7 +366,7 @@ impl Node {
                 right_depth + 1
             },
             n_clauses: 0,
-            max_rhs: 0,
+            max_enc: 0,
             max_val: match left {
                 Node::Leaf { .. } => 1,
                 Node::Internal { max_val, .. } => max_val,
@@ -412,17 +415,17 @@ impl Node {
     /// This method only produces the encoding and does _not_ change any of the stats of the node.
     fn encode_from_till<VM: ManageVars>(
         &mut self,
-        min_rhs: usize,
-        max_rhs: usize,
+        min_enc: usize,
+        max_enc: usize,
         var_manager: &mut VM,
         bound_type: &BoundType,
     ) -> CNF {
         assert_eq!(*bound_type, BoundType::UB);
-        if min_rhs > max_rhs {
+        if min_enc > max_enc {
             return CNF::new();
         };
         // Reserve vars if needed
-        self.reserve_vars_till(max_rhs, var_manager, bound_type);
+        self.reserve_vars_till(max_enc, var_manager, bound_type);
         match &*self {
             Node::Leaf { .. } => return CNF::new(),
             Node::Internal {
@@ -436,38 +439,38 @@ impl Node {
                 let mut right_tmp_map = BTreeMap::new();
                 let (left_lits, right_lits) =
                     Node::get_child_lit_maps(left, right, &mut left_tmp_map, &mut right_tmp_map);
-                if min_rhs > *max_val {
+                if min_enc > *max_val {
                     return CNF::new();
                 };
                 // Encode adder for current node
                 let mut cnf = CNF::new();
                 // Propagate left value
                 for (&left_val, &left_lit) in
-                    left_lits.range((Bound::Included(min_rhs), Bound::Included(max_rhs)))
+                    left_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
                 {
                     cnf.add_lit_impl_lit(left_lit, *out_lits.get(&left_val).unwrap());
                 }
                 // Propagate right value
                 for (&right_val, &right_lit) in
-                    right_lits.range((Bound::Included(min_rhs), Bound::Included(max_rhs)))
+                    right_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
                 {
                     cnf.add_lit_impl_lit(right_lit, *out_lits.get(&right_val).unwrap());
                 }
                 // Propagate sum
                 for (&left_val, &left_lit) in
-                    left_lits.range((Bound::Excluded(0), Bound::Included(max_rhs)))
+                    left_lits.range((Bound::Excluded(0), Bound::Included(max_enc)))
                 {
-                    let right_min = if min_rhs > left_val {
-                        min_rhs - left_val
+                    let right_min = if min_enc > left_val {
+                        min_enc - left_val
                     } else {
                         0
                     };
                     for (&right_val, &right_lit) in right_lits.range((
                         Bound::Included(right_min),
-                        Bound::Included(max_rhs - left_val),
+                        Bound::Included(max_enc - left_val),
                     )) {
                         let sum_val = left_val + right_val;
-                        if sum_val > max_rhs || sum_val < min_rhs {
+                        if sum_val > max_enc || sum_val < min_enc {
                             continue;
                         }
                         cnf.add_cube_impl_lit(
@@ -504,7 +507,7 @@ impl Node {
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                max_rhs,
+                max_enc: max_rhs,
                 max_val,
                 n_clauses,
                 ..
@@ -537,7 +540,7 @@ impl Node {
             Node::Internal {
                 left,
                 right,
-                max_rhs,
+                max_enc: max_rhs,
                 ..
             } => {
                 // Ignore all previous encoding and encode from scratch
@@ -552,7 +555,7 @@ impl Node {
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                max_rhs,
+                max_enc: max_rhs,
                 max_val,
                 n_clauses,
                 ..
@@ -692,7 +695,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            max_rhs: 2,
+            max_enc: 2,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -706,7 +709,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            max_rhs: 2,
+            max_enc: 2,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -733,7 +736,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            max_rhs: 2,
+            max_enc: 2,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -747,7 +750,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            max_rhs: 2,
+            max_enc: 2,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -774,7 +777,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            max_rhs: 2,
+            max_enc: 2,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -788,7 +791,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            max_rhs: 2,
+            max_enc: 2,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
