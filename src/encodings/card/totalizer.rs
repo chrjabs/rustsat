@@ -274,6 +274,9 @@ impl Node {
         var_manager: &mut VM,
         bound_type: &BoundType,
     ) -> CNF {
+        if min_rhs > max_rhs {
+            return CNF::new();
+        };
         // Reserve vars if needed
         self.reserve_vars_till(max_rhs, var_manager, bound_type);
         match self {
@@ -360,10 +363,10 @@ impl Node {
         var_manager: &mut VM,
         bound_type: &BoundType,
     ) -> CNF {
+        // Ignore all previous encoding and encode from scratch
         let mut cnf = match self {
             Node::Leaf { .. } => CNF::new(),
             Node::Internal { left, right, .. } => {
-                // Ignore all previous encoding and encode from scratch
                 // Recurse
                 let mut cnf = left.encode_rec(new_max_rhs, var_manager, bound_type);
                 cnf.extend(right.encode_rec(new_max_rhs, var_manager, bound_type));
@@ -605,6 +608,35 @@ mod tests {
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
         };
         assert_eq!(cnf.n_clauses(), 18);
+    }
+
+    #[test]
+    fn partial_adder_already_encoded() {
+        // (Inconsistent) child nodes
+        let child1 = Node::Internal {
+            out_lits: vec![lit![1], lit![2], lit![3]],
+            depth: 1,
+            n_clauses: 0,
+            max_val: 2,
+            max_rhs: Some(2),
+            // Dummy nodes for children
+            left: Box::new(Node::new_leaf(lit![0])),
+            right: Box::new(Node::new_leaf(lit![0])),
+        };
+        let child2 = Node::Internal {
+            out_lits: vec![lit![4], lit![5], lit![6]],
+            depth: 1,
+            n_clauses: 0,
+            max_val: 2,
+            max_rhs: Some(2),
+            // Dummy nodes for children
+            left: Box::new(Node::new_leaf(lit![0])),
+            right: Box::new(Node::new_leaf(lit![0])),
+        };
+        let mut node = Node::new_internal(child1, child2);
+        let mut var_manager = BasicVarManager::new();
+        let cnf = node.encode_from_till(3, 2, &mut var_manager, &BoundType::BOTH);
+        assert_eq!(cnf.n_clauses(), 0);
     }
 
     #[test]

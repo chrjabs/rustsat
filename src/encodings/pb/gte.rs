@@ -14,6 +14,7 @@ use crate::{
     types::Lit,
 };
 use std::{
+    cmp::Ord,
     collections::{BTreeMap, HashMap},
     ops::Bound,
 };
@@ -36,6 +37,8 @@ pub struct GeneralizedTotalizer {
     bound_type: BoundType,
     /// Whether or not to reserve all variables when constructing the tree
     reserve_vars: bool,
+    /// Maximum weight of a leaf, needed for computing how much more than `max_rhs` to encode
+    max_leaf_weight: usize,
 }
 
 impl GeneralizedTotalizer {
@@ -55,11 +58,34 @@ impl GeneralizedTotalizer {
         Node::new_internal(left, right)
     }
 
-    /// Extends the tree at the root node with added literals
-    fn extend_tree<VM: ManageVars>(&mut self, var_manager: &mut VM) {
+    /// Extends the tree at the root node with added literals of maximum weight `max_weight`
+    fn extend_tree<VM: ManageVars>(&mut self, max_weight: usize, var_manager: &mut VM) {
         if !self.lit_buffer.is_empty() {
-            let new_lits: Vec<(Lit, usize)> =
-                self.lit_buffer.iter().map(|(&l, &w)| (l, w)).collect();
+            let mut new_lits: Vec<(Lit, usize)> = self
+                .lit_buffer
+                .iter()
+                .filter_map(|(&l, &w)| {
+                    if w <= max_weight {
+                        if w > self.max_leaf_weight {
+                            // Track maximum leaf weight
+                            self.max_leaf_weight = w;
+                        }
+                        Some((
+                            if self.bound_type == BoundType::UB {
+                                l
+                            } else {
+                                // Negate literals for lower bounding
+                                !l
+                            },
+                            w,
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            // Add nodes in sorted fashion to minimize clauses
+            new_lits[..].sort_by(|(_, w1), (_, w2)| w1.cmp(w2));
             let mut subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
             if self.reserve_vars {
                 subtree.reserve_all_vars_rec(var_manager, &self.bound_type);
@@ -76,12 +102,77 @@ impl GeneralizedTotalizer {
             };
             // Update total weights in tree
             self.lit_buffer.iter().for_each(|(l, w)| {
-                match self.in_lits.get(l) {
-                    Some(old_w) => self.in_lits.insert(*l, *old_w + *w),
-                    None => self.in_lits.insert(*l, *w),
-                };
+                if w <= &max_weight {
+                    match self.in_lits.get(l) {
+                        Some(old_w) => self.in_lits.insert(*l, *old_w + *w),
+                        None => self.in_lits.insert(*l, *w),
+                    };
+                }
             });
             self.lit_buffer.clear();
+        }
+    }
+
+    /// Converts an outside bound to an internal bound on the actual tree. (Only
+    /// changes the value if in lower bounding mode.) Might return an
+    /// [`EncodingError::Unsat`] error.
+    fn convert_bound(&self, bound: usize) -> Result<usize, EncodingError> {
+        if self.bound_type == BoundType::UB {
+            Ok(bound)
+        } else {
+            match &self.root {
+                None => Ok(0), // If no tree, directly force all literals
+                Some(root_node) => match **root_node {
+                    Node::Leaf { weight, .. } => {
+                        if weight >= bound {
+                            Ok(weight - bound)
+                        } else {
+                            Err(EncodingError::Unsat)
+                        }
+                    }
+                    Node::Internal { max_val, .. } => {
+                        if max_val >= bound {
+                            Ok(max_val - bound)
+                        } else {
+                            Err(EncodingError::Unsat)
+                        }
+                    }
+                },
+            }
+        }
+    }
+
+    /// Enforce an upper bound on the internal tree.
+    fn enforce_tree_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+        match &self.root {
+            None => {
+                assert!(self.in_lits.is_empty());
+                Ok(vec![])
+            }
+            Some(root_node) => match &**root_node {
+                // Assumes that literal is already enforced from wrapper function if it's weight is more than `ub`
+                Node::Leaf { .. } => Ok(vec![]),
+                Node::Internal {
+                    out_lits,
+                    max_rhs,
+                    max_val,
+                    ..
+                } => {
+                    if ub >= *max_val {
+                        Ok(vec![])
+                    } else if *max_rhs < ub + self.max_leaf_weight {
+                        Err(EncodingError::NotEncoded)
+                    } else {
+                        Ok(out_lits
+                            .range((
+                                Bound::Excluded(ub),
+                                Bound::Included(ub + self.max_leaf_weight),
+                            ))
+                            .map(|(_, &l)| !l)
+                            .collect())
+                    }
+                }
+            },
         }
     }
 
@@ -96,13 +187,17 @@ impl GeneralizedTotalizer {
 
 impl EncodePB for GeneralizedTotalizer {
     fn new(bound_type: BoundType) -> Result<Self, EncodingError> {
-        Ok(GeneralizedTotalizer {
-            in_lits: HashMap::new(),
-            lit_buffer: HashMap::new(),
-            root: None,
-            bound_type,
-            reserve_vars: false,
-        })
+        match bound_type {
+            BoundType::BOTH => Err(EncodingError::NoTypeSupport),
+            _ => Ok(GeneralizedTotalizer {
+                in_lits: HashMap::new(),
+                lit_buffer: HashMap::new(),
+                root: None,
+                bound_type,
+                reserve_vars: false,
+                max_leaf_weight: 0,
+            }),
+        }
     }
 
     fn add(&mut self, lits: HashMap<Lit, usize>) {
@@ -115,10 +210,13 @@ impl EncodePB for GeneralizedTotalizer {
     }
 
     fn encode<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF {
-        self.extend_tree(var_manager);
+        let max_rhs = self.convert_bound(max_rhs).unwrap_or(0);
+        self.extend_tree(max_rhs, var_manager);
         match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_rec(max_rhs, var_manager, &self.bound_type),
+            Some(root) => {
+                root.encode_rec(max_rhs + self.max_leaf_weight, var_manager, &BoundType::UB)
+            }
         }
     }
 
@@ -126,26 +224,29 @@ impl EncodePB for GeneralizedTotalizer {
         match self.bound_type {
             BoundType::LB => Err(EncodingError::NoObjectSupport),
             _ => {
-                if !self.lit_buffer.is_empty() {
-                    return Err(EncodingError::NotEncoded);
-                };
-                match &self.root {
-                    None => Err(EncodingError::NotEncoded),
-                    Some(root_node) => match &**root_node {
-                        Node::Leaf { .. } => todo!(),
-                        Node::Internal {
-                            max_rhs, max_val, ..
-                        } => {
-                            if ub >= *max_val {
-                                Ok(vec![])
-                            } else if *max_rhs < ub {
+                let mut assumps = vec![];
+                // Assume literals that have higher weight than `ub`
+                assumps.reserve(self.lit_buffer.len());
+                self.lit_buffer
+                    .iter()
+                    .fold(Ok(()), |res, (&l, &w)| match res {
+                        Err(err) => Err(err),
+                        Ok(_) => {
+                            if w <= ub {
                                 Err(EncodingError::NotEncoded)
                             } else {
-                                todo!()
+                                assumps.push(!l);
+                                Ok(())
                             }
                         }
-                    },
-                }
+                    })?;
+                self.in_lits.iter().for_each(|(&l, &w)| {
+                    if w > ub {
+                        assumps.push(!l);
+                    }
+                });
+                assumps.extend(self.enforce_tree_ub(ub)?);
+                Ok(assumps)
             }
         }
     }
@@ -154,29 +255,30 @@ impl EncodePB for GeneralizedTotalizer {
         match self.bound_type {
             BoundType::UB => Err(EncodingError::NoObjectSupport),
             _ => {
-                if !self.lit_buffer.is_empty() {
-                    return Err(EncodingError::NotEncoded);
-                };
-                if lb >= self.in_lits.len() {
-                    return Err(EncodingError::Unsat);
-                };
-                match &self.root {
-                    None => Err(EncodingError::NotEncoded),
-                    Some(root_node) => match &**root_node {
-                        Node::Leaf { .. } => todo!(),
-                        Node::Internal {
-                            max_rhs, max_val, ..
-                        } => {
-                            if lb > *max_val {
-                                Err(EncodingError::Unsat)
-                            } else if *max_rhs < lb {
+                let ub = self.convert_bound(lb)?;
+                let mut assumps = vec![];
+                // Assume literals that have higher weight than `ub`
+                assumps.reserve(self.lit_buffer.len());
+                self.lit_buffer
+                    .iter()
+                    .fold(Ok(()), |res, (&l, &w)| match res {
+                        Err(err) => Err(err),
+                        Ok(_) => {
+                            if w <= ub {
                                 Err(EncodingError::NotEncoded)
                             } else {
-                                todo!()
+                                assumps.push(l);
+                                Ok(())
                             }
                         }
-                    },
-                }
+                    })?;
+                self.in_lits.iter().for_each(|(&l, &w)| {
+                    if w > ub {
+                        assumps.push(l);
+                    }
+                });
+                assumps.extend(self.enforce_tree_ub(ub)?);
+                Ok(assumps)
             }
         }
     }
@@ -184,24 +286,34 @@ impl EncodePB for GeneralizedTotalizer {
 
 impl IncEncodePB for GeneralizedTotalizer {
     fn new_reserving(bound_type: BoundType) -> Result<Self, EncodingError> {
-        Ok(GeneralizedTotalizer {
-            in_lits: HashMap::new(),
-            lit_buffer: HashMap::new(),
-            root: None,
-            bound_type,
-            reserve_vars: true,
-        })
+        match bound_type {
+            BoundType::BOTH => Err(EncodingError::NoTypeSupport),
+            _ => Ok(GeneralizedTotalizer {
+                in_lits: HashMap::new(),
+                lit_buffer: HashMap::new(),
+                root: None,
+                bound_type,
+                reserve_vars: true,
+                max_leaf_weight: 0,
+            }),
+        }
     }
 
     fn encode_change<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF {
-        self.extend_tree(var_manager);
+        let max_rhs = self.convert_bound(max_rhs).unwrap_or(0);
+        self.extend_tree(max_rhs, var_manager);
         match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_change_rec(max_rhs, var_manager, &self.bound_type),
+            Some(root) => {
+                root.encode_change_rec(max_rhs + self.max_leaf_weight, var_manager, &BoundType::UB)
+            }
         }
     }
 }
 
+/// The Totalzier nodes are _only_ for upper bounding. Lower bounding in the GTE
+/// is possible by negating input literals. This conversion entirely happens in
+/// the GeneralizedTotalzier struct.
 enum Node {
     Leaf {
         /// The input literal to the tree
@@ -306,6 +418,9 @@ impl Node {
         bound_type: &BoundType,
     ) -> CNF {
         assert_eq!(*bound_type, BoundType::UB);
+        if min_rhs > max_rhs {
+            return CNF::new();
+        };
         // Reserve vars if needed
         self.reserve_vars_till(max_rhs, var_manager, bound_type);
         match &*self {
@@ -342,8 +457,13 @@ impl Node {
                 for (&left_val, &left_lit) in
                     left_lits.range((Bound::Excluded(0), Bound::Included(max_rhs)))
                 {
+                    let right_min = if min_rhs > left_val {
+                        min_rhs - left_val
+                    } else {
+                        0
+                    };
                     for (&right_val, &right_lit) in right_lits.range((
-                        Bound::Included(min_rhs - left_val),
+                        Bound::Included(right_min),
                         Bound::Included(max_rhs - left_val),
                     )) {
                         let sum_val = left_val + right_val;
@@ -370,10 +490,10 @@ impl Node {
         var_manager: &mut VM,
         bound_type: &BoundType,
     ) -> CNF {
+        // Ignore all previous encoding and encode from scratch
         let mut cnf = match self {
             Node::Leaf { .. } => CNF::new(),
             Node::Internal { left, right, .. } => {
-                // Ignore all previous encoding and encode from scratch
                 // Recurse
                 let mut cnf = left.encode_rec(max_enc, var_manager, bound_type);
                 cnf.extend(right.encode_rec(max_enc, var_manager, bound_type));
@@ -535,9 +655,9 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, BTreeMap};
+    use std::collections::{BTreeMap, HashMap};
 
-    use super::{Node, GeneralizedTotalizer};
+    use super::{GeneralizedTotalizer, Node};
     use crate::{
         encodings::{pb::EncodePB, BoundType, EncodingError},
         instances::{BasicVarManager, ManageVars},
@@ -637,42 +757,78 @@ mod tests {
         let cnf = node.encode_from_till(4, 6, &mut var_manager, &BoundType::UB);
         match &node {
             Node::Leaf { .. } => panic!(),
-            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
+            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 3),
         };
         assert_eq!(cnf.n_clauses(), 3);
     }
 
     #[test]
+    fn partial_adder_already_encoded() {
+        // (Inconsistent) child nodes
+        let mut lits = BTreeMap::new();
+        lits.insert(3, lit![1]);
+        lits.insert(5, lit![2]);
+        lits.insert(8, lit![3]);
+        let child1 = Node::Internal {
+            out_lits: lits,
+            depth: 1,
+            n_clauses: 0,
+            max_val: 2,
+            max_rhs: 2,
+            // Dummy nodes for children
+            left: Box::new(Node::new_leaf(lit![0], 5)),
+            right: Box::new(Node::new_leaf(lit![0], 3)),
+        };
+        let mut lits = BTreeMap::new();
+        lits.insert(3, lit![4]);
+        lits.insert(5, lit![5]);
+        lits.insert(8, lit![6]);
+        let child2 = Node::Internal {
+            out_lits: lits,
+            depth: 1,
+            n_clauses: 0,
+            max_val: 2,
+            max_rhs: 2,
+            // Dummy nodes for children
+            left: Box::new(Node::new_leaf(lit![0], 5)),
+            right: Box::new(Node::new_leaf(lit![0], 3)),
+        };
+        let mut node = Node::new_internal(child1, child2);
+        let mut var_manager = BasicVarManager::new();
+        let cnf = node.encode_from_till(6, 4, &mut var_manager, &BoundType::UB);
+        assert_eq!(cnf.n_clauses(), 0);
+    }
+
+    #[test]
     fn gte_functions() {
-        let mut tot = GeneralizedTotalizer::new(BoundType::UB).unwrap();
+        let mut gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
         let mut lits = HashMap::new();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
-        tot.add(lits);
-        assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
-        assert_eq!(tot.enforce_lb(2), Err(EncodingError::NoObjectSupport));
+        gte.add(lits);
+        assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
+        assert_eq!(gte.enforce_lb(4), Err(EncodingError::NoObjectSupport));
         let mut var_manager = BasicVarManager::new();
-        let cnf = tot.encode(4, &mut var_manager);
-        assert_eq!(tot.get_depth(), 3);
-        assert_eq!(cnf.n_clauses(), 14);
+        gte.encode(6, &mut var_manager);
+        assert_eq!(gte.get_depth(), 3);
     }
 
     #[test]
     fn invalid_useage() {
-        let mut tot = GeneralizedTotalizer::new(BoundType::LB).unwrap();
+        let mut gte = GeneralizedTotalizer::new(BoundType::LB).unwrap();
         let mut lits = HashMap::new();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 3);
-        tot.add(lits);
-        assert_eq!(tot.enforce_ub(1), Err(EncodingError::NoObjectSupport));
-        let mut tot = GeneralizedTotalizer::new(BoundType::UB).unwrap();
+        gte.add(lits);
+        assert_eq!(gte.enforce_ub(1), Err(EncodingError::NoObjectSupport));
+        let mut gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
         let mut lits = HashMap::new();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 3);
-        tot.add(lits);
-        assert_eq!(tot.enforce_lb(1), Err(EncodingError::NoObjectSupport));
+        gte.add(lits);
+        assert_eq!(gte.enforce_lb(1), Err(EncodingError::NoObjectSupport));
         match GeneralizedTotalizer::new(BoundType::BOTH) {
             Ok(_) => panic!(),
             Err(err) => assert_eq!(err, EncodingError::NoTypeSupport),
