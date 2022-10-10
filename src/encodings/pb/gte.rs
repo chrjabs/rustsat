@@ -212,7 +212,12 @@ impl EncodePB for GeneralizedTotalizer {
         });
     }
 
-    fn encode<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF {
+    fn encode<VM: ManageVars>(
+        &mut self,
+        min_rhs: usize,
+        max_rhs: usize,
+        var_manager: &mut VM,
+    ) -> CNF {
         let max_rhs = self.convert_bound(max_rhs).unwrap_or(0);
         self.extend_tree(max_rhs, var_manager);
         match &mut self.root {
@@ -302,7 +307,12 @@ impl IncEncodePB for GeneralizedTotalizer {
         }
     }
 
-    fn encode_change<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF {
+    fn encode_change<VM: ManageVars>(
+        &mut self,
+        min_rhs: usize,
+        max_rhs: usize,
+        var_manager: &mut VM,
+    ) -> CNF {
         let max_rhs = self.convert_bound(max_rhs).unwrap_or(0);
         self.extend_tree(max_rhs, var_manager);
         match &mut self.root {
@@ -814,7 +824,7 @@ mod tests {
         assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
         assert_eq!(gte.enforce_lb(4), Err(EncodingError::NoObjectSupport));
         let mut var_manager = BasicVarManager::new();
-        gte.encode(6, &mut var_manager);
+        gte.encode(0, 6, &mut var_manager);
         assert_eq!(gte.get_depth(), 3);
     }
 

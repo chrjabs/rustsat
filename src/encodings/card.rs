@@ -13,6 +13,8 @@ use crate::{
 mod totalizer;
 pub use totalizer::Totalizer;
 
+/// Trait for types that can encode a cardinality constraint of form `sum of
+/// lits <> rhs` where `<>` is either `>=`, `<=` or both.
 pub trait EncodeCard: Sized {
     /// Constructs a new cardinality encoding. If the given bound type is not
     /// supported by the implementing type, it returns
@@ -31,10 +33,16 @@ pub trait EncodeCard: Sized {
     }
     /// Adds new literals to the cardinality encoding
     fn add(&mut self, lits: Vec<Lit>);
-    /// Encodes the cardinality constraint with a maximum right hand side of
-    /// `max_rhs` over all literals in the object. `var_manager` is the variable
-    /// manager to use for tracking new variables.
-    fn encode<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF;
+    /// Lazily encodes the cardinality constraint for `rhs` values at most
+    /// `max_rhs` and at least `min_rhs`. `var_manager` is the variable manager
+    /// to use for tracking new variables. A specific encoding might ignore
+    /// `min_rhs` or `max_rhs`.
+    fn encode<VM: ManageVars>(
+        &mut self,
+        min_rhs: usize,
+        max_rhs: usize,
+        var_manager: &mut VM,
+    ) -> CNF;
     /// Returns assumptions for enforcing an upper bound (`sum of lits <= ub`)
     /// or an error if the encoding does not support upper bounding. Make sure
     /// that nothing was added to the encoding between the last call to
@@ -76,7 +84,16 @@ pub trait IncEncodeCard: EncodeCard {
         ce.add(lits);
         Ok(ce)
     }
-    /// Encodes a change in the cardinality encoding.
-    /// A change can be added literals, or increased `max_rhs`.
-    fn encode_change<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF;
+    /// Lazily encodes a change in the cardinality constraint for `rhs` values
+    /// at most `max_rhs` and at least `min_rhs`. A change can be added literals
+    /// or changed bounds. `var_manager` is the variable manager to use for
+    /// tracking new variables. The returned CNF might be empty if no change
+    /// needs to be encoded. A specific encoding might (have to) ignore
+    /// `min_rhs` or `max_rhs`.
+    fn encode_change<VM: ManageVars>(
+        &mut self,
+        min_rhs: usize,
+        max_rhs: usize,
+        var_manager: &mut VM,
+    ) -> CNF;
 }

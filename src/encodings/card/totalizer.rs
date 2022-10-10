@@ -100,11 +100,16 @@ impl EncodeCard for Totalizer {
         self.lit_buffer.extend(lits);
     }
 
-    fn encode<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF {
+    fn encode<VM: ManageVars>(
+        &mut self,
+        min_rhs: usize,
+        max_rhs: usize,
+        var_manager: &mut VM,
+    ) -> CNF {
         self.extend_tree(var_manager);
         match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_rec(max_rhs, var_manager, &self.bound_type),
+            Some(root) => root.encode_rec(min_rhs, max_rhs, var_manager, &self.bound_type),
         }
     }
 
@@ -188,11 +193,16 @@ impl IncEncodeCard for Totalizer {
         })
     }
 
-    fn encode_change<VM: ManageVars>(&mut self, max_rhs: usize, var_manager: &mut VM) -> CNF {
+    fn encode_change<VM: ManageVars>(
+        &mut self,
+        min_rhs: usize,
+        max_rhs: usize,
+        var_manager: &mut VM,
+    ) -> CNF {
         self.extend_tree(var_manager);
         match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_change_rec(max_rhs, var_manager, &self.bound_type),
+            Some(root) => root.encode_change_rec(min_rhs, max_rhs, var_manager, &self.bound_type),
         }
     }
 }
@@ -211,6 +221,8 @@ enum Node {
         n_clauses: usize,
         /// The maximum output this node can have
         max_val: usize,
+        /// The minimum right hand side encoded by this node
+        min_rhs: Option<usize>,
         /// The maximum right hand side encoded by this node
         max_rhs: Option<usize>,
         /// The left child
@@ -244,6 +256,7 @@ impl Node {
                 right_depth + 1
             },
             n_clauses: 0,
+            min_rhs: None,
             max_rhs: None,
             max_val: match left {
                 Node::Leaf { .. } => 1,
@@ -354,41 +367,46 @@ impl Node {
         }
     }
 
-    /// Encodes the adder from the children to this node up to a given maximum
-    /// right hand side. Recurses depth first. Returns  the number of newly
-    /// added clauses. Always encodes the full totalizer.
+    /// Encodes the adder from the children to this node between `min_rhs` and
+    /// `max_rhs`. Recurses depth first. Always returns the full requested CNF
+    /// encoding.
     fn encode_rec<VM: ManageVars>(
         &mut self,
+        new_min_rhs: usize,
         new_max_rhs: usize,
         var_manager: &mut VM,
         bound_type: &BoundType,
     ) -> CNF {
-        // Ignore all previous encoding and encode from scratch
         let mut cnf = match self {
             Node::Leaf { .. } => CNF::new(),
             Node::Internal { left, right, .. } => {
+                let left_min_rhs = Node::compute_required_min_rhs(new_min_rhs, new_max_rhs, right);
+                let right_min_rhs = Node::compute_required_min_rhs(new_min_rhs, new_max_rhs, left);
                 // Recurse
-                let mut cnf = left.encode_rec(new_max_rhs, var_manager, bound_type);
-                cnf.extend(right.encode_rec(new_max_rhs, var_manager, bound_type));
+                let mut cnf = left.encode_rec(left_min_rhs, new_max_rhs, var_manager, bound_type);
+                cnf.extend(right.encode_rec(right_min_rhs, new_max_rhs, var_manager, bound_type));
                 cnf
             }
         };
-        let local_cnf = self.encode_from_till(0, new_max_rhs, var_manager, bound_type);
+        // Ignore all previous encoding and encode from scratch
+        let local_cnf = self.encode_from_till(new_min_rhs, new_max_rhs, var_manager, bound_type);
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
                 max_rhs,
+                min_rhs,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
+                *min_rhs = Some(new_min_rhs);
                 *max_rhs = if new_max_rhs < *max_val {
                     Some(new_max_rhs)
                 } else {
                     Some(*max_val)
                 };
-                *n_clauses += local_cnf.n_clauses();
+                *n_clauses = local_cnf.n_clauses();
                 cnf.extend(local_cnf);
                 cnf
             }
@@ -401,31 +419,69 @@ impl Node {
     /// clauses.
     fn encode_change_rec<VM: ManageVars>(
         &mut self,
+        new_min_rhs: usize,
         new_max_rhs: usize,
         var_manager: &mut VM,
         bound_type: &BoundType,
     ) -> CNF {
-        let (mut cnf, min_enc) = match self {
-            Node::Leaf { .. } => (CNF::new(), 0),
+        let (mut cnf, max_already_encoded, min_already_encoded) = match self {
+            Node::Leaf { .. } => (CNF::new(), Some(1), Some(0)),
             Node::Internal {
                 left,
                 right,
                 max_rhs,
+                min_rhs,
                 ..
             } => {
-                // Ignore all previous encoding and encode from scratch
+                let left_min_rhs = Node::compute_required_min_rhs(new_min_rhs, new_max_rhs, right);
+                let right_min_rhs = Node::compute_required_min_rhs(new_min_rhs, new_max_rhs, left);
                 // Recurse
-                let mut cnf = left.encode_change_rec(new_max_rhs, var_manager, bound_type);
-                cnf.extend(right.encode_change_rec(new_max_rhs, var_manager, bound_type));
-                (cnf, if let Some(mr) = max_rhs { *mr + 1 } else { 0 })
+                let mut cnf =
+                    left.encode_change_rec(left_min_rhs, new_max_rhs, var_manager, bound_type);
+                cnf.extend(right.encode_change_rec(
+                    right_min_rhs,
+                    new_max_rhs,
+                    var_manager,
+                    bound_type,
+                ));
+                (cnf, *max_rhs, *min_rhs)
             }
         };
-        // Encode adder for current node
-        let local_cnf = self.encode_from_till(min_enc, new_max_rhs, var_manager, bound_type);
+        // Encode changes for current node
+        let local_cnf = match max_already_encoded {
+            None => {
+                // First time encoding this node
+                assert!(min_already_encoded.is_none());
+                self.encode_from_till(new_min_rhs, new_max_rhs, var_manager, bound_type)
+            }
+            Some(max_rhs) => {
+                // Part already encoded
+                let min_rhs = min_already_encoded.unwrap();
+                let mut local_cnf = CNF::new();
+                if new_min_rhs < min_rhs {
+                    local_cnf.extend(self.encode_from_till(
+                        new_min_rhs,
+                        min_rhs - 1,
+                        var_manager,
+                        bound_type,
+                    ));
+                };
+                if new_max_rhs > max_rhs {
+                    local_cnf.extend(self.encode_from_till(
+                        max_rhs + 1,
+                        new_max_rhs,
+                        var_manager,
+                        bound_type,
+                    ));
+                };
+                local_cnf
+            }
+        };
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
                 max_rhs,
+                min_rhs,
                 max_val,
                 n_clauses,
                 ..
@@ -433,9 +489,26 @@ impl Node {
                 // Update stats
                 *n_clauses += local_cnf.n_clauses();
                 *max_rhs = if new_max_rhs < *max_val {
-                    Some(new_max_rhs)
+                    if let Some(max_rhs_v) = *max_rhs {
+                        if new_max_rhs > max_rhs_v {
+                            Some(new_max_rhs)
+                        } else {
+                            *max_rhs
+                        }
+                    } else {
+                        Some(new_max_rhs)
+                    }
                 } else {
                     Some(*max_val)
+                };
+                *min_rhs = if let Some(min_rhs_v) = *min_rhs {
+                    if new_min_rhs < min_rhs_v {
+                        Some(new_min_rhs)
+                    } else {
+                        *min_rhs
+                    }
+                } else {
+                    Some(new_min_rhs)
                 };
                 cnf.extend(local_cnf);
                 cnf
@@ -462,6 +535,9 @@ impl Node {
                         BoundType::LB => max_rhs - 1,
                         _ => max_rhs,
                     }
+                };
+                if out_lits.len() > max_idx {
+                    return;
                 };
                 out_lits.reserve(max_idx + 1 - out_lits.len());
                 for _ in out_lits.len()..=max_idx {
@@ -498,6 +574,37 @@ impl Node {
             }
         };
         self.reserve_all_vars(var_manager, bound_type)
+    }
+
+    /// Computes the required `min_rhs` for a node given a requested `min_rhs`
+    /// of the parent and its sibling.
+    fn compute_required_min_rhs(
+        min_rhs_requested: usize,
+        max_rhs_requested: usize,
+        sibling: &Box<Node>,
+    ) -> usize {
+        match **sibling {
+            Node::Leaf { .. } => {
+                if min_rhs_requested > 1 {
+                    min_rhs_requested - 1
+                } else {
+                    0
+                }
+            }
+            Node::Internal { max_val, .. } => {
+                if max_rhs_requested < max_val {
+                    if min_rhs_requested > max_rhs_requested {
+                        min_rhs_requested - max_rhs_requested
+                    } else {
+                        0
+                    }
+                } else if min_rhs_requested > max_val {
+                    min_rhs_requested - max_val
+                } else {
+                    0
+                }
+            }
+        }
     }
 }
 
@@ -537,6 +644,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -547,6 +655,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -585,6 +694,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -595,6 +705,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -618,6 +729,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -628,6 +740,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -647,6 +760,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -657,6 +771,7 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
+            min_rhs: Some(0),
             max_rhs: Some(2),
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
@@ -679,7 +794,7 @@ mod tests {
         assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::new();
-        let cnf = tot.encode(4, &mut var_manager);
+        let cnf = tot.encode(0, 4, &mut var_manager);
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 28);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
@@ -687,16 +802,26 @@ mod tests {
     }
 
     #[test]
+    fn tot_functions_min_rhs() {
+        let mut tot = Totalizer::new(BoundType::BOTH).unwrap();
+        tot.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::new();
+        let cnf = tot.encode(3, 3, &mut var_manager);
+        assert_eq!(tot.get_depth(), 3);
+        assert_eq!(cnf.n_clauses(), 12);
+    }
+
+    #[test]
     fn tot_incremental_building_ub() {
         let mut tot1 = Totalizer::new(BoundType::UB).unwrap();
         tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = tot1.encode(4, &mut var_manager);
+        let cnf1 = tot1.encode(0, 4, &mut var_manager);
         let mut tot2 = Totalizer::new(BoundType::UB).unwrap();
         tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = tot2.encode(2, &mut var_manager);
-        cnf2.extend(tot2.encode_change(4, &mut var_manager));
+        let mut cnf2 = tot2.encode(0, 2, &mut var_manager);
+        cnf2.extend(tot2.encode_change(0, 4, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -705,12 +830,12 @@ mod tests {
         let mut tot1 = Totalizer::new(BoundType::LB).unwrap();
         tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = tot1.encode(4, &mut var_manager);
+        let cnf1 = tot1.encode(0, 4, &mut var_manager);
         let mut tot2 = Totalizer::new(BoundType::LB).unwrap();
         tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = tot2.encode(2, &mut var_manager);
-        cnf2.extend(tot2.encode_change(4, &mut var_manager));
+        let mut cnf2 = tot2.encode(0, 2, &mut var_manager);
+        cnf2.extend(tot2.encode_change(0, 4, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -719,14 +844,14 @@ mod tests {
         let mut tot1 = Totalizer::new(BoundType::BOTH).unwrap();
         tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = tot1.encode(4, &mut var_manager);
+        let cnf1 = tot1.encode(0, 4, &mut var_manager);
         let mut tot2 = Totalizer::new(BoundType::LB).unwrap();
         tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = tot2.encode(4, &mut var_manager);
+        let mut cnf2 = tot2.encode(0, 4, &mut var_manager);
         let mut tot3 = Totalizer::new(BoundType::UB).unwrap();
         tot3.add(vec![lit![0], lit![1], lit![2], lit![3]]);
-        cnf2.extend(tot3.encode(4, &mut var_manager));
+        cnf2.extend(tot3.encode(0, 4, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
