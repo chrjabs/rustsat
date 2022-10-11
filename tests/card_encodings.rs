@@ -122,6 +122,7 @@ fn tot_min_enc() {
     // Set up instance
     let mut solver = IpasirSolver::new();
     let mut var_manager = BasicVarManager::new();
+    var_manager.increase_next_free(var![4]);
 
     // Set up totalizer
     let mut tot = Totalizer::new(BoundType::BOTH).unwrap();
