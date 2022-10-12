@@ -405,7 +405,7 @@ pub trait ManageVars {
 }
 
 /// Simple counter variable manager
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BasicVarManager {
     next_var: Var,
 }

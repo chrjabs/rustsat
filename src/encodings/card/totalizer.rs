@@ -132,8 +132,8 @@ impl EncodeCard for Totalizer {
                             min_max_rhs,
                             ..
                         } => {
-                            if let Some((minr, maxr)) = min_max_rhs {
-                                if *maxr < ub || *minr > ub {
+                            if let Some((min_rhs, max_rhs)) = min_max_rhs {
+                                if *max_rhs < ub || *min_rhs > ub {
                                     Err(EncodingError::NotEncoded)
                                 } else {
                                     Ok(vec![!out_lits[ub].unwrap()])
@@ -169,8 +169,8 @@ impl EncodeCard for Totalizer {
                             min_max_rhs,
                             ..
                         } => {
-                            if let Some((minr, maxr)) = min_max_rhs {
-                                if *maxr < lb || *minr > lb {
+                            if let Some((min_rhs, max_rhs)) = min_max_rhs {
+                                if *max_rhs < lb || *min_rhs > lb {
                                     Err(EncodingError::NotEncoded)
                                 } else {
                                     Ok(vec![out_lits[lb - 1].unwrap()])
@@ -416,10 +416,10 @@ impl Node {
         }
     }
 
-    /// Encodes the adder from the children to this node up to a given maximum
-    /// right hand side. Recurses depth first. Returns the new `next_idx` and
-    /// the number of newly added clauses. Incrementally only encodes new
-    /// clauses.
+    /// Encodes the adder from the children to this node between a given
+    /// `min_rhs` and `max_rhs`. Recurses depth first.
+    /// Incrementally only
+    /// encodes new clauses.
     fn encode_change_rec<VM: ManageVars>(
         &mut self,
         min_rhs: usize,
