@@ -105,12 +105,15 @@ impl EncodeCard for Totalizer {
         min_rhs: usize,
         max_rhs: usize,
         var_manager: &mut VM,
-    ) -> CNF {
+    ) -> Result<CNF, EncodingError> {
+        if min_rhs > max_rhs {
+            return Err(EncodingError::InvalidBounds);
+        };
         self.extend_tree(var_manager);
-        match &mut self.root {
+        Ok(match &mut self.root {
             None => CNF::new(),
             Some(root) => root.encode_rec(min_rhs, max_rhs, var_manager, &self.bound_type),
-        }
+        })
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -202,12 +205,15 @@ impl IncEncodeCard for Totalizer {
         min_rhs: usize,
         max_rhs: usize,
         var_manager: &mut VM,
-    ) -> CNF {
+    ) -> Result<CNF, EncodingError> {
+        if min_rhs > max_rhs {
+            return Err(EncodingError::InvalidBounds);
+        };
         self.extend_tree(var_manager);
-        match &mut self.root {
+        Ok(match &mut self.root {
             None => CNF::new(),
             Some(root) => root.encode_change_rec(min_rhs, max_rhs, var_manager, &self.bound_type),
-        }
+        })
     }
 }
 
@@ -783,7 +789,7 @@ mod tests {
         assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::new();
-        let cnf = tot.encode(0, 4, &mut var_manager);
+        let cnf = tot.encode(0, 4, &mut var_manager).unwrap();
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 28);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
@@ -795,7 +801,7 @@ mod tests {
         let mut tot = Totalizer::new(BoundType::BOTH).unwrap();
         tot.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf = tot.encode(3, 3, &mut var_manager);
+        let cnf = tot.encode(3, 3, &mut var_manager).unwrap();
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 12);
     }
@@ -805,12 +811,12 @@ mod tests {
         let mut tot1 = Totalizer::new(BoundType::UB).unwrap();
         tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = tot1.encode(0, 4, &mut var_manager);
+        let cnf1 = tot1.encode(0, 4, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::new(BoundType::UB).unwrap();
         tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = tot2.encode(0, 2, &mut var_manager);
-        cnf2.extend(tot2.encode_change(0, 4, &mut var_manager));
+        let mut cnf2 = tot2.encode(0, 2, &mut var_manager).unwrap();
+        cnf2.extend(tot2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -819,12 +825,12 @@ mod tests {
         let mut tot1 = Totalizer::new(BoundType::LB).unwrap();
         tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = tot1.encode(0, 4, &mut var_manager);
+        let cnf1 = tot1.encode(0, 4, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::new(BoundType::LB).unwrap();
         tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = tot2.encode(0, 2, &mut var_manager);
-        cnf2.extend(tot2.encode_change(0, 4, &mut var_manager));
+        let mut cnf2 = tot2.encode(0, 2, &mut var_manager).unwrap();
+        cnf2.extend(tot2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -833,14 +839,14 @@ mod tests {
         let mut tot1 = Totalizer::new(BoundType::BOTH).unwrap();
         tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = tot1.encode(0, 4, &mut var_manager);
+        let cnf1 = tot1.encode(0, 4, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::new(BoundType::LB).unwrap();
         tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = tot2.encode(0, 4, &mut var_manager);
+        let mut cnf2 = tot2.encode(0, 4, &mut var_manager).unwrap();
         let mut tot3 = Totalizer::new(BoundType::UB).unwrap();
         tot3.add(vec![lit![0], lit![1], lit![2], lit![3]]);
-        cnf2.extend(tot3.encode(0, 4, &mut var_manager));
+        cnf2.extend(tot3.encode(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -852,5 +858,7 @@ mod tests {
         let mut tot = Totalizer::new(BoundType::UB).unwrap();
         tot.add(vec![lit![0], lit![1]]);
         assert_eq!(tot.enforce_lb(1), Err(EncodingError::NoObjectSupport));
+        let mut var_manager = BasicVarManager::new();
+        assert_eq!(tot.encode(5, 4, &mut var_manager), Err(EncodingError::InvalidBounds));
     }
 }

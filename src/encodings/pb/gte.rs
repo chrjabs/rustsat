@@ -210,8 +210,11 @@ impl EncodePB for GeneralizedTotalizer {
         min_rhs: usize,
         max_rhs: usize,
         var_manager: &mut VM,
-    ) -> CNF {
-        if self.bound_type == BoundType::UB {
+    ) -> Result<CNF, EncodingError> {
+        if min_rhs > max_rhs {
+            return Err(EncodingError::InvalidBounds);
+        };
+        Ok(if self.bound_type == BoundType::UB {
             self.extend_tree(max_rhs, var_manager);
             match &mut self.root {
                 None => CNF::new(),
@@ -235,7 +238,7 @@ impl EncodePB for GeneralizedTotalizer {
                     &BoundType::UB,
                 ),
             }
-        }
+        })
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -323,8 +326,11 @@ impl IncEncodePB for GeneralizedTotalizer {
         min_rhs: usize,
         max_rhs: usize,
         var_manager: &mut VM,
-    ) -> CNF {
-        if self.bound_type == BoundType::UB {
+    ) -> Result<CNF, EncodingError> {
+        if min_rhs > max_rhs {
+            return Err(EncodingError::InvalidBounds);
+        };
+        Ok(if self.bound_type == BoundType::UB {
             self.extend_tree(max_rhs, var_manager);
             match &mut self.root {
                 None => CNF::new(),
@@ -348,7 +354,7 @@ impl IncEncodePB for GeneralizedTotalizer {
                     &BoundType::UB,
                 ),
             }
-        }
+        })
     }
 }
 
@@ -778,6 +784,7 @@ mod tests {
     use super::{GeneralizedTotalizer, Node};
     use crate::{
         encodings::{
+            card::{EncodeCard, Totalizer},
             pb::{EncodePB, IncEncodePB},
             BoundType, EncodingError,
         },
@@ -933,7 +940,7 @@ mod tests {
         assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
         assert_eq!(gte.enforce_lb(4), Err(EncodingError::NoObjectSupport));
         let mut var_manager = BasicVarManager::new();
-        gte.encode(0, 6, &mut var_manager);
+        gte.encode(0, 6, &mut var_manager).unwrap();
         assert_eq!(gte.get_depth(), 3);
     }
 
@@ -947,12 +954,12 @@ mod tests {
         lits.insert(lit![3], 3);
         gte1.add(lits.clone());
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = gte1.encode(0, 4, &mut var_manager);
+        let cnf1 = gte1.encode(0, 4, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::new(BoundType::UB).unwrap();
         gte2.add(lits);
         let mut var_manager = BasicVarManager::new();
-        let mut cnf2 = gte2.encode(0, 2, &mut var_manager);
-        cnf2.extend(gte2.encode_change(0, 4, &mut var_manager));
+        let mut cnf2 = gte2.encode(0, 2, &mut var_manager).unwrap();
+        cnf2.extend(gte2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -967,11 +974,11 @@ mod tests {
         gte1.add(lits.clone());
         let mut var_manager = BasicVarManager::new();
         var_manager.increase_next_free(var![4]);
-        let cnf1 = gte1.encode(0, 4, &mut var_manager.clone());
+        let cnf1 = gte1.encode(0, 4, &mut var_manager.clone()).unwrap();
         let mut gte2 = GeneralizedTotalizer::new(BoundType::LB).unwrap();
         gte2.add(lits);
-        let mut cnf2 = gte2.encode(2, 4, &mut var_manager);
-        cnf2.extend(gte2.encode_change(0, 4, &mut var_manager));
+        let mut cnf2 = gte2.encode(2, 4, &mut var_manager).unwrap();
+        cnf2.extend(gte2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -985,7 +992,7 @@ mod tests {
         lits.insert(lit![3], 3);
         gte1.add(lits);
         let mut var_manager = BasicVarManager::new();
-        let cnf1 = gte1.encode(0, 4, &mut var_manager);
+        let cnf1 = gte1.encode(0, 4, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::new(BoundType::UB).unwrap();
         let mut lits = HashMap::new();
         lits.insert(lit![0], 10);
@@ -994,7 +1001,7 @@ mod tests {
         lits.insert(lit![3], 6);
         gte2.add(lits);
         let mut var_manager = BasicVarManager::new();
-        let cnf2 = gte2.encode(0, 8, &mut var_manager);
+        let cnf2 = gte2.encode(0, 8, &mut var_manager).unwrap();
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
     }
 
@@ -1012,9 +1019,49 @@ mod tests {
         lits.insert(lit![1], 3);
         gte.add(lits);
         assert_eq!(gte.enforce_lb(1), Err(EncodingError::NoObjectSupport));
+        let mut var_manager = BasicVarManager::new();
+        assert_eq!(
+            gte.encode(5, 4, &mut var_manager),
+            Err(EncodingError::InvalidBounds)
+        );
         match GeneralizedTotalizer::new(BoundType::BOTH) {
             Ok(_) => panic!(),
             Err(err) => assert_eq!(err, EncodingError::NoTypeSupport),
         };
+    }
+
+    #[test]
+    fn gte_equals_tot() {
+        let mut var_manager_gte = BasicVarManager::new();
+        var_manager_gte.increase_next_free(var![7]);
+        let mut var_manager_tot = var_manager_gte.clone();
+        // Set up GTE
+        let mut gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
+        let mut lits = HashMap::new();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 1);
+        lits.insert(lit![2], 1);
+        lits.insert(lit![3], 1);
+        lits.insert(lit![4], 1);
+        lits.insert(lit![5], 1);
+        lits.insert(lit![6], 1);
+        gte.add(lits);
+        let gte_cnf = gte.encode(3, 7, &mut var_manager_gte).unwrap();
+        // Set up Tot
+        let mut tot = Totalizer::new(BoundType::UB).unwrap();
+        tot.add(vec![
+            lit![0],
+            lit![1],
+            lit![2],
+            lit![3],
+            lit![4],
+            lit![5],
+            lit![6],
+        ]);
+        let tot_cnf = tot.encode(3, 7, &mut var_manager_tot).unwrap();
+        println!("{:?}", gte_cnf);
+        println!("{:?}", tot_cnf);
+        assert_eq!(var_manager_gte.next_free(), var_manager_tot.next_free());
+        assert_eq!(gte_cnf.n_clauses(), tot_cnf.n_clauses());
     }
 }

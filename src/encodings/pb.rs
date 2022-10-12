@@ -37,13 +37,14 @@ pub trait EncodePB: Sized {
     /// Lazily encodes the PB constraint for `rhs` values at most `max_rhs` and
     /// at least `min_rhs`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might (have to) ignore
-    /// `min_rhs` or `max_rhs`.
+    /// `min_rhs` or `max_rhs`. Returns [`EncodingError::InvalidBounds`] if the
+    /// bounds are invalid.
     fn encode<VM: ManageVars>(
         &mut self,
         min_rhs: usize,
         max_rhs: usize,
         var_manager: &mut VM,
-    ) -> CNF;
+    ) -> Result<CNF, EncodingError>;
     /// Returns assumptions for enforcing an upper bound (`weighted sum of lits
     /// <= ub`) or an error if the encoding does not support upper bounding.
     /// Make sure that nothing was added to the encoding between the last call
@@ -91,11 +92,12 @@ pub trait IncEncodePB: EncodePB {
     /// changed bounds. `var_manager` is the variable manager to use for
     /// tracking new variables. The returned CNF might be empty if no change
     /// needs to be encoded. A specific encoding might (have to) ignore
-    /// `min_rhs` or `max_rhs`.
+    /// `min_rhs` or `max_rhs`. Returns [`EncodingError::InvalidBounds`] if the
+    /// bounds are invalid.
     fn encode_change<VM: ManageVars>(
         &mut self,
         min_rhs: usize,
         max_rhs: usize,
         var_manager: &mut VM,
-    ) -> CNF;
+    ) -> Result<CNF, EncodingError>;
 }

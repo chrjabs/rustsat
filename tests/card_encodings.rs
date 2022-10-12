@@ -36,7 +36,9 @@ fn test_card_pos_lits<CE: IncEncodeCard>(mut enc: CE) {
 
     enc.add(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
-    enc.encode(2, 2, &mut var_manager).add_to_solver(&mut solver);
+    enc.encode(2, 2, &mut var_manager)
+        .unwrap()
+        .add_to_solver(&mut solver);
     let assumps = enc.enforce_lb(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -46,6 +48,7 @@ fn test_card_pos_lits<CE: IncEncodeCard>(mut enc: CE) {
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 3, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -54,12 +57,14 @@ fn test_card_pos_lits<CE: IncEncodeCard>(mut enc: CE) {
     enc.add(vec![lit![5]]);
 
     enc.encode_change(0, 3, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 4, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -68,12 +73,14 @@ fn test_card_pos_lits<CE: IncEncodeCard>(mut enc: CE) {
     enc.add(vec![lit![6], lit![7], lit![8], lit![9], lit![10]]);
 
     enc.encode_change(0, 4, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 7, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(7).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -100,6 +107,7 @@ fn test_card_neg_lits<CE: EncodeCard>(mut enc: CE) {
     enc.add(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
 
     enc.encode(2, 3, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -124,6 +132,7 @@ fn test_card_min_enc<CE: EncodeCard>(mut enc: CE) {
     enc.add(vec![lit![0], lit![1], lit![2], lit![3]]);
 
     enc.encode(3, 3, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2], !lit![3]]);

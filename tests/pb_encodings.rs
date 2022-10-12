@@ -1,7 +1,6 @@
 use rustsat::{
     clause,
     encodings::{
-        card::{EncodeCard, Totalizer},
         pb::{EncodePB, GeneralizedTotalizer, IncEncodePB},
         BoundType,
     },
@@ -45,18 +44,21 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     enc.add(lits);
 
     enc.encode(0, 2, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 4, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 5, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -67,12 +69,14 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     enc.add(lits);
 
     enc.encode_change(0, 5, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 9, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -87,12 +91,14 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     enc.add(lits);
 
     enc.encode_change(0, 9, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     enc.encode_change(0, 14, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(14).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -116,9 +122,9 @@ fn test_pb_lb<PBE: EncodePB>(mut enc: PBE) {
     lits.insert(lit![2], 3);
     enc.add(lits);
 
-    let cnf = enc.encode(0, 10, &mut var_manager);
-    println!("{:?}", cnf);
-    cnf.add_to_solver(&mut solver);
+    enc.encode(0, 10, &mut var_manager)
+        .unwrap()
+        .add_to_solver(&mut solver);
     let assumps = enc.enforce_lb(10).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
@@ -143,6 +149,7 @@ fn test_pb_min_enc<PBE: EncodePB>(mut enc: PBE) {
     enc.add(lits);
 
     enc.encode(2, 2, &mut var_manager)
+        .unwrap()
         .add_to_solver(&mut solver);
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
@@ -201,39 +208,4 @@ fn gte_lb() {
 fn gte_min_enc() {
     let gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
     test_pb_min_enc(gte);
-}
-
-#[test]
-fn gte_equals_tot() {
-    let mut var_manager_gte = BasicVarManager::new();
-    var_manager_gte.increase_next_free(var![7]);
-    let mut var_manager_tot = var_manager_gte.clone();
-    // Set up GTE
-    let mut gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
-    let mut lits = HashMap::new();
-    lits.insert(lit![0], 1);
-    lits.insert(lit![1], 1);
-    lits.insert(lit![2], 1);
-    lits.insert(lit![3], 1);
-    lits.insert(lit![4], 1);
-    lits.insert(lit![5], 1);
-    lits.insert(lit![6], 1);
-    gte.add(lits);
-    let gte_cnf = gte.encode(3, 7, &mut var_manager_gte);
-    // Set up Tot
-    let mut tot = Totalizer::new(BoundType::UB).unwrap();
-    tot.add(vec![
-        lit![0],
-        lit![1],
-        lit![2],
-        lit![3],
-        lit![4],
-        lit![5],
-        lit![6],
-    ]);
-    let tot_cnf = tot.encode(3, 7, &mut var_manager_tot);
-    println!("{:?}", gte_cnf);
-    println!("{:?}", tot_cnf);
-    assert_eq!(var_manager_gte.next_free(), var_manager_tot.next_free());
-    assert_eq!(gte_cnf.n_clauses(), tot_cnf.n_clauses());
 }

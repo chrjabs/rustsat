@@ -27,4 +27,6 @@ pub enum EncodingError {
     NotEncoded,
     /// The requested encoding is unsatisfiable
     Unsat,
+    /// The bounds for the encoding are invalid
+    InvalidBounds,
 }
