@@ -4,6 +4,8 @@
 //! The approach is to accept input instances, even if they are not technically
 //! in spec, as long as the input is still reasonable.
 
+use super::{OptInstance, SatInstance};
+use crate::types::{Clause, Lit};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -20,11 +22,8 @@ use std::{
     io::{BufRead, BufReader, Read},
 };
 
-use super::{ManageVars, OptInstance, SatInstance};
-use crate::types::{Clause, Lit};
-
 /// Parses a CNF instance from a reader (typically a (compressed) file)
-pub fn parse_cnf<R: Read, VM: ManageVars>(reader: R) -> Result<SatInstance<VM>, DimacsError> {
+pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
     let reader = BufReader::new(reader);
     match parse_dimacs(reader)? {
         DimacsInstance::CNF(inst) => Ok(inst),
@@ -33,7 +32,7 @@ pub fn parse_cnf<R: Read, VM: ManageVars>(reader: R) -> Result<SatInstance<VM>, 
 }
 
 /// Parses a WCNF instance (old or new format) from a reader (typically a (compressed) file)
-pub fn parse_wcnf<R: Read, VM: ManageVars>(reader: R) -> Result<OptInstance<VM>, DimacsError> {
+pub fn parse_wcnf<R: Read>(reader: R) -> Result<OptInstance, DimacsError> {
     let reader = BufReader::new(reader);
     match parse_dimacs(reader)? {
         DimacsInstance::WCNF(inst) => Ok(inst),
@@ -67,9 +66,9 @@ impl fmt::Display for DimacsError {
 
 /// Internal type of Dimacs instances
 #[derive(Debug, PartialEq)]
-enum DimacsInstance<VM: ManageVars> {
-    CNF(SatInstance<VM>),
-    WCNF(OptInstance<VM>),
+enum DimacsInstance {
+    CNF(SatInstance),
+    WCNF(OptInstance),
 }
 
 /// Internal type of possible preambles
@@ -90,10 +89,9 @@ enum Preamble {
 }
 
 /// Top level parser
-fn parse_dimacs<R, VM>(reader: R) -> Result<DimacsInstance<VM>, DimacsError>
+fn parse_dimacs<R>(reader: R) -> Result<DimacsInstance, DimacsError>
 where
     R: BufRead,
-    VM: ManageVars,
 {
     match parse_preamble(reader) {
         Err(_) => Err(DimacsError::InvalidPreamble),
@@ -158,10 +156,9 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> IResult<R, Preamble> {
 }
 
 /// Main parser for CNF file
-fn parse_cnf_body<R, VM>(mut reader: R) -> IResult<R, SatInstance<VM>>
+fn parse_cnf_body<R>(mut reader: R) -> IResult<R, SatInstance>
 where
     R: BufRead,
-    VM: ManageVars,
 {
     let mut inst = SatInstance::new();
     loop {
@@ -185,10 +182,9 @@ where
 }
 
 /// Main parser for WCNF pre 22 (with p line)
-fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> IResult<R, OptInstance<VM>>
+fn parse_wcnf_pre22_body<R>(mut reader: R, top: usize) -> IResult<R, OptInstance>
 where
     R: BufRead,
-    VM: ManageVars,
 {
     let mut inst = OptInstance::new();
     loop {
@@ -218,10 +214,9 @@ where
 }
 
 /// Main parser for WCNF post 22 (without p line)
-fn parse_wcnf_post22_body<R, VM>(mut reader: R, first_line: &str) -> IResult<R, OptInstance<VM>>
+fn parse_wcnf_post22_body<R>(mut reader: R, first_line: &str) -> IResult<R, OptInstance>
 where
     R: BufRead,
-    VM: ManageVars,
 {
     let mut inst = OptInstance::new();
     let mut buf = first_line.to_string();
@@ -392,7 +387,7 @@ mod tests {
         clause,
         instances::{
             dimacs::{parse_cnf_body, parse_preamble},
-            BasicVarManager, OptInstance, SatInstance,
+            OptInstance, SatInstance,
         },
         ipasir_lit,
         types::{Clause, Lit},
@@ -623,7 +618,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst): (_, SatInstance<BasicVarManager>) = parse_cnf_body(reader).unwrap();
+        let (_, parsed_inst) = parse_cnf_body(reader).unwrap();
 
         let mut true_inst = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -638,8 +633,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst): (_, OptInstance<BasicVarManager>) =
-            parse_wcnf_pre22_body(reader, 42).unwrap();
+        let (_, parsed_inst) = parse_wcnf_pre22_body(reader, 42).unwrap();
 
         let mut true_inst = OptInstance::new();
         true_inst
@@ -656,8 +650,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst): (_, OptInstance<BasicVarManager>) =
-            parse_wcnf_post22_body(reader, "c test").unwrap();
+        let (_, parsed_inst) = parse_wcnf_post22_body(reader, "c test").unwrap();
 
         let mut true_inst = OptInstance::new();
         true_inst
@@ -674,7 +667,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let parsed_inst: DimacsInstance<BasicVarManager> = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(reader).unwrap();
 
         let mut inst = SatInstance::new();
         inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -691,7 +684,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let parsed_inst: DimacsInstance<BasicVarManager> = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(reader).unwrap();
 
         let mut inst = OptInstance::new();
         inst.get_constraints()
@@ -709,7 +702,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let parsed_inst: DimacsInstance<BasicVarManager> = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(reader).unwrap();
 
         let mut inst = OptInstance::new();
         inst.get_constraints()

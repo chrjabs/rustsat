@@ -160,7 +160,7 @@ impl CNF {
 /// Type representing a satisfiability instance.
 /// For now this only supports clausal constraints, but more will be added.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SatInstance<VM: ManageVars> {
+pub struct SatInstance<VM: ManageVars = BasicVarManager> {
     cnf: CNF,
     var_manager: VM,
 }
@@ -186,7 +186,15 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<SatInstance<VM>, Error> {
         match dimacs::parse_cnf(reader) {
             Err(dimacs_error) => Err(Error::Dimacs(dimacs_error)),
-            Ok(inst) => Ok(inst),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
         }
     }
 
@@ -298,7 +306,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 /// The constraints are represented as a [`SatInstance`] struct.
 /// For the objective, this currently supports soft clauses and soft literals.
 #[derive(Clone, Debug, PartialEq)]
-pub struct OptInstance<VM: ManageVars> {
+pub struct OptInstance<VM: ManageVars = BasicVarManager> {
     constraints: SatInstance<VM>,
     soft_lits: HashMap<Lit, usize>,
     soft_clauses: HashMap<Clause, usize>,
@@ -327,7 +335,15 @@ impl<VM: ManageVars> OptInstance<VM> {
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<OptInstance<VM>, Error> {
         match dimacs::parse_wcnf(reader) {
             Err(dimacs_error) => Err(Error::Dimacs(dimacs_error)),
-            Ok(inst) => Ok(inst),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
         }
     }
 
@@ -383,6 +399,19 @@ impl<VM: ManageVars> OptInstance<VM> {
         }
         let (cnf, vm) = self.constraints.as_cnf();
         (cnf, self.soft_lits, vm)
+    }
+
+    /// Converts the included variable manager to a different type
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> OptInstance<VM2>
+    where
+        VM2: ManageVars,
+        VMC: Fn(VM) -> VM2,
+    {
+        OptInstance {
+            constraints: self.constraints.change_var_manager(vm_converter),
+            soft_lits: self.soft_lits,
+            soft_clauses: self.soft_clauses,
+        }
     }
 }
 
