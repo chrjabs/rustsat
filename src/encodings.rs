@@ -30,3 +30,12 @@ pub enum EncodingError {
     /// The bounds for the encoding are invalid
     InvalidBounds,
 }
+
+/// Trait for encodings that track statistics.
+pub trait EncodeStats {
+    /// Gets the number of clauses in the encoding
+    fn n_clauses(&self) -> usize;
+
+    /// Gets the number of variables in the encoding
+    fn n_vars(&self) -> usize;
+}

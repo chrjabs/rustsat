@@ -11,6 +11,7 @@
 
 use super::{BoundType, EncodeCard, EncodingError, IncEncodeCard};
 use crate::{
+    encodings::EncodeStats,
     instances::{ManageVars, CNF},
     types::Lit,
 };
@@ -35,6 +36,10 @@ pub struct Totalizer {
     bound_type: BoundType,
     /// Whether or not to reserve all variables when constructing the tree
     reserve_vars: bool,
+    /// The number of variables in the totalizer
+    n_vars: usize,
+    /// The number of clauses in the totalizer
+    n_clauses: usize,
 }
 
 impl Totalizer {
@@ -93,6 +98,8 @@ impl EncodeCard for Totalizer {
             root: None,
             bound_type,
             reserve_vars: false,
+            n_vars: 0,
+            n_clauses: 0,
         })
     }
 
@@ -112,7 +119,13 @@ impl EncodeCard for Totalizer {
         self.extend_tree(var_manager);
         Ok(match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_rec(min_rhs, max_rhs, var_manager, &self.bound_type),
+            Some(root) => {
+                let n_vars_before = var_manager.n_used();
+                let cnf = root.encode_rec(min_rhs, max_rhs, var_manager, &self.bound_type);
+                self.n_clauses = cnf.n_clauses();
+                self.n_vars += var_manager.n_used() - n_vars_before;
+                cnf
+            }
         })
     }
 
@@ -197,6 +210,8 @@ impl IncEncodeCard for Totalizer {
             root: None,
             bound_type,
             reserve_vars: true,
+            n_vars: 0,
+            n_clauses: 0,
         })
     }
 
@@ -212,8 +227,24 @@ impl IncEncodeCard for Totalizer {
         self.extend_tree(var_manager);
         Ok(match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_change_rec(min_rhs, max_rhs, var_manager, &self.bound_type),
+            Some(root) => {
+                let n_vars_before = var_manager.n_used();
+                let cnf = root.encode_change_rec(min_rhs, max_rhs, var_manager, &self.bound_type);
+                self.n_clauses += cnf.n_clauses();
+                self.n_vars += var_manager.n_used() - n_vars_before;
+                cnf
+            }
         })
+    }
+}
+
+impl EncodeStats for Totalizer {
+    fn n_clauses(&self) -> usize {
+        self.n_clauses
+    }
+
+    fn n_vars(&self) -> usize {
+        self.n_vars
     }
 }
 
@@ -298,7 +329,7 @@ impl Node {
             return CNF::new();
         };
         // Reserve vars if needed
-        self.reserve_vars_till(min_rhs, max_rhs, var_manager, bound_type);
+        self.reserve_vars_from_till(min_rhs, max_rhs, var_manager, bound_type);
         match self {
             Node::Leaf { .. } => return CNF::new(),
             Node::Internal {
@@ -507,8 +538,9 @@ impl Node {
         }
     }
 
-    /// Reserves variables this node might need for enforcing bounds up to `max_rhs`.
-    fn reserve_vars_till<VM: ManageVars>(
+    /// Reserves variables this node might need for enforcing bounds between
+    /// `min_rhs` and `max_rhs`.
+    fn reserve_vars_from_till<VM: ManageVars>(
         &mut self,
         min_rhs: usize,
         max_rhs: usize,
@@ -558,7 +590,7 @@ impl Node {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
         };
-        self.reserve_vars_till(0, max_val, var_manager, bound_type);
+        self.reserve_vars_from_till(0, max_val, var_manager, bound_type);
     }
 
     /// Reserves all variables this node and the lower subtree might need. This
@@ -617,7 +649,7 @@ mod tests {
     use crate::{
         encodings::{
             card::{EncodeCard, IncEncodeCard},
-            BoundType, EncodingError,
+            BoundType, EncodingError, EncodeStats,
         },
         instances::{BasicVarManager, ManageVars},
         lit,
@@ -792,6 +824,8 @@ mod tests {
         let cnf = tot.encode(0, 4, &mut var_manager).unwrap();
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 28);
+        assert_eq!(tot.n_clauses(), 28);
+        assert_eq!(tot.n_vars(), 8);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
         assert_eq!(tot.enforce_lb(2).unwrap().len(), 1);
     }
@@ -804,6 +838,7 @@ mod tests {
         let cnf = tot.encode(3, 3, &mut var_manager).unwrap();
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 12);
+        assert_eq!(cnf.n_clauses(), tot.n_clauses());
     }
 
     #[test]
@@ -818,6 +853,8 @@ mod tests {
         let mut cnf2 = tot2.encode(0, 2, &mut var_manager).unwrap();
         cnf2.extend(tot2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
     }
 
     #[test]
@@ -832,6 +869,8 @@ mod tests {
         let mut cnf2 = tot2.encode(0, 2, &mut var_manager).unwrap();
         cnf2.extend(tot2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
     }
 
     #[test]
@@ -848,6 +887,8 @@ mod tests {
         tot3.add(vec![lit![0], lit![1], lit![2], lit![3]]);
         cnf2.extend(tot3.encode(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), tot2.n_clauses() + tot3.n_clauses());
     }
 
     #[test]
@@ -859,6 +900,9 @@ mod tests {
         tot.add(vec![lit![0], lit![1]]);
         assert_eq!(tot.enforce_lb(1), Err(EncodingError::NoObjectSupport));
         let mut var_manager = BasicVarManager::new();
-        assert_eq!(tot.encode(5, 4, &mut var_manager), Err(EncodingError::InvalidBounds));
+        assert_eq!(
+            tot.encode(5, 4, &mut var_manager),
+            Err(EncodingError::InvalidBounds)
+        );
     }
 }

@@ -38,7 +38,7 @@ pub trait EncodePB: Sized {
     /// at least `min_rhs`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might (have to) ignore
     /// `min_rhs` or `max_rhs`. Returns [`EncodingError::InvalidBounds`] if the
-    /// bounds are invalid.
+    /// bounds are invalid. Before encoding this method resets all stats.
     fn encode<VM: ManageVars>(
         &mut self,
         min_rhs: usize,

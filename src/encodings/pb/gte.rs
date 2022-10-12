@@ -10,6 +10,7 @@
 
 use super::{BoundType, EncodePB, EncodingError, IncEncodePB};
 use crate::{
+    encodings::EncodeStats,
     instances::{ManageVars, CNF},
     types::Lit,
 };
@@ -41,6 +42,10 @@ pub struct GeneralizedTotalizer {
     max_leaf_weight: usize,
     /// Sum of all input weight
     total_weight: usize,
+    /// The number of variables in the GTE
+    n_vars: usize,
+    /// The number of clauses in the GTE
+    n_clauses: usize,
 }
 
 impl GeneralizedTotalizer {
@@ -191,6 +196,8 @@ impl EncodePB for GeneralizedTotalizer {
                 reserve_vars: false,
                 max_leaf_weight: 0,
                 total_weight: 0,
+                n_vars: 0,
+                n_clauses: 0,
             }),
         }
     }
@@ -214,7 +221,8 @@ impl EncodePB for GeneralizedTotalizer {
         if min_rhs > max_rhs {
             return Err(EncodingError::InvalidBounds);
         };
-        Ok(if self.bound_type == BoundType::UB {
+        let n_vars_before = var_manager.n_used();
+        let cnf = if self.bound_type == BoundType::UB {
             self.extend_tree(max_rhs, var_manager);
             match &mut self.root {
                 None => CNF::new(),
@@ -238,7 +246,10 @@ impl EncodePB for GeneralizedTotalizer {
                     &BoundType::UB,
                 ),
             }
-        })
+        };
+        self.n_clauses = cnf.n_clauses();
+        self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(cnf)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -317,6 +328,8 @@ impl IncEncodePB for GeneralizedTotalizer {
                 reserve_vars: true,
                 max_leaf_weight: 0,
                 total_weight: 0,
+                n_vars: 0,
+                n_clauses: 0,
             }),
         }
     }
@@ -330,7 +343,8 @@ impl IncEncodePB for GeneralizedTotalizer {
         if min_rhs > max_rhs {
             return Err(EncodingError::InvalidBounds);
         };
-        Ok(if self.bound_type == BoundType::UB {
+        let n_vars_before = var_manager.n_used();
+        let cnf = if self.bound_type == BoundType::UB {
             self.extend_tree(max_rhs, var_manager);
             match &mut self.root {
                 None => CNF::new(),
@@ -354,7 +368,20 @@ impl IncEncodePB for GeneralizedTotalizer {
                     &BoundType::UB,
                 ),
             }
-        })
+        };
+        self.n_clauses += cnf.n_clauses();
+        self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(cnf)
+    }
+}
+
+impl EncodeStats for GeneralizedTotalizer {
+    fn n_clauses(&self) -> usize {
+        self.n_clauses
+    }
+
+    fn n_vars(&self) -> usize {
+        self.n_vars
     }
 }
 
@@ -473,7 +500,7 @@ impl Node {
             return CNF::new();
         };
         // Reserve vars if needed
-        self.reserve_vars_till(min_enc, max_enc, var_manager, bound_type);
+        self.reserve_vars_from_till(min_enc, max_enc, var_manager, bound_type);
         match &*self {
             Node::Leaf { .. } => return CNF::new(),
             Node::Internal {
@@ -656,8 +683,8 @@ impl Node {
         }
     }
 
-    /// Reserves variables this node might need up to `max_res`.
-    fn reserve_vars_till<VM: ManageVars>(
+    /// Reserves variables this node might need between `min_enc` and `max_enc`
+    fn reserve_vars_from_till<VM: ManageVars>(
         &mut self,
         min_enc: usize,
         max_enc: usize,
@@ -724,7 +751,7 @@ impl Node {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
         };
-        self.reserve_vars_till(0, max_val, var_manager, bound_type);
+        self.reserve_vars_from_till(0, max_val, var_manager, bound_type);
     }
 
     /// Reserves all variables this node and the lower subtree might need. This
@@ -786,7 +813,7 @@ mod tests {
         encodings::{
             card::{EncodeCard, Totalizer},
             pb::{EncodePB, IncEncodePB},
-            BoundType, EncodingError,
+            BoundType, EncodingError, EncodeStats,
         },
         instances::{BasicVarManager, ManageVars},
         lit,
@@ -942,6 +969,7 @@ mod tests {
         let mut var_manager = BasicVarManager::new();
         gte.encode(0, 6, &mut var_manager).unwrap();
         assert_eq!(gte.get_depth(), 3);
+        assert_eq!(gte.n_vars(), 10);
     }
 
     #[test]
@@ -961,6 +989,8 @@ mod tests {
         let mut cnf2 = gte2.encode(0, 2, &mut var_manager).unwrap();
         cnf2.extend(gte2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), gte1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), gte2.n_clauses());
     }
 
     #[test]
@@ -980,6 +1010,8 @@ mod tests {
         let mut cnf2 = gte2.encode(2, 4, &mut var_manager).unwrap();
         cnf2.extend(gte2.encode_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), gte1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), gte2.n_clauses());
     }
 
     #[test]
@@ -1003,6 +1035,8 @@ mod tests {
         let mut var_manager = BasicVarManager::new();
         let cnf2 = gte2.encode(0, 8, &mut var_manager).unwrap();
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), gte1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), gte2.n_clauses());
     }
 
     #[test]
@@ -1063,5 +1097,7 @@ mod tests {
         println!("{:?}", tot_cnf);
         assert_eq!(var_manager_gte.next_free(), var_manager_tot.next_free());
         assert_eq!(gte_cnf.n_clauses(), tot_cnf.n_clauses());
+        assert_eq!(gte_cnf.n_clauses(), gte.n_clauses());
+        assert_eq!(tot_cnf.n_clauses(), tot.n_clauses());
     }
 }

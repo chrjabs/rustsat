@@ -402,6 +402,10 @@ pub trait ManageVars {
     /// Combines two variable managers.
     /// In case an object is in both object maps, the one of `other` has precedence.
     fn combine(&mut self, other: Self);
+
+    /// Gets the number of used variables. Typically this is just the index of
+    /// the next free variable.
+    fn n_used(&self) -> usize;
 }
 
 /// Simple counter variable manager
@@ -442,6 +446,10 @@ impl ManageVars for BasicVarManager {
         if other.next_var > self.next_var {
             self.next_var = other.next_var;
         };
+    }
+
+    fn n_used(&self) -> usize {
+        self.next_var.index()
     }
 }
 
@@ -506,6 +514,10 @@ impl ManageVars for ObjectVarManager {
             self.next_var = other.next_var;
         };
         self.object_map.extend(other.object_map);
+    }
+
+    fn n_used(&self) -> usize {
+        self.next_var.index()
     }
 }
 
