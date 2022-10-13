@@ -12,9 +12,9 @@ use crate::{
 use std::collections::HashMap;
 
 mod gte;
+pub use gte::DoubleGeneralizedTotalizer;
 pub use gte::GeneralizedTotalizer;
 pub use gte::InvertedGeneralizedTotalizer;
-pub use gte::DoubleGeneralizedTotalizer;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait EncodePB {
@@ -184,4 +184,40 @@ pub trait IncBothBPB: IncUBPB + IncLBPB + BothBPB {
         cnf.extend(self.encode_lb_change(min_b, max_b, var_manager)?);
         Ok(cnf)
     }
+}
+
+/// Constructs a default upper bounding pseudo-boolean encoding. For now this is
+/// a [`GeneralizedTotalizer`]
+pub fn new_default_ub() -> Box<dyn UBPB> {
+    Box::new(GeneralizedTotalizer::new())
+}
+
+/// Constructs a default lower bounding pseudo-boolean encoding. For now this is
+/// a [`InvertedGeneralizedTotalizer`]
+pub fn new_default_lb() -> Box<dyn LBPB> {
+    Box::new(InvertedGeneralizedTotalizer::new())
+}
+
+/// Constructs a default double bounding pseudo-boolean encoding. For now this
+/// is a [`DoubleGeneralizedTotalizer`]
+pub fn new_default_both() -> Box<dyn BothBPB> {
+    Box::new(DoubleGeneralizedTotalizer::new())
+}
+
+/// Constructs a default incremental upper bounding pseudo-boolean encoding. For
+/// now this is a [`GeneralizedTotalizer`]
+pub fn new_default_inc_ub() -> Box<dyn IncUBPB> {
+    Box::new(GeneralizedTotalizer::new())
+}
+
+/// Constructs a default incremental lower bounding pseudo-boolean encoding. For
+/// now this is a [`InvertedGeneralizedTotalizer`]
+pub fn new_default_inc_lb() -> Box<dyn LBPB> {
+    Box::new(InvertedGeneralizedTotalizer::new())
+}
+
+/// Constructs a default incremental double bounding pseudo-boolean encoding.
+/// For now this is a [`DoubleGeneralizedTotalizer`]
+pub fn new_default_inc_both() -> Box<dyn BothBPB> {
+    Box::new(DoubleGeneralizedTotalizer::new())
 }

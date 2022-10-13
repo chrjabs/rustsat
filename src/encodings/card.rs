@@ -182,3 +182,39 @@ pub trait IncBothBCard: IncUBCard + IncLBCard + BothBCard {
         Ok(cnf)
     }
 }
+
+/// Constructs a default upper bounding cardinality encoding. For now this is a
+/// [`Totalizer`]
+pub fn new_default_ub() -> Box<dyn UBCard> {
+    Box::new(Totalizer::new())
+}
+
+/// Constructs a default lower bounding cardinality encoding. For now this is a
+/// [`Totalizer`]
+pub fn new_default_lb() -> Box<dyn LBCard> {
+    Box::new(Totalizer::new())
+}
+
+/// Constructs a default double bounding cardinality encoding. For now this is a
+/// [`Totalizer`]
+pub fn new_default_both() -> Box<dyn BothBCard> {
+    Box::new(Totalizer::new())
+}
+
+/// Constructs a default incremental upper bounding cardinality encoding. For
+/// now this is a [`Totalizer`]
+pub fn new_default_inc_ub() -> Box<dyn IncUBCard> {
+    Box::new(Totalizer::new())
+}
+
+/// Constructs a default incremental lower bounding cardinality encoding. For
+/// now this is a [`Totalizer`]
+pub fn new_default_inc_lb() -> Box<dyn LBCard> {
+    Box::new(Totalizer::new())
+}
+
+/// Constructs a default incremental double bounding cardinality encoding. For
+/// now this is a [`Totalizer`]
+pub fn new_default_inc_both() -> Box<dyn BothBCard> {
+    Box::new(Totalizer::new())
+}

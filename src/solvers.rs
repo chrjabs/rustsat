@@ -12,6 +12,8 @@ use crate::{
 };
 use std::fmt;
 
+use self::ipasir::IpasirSolver;
+
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
@@ -181,4 +183,18 @@ impl fmt::Display for SolverResult {
             SolverResult::Interrupted => write!(f, "Interrupted"),
         }
     }
+}
+
+/// Constructs a default non-incremental solver. Since the return value cannot
+/// be upcast, it might be necessary to directly instantiate a solver. For now
+/// the default is an IPASIR solver.
+pub fn new_default_solver() -> Box<dyn Solve> {
+    Box::new(IpasirSolver::new())
+}
+
+/// Constructs a default incremental solver. Since the return value cannot be
+/// upcast, it might be necessary to directly instantiate a solver. For now the
+/// default is an IPASIR solver.
+pub fn new_default_inc_solver() -> Box<dyn IncrementalSolve> {
+    Box::new(IpasirSolver::new())
 }
