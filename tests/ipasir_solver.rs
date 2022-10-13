@@ -9,7 +9,7 @@ fn small_sat_instance() {
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path(Path::new("./data/AProVE11-12.cnf")).unwrap();
     let mut solver = IpasirSolver::new();
-    inst.add_to_solver(&mut solver);
+    solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::SAT);
 }
@@ -21,7 +21,7 @@ fn small_unsat_instance() {
     ))
     .unwrap();
     let mut solver = IpasirSolver::new();
-    inst.add_to_solver(&mut solver);
+    solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 }
@@ -32,7 +32,7 @@ fn small_sat_instance_gzip() {
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path(Path::new("./data/AProVE11-12.cnf.gz")).unwrap();
     let mut solver = IpasirSolver::new();
-    inst.add_to_solver(&mut solver);
+    solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::SAT);
 }
@@ -45,7 +45,7 @@ fn small_unsat_instance_gzip() {
     ))
     .unwrap();
     let mut solver = IpasirSolver::new();
-    inst.add_to_solver(&mut solver);
+    solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 }
@@ -56,7 +56,7 @@ fn small_sat_instance_bz2() {
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path(Path::new("./data/AProVE11-12.cnf.bz2")).unwrap();
     let mut solver = IpasirSolver::new();
-    inst.add_to_solver(&mut solver);
+    solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::SAT);
 }
@@ -69,7 +69,7 @@ fn small_unsat_instance_bz2() {
     ))
     .unwrap();
     let mut solver = IpasirSolver::new();
-    inst.add_to_solver(&mut solver);
+    solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 }

@@ -11,11 +11,12 @@ use std::{
     io,
     io::Read,
     path::Path,
+    slice::{Iter, IterMut},
+    vec::IntoIter,
 };
 
 use crate::{
     clause,
-    solvers::Solve,
     types::{Clause, Error, Lit, Var},
 };
 
@@ -146,14 +147,24 @@ impl CNF {
         self.clauses.append(&mut other.clauses);
     }
 
-    /// Adds the CNF to a solver
-    pub fn add_to_solver<S>(self, solver: &mut S)
-    where
-        S: Solve,
-    {
-        self.clauses
-            .into_iter()
-            .for_each(|cl| solver.add_clause(cl))
+    /// Returns an iterator over references to the clauses
+    pub fn iter(&self) -> Iter<'_, Clause> {
+        self.clauses.iter()
+    }
+
+    /// Returns an iterator over mutable references to the clauses
+    pub fn iter_mut(&mut self) -> IterMut<'_, Clause> {
+        self.clauses.iter_mut()
+    }
+}
+
+impl IntoIterator for CNF {
+    type Item = Clause;
+
+    type IntoIter = IntoIter<Clause>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.clauses.into_iter()
     }
 }
 
@@ -284,14 +295,6 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Converts the instance to a set of clauses
     pub fn as_cnf(self) -> (CNF, VM) {
         (self.cnf, self.var_manager)
-    }
-
-    /// Adds the instance to a solver
-    pub fn add_to_solver<S>(self, solver: &mut S)
-    where
-        S: Solve,
-    {
-        self.cnf.add_to_solver(solver);
     }
 
     /// Extends the instance by another instance

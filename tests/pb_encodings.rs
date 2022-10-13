@@ -6,7 +6,7 @@ use rustsat::{
     },
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{ipasir::IpasirSolver, IncrementalSolve, Solve, SolverResult},
+    solvers::{new_default_inc_solver, SolverResult},
     types::{Clause, Lit, Var},
     var,
 };
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]);
     solver.add_clause(clause![lit![1]]);
     solver.add_clause(clause![lit![1], lit![2]]);
@@ -42,23 +42,17 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     lits.insert(lit![4], 2);
     enc.add(lits);
 
-    enc.encode_ub(0, 2, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub(0, 2, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_ub_change(0, 4, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub_change(0, 4, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_ub_change(0, 5, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub_change(0, 5, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -67,16 +61,12 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     lits.insert(lit![5], 4);
     enc.add(lits);
 
-    enc.encode_ub_change(0, 5, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub_change(0, 5, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_ub_change(0, 9, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub_change(0, 9, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -89,16 +79,12 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     lits.insert(lit![10], 2);
     enc.add(lits);
 
-    enc.encode_ub_change(0, 9, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub_change(0, 9, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_ub_change(0, 14, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub_change(0, 14, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(14).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -106,7 +92,7 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
 
 fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![3]);
 
@@ -116,9 +102,7 @@ fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
     lits.insert(lit![2], 2);
     enc.add(lits);
 
-    enc.encode_both(4, 4, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both(4, 4, &mut var_manager).unwrap());
 
     let mut assumps = enc.enforce_eq(4).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
@@ -163,7 +147,7 @@ fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
 
 fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     solver.add_clause(clause![!lit![0], !lit![1], !lit![2]]);
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![3]);
@@ -177,9 +161,7 @@ fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
     lits.insert(lit![2], 3);
     enc.add(lits);
 
-    enc.encode_lb(0, 10, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_lb(0, 10, &mut var_manager).unwrap());
     let assumps = enc.enforce_lb(10).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
@@ -192,7 +174,7 @@ fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
 
 fn test_pb_ub_min_enc<PBE: UBPB>(mut enc: PBE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![4]);
 
@@ -202,9 +184,7 @@ fn test_pb_ub_min_enc<PBE: UBPB>(mut enc: PBE) {
     lits.insert(lit![2], 1);
     enc.add(lits);
 
-    enc.encode_ub(2, 2, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_ub(2, 2, &mut var_manager).unwrap());
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
     let res = solver.solve_assumps(assumps).unwrap();

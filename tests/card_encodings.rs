@@ -3,14 +3,14 @@ use rustsat::{
     encodings::card::{BothBCard, EncodeCard, IncBothBCard, Totalizer},
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{ipasir::IpasirSolver, IncrementalSolve, Solve, SolverResult},
+    solvers::{new_default_inc_solver, SolverResult},
     types::{Clause, Lit, Var},
     var,
 };
 
 fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]);
     solver.add_clause(clause![lit![1]]);
     solver.add_clause(clause![lit![1], lit![2]]);
@@ -32,9 +32,7 @@ fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
 
     enc.add(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
-    enc.encode_both(2, 2, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both(2, 2, &mut var_manager).unwrap());
     let assumps = enc.enforce_lb(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -43,41 +41,31 @@ fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_both_change(0, 3, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both_change(0, 3, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
     enc.add(vec![lit![5]]);
 
-    enc.encode_both_change(0, 3, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both_change(0, 3, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_both_change(0, 4, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both_change(0, 4, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
     enc.add(vec![lit![6], lit![7], lit![8], lit![9], lit![10]]);
 
-    enc.encode_both_change(0, 4, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both_change(0, 4, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_both_change(0, 7, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both_change(0, 7, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(7).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -85,7 +73,7 @@ fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
 
 fn test_both_card<CE: BothBCard>(mut enc: CE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]);
     solver.add_clause(clause![lit![1]]);
     solver.add_clause(clause![lit![1], lit![2]]);
@@ -101,9 +89,7 @@ fn test_both_card<CE: BothBCard>(mut enc: CE) {
     // Set up totalizer
     enc.add(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
 
-    enc.encode_both(2, 3, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both(2, 3, &mut var_manager).unwrap());
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
@@ -120,15 +106,13 @@ fn test_both_card<CE: BothBCard>(mut enc: CE) {
 /// Requires a cardinality encoding with upper and lower bounding functionality
 fn test_both_card_min_enc<CE: BothBCard>(mut enc: CE) {
     // Set up instance
-    let mut solver = IpasirSolver::new();
+    let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![4]);
 
     enc.add(vec![lit![0], lit![1], lit![2], lit![3]]);
 
-    enc.encode_both(3, 3, &mut var_manager)
-        .unwrap()
-        .add_to_solver(&mut solver);
+    solver.add_cnf(enc.encode_both(3, 3, &mut var_manager).unwrap());
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2], !lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();

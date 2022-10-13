@@ -8,6 +8,7 @@ pub mod ipasir;
 
 use crate::{
     clause,
+    instances::CNF,
     types::{Clause, Error, Lit, Solution, TernaryVal, Var},
 };
 use std::fmt;
@@ -62,6 +63,10 @@ pub trait Solve {
     /// Like [`Solve::add_clause`] but for clauses with three literals.
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
         self.add_clause(clause![lit1, lit2, lit3])
+    }
+    /// Adds all clauses from a [`CNF`] instance.
+    fn add_cnf(&mut self, cnf: CNF) {
+        cnf.into_iter().for_each(|cl| self.add_clause(cl));
     }
 }
 
