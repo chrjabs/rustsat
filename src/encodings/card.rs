@@ -4,7 +4,7 @@
 //! constraints. It defines traits for (non-)incremental cardinality constraints
 //! and encodings implementing these traits.
 
-use super::{BoundType, EncodingError};
+use super::EncodingError;
 use crate::{
     instances::{ManageVars, CNF},
     types::Lit,
@@ -13,54 +13,96 @@ use crate::{
 mod totalizer;
 pub use totalizer::Totalizer;
 
-/// Trait for types that can encode a cardinality constraint of form `sum of
-/// lits <> rhs` where `<>` is either `>=`, `<=` or both.
-pub trait EncodeCard: Sized {
-    /// Constructs a new cardinality encoding. If the given bound type is not
-    /// supported by the implementing type, it returns
-    /// [`EncodingError::NoTypeSupport`].
-    fn new(bound_type: BoundType) -> Result<Self, EncodingError>;
-    /// Constructs a new cardinality encoding from input literals. If the given
-    /// bound type is not supported by the implementing type, it returns
-    /// [`EncodingError::NoTypeSupport`].
-    fn new_from_lits<CE: EncodeCard>(
-        lits: Vec<Lit>,
-        bound_type: BoundType,
-    ) -> Result<CE, EncodingError> {
-        let mut ce = CE::new(bound_type)?;
+/// Trait for all cardinality encodings of form `sum of lits <> rhs`
+pub trait EncodeCard {
+    /// Constructs a new cardinality encoding
+    fn new() -> Self
+    where
+        Self: Sized;
+    /// Constructs a new cardinality encoding from input
+    /// literals.
+    fn new_from_lits<I>(lits: I) -> Self
+    where
+        Self: Sized,
+        I: Iterator<Item = Lit>,
+    {
+        let lits = lits.collect();
+        let mut ce = Self::new();
         ce.add(lits);
-        Ok(ce)
+        ce
     }
     /// Adds new literals to the cardinality encoding
     fn add(&mut self, lits: Vec<Lit>);
-    /// Lazily encodes the cardinality constraint for `rhs` values at most
-    /// `max_rhs` and at least `min_rhs`. `var_manager` is the variable manager
-    /// to use for tracking new variables. A specific encoding might ignore
-    /// `min_rhs` or `max_rhs`. Returns [`EncodingError::InvalidBounds`] if the
-    /// bounds are invalid. Before encoding this method resets all stats.
-    fn encode<VM: ManageVars>(
+}
+
+/// Trait for cardinality encodings that allow upper bounding of the form `sum
+/// of lits <= ub`
+pub trait UBCard: EncodeCard {
+    /// Lazily builds the cardinality encoding to enable upper bounds from
+    /// `min_ub` to `max_ub`. `var_manager` is the variable manager to use for
+    /// tracking new variables. A specific encoding might ignore `min_ub` or
+    /// `max_ub`. Returns [`EncodingError::InvalidLimits`] if the bounds are
+    /// invalid.
+    fn encode_ub(
         &mut self,
-        min_rhs: usize,
-        max_rhs: usize,
-        var_manager: &mut VM,
+        min_ub: usize,
+        max_ub: usize,
+        var_manager: &mut dyn ManageVars,
     ) -> Result<CNF, EncodingError>;
-    /// Returns assumptions for enforcing an upper bound (`sum of lits <= ub`)
-    /// or an error if the encoding does not support upper bounding. Make sure
-    /// that nothing was added to the encoding between the last call to
-    /// [`EncodeCard::encode`] and this method, otherwise
-    /// [`super::EncodingError::NotEncoded`] will be returned.
+    /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
+    /// ub`). Make sure that [`UBCard::encode_ub`] has been called adequately
+    /// and nothing has been called afterwards, otherwise
+    /// [`EncodingError::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
-    /// Returns assumptions for enforcing a lower bound (`sum of lits >= lb`) or an
-    /// error if the encoding does not support lower bounding. Make sure that
-    /// nothing was added to the encoding between the last call to
-    /// [`EncodeCard::encode`] and this method, otherwise
-    /// [`super::EncodingError::NotEncoded`] will be returned.
+}
+
+/// Trait for cardinality encodings that allow upper bounding of the form `sum
+/// of lits <= ub`
+pub trait LBCard: EncodeCard {
+    /// Lazily builds the cardinality encoding to enable lower bounds from
+    /// `min_lb` to `max_lb`. `var_manager` is the variable manager to use for
+    /// tracking new variables. A specific encoding might ignore `min_lb` or
+    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
+    /// invalid.
+    fn encode_lb(
+        &mut self,
+        min_lb: usize,
+        max_lb: usize,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>;
+    /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
+    /// lb`). Make sure that [`LBCard::encode_lb`] has been called adequately
+    /// and nothing has been added afterwards, otherwise
+    /// [`EncodingError::NotEncoded`] will be returned. If `lb` is higher than
+    /// the number of literals in the encoding, [`EncodingError::Unsat`] is
+    /// returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError>;
+}
+
+/// Trait for cardinality encodings that allow upper and lower bounding
+pub trait BothBCard: UBCard + LBCard {
+    /// Lazily builds the cardinality encoding to enable both bounds from
+    /// `min_b` to `max_b`. `var_manager` is the variable manager to use for
+    /// tracking new variables. A specific encoding might ignore `min_lb` or
+    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
+    /// invalid.
+    fn encode_both(
+        &mut self,
+        min_b: usize,
+        max_b: usize,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError> {
+        let mut cnf = self.encode_ub(min_b, max_b, var_manager)?;
+        cnf.extend(self.encode_lb(min_b, max_b, var_manager)?);
+        Ok(cnf)
+    }
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
-    /// types. Make sure that nothing was added to the encoding between the last
-    /// call to [`EncodeCard::encode`] and this method, otherwise
-    /// [`super::EncodingError::NotEncoded`] will be returned.
+    /// types. Make sure the adequate `encode_x` methods have been called before
+    /// this method and nothing has been added afterwards, otherwise
+    /// [`EncodingError::NotEncoded`] will be returned. If `b` is higher than
+    /// the number of literals in the encoding, [`EncodingError::Unsat`] is
+    /// returned.
     fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EncodingError> {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
@@ -68,34 +110,75 @@ pub trait EncodeCard: Sized {
     }
 }
 
+/// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait IncEncodeCard: EncodeCard {
     /// Constructs a new cardinality encoding that reserves all variables on the
-    /// first call to an encode method. If the given bound type is not supported
-    /// by the implementing type, it returns [`EncodingError::NoTypeSupport`].
-    fn new_reserving(bound_type: BoundType) -> Result<Self, EncodingError>;
+    /// first call to an encode method
+    fn new_reserving() -> Self
+    where
+        Self: Sized;
     /// Constructs a new cardinality encoding that reserves all variables on the
-    /// first call to an encode method from input literals. If the given bound
-    /// type is not supported by the implementing type, it returns
-    /// [`EncodingError::NoTypeSupport`].
-    fn new_from_lits<ICE: IncEncodeCard>(
-        lits: Vec<Lit>,
-        bound_type: BoundType,
-    ) -> Result<ICE, EncodingError> {
-        let mut ce = ICE::new_reserving(bound_type)?;
+    /// first call to an encode method from input literals.
+    fn new_reserving_from_lits<I>(lits: I) -> Self
+    where
+        Self: Sized,
+        I: Iterator<Item = Lit>,
+    {
+        let lits = lits.collect();
+        let mut ce = Self::new();
         ce.add(lits);
-        Ok(ce)
+        ce
     }
-    /// Lazily encodes a change in the cardinality constraint for `rhs` values
-    /// at most `max_rhs` and at least `min_rhs`. A change can be added literals
-    /// or changed bounds. `var_manager` is the variable manager to use for
-    /// tracking new variables. The returned CNF might be empty if no change
-    /// needs to be encoded. A specific encoding might (have to) ignore
-    /// `min_rhs` or `max_rhs`. Returns [`EncodingError::InvalidBounds`] if the
-    /// bounds are invalid.
-    fn encode_change<VM: ManageVars>(
+}
+
+/// Trait for incremental cardinality encodings that allow upper bounding of the
+/// form `sum of lits <= ub`
+pub trait IncUBCard: UBCard + IncEncodeCard {
+    /// Lazily builds the _change in_ cardinality encoding to enable upper
+    /// bounds from `min_ub` to `max_ub`. A change might be added literals or
+    /// changed bounds. `var_manager` is the variable manager to use for
+    /// tracking new variables. A specific encoding might ignore `min_ub` or
+    /// `max_ub`. Returns [`EncodingError::InvalidLimits`] if the bounds are
+    /// invalid.
+    fn encode_ub_change(
         &mut self,
-        min_rhs: usize,
-        max_rhs: usize,
-        var_manager: &mut VM,
+        min_ub: usize,
+        max_ub: usize,
+        var_manager: &mut dyn ManageVars,
     ) -> Result<CNF, EncodingError>;
+}
+
+/// Trait for incremental cardinality encodings that allow upper bounding of the
+/// form `sum of lits <= ub`
+pub trait IncLBCard: LBCard + IncEncodeCard {
+    /// Lazily builds the _change in_ cardinality encoding to enable lower
+    /// bounds from `min_lb` to `max_lb`. `var_manager` is the variable manager
+    /// to use for tracking new variables. A specific encoding might ignore
+    /// `min_lb` or `max_lb`. Returns [`EncodingError::InvalidLimits`] if the
+    /// bounds are invalid.
+    fn encode_lb_change(
+        &mut self,
+        min_lb: usize,
+        max_lb: usize,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>;
+}
+
+/// Trait for incremental cardinality encodings that allow upper and lower bounding
+pub trait IncBothBCard: IncUBCard + IncLBCard + BothBCard {
+    /// Lazily builds the _change in_ cardinality encoding to enable both bounds
+    /// from `min_b` to `max_b`. `var_manager` is the variable manager to use
+    /// for tracking new variables. A specific encoding might ignore `min_lb` or
+    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
+    /// invalid.
+    fn encode_both_change(
+        &mut self,
+        min_b: usize,
+        max_b: usize,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError> {
+        let mut cnf = self.encode_ub_change(min_b, max_b, var_manager)?;
+        cnf.extend(self.encode_lb_change(min_b, max_b, var_manager)?);
+        Ok(cnf)
+    }
 }

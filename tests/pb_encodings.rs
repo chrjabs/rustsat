@@ -1,8 +1,8 @@
 use rustsat::{
     clause,
-    encodings::{
-        pb::{EncodePB, GeneralizedTotalizer, IncEncodePB},
-        BoundType,
+    encodings::pb::{
+        DoubleGeneralizedTotalizer, EncodePB, GeneralizedTotalizer, IncBothBPB, IncUBPB,
+        InvertedGeneralizedTotalizer, LBPB, UBPB,
     },
     instances::{BasicVarManager, ManageVars},
     lit,
@@ -12,8 +12,7 @@ use rustsat::{
 };
 use std::collections::HashMap;
 
-/// Requires an incremental PB encoding with upper bounding functionality
-fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
+fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = IpasirSolver::new();
     solver.add_clause(clause![lit![0], lit![1]]);
@@ -43,21 +42,21 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     lits.insert(lit![4], 2);
     enc.add(lits);
 
-    enc.encode(0, 2, &mut var_manager)
+    enc.encode_ub(0, 2, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_change(0, 4, &mut var_manager)
+    enc.encode_ub_change(0, 4, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_change(0, 5, &mut var_manager)
+    enc.encode_ub_change(0, 5, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(5).unwrap();
@@ -68,14 +67,14 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     lits.insert(lit![5], 4);
     enc.add(lits);
 
-    enc.encode_change(0, 5, &mut var_manager)
+    enc.encode_ub_change(0, 5, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_change(0, 9, &mut var_manager)
+    enc.encode_ub_change(0, 9, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(9).unwrap();
@@ -90,14 +89,14 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     lits.insert(lit![10], 2);
     enc.add(lits);
 
-    enc.encode_change(0, 9, &mut var_manager)
+    enc.encode_ub_change(0, 9, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
-    enc.encode_change(0, 14, &mut var_manager)
+    enc.encode_ub_change(0, 14, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_ub(14).unwrap();
@@ -105,8 +104,64 @@ fn test_pb_ub<PBE: IncEncodePB>(mut enc: PBE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-/// Requires a PB encoding with lower bounding functionality
-fn test_pb_lb<PBE: EncodePB>(mut enc: PBE) {
+fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
+    // Set up instance
+    let mut solver = IpasirSolver::new();
+    let mut var_manager = BasicVarManager::new();
+    var_manager.increase_next_free(var![3]);
+
+    let mut lits = HashMap::new();
+    lits.insert(lit![0], 4);
+    lits.insert(lit![1], 2);
+    lits.insert(lit![2], 2);
+    enc.add(lits);
+
+    enc.encode_both(4, 4, &mut var_manager)
+        .unwrap()
+        .add_to_solver(&mut solver);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![lit![0], lit![1], lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::UNSAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![lit![0], lit![1], !lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::UNSAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![lit![0], !lit![1], lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::UNSAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![lit![0], !lit![1], !lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::SAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![!lit![0], lit![1], lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::SAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![!lit![0], lit![1], !lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::UNSAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![!lit![0], !lit![1], lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::UNSAT);
+
+    let mut assumps = enc.enforce_eq(4).unwrap();
+    assumps.extend(vec![!lit![0], !lit![1], !lit![2]]);
+    let res = solver.solve_assumps(assumps).unwrap();
+    assert_eq!(res, SolverResult::UNSAT);
+}
+
+fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = IpasirSolver::new();
     solver.add_clause(clause![!lit![0], !lit![1], !lit![2]]);
@@ -122,7 +177,7 @@ fn test_pb_lb<PBE: EncodePB>(mut enc: PBE) {
     lits.insert(lit![2], 3);
     enc.add(lits);
 
-    enc.encode(0, 10, &mut var_manager)
+    enc.encode_lb(0, 10, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let assumps = enc.enforce_lb(10).unwrap();
@@ -135,8 +190,7 @@ fn test_pb_lb<PBE: EncodePB>(mut enc: PBE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-/// Requires a PB encoding with upper bounding functionality
-fn test_pb_min_enc<PBE: EncodePB>(mut enc: PBE) {
+fn test_pb_ub_min_enc<PBE: UBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = IpasirSolver::new();
     let mut var_manager = BasicVarManager::new();
@@ -148,7 +202,7 @@ fn test_pb_min_enc<PBE: EncodePB>(mut enc: PBE) {
     lits.insert(lit![2], 1);
     enc.add(lits);
 
-    enc.encode(2, 2, &mut var_manager)
+    enc.encode_ub(2, 2, &mut var_manager)
         .unwrap()
         .add_to_solver(&mut solver);
     let mut assumps = enc.enforce_ub(2).unwrap();
@@ -194,18 +248,24 @@ fn test_pb_min_enc<PBE: EncodePB>(mut enc: PBE) {
 
 #[test]
 fn gte_ub() {
-    let gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
-    test_pb_ub(gte);
+    let gte = GeneralizedTotalizer::new();
+    test_inc_pb_ub(gte);
 }
 
 #[test]
 fn gte_lb() {
-    let gte = GeneralizedTotalizer::new(BoundType::LB).unwrap();
+    let gte = InvertedGeneralizedTotalizer::new();
     test_pb_lb(gte);
 }
 
 #[test]
 fn gte_min_enc() {
-    let gte = GeneralizedTotalizer::new(BoundType::UB).unwrap();
-    test_pb_min_enc(gte);
+    let gte = GeneralizedTotalizer::new();
+    test_pb_ub_min_enc(gte);
+}
+
+#[test]
+fn gte_eq() {
+    let gte = DoubleGeneralizedTotalizer::new();
+    test_pb_eq(gte);
 }
