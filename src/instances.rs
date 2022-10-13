@@ -418,7 +418,9 @@ impl<VM: ManageVars> OptInstance<VM> {
 /// Trait for variable managers keeping track of used variables
 pub trait ManageVars {
     /// Creates a new variable manager
-    fn new() -> Self;
+    fn new() -> Self
+    where
+        Self: Sized;
 
     /// Uses up the next free variable
     fn next_free(&mut self) -> Var;
@@ -430,7 +432,9 @@ pub trait ManageVars {
 
     /// Combines two variable managers.
     /// In case an object is in both object maps, the one of `other` has precedence.
-    fn combine(&mut self, other: Self);
+    fn combine(&mut self, other: Self)
+    where
+        Self: Sized;
 
     /// Gets the number of used variables. Typically this is just the index of
     /// the next free variable.
