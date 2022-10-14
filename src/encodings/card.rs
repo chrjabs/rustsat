@@ -12,6 +12,7 @@ use crate::{
 
 mod totalizer;
 pub use totalizer::Totalizer;
+pub mod simulators;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait EncodeCard {

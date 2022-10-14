@@ -12,9 +12,11 @@ use crate::{
 use std::collections::HashMap;
 
 mod gte;
-pub use gte::DoubleGeneralizedTotalizer;
 pub use gte::GeneralizedTotalizer;
-pub use gte::InvertedGeneralizedTotalizer;
+pub mod simulators;
+pub type InvertedGeneralizedTotalizer = simulators::InvertedPB<GeneralizedTotalizer>;
+pub type DoubleGeneralizedTotalizer =
+    simulators::DoublePB<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait EncodePB {
