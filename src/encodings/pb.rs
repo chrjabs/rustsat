@@ -3,6 +3,46 @@
 //! The module contains implementations of CNF encodings for pseudo-boolean
 //! constraints. It defines traits for (non-)incremental PB constraints and
 //! encodings implementing these traits.
+//! 
+//! ## Example Useage
+//! 
+//! ```
+//! use std::collections::HashMap;
+//! 
+//! use rustsat::{
+//!     clause,
+//!     encodings::pb,
+//!     instances::{BasicVarManager, ManageVars},
+//!     lit, solvers,
+//!     solvers::SolverResult,
+//!     types::{Clause, Lit, Var},
+//!     var,
+//! };
+//! 
+//! let mut solver = solvers::new_default_inc_solver();
+//! solver.add_clause(clause![lit![0], lit![1], lit![2], lit![3]]);
+//! let mut var_manager = BasicVarManager::new();
+//! var_manager.increase_next_free(var![4]);
+//! 
+//! let mut enc = pb::new_default_inc_both();
+//! let mut lits = HashMap::new();
+//! lits.insert(lit![0], 4);
+//! lits.insert(lit![1], 2);
+//! lits.insert(lit![2], 2);
+//! lits.insert(lit![3], 6);
+//! enc.add(lits);
+//! solver.add_cnf(enc.encode_both(4, 4, &mut var_manager).unwrap());
+//! 
+//! let mut assumps = enc.enforce_eq(4).unwrap();
+//! assumps.extend(vec![!lit![0], lit![1], lit![2], !lit![3]]);
+//! let res = solver.solve_assumps(assumps).unwrap();
+//! assert_eq!(res, SolverResult::SAT);
+//! 
+//! let mut assumps = enc.enforce_eq(4).unwrap();
+//! assumps.extend(vec![!lit![0], !lit![1], lit![2], lit![3]]);
+//! let res = solver.solve_assumps(assumps).unwrap();
+//! assert_eq!(res, SolverResult::UNSAT);
+//! ```
 
 use super::EncodingError;
 use crate::{
