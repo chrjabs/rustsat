@@ -6,13 +6,12 @@
 use crate::{
     clause,
     instances::CNF,
-    types::{Clause, Error, Lit, Solution, TernaryVal, Var},
+    types::{Clause, Lit, Solution, TernaryVal, Var},
 };
 use std::fmt;
 
 #[cfg(feature = "ipasir")]
 mod ipasir;
-pub use ipasir::IpasirError;
 pub use ipasir::IpasirSolver;
 
 /// Trait for all SAT solvers in this library.
@@ -20,14 +19,14 @@ pub use ipasir::IpasirSolver;
 /// use them with this library.
 pub trait Solve {
     /// Solves the internal CNF formula without any assumptions.
-    fn solve(&mut self) -> Result<SolverResult, Error>;
+    fn solve(&mut self) -> Result<SolverResult, SolverError>;
     /// Gets a solution found by the solver.
     ///
     /// # Errors
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn get_solution(&self, high_var: &Var) -> Result<Solution, Error> {
+    fn get_solution(&self, high_var: &Var) -> Result<Solution, SolverError> {
         let mut assignment = Vec::new();
         let len = high_var.index() + 1;
         assignment.reserve(len);
@@ -38,7 +37,7 @@ pub trait Solve {
         Ok(Solution::from_vec(assignment))
     }
     /// Same as [`Solve::lit_val`], but for variables.
-    fn var_val(&self, var: &Var) -> Result<TernaryVal, Error> {
+    fn var_val(&self, var: &Var) -> Result<TernaryVal, SolverError> {
         self.lit_val(&var.pos_lit())
     }
     /// Gets an assignment of a variable in the solver.
@@ -47,7 +46,7 @@ pub trait Solve {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, Error>;
+    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError>;
     /// Adds a clause to the solver
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
@@ -77,11 +76,11 @@ pub trait IncrementalSolve: Solve {
     /// Solves the internal CNF formula under assumptions.
     /// Even though assumptions should be unique and theoretically the order shouldn't matter,
     /// in practice it does for some solvers, therefore the assumptions are a vector rather than a set.
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error>;
+    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError>;
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted
     /// literals of the assumptions.
-    fn get_core(&mut self) -> Result<Vec<Lit>, Error>;
+    fn get_core(&mut self) -> Result<Vec<Lit>, SolverError>;
 }
 
 /// Trait for solvers that track certain statistics.
@@ -136,7 +135,7 @@ impl InternalSolverState {
 }
 
 /// States that the solver can be in.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverState {
     /// Input state, while adding clauses.
     Input,
@@ -186,6 +185,28 @@ impl fmt::Display for SolverResult {
             SolverResult::SAT => write!(f, "SAT"),
             SolverResult::UNSAT => write!(f, "UNSAT"),
             SolverResult::Interrupted => write!(f, "Interrupted"),
+        }
+    }
+}
+
+/// Type representing solver errors
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SolverError {
+    /// An API with a description
+    API(String),
+    /// The solver was expected to be in the second [`SolverState`], but it is in the first.
+    State(SolverState, SolverState),
+}
+
+impl fmt::Display for SolverError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SolverError::API(desc) => write!(f, "API error: {}", desc),
+            SolverError::State(true_state, required_state) => write!(
+                f,
+                "Solver needs to be in state {} but was in {}",
+                required_state, true_state
+            ),
         }
     }
 }

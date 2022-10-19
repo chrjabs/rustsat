@@ -3,17 +3,13 @@
 //! Interface to any SAT solver implementing the
 //! [IPASIR API](https://github.com/biotomas/ipasir) for incremental SAT solvers.
 
-use std::{
-    ffi::CStr,
-    fmt,
-    os::raw::{c_int, c_void},
-};
+use core::ffi::{c_void, CStr};
 
 use super::{
-    ControlSignal, IncrementalSolve, InternalSolverState, Solve, SolveStats, SolverResult,
-    SolverState,
+    ControlSignal, IncrementalSolve, InternalSolverState, Solve, SolveStats, SolverError,
+    SolverResult, SolverState,
 };
-use crate::types::{Clause, Error, Lit, TernaryVal, Var};
+use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::IpasirHandle;
 
 /// Type for an IPASIR solver.
@@ -49,7 +45,7 @@ impl<'a> IpasirSolver<'a> {
         }
     }
 
-    /// Get the signature of the linked IPASIR solver.
+    /// Gets the signature of the linked IPASIR solver.
     pub fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ipasir_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -58,14 +54,19 @@ impl<'a> IpasirSolver<'a> {
             .expect("IPASIR signature returned invalid UTF-8.")
     }
 
-    fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, Error> {
+    fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
         for a in assumps {
             match unsafe { ffi::ipasir_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
                 1 => core.push(!*a),
-                invalid => return Err(Error::Ipasir(IpasirError::Failed(invalid))),
+                invalid => {
+                    return Err(SolverError::API(format!(
+                        "ipasir_failed returned invalid value: {}",
+                        invalid
+                    )))
+                }
             }
         }
         Ok(core)
@@ -150,14 +151,14 @@ impl<'a> IpasirSolver<'a> {
 }
 
 impl Solve for IpasirSolver<'_> {
-    fn solve(&mut self) -> Result<SolverResult, Error> {
+    fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::SAT = self.state {
             return Ok(SolverResult::SAT);
         } else if let InternalSolverState::UNSAT(_) = self.state {
             return Ok(SolverResult::UNSAT);
         } else if let InternalSolverState::Error(desc) = &self.state {
-            return Err(Error::State(
+            return Err(SolverError::State(
                 SolverState::Error(desc.clone()),
                 SolverState::Input,
             ));
@@ -179,11 +180,14 @@ impl Solve for IpasirSolver<'_> {
                 self.state = InternalSolverState::UNSAT(vec![]);
                 Ok(SolverResult::UNSAT)
             }
-            invalid => Err(Error::Ipasir(IpasirError::Solve(invalid))),
+            invalid => Err(SolverError::API(format!(
+                "ipasir_solve returned invalid value: {}",
+                invalid
+            ))),
         }
     }
 
-    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, Error> {
+    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError> {
         match &self.state {
             InternalSolverState::SAT => {
                 let lit = lit.to_ipasir();
@@ -191,10 +195,13 @@ impl Solve for IpasirSolver<'_> {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(Error::Ipasir(IpasirError::Val(invalid))),
+                    invalid => Err(SolverError::API(format!(
+                        "ipasir_val returned invalid value: {}",
+                        invalid
+                    ))),
                 }
             }
-            other => Err(Error::State(other.to_external(), SolverState::SAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::SAT)),
         }
     }
 
@@ -228,11 +235,11 @@ impl Solve for IpasirSolver<'_> {
 }
 
 impl IncrementalSolve for IpasirSolver<'_> {
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error> {
+    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
         if let InternalSolverState::Error(desc) = &self.state {
-            return Err(Error::State(
+            return Err(SolverError::State(
                 SolverState::Error(desc.clone()),
                 SolverState::Input,
             ));
@@ -257,14 +264,17 @@ impl IncrementalSolve for IpasirSolver<'_> {
                 self.state = InternalSolverState::UNSAT(self.get_core_assumps(&assumps)?);
                 Ok(SolverResult::UNSAT)
             }
-            invalid => Err(Error::Ipasir(IpasirError::Solve(invalid))),
+            invalid => Err(SolverError::API(format!(
+                "ipasir_solve returned invalid value: {}",
+                invalid
+            ))),
         }
     }
 
-    fn get_core(&mut self) -> Result<Vec<Lit>, Error> {
+    fn get_core(&mut self) -> Result<Vec<Lit>, SolverError> {
         match &self.state {
             InternalSolverState::UNSAT(core) => Ok(core.clone()),
-            other => Err(Error::State(other.to_external(), SolverState::UNSAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::UNSAT)),
         }
     }
 }
@@ -302,30 +312,6 @@ impl SolveStats for IpasirSolver<'_> {
 impl Drop for IpasirSolver<'_> {
     fn drop(&mut self) {
         unsafe { ffi::ipasir_release(self.handle) }
-    }
-}
-
-/// Type representing errors that can occur in the IPASIR API.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IpasirError {
-    /// Invalid return value in the `ipasir_solve` function.
-    Solve(c_int),
-    /// Invalid return value in the `ipasir_val` function.
-    Val(c_int),
-    /// Invalid return value in the `ipasir_failed` function.
-    Failed(c_int),
-    /// Zero was tried to use as a literal
-    ZeroLiteral,
-}
-
-impl fmt::Display for IpasirError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            IpasirError::Solve(invalid) => write!(f, "invalid response {} from solve", invalid),
-            IpasirError::Val(invalid) => write!(f, "invalid response {} from val", invalid),
-            IpasirError::Failed(invalid) => write!(f, "invalid response {} from failed", invalid),
-            IpasirError::ZeroLiteral => write!(f, "zero is an invalid IPASIR literal value"),
-        }
     }
 }
 
@@ -429,7 +415,7 @@ mod test {
 mod ffi {
     use crate::solvers::ControlSignal;
     use crate::types::Lit;
-    use std::os::raw::{c_char, c_int, c_void};
+    use core::ffi::{c_char, c_int, c_void};
     use std::{mem, slice};
 
     #[repr(C)]
