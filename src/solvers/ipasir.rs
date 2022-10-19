@@ -80,7 +80,7 @@ impl<'a> IpasirSolver<'a> {
     /// Terminate solver after 10 callback calls.
     ///
     /// ```
-    /// use rustsat::solvers::{ipasir::IpasirSolver, ControlSignal, Solve, SolverResult};
+    /// use rustsat::solvers::{IpasirSolver, ControlSignal, Solve, SolverResult};
     ///
     /// let mut solver = IpasirSolver::new();
     ///
@@ -119,7 +119,7 @@ impl<'a> IpasirSolver<'a> {
     /// Count number of learned clauses up to length 10.
     ///
     /// ```
-    /// use rustsat::solvers::{ipasir::IpasirSolver, Solve, SolverResult};
+    /// use rustsat::solvers::{IpasirSolver, Solve, SolverResult};
     ///
     /// let mut cnt = 0;
     ///
