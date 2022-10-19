@@ -3,9 +3,6 @@
 //! This module holds types and functions regarding SAT solvers.
 //! The main element is the [`Solve`] trait that every SAT solver in this library implements.
 
-#[cfg(feature = "ipasir")]
-pub mod ipasir;
-
 use crate::{
     clause,
     instances::CNF,
@@ -13,7 +10,10 @@ use crate::{
 };
 use std::fmt;
 
-use self::ipasir::IpasirSolver;
+#[cfg(feature = "ipasir")]
+mod ipasir;
+pub use ipasir::IpasirError;
+pub use ipasir::IpasirSolver;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to

@@ -8,7 +8,7 @@ use std::{cmp, fmt};
 use crate::{instances::DimacsError, solvers::SolverState};
 
 #[cfg(feature = "ipasir")]
-use crate::solvers::ipasir::IpasirError;
+use crate::solvers::IpasirError;
 #[cfg(feature = "ipasir")]
 use std::os::raw::c_int;
 

@@ -1,6 +1,6 @@
 use rustsat::{
     instances::{BasicVarManager, SatInstance},
-    solvers::{ipasir::IpasirSolver, Solve, SolverResult},
+    solvers::{IpasirSolver, Solve, SolverResult},
 };
 use std::path::Path;
 
