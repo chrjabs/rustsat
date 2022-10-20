@@ -6,6 +6,7 @@
 use std::{
     any::{Any, TypeId},
     collections::{hash_map::DefaultHasher, HashMap},
+    fmt,
     fs::File,
     hash::{Hash, Hasher},
     io,
@@ -17,7 +18,7 @@ use std::{
 
 use crate::{
     clause,
-    types::{Clause, Error, Lit, Var},
+    types::{Clause, Lit, Var},
 };
 
 #[cfg(feature = "compression")]
@@ -29,6 +30,24 @@ use std::ffi::OsStr;
 
 mod dimacs;
 pub use dimacs::DimacsError;
+
+/// Combined Parsing Errors
+#[derive(Debug)]
+pub enum ParsingError {
+    /// IO Errors
+    IO(std::io::Error),
+    /// Dimacs Parsing Error
+    Dimacs(DimacsError),
+}
+
+impl fmt::Display for ParsingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParsingError::IO(ioe) => write!(f, "IO error: {}", ioe),
+            ParsingError::Dimacs(de) => write!(f, "Dimacs error: {}", de),
+        }
+    }
+}
 
 /// Opens a buffered reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
@@ -194,9 +213,9 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a reader object with a specific variable manager
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<SatInstance<VM>, Error> {
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<SatInstance<VM>, ParsingError> {
         match dimacs::parse_cnf(reader) {
-            Err(dimacs_error) => Err(Error::Dimacs(dimacs_error)),
+            Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
                     let nfv = vm.next_free();
@@ -210,9 +229,9 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a file path with a specific variable manager
-    pub fn from_dimacs_path(path: &Path) -> Result<SatInstance<VM>, Error> {
+    pub fn from_dimacs_path(path: &Path) -> Result<SatInstance<VM>, ParsingError> {
         match open_compressed_uncompressed(path) {
-            Err(why) => Err(Error::IO(why)),
+            Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
         }
     }
@@ -335,9 +354,9 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a reader object
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<OptInstance<VM>, Error> {
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<OptInstance<VM>, ParsingError> {
         match dimacs::parse_wcnf(reader) {
-            Err(dimacs_error) => Err(Error::Dimacs(dimacs_error)),
+            Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
                     let nfv = vm.next_free();
@@ -351,9 +370,9 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a file path
-    pub fn from_dimacs_path(path: &Path) -> Result<OptInstance<VM>, Error> {
+    pub fn from_dimacs_path(path: &Path) -> Result<OptInstance<VM>, ParsingError> {
         match open_compressed_uncompressed(path) {
-            Err(why) => Err(Error::IO(why)),
+            Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader(reader),
         }
     }

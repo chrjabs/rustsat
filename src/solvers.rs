@@ -3,31 +3,34 @@
 //! This module holds types and functions regarding SAT solvers.
 //! The main element is the [`Solve`] trait that every SAT solver in this library implements.
 
-#[cfg(feature = "ipasir")]
-pub mod ipasir;
-
 use crate::{
     clause,
     instances::CNF,
-    types::{Clause, Error, Lit, Solution, TernaryVal, Var},
+    types::{Clause, Lit, Solution, TernaryVal, Var},
 };
 use std::fmt;
 
-use self::ipasir::IpasirSolver;
+#[cfg(feature = "ipasir")]
+mod ipasir;
+pub use ipasir::IpasirSolver;
+
+#[cfg(feature = "cadical")]
+pub mod cadical;
+pub use cadical::CaDiCaL;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
 pub trait Solve {
     /// Solves the internal CNF formula without any assumptions.
-    fn solve(&mut self) -> Result<SolverResult, Error>;
+    fn solve(&mut self) -> Result<SolverResult, SolverError>;
     /// Gets a solution found by the solver.
     ///
     /// # Errors
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn get_solution(&self, high_var: &Var) -> Result<Solution, Error> {
+    fn get_solution(&self, high_var: &Var) -> Result<Solution, SolverError> {
         let mut assignment = Vec::new();
         let len = high_var.index() + 1;
         assignment.reserve(len);
@@ -38,7 +41,7 @@ pub trait Solve {
         Ok(Solution::from_vec(assignment))
     }
     /// Same as [`Solve::lit_val`], but for variables.
-    fn var_val(&self, var: &Var) -> Result<TernaryVal, Error> {
+    fn var_val(&self, var: &Var) -> Result<TernaryVal, SolverError> {
         self.lit_val(&var.pos_lit())
     }
     /// Gets an assignment of a variable in the solver.
@@ -47,7 +50,7 @@ pub trait Solve {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, Error>;
+    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError>;
     /// Adds a clause to the solver
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
@@ -77,11 +80,11 @@ pub trait IncrementalSolve: Solve {
     /// Solves the internal CNF formula under assumptions.
     /// Even though assumptions should be unique and theoretically the order shouldn't matter,
     /// in practice it does for some solvers, therefore the assumptions are a vector rather than a set.
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, Error>;
+    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError>;
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted
     /// literals of the assumptions.
-    fn get_core(&mut self) -> Result<Vec<Lit>, Error>;
+    fn get_core(&mut self) -> Result<Vec<Lit>, SolverError>;
 }
 
 /// Trait for solvers that track certain statistics.
@@ -116,7 +119,9 @@ pub trait SolveStats {
     fn get_cpu_solve_time(&self) -> f32;
 }
 
+#[derive(Debug, PartialEq)]
 enum InternalSolverState {
+    Configuring,
     Input,
     SAT,
     UNSAT(Vec<Lit>),
@@ -127,6 +132,7 @@ enum InternalSolverState {
 impl InternalSolverState {
     fn to_external(&self) -> SolverState {
         match self {
+            InternalSolverState::Configuring => SolverState::Configuring,
             InternalSolverState::Input => SolverState::Input,
             InternalSolverState::SAT => SolverState::SAT,
             InternalSolverState::UNSAT(_) => SolverState::UNSAT,
@@ -136,8 +142,10 @@ impl InternalSolverState {
 }
 
 /// States that the solver can be in.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverState {
+    /// Configuration of the solver must be done in this state, before any clauses are added
+    Configuring,
     /// Input state, while adding clauses.
     Input,
     /// The query was found satisfiable.
@@ -152,6 +160,7 @@ pub enum SolverState {
 impl fmt::Display for SolverState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            SolverState::Configuring => write!(f, "CONFIGURING"),
             SolverState::Input => write!(f, "INPUT"),
             SolverState::SAT => write!(f, "SAT"),
             SolverState::UNSAT => write!(f, "UNSAT"),
@@ -190,16 +199,38 @@ impl fmt::Display for SolverResult {
     }
 }
 
+/// Type representing solver errors
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SolverError {
+    /// An API with a description
+    API(String),
+    /// The solver was expected to be in the second [`SolverState`], but it is in the first.
+    State(SolverState, SolverState),
+}
+
+impl fmt::Display for SolverError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SolverError::API(desc) => write!(f, "API error: {}", desc),
+            SolverError::State(true_state, required_state) => write!(
+                f,
+                "Solver needs to be in state {} but was in {}",
+                required_state, true_state
+            ),
+        }
+    }
+}
+
 /// Constructs a default non-incremental solver. Since the return value cannot
 /// be upcast, it might be necessary to directly instantiate a solver. For now
-/// the default is an IPASIR solver.
+/// the default is an instance of CaDiCaL.
 pub fn new_default_solver() -> Box<dyn Solve> {
-    Box::new(IpasirSolver::new())
+    Box::new(CaDiCaL::new())
 }
 
 /// Constructs a default incremental solver. Since the return value cannot be
 /// upcast, it might be necessary to directly instantiate a solver. For now the
-/// default is an IPASIR solver.
+/// default is an instance of CaDiCaL.
 pub fn new_default_inc_solver() -> Box<dyn IncrementalSolve> {
-    Box::new(IpasirSolver::new())
+    Box::new(CaDiCaL::new())
 }

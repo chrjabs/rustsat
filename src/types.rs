@@ -2,15 +2,8 @@
 //!
 //! Common types used throughout the library to guarantee type safety.
 
-use core::ops::Not;
+use core::{ffi::c_int, ops::Not};
 use std::{cmp, fmt};
-
-use crate::{instances::DimacsError, solvers::SolverState};
-
-#[cfg(feature = "ipasir")]
-use crate::solvers::ipasir::IpasirError;
-#[cfg(feature = "ipasir")]
-use std::os::raw::c_int;
 
 /// Type representing boolean variables in a SAT problem.
 /// Variables indexing in RustSAT starts from 0.
@@ -134,11 +127,11 @@ impl Lit {
         Lit::new(idx, true)
     }
 
-    #[cfg(feature = "ipasir")]
-    /// Create a literal from an IPASIR integer value
-    pub fn from_ipasir(val: i32) -> Result<Lit, IpasirError> {
+    /// Create a literal from an IPASIR integer value. Returns an empty error if
+    /// the value is zero.
+    pub fn from_ipasir(val: i32) -> Result<Lit, ()> {
         if val == 0 {
-            return Err(IpasirError::ZeroLiteral);
+            return Err(());
         }
         let negated = if val > 0 { false } else { true };
         let idx: usize = if val > 0 {
@@ -175,10 +168,9 @@ impl Lit {
         self.negated
     }
 
-    #[cfg(feature = "ipasir")]
-    /// Converts the literal to an integer as accepted by the IPASIR API.
-    /// The IPASIR literal will have idx+1 and be negative if the literal is
-    /// negated.
+    /// Converts the literal to an integer as accepted by the IPASIR API and
+    /// similar. The IPASIR literal will have idx+1 and be negative if the
+    /// literal is negated.
     pub fn to_ipasir(self) -> c_int {
         let idx: i32 = (self.v.idx + 1)
             .try_into()
@@ -499,40 +491,6 @@ impl fmt::Display for Solution {
         self.assignment.iter().fold(Ok(()), |result, tv| {
             result.and_then(|_| write!(f, "{}", tv))
         })
-    }
-}
-
-/// General error type for the entire library.
-/// Variants represent more detailed errors.
-#[derive(Debug)]
-pub enum Error {
-    #[cfg(feature = "ipasir")]
-    /// Errors from the IPASIR interface.
-    Ipasir(IpasirError),
-    /// Errors in a SAT solver stemming from the solver being in an invalid
-    /// state for an operation.
-    /// The first [`SolverState`] member holds the state that the solver is in,
-    /// the second the required state.
-    State(SolverState, SolverState),
-    /// Errors when reading files
-    IO(std::io::Error),
-    /// Errors when parsing DIMACS
-    Dimacs(DimacsError),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            #[cfg(feature = "ipasir")]
-            Error::Ipasir(err) => write!(f, "Error in IPASIR API: {}", err),
-            Error::State(true_state, required_state) => write!(
-                f,
-                "Solver needs to be in state {} but was in {}",
-                required_state, true_state
-            ),
-            Error::IO(err) => write!(f, "File IO error: {}", err),
-            Error::Dimacs(err) => write!(f, "Error parsing DIMACS: {}", err),
-        }
     }
 }
 
