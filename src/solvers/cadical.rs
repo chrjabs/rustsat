@@ -375,7 +375,7 @@ impl<'a> CaDiCaL<'a> {
             }
         };
         // Simplify with CaDiCaL backend
-        match unsafe { ffi::ccadical_simplify(self.handle, rounds) } {
+        match unsafe { ffi::ccadical_simplify_rounds(self.handle, rounds) } {
             0 => {
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
@@ -424,7 +424,7 @@ impl<'a> CaDiCaL<'a> {
         for a in &assumps {
             unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
         }
-        match unsafe { ffi::ccadical_simplify(self.handle, rounds) } {
+        match unsafe { ffi::ccadical_simplify_rounds(self.handle, rounds) } {
             0 => {
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
@@ -814,7 +814,7 @@ mod test {
         assert_eq!(solver.is_frozen(lit![0]), true);
 
         solver.melt_lit(lit![0]);
-        
+
         assert_eq!(solver.is_frozen(lit![0]), false);
     }
 }
@@ -873,7 +873,7 @@ mod ffi {
         pub fn ccadical_freeze(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_frozen(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_melt(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_simplify(solver: *mut CaDiCaLHandle, rounds: c_int) -> c_int;
+        pub fn ccadical_simplify_rounds(solver: *mut CaDiCaLHandle, rounds: c_int) -> c_int;
         pub fn ccadical_configure(solver: *mut CaDiCaLHandle, name: *const c_char) -> bool;
         pub fn ccadical_phase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_unphase(solver: *mut CaDiCaLHandle, lit: c_int);
