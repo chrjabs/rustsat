@@ -50,3 +50,23 @@ fn cadical_small_unsat() {
     let solver = solvers::CaDiCaL::new();
     small_unsat_instance(solver);
 }
+
+#[test]
+#[cfg(feature = "cadical")]
+fn cadical_sat_small_sat() {
+    let mut solver = solvers::CaDiCaL::new();
+    solver
+        .set_configuration(solvers::cadical::Config::SAT)
+        .unwrap();
+    small_sat_instance(solver);
+}
+
+#[test]
+#[cfg(feature = "cadical")]
+fn cadical_unsat_small_unsat() {
+    let mut solver = solvers::CaDiCaL::new();
+    solver
+        .set_configuration(solvers::cadical::Config::UNSAT)
+        .unwrap();
+    small_unsat_instance(solver);
+}
