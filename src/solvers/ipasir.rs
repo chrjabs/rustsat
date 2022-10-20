@@ -318,9 +318,11 @@ impl Drop for IpasirSolver<'_> {
 #[cfg(test)]
 mod test {
     use super::IpasirSolver;
-    use crate::lit;
-    use crate::solvers::{ControlSignal, Solve, SolverResult};
-    use crate::types::Lit;
+    use crate::{
+        lit,
+        solvers::{ControlSignal, Solve, SolverResult},
+        types::Lit,
+    };
 
     #[test]
     fn build_destroy() {

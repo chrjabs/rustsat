@@ -15,7 +15,7 @@ mod ipasir;
 pub use ipasir::IpasirSolver;
 
 #[cfg(feature = "cadical")]
-mod cadical;
+pub mod cadical;
 pub use cadical::CaDiCaL;
 
 /// Trait for all SAT solvers in this library.
@@ -119,7 +119,9 @@ pub trait SolveStats {
     fn get_cpu_solve_time(&self) -> f32;
 }
 
+#[derive(Debug, PartialEq)]
 enum InternalSolverState {
+    Configuring,
     Input,
     SAT,
     UNSAT(Vec<Lit>),
@@ -130,6 +132,7 @@ enum InternalSolverState {
 impl InternalSolverState {
     fn to_external(&self) -> SolverState {
         match self {
+            InternalSolverState::Configuring => SolverState::Configuring,
             InternalSolverState::Input => SolverState::Input,
             InternalSolverState::SAT => SolverState::SAT,
             InternalSolverState::UNSAT(_) => SolverState::UNSAT,
@@ -141,6 +144,8 @@ impl InternalSolverState {
 /// States that the solver can be in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverState {
+    /// Configuration of the solver must be done in this state, before any clauses are added
+    Configuring,
     /// Input state, while adding clauses.
     Input,
     /// The query was found satisfiable.
@@ -155,6 +160,7 @@ pub enum SolverState {
 impl fmt::Display for SolverState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            SolverState::Configuring => write!(f, "CONFIGURING"),
             SolverState::Input => write!(f, "INPUT"),
             SolverState::SAT => write!(f, "SAT"),
             SolverState::UNSAT => write!(f, "UNSAT"),
