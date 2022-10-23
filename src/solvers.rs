@@ -32,7 +32,7 @@ pub trait Solve {
     /// - A specific implementation might return other errors
     fn get_solution(&self, high_var: &Var) -> Result<Solution, SolverError> {
         let mut assignment = Vec::new();
-        let len = high_var.index() + 1;
+        let len = high_var.idx() + 1;
         assignment.reserve(len);
         for idx in 0..len {
             let lit = Lit::positive(idx);
@@ -109,7 +109,7 @@ pub trait SolveStats {
     /// Note: this is only correct if all variables are used in order!
     fn get_n_vars(&self) -> usize {
         match self.get_max_var() {
-            Some(var) => var.index() + 1,
+            Some(var) => var.idx() + 1,
             None => 0,
         }
     }

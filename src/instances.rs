@@ -244,7 +244,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds a clause to the instance
     pub fn add_clause(&mut self, cl: Clause) {
         cl.iter().for_each(|l| {
-            self.var_manager.increase_next_free(*l.var());
+            self.var_manager.increase_next_free(l.var());
         });
         self.cnf.add_clause(cl);
     }
@@ -384,14 +384,14 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Adds a soft literal or updates its weight
     pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
-        self.constraints.var_manager.increase_next_free(*l.var());
+        self.constraints.var_manager.increase_next_free(l.var());
         self.soft_lits.insert(l, w);
     }
 
     /// Adds a soft clause or updates its weight
     pub fn add_soft_clause(&mut self, w: usize, cl: Clause) {
         cl.iter().for_each(|l| {
-            self.constraints.var_manager.increase_next_free(*l.var());
+            self.constraints.var_manager.increase_next_free(l.var());
         });
         self.soft_clauses.insert(cl, w);
     }
@@ -485,7 +485,7 @@ impl ManageVars for BasicVarManager {
 
     fn next_free(&mut self) -> Var {
         let v = self.next_var;
-        self.next_var = Var::new(v.index() + 1);
+        self.next_var = Var::new(v.idx() + 1);
         v
     }
 
@@ -504,7 +504,7 @@ impl ManageVars for BasicVarManager {
     }
 
     fn n_used(&self) -> usize {
-        self.next_var.index()
+        self.next_var.idx()
     }
 }
 
@@ -552,7 +552,7 @@ impl ManageVars for ObjectVarManager {
 
     fn next_free(&mut self) -> Var {
         let v = self.next_var;
-        self.next_var = Var::new(v.index() + 1);
+        self.next_var = Var::new(v.idx() + 1);
         v
     }
 
@@ -572,7 +572,7 @@ impl ManageVars for ObjectVarManager {
     }
 
     fn n_used(&self) -> usize {
-        self.next_var.index()
+        self.next_var.idx()
     }
 }
 
@@ -631,10 +631,10 @@ mod tests {
         let v2 = man.next_free();
         let v3 = man.next_free();
         let v4 = man.next_free();
-        assert_eq!(v1.index(), 0);
-        assert_eq!(v2.index(), 1);
-        assert_eq!(v3.index(), 2);
-        assert_eq!(v4.index(), 3);
+        assert_eq!(v1.idx(), 0);
+        assert_eq!(v2.idx(), 1);
+        assert_eq!(v3.idx(), 2);
+        assert_eq!(v4.idx(), 3);
     }
 
     #[test]
