@@ -214,10 +214,10 @@ impl Solve for IpasirSolver<'_> {
         self.n_clauses += 1;
         for lit in &clause {
             match self.max_var {
-                None => self.max_var = Some(*lit.var()),
+                None => self.max_var = Some(lit.var()),
                 Some(var) => {
-                    if lit.var() > &var {
-                        self.max_var = Some(*lit.var());
+                    if lit.var() > var {
+                        self.max_var = Some(lit.var());
                     }
                 }
             }
