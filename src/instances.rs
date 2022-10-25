@@ -18,7 +18,10 @@ use std::{
 
 use crate::{
     clause,
-    types::{Clause, Lit, Var},
+    types::{
+        constraints::{CardConstraint, PBConstraint},
+        Clause, Lit, Var,
+    },
 };
 
 #[cfg(feature = "compression")]
@@ -89,6 +92,21 @@ impl CNF {
     /// Adds a clause to the CNF
     pub fn add_clause(&mut self, clause: Clause) {
         self.clauses.push(clause);
+    }
+
+    /// Adds a unit clause to the CNF
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the CNF
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the CNF
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
     }
 
     /// Returns the number of clauses in the instance
@@ -187,11 +205,13 @@ impl IntoIterator for CNF {
     }
 }
 
-/// Type representing a satisfiability instance.
-/// For now this only supports clausal constraints, but more will be added.
+/// Type representing a satisfiability instance. Supported constraints are
+/// clauses, cardinality constraints and pseudo-boolean constraints.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SatInstance<VM: ManageVars = BasicVarManager> {
     cnf: CNF,
+    cards: Vec<CardConstraint>,
+    pbs: Vec<PBConstraint>,
     var_manager: VM,
 }
 
@@ -200,6 +220,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn new() -> SatInstance<VM> {
         SatInstance {
             cnf: CNF::new(),
+            cards: vec![],
+            pbs: vec![],
             var_manager: VM::new(),
         }
     }
@@ -208,6 +230,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn new_with_manager(var_manager: VM) -> Self {
         SatInstance {
             cnf: CNF::new(),
+            cards: vec![],
+            pbs: vec![],
             var_manager,
         }
     }
@@ -257,49 +281,122 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.cnf.add_clause(cl);
     }
 
+    /// Adds a unit clause to the instance
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the instance
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the instance
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
+    }
+
     /// Adds an implication of form (a -> b) to the instance
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
+        self.var_manager.increase_next_free(a.var());
+        self.var_manager.increase_next_free(b.var());
         self.cnf.add_lit_impl_lit(a, b);
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+        self.var_manager.increase_next_free(a.var());
+        b.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
         self.cnf.add_lit_impl_clause(a, b);
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+        self.var_manager.increase_next_free(a.var());
+        b.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
         self.cnf.add_lit_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
     pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        a.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        self.var_manager.increase_next_free(b.var());
         self.cnf.add_cube_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        a.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        self.var_manager.increase_next_free(b.var());
         self.cnf.add_clause_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
     pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
         self.cnf.add_cube_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
         self.cnf.add_clause_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
         self.cnf.add_clause_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
         self.cnf.add_cube_impl_cube(a, b);
+    }
+
+    /// Adds a cardinality constraint
+    pub fn add_card_constr(&mut self, card: CardConstraint) {
+        card.iter().for_each(|l| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        self.cards.push(card)
+    }
+
+    /// Adds a cardinality constraint
+    pub fn add_pb_constr(&mut self, pb: PBConstraint) {
+        pb.iter().for_each(|(l, _)| {
+            self.var_manager.increase_next_free(l.var());
+        });
+        self.pbs.push(pb)
     }
 
     /// Get a reference to the variable manager
@@ -315,6 +412,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     {
         SatInstance {
             cnf: self.cnf,
+            cards: self.cards,
+            pbs: self.pbs,
             var_manager: vm_converter(self.var_manager),
         }
     }

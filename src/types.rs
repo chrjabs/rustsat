@@ -3,7 +3,10 @@
 //! Common types used throughout the library to guarantee type safety.
 
 use core::{ffi::c_int, ops::Not};
-use std::{fmt, ops};
+use std::fmt;
+
+pub mod constraints;
+pub use constraints::Clause;
 
 /// Type representing boolean variables in a SAT problem. Variables indexing in
 /// RustSAT starts from 0 and the maximum index is `(usize::MAX - 1) / 2`. This is
@@ -356,164 +359,6 @@ macro_rules! lit {
 macro_rules! ipasir_lit {
     ($l:expr) => {
         Lit::from_ipasir($l).unwrap()
-    };
-}
-
-/// Type representing a clause
-/// Wrapper around a std collection to allow for changing the data structure.
-/// Optional clauses as sets will be included in the future.
-#[derive(Hash, Eq, PartialEq, Clone)]
-pub struct Clause {
-    lits: Vec<Lit>,
-}
-
-impl Clause {
-    /// Creates a new empty clause
-    pub fn new() -> Clause {
-        Clause { lits: Vec::new() }
-    }
-
-    /// Create a new clause from an iterator
-    pub fn from<I>(lits: I) -> Clause
-    where
-        I: Iterator<Item = Lit>,
-    {
-        Clause {
-            lits: lits.collect(),
-        }
-    }
-
-    /// Gets the length of the clause
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.lits.len()
-    }
-
-    /// Adds a literal to the clause
-    pub fn add(&mut self, lit: Lit) {
-        self.lits.push(lit)
-    }
-
-    /// Removes the first occurrence of a literal from the clause
-    /// Returns true if an occurrence was found
-    pub fn remove(&mut self, lit: &Lit) -> bool {
-        for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
-                self.lits.swap_remove(i);
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Removes all occurrences of a literal from the clause
-    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
-        let mut idxs = Vec::new();
-        for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
-                idxs.push(i);
-            }
-        }
-        for i in idxs.iter().rev() {
-            self.lits.remove(*i);
-        }
-        !idxs.is_empty()
-    }
-
-    /// Gets an iterator over the clause
-    #[inline]
-    pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
-        self.lits.iter()
-    }
-}
-
-impl ops::Index<usize> for Clause {
-    type Output = Lit;
-
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.lits[index]
-    }
-}
-
-impl ops::IndexMut<usize> for Clause {
-    #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.lits[index]
-    }
-}
-
-impl<'a> IntoIterator for &'a Clause {
-    type Item = &'a Lit;
-
-    type IntoIter = std::slice::Iter<'a, Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        (&self.lits).into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a mut Clause {
-    type Item = &'a mut Lit;
-
-    type IntoIter = std::slice::IterMut<'a, Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        (&mut self.lits).into_iter()
-    }
-}
-
-impl IntoIterator for Clause {
-    type Item = Lit;
-
-    type IntoIter = std::vec::IntoIter<Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.lits.into_iter()
-    }
-}
-
-/// Clauses can be printed with the [`Display`](std::fmt::Display) trait
-impl fmt::Display for Clause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (i, lit) in self.iter().enumerate() {
-            if i != 0 {
-                write!(f, "|")?;
-            }
-            write!(f, "{}", lit)?
-        }
-        write!(f, ")")
-    }
-}
-
-/// Clauses can be printed with the [`Debug`](std::fmt::Debug) trait
-impl fmt::Debug for Clause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (i, lit) in self.iter().enumerate() {
-            if i != 0 {
-                write!(f, "|")?;
-            }
-            write!(f, "{}", lit)?
-        }
-        write!(f, ")")
-    }
-}
-
-#[macro_export]
-macro_rules! clause {
-    ( $($l:expr),* ) => {
-        {
-            let mut tmp_clause = Clause::new();
-            $(
-                tmp_clause.add($l);
-            )*
-            tmp_clause
-        }
     };
 }
 

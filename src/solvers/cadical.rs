@@ -679,8 +679,8 @@ mod test {
     #[test]
     fn tiny_instance() {
         let mut solver = CaDiCaL::new();
-        solver.add_pair(lit![0], !lit![1]);
-        solver.add_pair(lit![1], !lit![2]);
+        solver.add_binary(lit![0], !lit![1]);
+        solver.add_binary(lit![1], !lit![2]);
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
@@ -691,15 +691,15 @@ mod test {
     #[test]
     fn termination_callback() {
         let mut solver = CaDiCaL::new();
-        solver.add_pair(lit![0], !lit![1]);
-        solver.add_pair(lit![1], !lit![2]);
-        solver.add_pair(lit![2], !lit![3]);
-        solver.add_pair(lit![3], !lit![4]);
-        solver.add_pair(lit![4], !lit![5]);
-        solver.add_pair(lit![5], !lit![6]);
-        solver.add_pair(lit![6], !lit![7]);
-        solver.add_pair(lit![7], !lit![8]);
-        solver.add_pair(lit![8], !lit![9]);
+        solver.add_binary(lit![0], !lit![1]);
+        solver.add_binary(lit![1], !lit![2]);
+        solver.add_binary(lit![2], !lit![3]);
+        solver.add_binary(lit![3], !lit![4]);
+        solver.add_binary(lit![4], !lit![5]);
+        solver.add_binary(lit![5], !lit![6]);
+        solver.add_binary(lit![6], !lit![7]);
+        solver.add_binary(lit![7], !lit![8]);
+        solver.add_binary(lit![8], !lit![9]);
 
         solver.set_terminator(|| ControlSignal::Terminate);
 
@@ -718,15 +718,15 @@ mod test {
     #[test]
     fn learner_callback() {
         let mut solver = CaDiCaL::new();
-        solver.add_pair(lit![0], !lit![1]);
-        solver.add_pair(lit![1], !lit![2]);
-        solver.add_pair(lit![2], !lit![3]);
-        solver.add_pair(lit![3], !lit![4]);
-        solver.add_pair(lit![4], !lit![5]);
-        solver.add_pair(lit![5], !lit![6]);
-        solver.add_pair(lit![6], !lit![7]);
-        solver.add_pair(lit![7], !lit![8]);
-        solver.add_pair(lit![8], !lit![9]);
+        solver.add_binary(lit![0], !lit![1]);
+        solver.add_binary(lit![1], !lit![2]);
+        solver.add_binary(lit![2], !lit![3]);
+        solver.add_binary(lit![3], !lit![4]);
+        solver.add_binary(lit![4], !lit![5]);
+        solver.add_binary(lit![5], !lit![6]);
+        solver.add_binary(lit![6], !lit![7]);
+        solver.add_binary(lit![7], !lit![8]);
+        solver.add_binary(lit![8], !lit![9]);
         solver.add_unit(lit![9]);
         solver.add_unit(!lit![0]);
 
@@ -788,15 +788,15 @@ mod test {
     #[test]
     fn backend_stats() {
         let mut solver = CaDiCaL::new();
-        solver.add_pair(lit![0], !lit![1]);
-        solver.add_pair(lit![1], !lit![2]);
-        solver.add_pair(lit![2], !lit![3]);
-        solver.add_pair(lit![3], !lit![4]);
-        solver.add_pair(lit![4], !lit![5]);
-        solver.add_pair(lit![5], !lit![6]);
-        solver.add_pair(lit![6], !lit![7]);
-        solver.add_pair(lit![7], !lit![8]);
-        solver.add_pair(lit![8], !lit![9]);
+        solver.add_binary(lit![0], !lit![1]);
+        solver.add_binary(lit![1], !lit![2]);
+        solver.add_binary(lit![2], !lit![3]);
+        solver.add_binary(lit![3], !lit![4]);
+        solver.add_binary(lit![4], !lit![5]);
+        solver.add_binary(lit![5], !lit![6]);
+        solver.add_binary(lit![6], !lit![7]);
+        solver.add_binary(lit![7], !lit![8]);
+        solver.add_binary(lit![8], !lit![9]);
 
         assert_eq!(solver.get_active(), 10);
         assert_eq!(solver.get_irredundant(), 9);
@@ -807,7 +807,7 @@ mod test {
     #[test]
     fn freezing() {
         let mut solver = CaDiCaL::new();
-        solver.add_pair(lit![0], !lit![1]);
+        solver.add_binary(lit![0], !lit![1]);
 
         solver.freeze_lit(lit![0]);
 

@@ -44,10 +44,13 @@
 //! assert_eq!(res, SolverResult::UNSAT);
 //! ```
 
-use super::EncodingError;
+use super::{card, EncodingError};
 use crate::{
     instances::{ManageVars, CNF},
-    types::Lit,
+    types::{
+        constraints::{PBConstraint, PBEQConstr, PBLBConstr, PBUBConstr},
+        Clause, Lit,
+    },
 };
 use std::collections::HashMap;
 
@@ -99,6 +102,29 @@ pub trait UBPB: EncodePB {
     /// adequately and nothing has been called afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
+    /// Encodes an upper bound pseudo-boolean constraint to CNF
+    fn encode_ub_constr(
+        constr: PBUBConstr,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        let mut enc = Self::new();
+        let (lits, ub) = constr.decompose();
+        let ub = if ub < 0 {
+            return Err(EncodingError::Unsat);
+        } else {
+            ub as usize
+        };
+        enc.add(lits);
+        let mut cnf = enc.encode_ub(ub, ub, var_manager)?;
+        enc.enforce_ub(ub)
+            .unwrap()
+            .into_iter()
+            .for_each(|unit| cnf.add_unit(unit));
+        Ok(cnf)
+    }
 }
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
@@ -122,6 +148,29 @@ pub trait LBPB: EncodePB {
     /// the weighted sum of literals in the encoding, [`EncodingError::Unsat`]
     /// is returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError>;
+    /// Encodes a lower bound pseudo-boolean constraint to CNF
+    fn encode_lb_constr(
+        constr: PBLBConstr,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        let mut enc = Self::new();
+        let (lits, lb) = constr.decompose();
+        let lb = if lb < 0 {
+            return Ok(CNF::new()); // tautology
+        } else {
+            lb as usize
+        };
+        enc.add(lits);
+        let mut cnf = enc.encode_lb(lb, lb, var_manager)?;
+        enc.enforce_lb(lb)
+            .unwrap()
+            .into_iter()
+            .for_each(|unit| cnf.add_unit(unit));
+        Ok(cnf)
+    }
 }
 
 /// Trait for pseudo-boolean encodings that allow upper and lower bounding
@@ -152,6 +201,43 @@ pub trait BothBPB: UBPB + LBPB {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
         Ok(assumps)
+    }
+    /// Encodes an equality pseudo-boolean constraint to CNF
+    fn encode_eq_constr(
+        constr: PBEQConstr,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        let mut enc = Self::new();
+        let (lits, b) = constr.decompose();
+        let b = if b < 0 {
+            return Err(EncodingError::Unsat);
+        } else {
+            b as usize
+        };
+        enc.add(lits);
+        let mut cnf = enc.encode_both(b, b, var_manager)?;
+        enc.enforce_eq(b)
+            .unwrap()
+            .into_iter()
+            .for_each(|unit| cnf.add_unit(unit));
+        Ok(cnf)
+    }
+    /// Encodes any pseudo-boolean constraint to CNF
+    fn encode_constr(
+        constr: PBConstraint,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        match constr {
+            PBConstraint::UB(constr) => Self::encode_ub_constr(constr, var_manager),
+            PBConstraint::LB(constr) => Self::encode_lb_constr(constr, var_manager),
+            PBConstraint::EQ(constr) => Self::encode_eq_constr(constr, var_manager),
+        }
     }
 }
 
@@ -262,4 +348,23 @@ pub fn new_default_inc_lb() -> Box<dyn LBPB> {
 /// For now this is a [`DoubleGeneralizedTotalizer`]
 pub fn new_default_inc_both() -> Box<dyn BothBPB> {
     Box::new(DoubleGeneralizedTotalizer::new())
+}
+
+/// A default encoder for any pseudo-boolean constraint. This uses a
+/// [`DoubleGeneralizedTotalizer`] to encode true pseudo-boolean constraints and
+/// [`card::default_encode_cardinality_constraint`] for cardinality constraints.
+pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> CNF {
+    if constr.is_tautology() {
+        return CNF::new();
+    }
+    if constr.is_unsat() {
+        let mut cnf = CNF::new();
+        cnf.add_clause(Clause::new());
+        return cnf;
+    }
+    if constr.is_card() {
+        let card = constr.as_card_constr().unwrap();
+        return card::default_encode_cardinality_constraint(card, var_manager);
+    }
+    DoubleGeneralizedTotalizer::encode_constr(constr, var_manager).unwrap()
 }
