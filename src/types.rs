@@ -3,7 +3,7 @@
 //! Common types used throughout the library to guarantee type safety.
 
 use core::{ffi::c_int, ops::Not};
-use std::fmt;
+use std::{fmt, ops};
 
 /// Type representing boolean variables in a SAT problem. Variables indexing in
 /// RustSAT starts from 0 and the maximum index is `(usize::MAX - 1) / 2`. This is
@@ -148,7 +148,7 @@ impl Lit {
             panic!("variable index too high")
         }
         Lit {
-            lidx: Lit::represent(idx, negated)
+            lidx: Lit::represent(idx, negated),
         }
     }
 
@@ -160,7 +160,7 @@ impl Lit {
             return Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX));
         }
         Ok(Lit {
-            lidx: Lit::represent(idx, negated)
+            lidx: Lit::represent(idx, negated),
         })
     }
 
@@ -169,7 +169,7 @@ impl Lit {
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     pub fn new_unchecked(idx: usize, negated: bool) -> Lit {
         Lit {
-            lidx: Lit::represent(idx, negated)
+            lidx: Lit::represent(idx, negated),
         }
     }
 
@@ -384,6 +384,7 @@ impl Clause {
     }
 
     /// Gets the length of the clause
+    #[inline]
     pub fn len(&self) -> usize {
         self.lits.len()
     }
@@ -420,18 +421,58 @@ impl Clause {
     }
 
     /// Gets an iterator over the clause
+    #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
         self.lits.iter()
     }
 }
 
+impl ops::Index<usize> for Clause {
+    type Output = Lit;
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.lits[index]
+    }
+}
+
+impl ops::IndexMut<usize> for Clause {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.lits[index]
+    }
+}
+
 impl<'a> IntoIterator for &'a Clause {
+    type Item = &'a Lit;
+
+    type IntoIter = std::slice::Iter<'a, Lit>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.lits).into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Clause {
+    type Item = &'a mut Lit;
+
+    type IntoIter = std::slice::IterMut<'a, Lit>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        (&mut self.lits).into_iter()
+    }
+}
+
+impl IntoIterator for Clause {
     type Item = Lit;
 
-    type IntoIter = std::iter::Copied<std::slice::Iter<'a, Self::Item>>;
+    type IntoIter = std::vec::IntoIter<Lit>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.lits.iter().copied()
+        self.lits.into_iter()
     }
 }
 
