@@ -212,7 +212,14 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a reader object with a specific variable manager
+    /// Parse a DIMACS instance from a reader object with a specific variable
+    /// manager.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the DIMACS CNF format used in
+    /// the SAT competition since 2011. For details on the file format see
+    /// [here](http://www.satcompetition.org/2011/format-benchmarks2011.html).
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_cnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
@@ -228,7 +235,8 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path with a specific variable manager
+    /// Parse a DIMACS instance from a file path with a specific variable
+    /// manager. For more details see [`SatInstance::from_dimacs_reader`].
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
@@ -332,6 +340,7 @@ pub struct Objective {
     soft_clauses: HashMap<Clause, usize>,
 }
 
+#[cfg(feature = "optimization")]
 impl Objective {
     /// Creates a new empty objective
     pub fn new() -> Self {
@@ -348,6 +357,9 @@ impl Objective {
 
     /// Adds a soft clause or updates its weight
     pub fn add_soft_clause(&mut self, w: usize, cl: Clause) {
+        if cl.len() == 1 {
+            return self.add_soft_lit(w, !cl[0]);
+        }
         self.soft_clauses.insert(cl, w);
     }
 
@@ -392,6 +404,7 @@ pub struct OptInstance<VM: ManageVars = BasicVarManager> {
     obj: Objective,
 }
 
+#[cfg(feature = "optimization")]
 impl<VM: ManageVars> OptInstance<VM> {
     /// Creates a new optimization instance
     pub fn new() -> Self {
@@ -422,7 +435,15 @@ impl<VM: ManageVars> OptInstance<VM> {
         (self.constr, self.obj)
     }
 
-    /// Parse a DIMACS instance from a reader object
+    /// Parse a DIMACS instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this reader is either the [old DIMACS
+    /// WCNF](https://maxsat-evaluations.github.io/2017/rules.html#input) format
+    /// used in the MaxSAT evaluation before 2022 or the [new
+    /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) used
+    /// since 2022.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_wcnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
@@ -438,7 +459,8 @@ impl<VM: ManageVars> OptInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path
+    /// Parse a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader`].
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
@@ -493,6 +515,8 @@ pub struct BiOptInstance<VM: ManageVars = BasicVarManager> {
     obj_2: Objective,
 }
 
+#[cfg(feature = "multiopt")]
+/// Type representing a bi-objective optimization instance.
 impl<VM: ManageVars> BiOptInstance<VM> {
     /// Creates a new optimization instance
     pub fn new() -> Self {
@@ -584,6 +608,7 @@ pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
     objs: Vec<Objective>,
 }
 
+#[cfg(feature = "multiopt")]
 impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Creates a new optimization instance
     pub fn new(n_objs: usize) -> Self {
@@ -623,6 +648,55 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
+    /// Parse a DIMACS instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this reader is an extension of the [new
+    /// DIMACS WCNF
+    /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) to
+    /// multiple objectives, which we call DIMACS MCNF. An example of this file
+    /// format is the following:
+    ///
+    /// ```text
+    /// c <comment>
+    /// p mcnf
+    /// h 1 2 3 0
+    /// 1 5 1 0
+    /// 2 7 2 3 0
+    /// ```
+    ///
+    /// Comments start with `c`, as in other DIMACS formats. The first line that
+    /// is not a comment needs to be a `p`-line indicating that this a MCNF
+    /// file. After that, hard clauses start with an `h`, as in WCNF files. Soft
+    /// clauses are of the following form `<obj idx> <weight> <lit 1> ... <lit
+    /// n> 0`. The first token must be a positive number indicating what
+    /// objective this soft clause belongs to. After that, the format is
+    /// identical to a soft clause in a WCNF file.
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        match dimacs::parse_mcnf(reader) {
+            Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parse a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader`].
+    pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => MultiOptInstance::from_dimacs_reader(reader),
+        }
+    }
+
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constr
     }
