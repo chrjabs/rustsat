@@ -205,7 +205,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Creates a new satisfiability instance with a specific var manager
-    pub fn new_with_manager(var_manager: VM) -> SatInstance<VM> {
+    pub fn new_with_manager(var_manager: VM) -> Self {
         SatInstance {
             cnf: CNF::new(),
             var_manager,
@@ -213,7 +213,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a reader object with a specific variable manager
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<SatInstance<VM>, ParsingError> {
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_cnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
@@ -229,7 +229,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a file path with a specific variable manager
-    pub fn from_dimacs_path(path: &Path) -> Result<SatInstance<VM>, ParsingError> {
+    pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
@@ -324,37 +324,106 @@ impl<VM: ManageVars> SatInstance<VM> {
 }
 
 #[cfg(feature = "optimization")]
-/// Type representing an optimization instance.
-/// The constraints are represented as a [`SatInstance`] struct.
-/// For the objective, this currently supports soft clauses and soft literals.
+/// Type representing an optimization objective.
+/// This type currently supports soft clauses and soft literals.
 #[derive(Clone, Debug, PartialEq)]
-pub struct OptInstance<VM: ManageVars = BasicVarManager> {
-    constraints: SatInstance<VM>,
+pub struct Objective {
     soft_lits: HashMap<Lit, usize>,
     soft_clauses: HashMap<Clause, usize>,
 }
 
-impl<VM: ManageVars> OptInstance<VM> {
-    /// Creates a new optimization instance
-    pub fn new() -> OptInstance<VM> {
-        OptInstance {
-            constraints: SatInstance::new(),
+impl Objective {
+    /// Creates a new empty objective
+    pub fn new() -> Self {
+        Objective {
             soft_lits: HashMap::new(),
             soft_clauses: HashMap::new(),
+        }
+    }
+
+    /// Adds a soft literal or updates its weight
+    pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
+        self.soft_lits.insert(l, w);
+    }
+
+    /// Adds a soft clause or updates its weight
+    pub fn add_soft_clause(&mut self, w: usize, cl: Clause) {
+        self.soft_clauses.insert(cl, w);
+    }
+
+    /// Converts the objective to a set of soft clauses
+    pub fn as_soft_cls(mut self) -> HashMap<Clause, usize> {
+        self.soft_clauses.reserve(self.soft_lits.len());
+        for (l, w) in self.soft_lits {
+            self.soft_clauses.insert(clause![!l], w);
+        }
+        self.soft_clauses
+    }
+
+    /// Converts the objective to a set of hard clauses and soft literals
+    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, HashMap<Lit, usize>)
+    where
+        VM: ManageVars,
+    {
+        let mut cnf = CNF::new();
+        cnf.clauses.reserve(self.soft_clauses.len());
+        self.soft_lits.reserve(self.soft_clauses.len());
+        for (mut cl, w) in self.soft_clauses {
+            if cl.len() > 1 {
+                let relax_lit = var_manager.next_free().pos_lit();
+                cl.add(relax_lit);
+                cnf.add_clause(cl);
+                self.soft_lits.insert(relax_lit, w);
+            } else {
+                assert!(cl.len() == 1);
+                self.soft_lits.insert(!cl[0], w);
+            }
+        }
+        (cnf, self.soft_lits)
+    }
+}
+
+#[cfg(feature = "optimization")]
+/// Type representing an optimization instance.
+/// The constraints are represented as a [`SatInstance`] struct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OptInstance<VM: ManageVars = BasicVarManager> {
+    constr: SatInstance<VM>,
+    obj: Objective,
+}
+
+impl<VM: ManageVars> OptInstance<VM> {
+    /// Creates a new optimization instance
+    pub fn new() -> Self {
+        OptInstance {
+            constr: SatInstance::new(),
+            obj: Objective::new(),
         }
     }
 
     /// Creates a new optimization instance with a specific var manager
-    pub fn new_with_manager(var_manager: VM) -> OptInstance<VM> {
+    pub fn new_with_manager(var_manager: VM) -> Self {
         OptInstance {
-            constraints: SatInstance::new_with_manager(var_manager),
-            soft_lits: HashMap::new(),
-            soft_clauses: HashMap::new(),
+            constr: SatInstance::new_with_manager(var_manager),
+            obj: Objective::new(),
         }
     }
 
+    /// Creates a new optimization instance from constraints and an objective
+    pub fn compose(constraints: SatInstance<VM>, objective: Objective) -> Self {
+        OptInstance {
+            constr: constraints,
+            obj: objective,
+        }
+    }
+
+    /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
+    pub fn decompose(self) -> (SatInstance<VM>, Objective) {
+        (self.constr, self.obj)
+    }
+
     /// Parse a DIMACS instance from a reader object
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<OptInstance<VM>, ParsingError> {
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_wcnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
@@ -370,7 +439,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Parse a DIMACS instance from a file path
-    pub fn from_dimacs_path(path: &Path) -> Result<OptInstance<VM>, ParsingError> {
+    pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader(reader),
@@ -379,48 +448,26 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
-        &mut self.constraints
+        &mut self.constr
     }
 
-    /// Adds a soft literal or updates its weight
-    pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
-        self.constraints.var_manager.increase_next_free(l.var());
-        self.soft_lits.insert(l, w);
-    }
-
-    /// Adds a soft clause or updates its weight
-    pub fn add_soft_clause(&mut self, w: usize, cl: Clause) {
-        cl.iter().for_each(|l| {
-            self.constraints.var_manager.increase_next_free(l.var());
-        });
-        self.soft_clauses.insert(cl, w);
+    /// Gets a mutable reference to the objective for modifying it
+    pub fn get_objective(&mut self) -> &mut Objective {
+        &mut self.obj
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cl_soft_cl(mut self) -> (CNF, HashMap<Clause, usize>, VM) {
-        self.soft_clauses.reserve(self.soft_lits.len());
-        for (l, w) in self.soft_lits {
-            self.soft_clauses.insert(clause![!l], w);
-        }
-        let (cnf, vm) = self.constraints.as_cnf();
-        (cnf, self.soft_clauses, vm)
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, HashMap<Clause, usize>, VM) {
+        let (cnf, vm) = self.constr.as_cnf();
+        (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cl_soft_lit(mut self) -> (CNF, HashMap<Lit, usize>, VM) {
-        self.soft_lits.reserve(self.soft_clauses.len());
-        self.constraints
-            .cnf
-            .clauses
-            .reserve(self.soft_clauses.len());
-        for (mut cl, w) in self.soft_clauses {
-            let relax_lit = self.constraints.var_manager.next_free().pos_lit();
-            cl.add(relax_lit);
-            self.constraints.add_clause(cl);
-            self.soft_lits.insert(relax_lit, w);
-        }
-        let (cnf, vm) = self.constraints.as_cnf();
-        (cnf, self.soft_lits, vm)
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, HashMap<Lit, usize>, VM) {
+        let (mut cnf, mut vm) = self.constr.as_cnf();
+        let (hard_softs, soft_lits) = self.obj.as_soft_lits(&mut vm);
+        cnf.extend(hard_softs);
+        (cnf, soft_lits, vm)
     }
 
     /// Converts the included variable manager to a different type
@@ -430,9 +477,194 @@ impl<VM: ManageVars> OptInstance<VM> {
         VMC: Fn(VM) -> VM2,
     {
         OptInstance {
-            constraints: self.constraints.change_var_manager(vm_converter),
-            soft_lits: self.soft_lits,
-            soft_clauses: self.soft_clauses,
+            constr: self.constr.change_var_manager(vm_converter),
+            obj: self.obj,
+        }
+    }
+}
+
+#[cfg(feature = "multiopt")]
+/// Type representing a bi-objective optimization instance.
+/// The constraints are represented as a [`SatInstance`] struct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BiOptInstance<VM: ManageVars = BasicVarManager> {
+    constr: SatInstance<VM>,
+    obj_1: Objective,
+    obj_2: Objective,
+}
+
+impl<VM: ManageVars> BiOptInstance<VM> {
+    /// Creates a new optimization instance
+    pub fn new() -> Self {
+        BiOptInstance {
+            constr: SatInstance::new(),
+            obj_1: Objective::new(),
+            obj_2: Objective::new(),
+        }
+    }
+
+    /// Creates a new optimization instance with a specific var manager
+    pub fn new_with_manager(var_manager: VM) -> Self {
+        BiOptInstance {
+            constr: SatInstance::new_with_manager(var_manager),
+            obj_1: Objective::new(),
+            obj_2: Objective::new(),
+        }
+    }
+
+    /// Creates a new optimization instance from constraints and two objectives
+    pub fn compose(
+        constraints: SatInstance<VM>,
+        objective_1: Objective,
+        objective_2: Objective,
+    ) -> Self {
+        BiOptInstance {
+            constr: constraints,
+            obj_1: objective_1,
+            obj_2: objective_2,
+        }
+    }
+
+    /// Decomposes the optimization instance to a [`SatInstance`] and two [`Objective`]s
+    pub fn decompose(self) -> (SatInstance<VM>, Objective, Objective) {
+        (self.constr, self.obj_1, self.obj_2)
+    }
+
+    /// Gets a mutable reference to the hard constraints for modifying them
+    pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
+        &mut self.constr
+    }
+
+    /// Gets a mutable reference to the first objective for modifying it
+    pub fn get_objective_1(&mut self) -> &mut Objective {
+        &mut self.obj_1
+    }
+
+    /// Gets a mutable reference to the second objective for modifying it
+    pub fn get_objective_2(&mut self) -> &mut Objective {
+        &mut self.obj_2
+    }
+
+    /// Converts the instance to a set of hard and soft clauses
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, HashMap<Clause, usize>, HashMap<Clause, usize>, VM) {
+        let (cnf, vm) = self.constr.as_cnf();
+        (cnf, self.obj_1.as_soft_cls(), self.obj_2.as_soft_cls(), vm)
+    }
+
+    /// Converts the instance to a set of hard clauses and soft literals
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, HashMap<Lit, usize>, HashMap<Lit, usize>, VM) {
+        let (mut cnf, mut vm) = self.constr.as_cnf();
+        let (hard_softs, soft_lits_1) = self.obj_1.as_soft_lits(&mut vm);
+        cnf.extend(hard_softs);
+        let (hard_softs, soft_lits_2) = self.obj_2.as_soft_lits(&mut vm);
+        cnf.extend(hard_softs);
+        (cnf, soft_lits_1, soft_lits_2, vm)
+    }
+
+    /// Converts the included variable manager to a different type
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> BiOptInstance<VM2>
+    where
+        VM2: ManageVars,
+        VMC: Fn(VM) -> VM2,
+    {
+        BiOptInstance {
+            constr: self.constr.change_var_manager(vm_converter),
+            obj_1: self.obj_1,
+            obj_2: self.obj_2,
+        }
+    }
+}
+
+#[cfg(feature = "multiopt")]
+/// Type representing a multi-objective optimization instance.
+/// The constraints are represented as a [`SatInstance`] struct.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
+    constr: SatInstance<VM>,
+    objs: Vec<Objective>,
+}
+
+impl<VM: ManageVars> MultiOptInstance<VM> {
+    /// Creates a new optimization instance
+    pub fn new(n_objs: usize) -> Self {
+        MultiOptInstance {
+            constr: SatInstance::new(),
+            objs: {
+                let mut tmp = Vec::with_capacity(n_objs);
+                tmp.resize(n_objs, Objective::new());
+                tmp
+            },
+        }
+    }
+
+    /// Creates a new optimization instance with a specific var manager
+    pub fn new_with_manager(n_objs: usize, var_manager: VM) -> Self {
+        MultiOptInstance {
+            constr: SatInstance::new_with_manager(var_manager),
+            objs: {
+                let mut tmp = Vec::with_capacity(n_objs);
+                tmp.resize(n_objs, Objective::new());
+                tmp
+            },
+        }
+    }
+
+    /// Creates a new optimization instance from constraints and objectives
+    pub fn compose(constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
+        MultiOptInstance {
+            constr: constraints,
+            objs: objectives,
+        }
+    }
+
+    /// Decomposes the optimization instance to a [`SatInstance`] and [`Objective`]s
+    pub fn decompose(self) -> (SatInstance<VM>, Vec<Objective>) {
+        (self.constr, self.objs)
+    }
+
+    /// Gets a mutable reference to the hard constraints for modifying them
+    pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
+        &mut self.constr
+    }
+
+    /// Gets a mutable reference to the first objective for modifying it.
+    /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    pub fn get_objective(&mut self, obj_idx: usize) -> &mut Objective {
+        assert!(obj_idx < self.objs.len());
+        &mut self.objs[obj_idx]
+    }
+
+    /// Converts the instance to a set of hard and soft clauses
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<HashMap<Clause, usize>>, VM) {
+        let (cnf, vm) = self.constr.as_cnf();
+        let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
+        (cnf, soft_cls, vm)
+    }
+
+    /// Converts the instance to a set of hard clauses and soft literals
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<HashMap<Lit, usize>>, VM) {
+        let (mut cnf, mut vm) = self.constr.as_cnf();
+        let soft_lits = self
+            .objs
+            .into_iter()
+            .map(|o| {
+                let (hards, softs) = o.as_soft_lits(&mut vm);
+                cnf.extend(hards);
+                softs
+            })
+            .collect();
+        (cnf, soft_lits, vm)
+    }
+
+    /// Converts the included variable manager to a different type
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> MultiOptInstance<VM2>
+    where
+        VM2: ManageVars,
+        VMC: Fn(VM) -> VM2,
+    {
+        MultiOptInstance {
+            constr: self.constr.change_var_manager(vm_converter),
+            objs: self.objs,
         }
     }
 }

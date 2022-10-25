@@ -204,7 +204,7 @@ where
                     if w >= top {
                         inst.get_constraints().add_clause(clause)
                     } else {
-                        inst.add_soft_clause(w, clause)
+                        inst.get_objective().add_soft_clause(w, clause)
                     }
                 }
             },
@@ -226,7 +226,7 @@ where
                 None => (),
                 Some((opt_weight, clause)) => match opt_weight {
                     None => inst.get_constraints().add_clause(clause),
-                    Some(w) => inst.add_soft_clause(w, clause),
+                    Some(w) => inst.get_objective().add_soft_clause(w, clause),
                 },
             },
             Err(err) => return Err(cast_str_error_reader(err, reader)),
@@ -639,7 +639,9 @@ mod tests {
         true_inst
             .get_constraints()
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_inst.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        true_inst
+            .get_objective()
+            .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         assert_eq!(parsed_inst, true_inst);
     }
@@ -656,7 +658,9 @@ mod tests {
         true_inst
             .get_constraints()
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_inst.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        true_inst
+            .get_objective()
+            .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         assert_eq!(parsed_inst, true_inst);
     }
@@ -689,7 +693,8 @@ mod tests {
         let mut inst = OptInstance::new();
         inst.get_constraints()
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        inst.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        inst.get_objective()
+            .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         let true_inst = DimacsInstance::WCNF(inst);
 
@@ -707,7 +712,8 @@ mod tests {
         let mut inst = OptInstance::new();
         inst.get_constraints()
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        inst.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        inst.get_objective()
+            .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         let true_inst = DimacsInstance::WCNF(inst);
 
