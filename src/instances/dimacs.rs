@@ -4,7 +4,7 @@
 //! The approach is to accept input instances, even if they are not technically
 //! in spec, as long as the input is still reasonable.
 
-use super::{OptInstance, SatInstance};
+use super::SatInstance;
 use crate::types::{Clause, Lit};
 use nom::{
     branch::alt,
@@ -13,7 +13,7 @@ use nom::{
     combinator::{all_consuming, map_res, recognize, success},
     error::{Error, ErrorKind},
     multi::separated_list0,
-    sequence::{pair, separated_pair, terminated, tuple},
+    sequence::{pair, terminated, tuple},
     IResult,
 };
 use std::{
@@ -21,6 +21,13 @@ use std::{
     fmt,
     io::{BufRead, BufReader, Read},
 };
+
+#[cfg(feature = "optimization")]
+use super::OptInstance;
+#[cfg(feature = "multiopt")]
+use super::{MultiOptInstance, Objective};
+#[cfg(feature = "optimization")]
+use nom::sequence::separated_pair;
 
 /// Parses a CNF instance from a reader (typically a (compressed) file)
 pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
@@ -31,11 +38,22 @@ pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
     }
 }
 
+#[cfg(feature = "optimization")]
 /// Parses a WCNF instance (old or new format) from a reader (typically a (compressed) file)
 pub fn parse_wcnf<R: Read>(reader: R) -> Result<OptInstance, DimacsError> {
     let reader = BufReader::new(reader);
     match parse_dimacs(reader)? {
         DimacsInstance::WCNF(inst) => Ok(inst),
+        _ => Err(DimacsError::InvalidInstanceType),
+    }
+}
+
+#[cfg(feature = "multiopt")]
+/// Parses a MCNF instance (old or new format) from a reader (typically a (compressed) file)
+pub fn parse_mcnf<R: Read>(reader: R) -> Result<MultiOptInstance, DimacsError> {
+    let reader = BufReader::new(reader);
+    match parse_dimacs(reader)? {
+        DimacsInstance::MCNF(inst) => Ok(inst),
         _ => Err(DimacsError::InvalidInstanceType),
     }
 }
@@ -47,8 +65,12 @@ pub enum DimacsError {
     InvalidPreamble,
     /// Encountered invalid CNF
     InvalidCNF,
+    #[cfg(feature = "optimization")]
     /// Encountered invalid WCNF
     InvalidWCNF,
+    #[cfg(feature = "multiopt")]
+    /// Encountered invalid MCNF
+    InvalidMCNF,
     /// Expected different instance type
     InvalidInstanceType,
 }
@@ -58,7 +80,10 @@ impl fmt::Display for DimacsError {
         match self {
             DimacsError::InvalidPreamble => write!(f, "Encountered invalid preamble"),
             DimacsError::InvalidCNF => write!(f, "Encountered invalid CNF"),
+            #[cfg(feature = "optimization")]
             DimacsError::InvalidWCNF => write!(f, "Encountered invalid WCNF"),
+            #[cfg(feature = "multiopt")]
+            DimacsError::InvalidMCNF => write!(f, "Encountered invalid MCNF"),
             DimacsError::InvalidInstanceType => write!(f, "Expected different instance type"),
         }
     }
@@ -68,7 +93,10 @@ impl fmt::Display for DimacsError {
 #[derive(Debug, PartialEq)]
 enum DimacsInstance {
     CNF(SatInstance),
+    #[cfg(feature = "optimization")]
     WCNF(OptInstance),
+    #[cfg(feature = "multiopt")]
+    MCNF(MultiOptInstance),
 }
 
 /// Internal type of possible preambles
@@ -78,14 +106,18 @@ enum Preamble {
         n_vars: usize,
         n_clauses: usize,
     },
+    #[cfg(feature = "optimization")]
     WcnfPre22 {
         n_vars: usize,
         n_clauses: usize,
         top: usize,
     },
+    #[cfg(feature = "optimization")]
     WcnfPost22 {
         first_line: String,
     },
+    #[cfg(feature = "multiopt")]
+    MCNF,
 }
 
 /// Top level parser
@@ -103,6 +135,7 @@ where
                 Err(_) => Err(DimacsError::InvalidCNF),
                 Ok((_, inst)) => Ok(DimacsInstance::CNF(inst)), // n_vars and n_clauses from preamble are intentionally ignored
             },
+            #[cfg(feature = "optimization")]
             Preamble::WcnfPre22 {
                 n_vars: _,
                 n_clauses: _,
@@ -111,12 +144,18 @@ where
                 Err(_) => Err(DimacsError::InvalidWCNF),
                 Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)), // n_vars and n_clauses from preamble are intentionally ignored
             },
+            #[cfg(feature = "optimization")]
             Preamble::WcnfPost22 { first_line } => {
                 match parse_wcnf_post22_body(reader, &first_line) {
                     Err(_) => Err(DimacsError::InvalidWCNF),
                     Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)),
                 }
             }
+            #[cfg(feature = "multiopt")]
+            Preamble::MCNF => match parse_mcnf_body(reader) {
+                Err(_) => Err(DimacsError::InvalidMCNF),
+                Ok((_, inst)) => Ok(DimacsInstance::MCNF(inst)),
+            },
         },
     }
 }
@@ -151,7 +190,10 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> IResult<R, Preamble> {
                 Err(err) => Err(cast_str_error_reader(err, reader)),
             };
         }
+        #[cfg(feature = "optimization")]
         return Ok((reader, Preamble::WcnfPost22 { first_line: buf }));
+        #[cfg(not(feature = "optimization"))]
+        return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Tag)));
     }
 }
 
@@ -181,6 +223,7 @@ where
     }
 }
 
+#[cfg(feature = "optimization")]
 /// Main parser for WCNF pre 22 (with p line)
 fn parse_wcnf_pre22_body<R>(mut reader: R, top: usize) -> IResult<R, OptInstance>
 where
@@ -213,6 +256,7 @@ where
     }
 }
 
+#[cfg(feature = "optimization")]
 /// Main parser for WCNF post 22 (without p line)
 fn parse_wcnf_post22_body<R>(mut reader: R, first_line: &str) -> IResult<R, OptInstance>
 where
@@ -243,48 +287,95 @@ where
     }
 }
 
+#[cfg(feature = "multiopt")]
+/// Main parser for MCNF
+fn parse_mcnf_body<R>(mut reader: R) -> IResult<R, MultiOptInstance>
+where
+    R: BufRead,
+{
+    let mut constr = SatInstance::new();
+    let mut objs = vec![];
+    loop {
+        let mut buf = String::new();
+        match reader.read_line(&mut buf) {
+            Ok(len) => {
+                if len == 0 {
+                    return Ok((reader, MultiOptInstance::compose(constr, objs)));
+                }
+            }
+            Err(_) => return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail))),
+        };
+        match parse_mcnf_line(&buf) {
+            Ok((_, opt_mwclause)) => match opt_mwclause {
+                None => (),
+                Some((opt_idx_weight, clause)) => match opt_idx_weight {
+                    None => constr.add_clause(clause),
+                    Some((idx, w)) => {
+                        if objs.len() < idx {
+                            objs.resize(idx, Objective::new());
+                        }
+                        objs[idx - 1].add_soft_clause(w, clause);
+                    }
+                },
+            },
+            Err(err) => return Err(cast_str_error_reader(err, reader)),
+        };
+    }
+}
+
 /// Parses p line and determine file format
 fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
     let (input, _) = terminated(tag("p"), multispace1)(input)?;
-    match terminated(tag::<&str, &str, Error<&str>>("cnf"), multispace1)(input) {
-        Err(_) => {
-            // Is WCNF file
-            let (input, _) = terminated(tag("wcnf"), multispace1)(input)?;
-            let (input, (n_vars, _, n_clauses, _, top)) =
-                tuple((u64, multispace1, u64, multispace1, u64))(input)?;
-            // Safe cast to usize
-            let n_vars = match usize::try_from(n_vars) {
-                Ok(v) => v,
-                Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
-            };
-            let n_clauses = match usize::try_from(n_clauses) {
-                Ok(v) => v,
-                Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
-            };
-            Ok((
-                input,
-                Preamble::WcnfPre22 {
-                    n_vars,
-                    n_clauses,
-                    top: top.try_into().unwrap(),
-                },
-            ))
-        }
-        Ok((input, _)) => {
-            // Is CNF file
-            let (input, (n_vars, _, n_clauses)) = tuple((u64, multispace1, u64))(input)?;
-            // Safe cast to usize
-            let n_vars = match usize::try_from(n_vars) {
-                Ok(v) => v,
-                Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
-            };
-            let n_clauses = match usize::try_from(n_clauses) {
-                Ok(v) => v,
-                Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
-            };
-            Ok((input, Preamble::CNF { n_vars, n_clauses }))
-        }
+    let (input, id_token) = alt((
+        terminated(tag("cnf"), multispace1),
+        #[cfg(feature = "optimization")]
+        terminated(tag("wcnf"), multispace1),
+        #[cfg(feature = "multiopt")]
+        terminated(tag("mcnf"), multispace0),
+    ))(input)?;
+    if id_token == "cnf" {
+        // Is CNF file
+        let (input, (n_vars, _, n_clauses)) = tuple((u64, multispace1, u64))(input)?;
+        // Safe cast to usize
+        let n_vars = match usize::try_from(n_vars) {
+            Ok(v) => v,
+            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+        };
+        let n_clauses = match usize::try_from(n_clauses) {
+            Ok(v) => v,
+            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+        };
+        return Ok((input, Preamble::CNF { n_vars, n_clauses }));
     }
+    #[cfg(feature = "optimization")]
+    if id_token == "wcnf" {
+        // Is WCNF file
+        let (input, (n_vars, _, n_clauses, _, top)) =
+            tuple((u64, multispace1, u64, multispace1, u64))(input)?;
+        // Safe cast to usize
+        let n_vars = match usize::try_from(n_vars) {
+            Ok(v) => v,
+            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+        };
+        let n_clauses = match usize::try_from(n_clauses) {
+            Ok(v) => v,
+            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+        };
+        return Ok((
+            input,
+            Preamble::WcnfPre22 {
+                n_vars,
+                n_clauses,
+                top: top.try_into().unwrap(),
+            },
+        ));
+    }
+    #[cfg(feature = "multiopt")]
+    if id_token == "mcnf" {
+        // Is MCNF file
+        return Ok((input, Preamble::MCNF));
+    }
+    Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
 }
 
 /// Parses a CNF line, either a comment or a clause
@@ -301,6 +392,7 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
     }
 }
 
+#[cfg(feature = "optimization")]
 /// Parses a WCNF pre 22 line, either a comment or a clause
 fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> {
     let (input, _) = multispace0(input)?;
@@ -318,6 +410,7 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> 
     }
 }
 
+#[cfg(feature = "optimization")]
 /// Parses a WCNF post 22 line, either a comment or a clause
 fn parse_wcnf_post22_line(input: &str) -> IResult<&str, Option<(Option<usize>, Clause)>> {
     let (input, _) = multispace0(input)?;
@@ -349,9 +442,63 @@ fn parse_wcnf_post22_line(input: &str) -> IResult<&str, Option<(Option<usize>, C
     }
 }
 
+#[cfg(feature = "multiopt")]
+/// Parses a MCNF line, either a comment or a clause
+fn parse_mcnf_line(input: &str) -> IResult<&str, Option<(Option<(usize, usize)>, Clause)>> {
+    let (input, _) = multispace0(input)?;
+    match tag::<&str, &str, Error<&str>>("c")(input) {
+        Ok((input, _)) => Ok((input, None)),
+        Err(_) =>
+        // Line is not a comment
+        {
+            match terminated(tag::<&str, &str, Error<&str>>("h"), multispace1)(input) {
+                Ok((input, _)) => {
+                    // Hard clause
+                    let (input, opt_clause) = parse_cnf_line(input)?;
+                    match opt_clause {
+                        Some(clause) => Ok((input, Some((None, clause)))),
+                        None => Err(nom::Err::Error(Error::new(input, ErrorKind::Digit))),
+                    }
+                }
+                Err(_) => {
+                    // Soft clause
+                    let (input, (idx, _, weight, _, opt_clause)) = tuple((
+                        parse_idx,
+                        multispace1,
+                        parse_weight,
+                        multispace1,
+                        parse_cnf_line,
+                    ))(input)?;
+                    match opt_clause {
+                        Some(clause) => Ok((input, Some((Some((idx, weight)), clause)))),
+                        None => Err(nom::Err::Error(Error::new(input, ErrorKind::Digit))),
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "optimization")]
 /// Nuclear parser for weight value
 fn parse_weight(input: &str) -> IResult<&str, usize> {
-    map_res(u64, |w| w.try_into())(input)
+    let (input, w) = map_res(u64, |w| w.try_into())(input)?;
+    if w == 0 {
+        Err(nom::Err::Error(Error::new(input, ErrorKind::Satisfy)))
+    } else {
+        Ok((input, w))
+    }
+}
+
+#[cfg(feature = "multiopt")]
+/// Nuclear parser for objective index
+fn parse_idx(input: &str) -> IResult<&str, usize> {
+    let (input, idx) = map_res(u64, |idx| idx.try_into())(input)?;
+    if idx == 0 {
+        Err(nom::Err::Error(Error::new(input, ErrorKind::Satisfy)))
+    } else {
+        Ok((input, idx))
+    }
 }
 
 /// Nuclear parser for literal
@@ -379,15 +526,14 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_clause_ending, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line,
-        parse_wcnf_post22_body, parse_wcnf_post22_line, parse_wcnf_pre22_body,
-        parse_wcnf_pre22_line, parse_weight, DimacsInstance, Preamble,
+        parse_clause_ending, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line, DimacsInstance,
+        Preamble,
     };
     use crate::{
         clause,
         instances::{
             dimacs::{parse_cnf_body, parse_preamble},
-            OptInstance, SatInstance,
+            SatInstance,
         },
         ipasir_lit,
         types::{Clause, Lit},
@@ -395,14 +541,61 @@ mod tests {
     use nom::error::{Error, ErrorKind};
     use std::io::{BufReader, Cursor};
 
+    #[cfg(feature = "optimization")]
+    use super::OptInstance;
+    #[cfg(feature = "optimization")]
+    use super::{
+        parse_wcnf_post22_body, parse_wcnf_post22_line, parse_wcnf_pre22_body,
+        parse_wcnf_pre22_line, parse_weight,
+    };
+
+    #[cfg(feature = "multiopt")]
+    use super::MultiOptInstance;
+    #[cfg(feature = "multiopt")]
+    use super::{parse_idx, parse_mcnf_body, parse_mcnf_line};
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_idx_pass() {
+        assert_eq!(parse_idx("15 "), Ok((" ", 15)));
+        assert_eq!(parse_idx("42 63"), Ok((" 63", 42)));
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_idx_fail() {
+        assert_eq!(
+            parse_idx("0 "),
+            Err(nom::Err::Error(Error::new(" ", ErrorKind::Satisfy)))
+        );
+        assert_eq!(
+            parse_idx("-15 "),
+            Err(nom::Err::Error(Error::new("-15 ", ErrorKind::Digit)))
+        );
+        assert_eq!(
+            parse_idx("abc "),
+            Err(nom::Err::Error(Error::new("abc ", ErrorKind::Digit)))
+        );
+        assert_eq!(
+            parse_idx(" abc "),
+            Err(nom::Err::Error(Error::new(" abc ", ErrorKind::Digit)))
+        );
+    }
+
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_weight_pass() {
         assert_eq!(parse_weight("15 "), Ok((" ", 15)));
         assert_eq!(parse_weight("42 63"), Ok((" 63", 42)));
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_weight_fail() {
+        assert_eq!(
+            parse_weight("0 "),
+            Err(nom::Err::Error(Error::new(" ", ErrorKind::Satisfy)))
+        );
         assert_eq!(
             parse_weight("-2 "),
             Err(nom::Err::Error(Error::new("-2 ", ErrorKind::Digit)))
@@ -449,6 +642,7 @@ mod tests {
                 }
             ))
         );
+        #[cfg(feature = "optimization")]
         assert_eq!(
             parse_p_line("p wcnf 23 42 52"),
             Ok((
@@ -460,6 +654,8 @@ mod tests {
                 }
             ))
         );
+        #[cfg(feature = "multiopt")]
+        assert_eq!(parse_p_line("p mcnf"), Ok(("", Preamble::MCNF)));
     }
 
     #[test]
@@ -476,9 +672,15 @@ mod tests {
             parse_p_line("p cnf ab"),
             Err(nom::Err::Error(Error::new("ab", ErrorKind::Digit)))
         );
+        #[cfg(feature = "optimization")]
         assert_eq!(
             parse_p_line("p wcnf ab"),
             Err(nom::Err::Error(Error::new("ab", ErrorKind::Digit)))
+        );
+        #[cfg(not(feature = "optimization"))]
+        assert_eq!(
+            parse_p_line("p wcnf ab"),
+            Err(nom::Err::Error(Error::new("wcnf ab", ErrorKind::Tag)))
         );
     }
 
@@ -530,24 +732,46 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_pre22_line_pass() {
-        assert_eq!(parse_cnf_line("c test"), Ok((" test", None)));
+        assert_eq!(parse_wcnf_pre22_line("c test"), Ok((" test", None)));
         assert_eq!(
             parse_wcnf_pre22_line("42 34 -16 0"),
             Ok(("", Some((42, clause![ipasir_lit![34], ipasir_lit![-16]]))))
         );
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_post22_line_pass() {
-        assert_eq!(parse_cnf_line("c test"), Ok((" test", None)));
+        assert_eq!(parse_wcnf_post22_line("c test"), Ok((" test", None)));
         assert_eq!(
             parse_wcnf_post22_line("42 34 -16 0"),
             Ok((
                 "",
                 Some((Some(42), clause![ipasir_lit![34], ipasir_lit![-16]]))
             ))
+        );
+        assert_eq!(
+            parse_wcnf_post22_line("h 42 34 -16 0"),
+            Ok((
+                "",
+                Some((
+                    None,
+                    clause![ipasir_lit![42], ipasir_lit![34], ipasir_lit![-16]]
+                ))
+            ))
+        );
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_mcnf_line_pass() {
+        assert_eq!(parse_mcnf_line("c test"), Ok((" test", None)));
+        assert_eq!(
+            parse_mcnf_line("42 34 -16 0"),
+            Ok(("", Some((Some((42, 34)), clause![ipasir_lit![-16]]))))
         );
         assert_eq!(
             parse_wcnf_post22_line("h 42 34 -16 0"),
@@ -578,6 +802,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_pre22_preamble() {
         let data = "c test\np wcnf 5 2 10\n1 2 0";
@@ -596,6 +821,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_post22_preamble() {
         let data = "c test\nh 5 2 0\n1 2 0";
@@ -610,6 +836,18 @@ mod tests {
                 first_line: String::from("h 5 2 0\n"),
             }
         );
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_mcnf_preamble() {
+        let data = "c test\np mcnf\nh 5 2 0\n1 2 0";
+        let reader = Cursor::new(data);
+        let reader = BufReader::new(reader);
+
+        let (_, preamble) = parse_preamble(reader).unwrap();
+
+        assert_eq!(preamble, Preamble::MCNF);
     }
 
     #[test]
@@ -627,6 +865,7 @@ mod tests {
         assert_eq!(parsed_inst, true_inst);
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_pre22_body_pass() {
         let data = "42 1 2 0\n10 -3 4 5 0\n";
@@ -646,6 +885,7 @@ mod tests {
         assert_eq!(parsed_inst, true_inst);
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_post22_body_pass() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
@@ -660,6 +900,26 @@ mod tests {
             .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_inst
             .get_objective()
+            .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+        assert_eq!(parsed_inst, true_inst);
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_mcnf_body_pass() {
+        let data = "c test\nh 1 2 0\n2 10 -3 4 5 0\n";
+        let reader = Cursor::new(data);
+        let reader = BufReader::new(reader);
+
+        let (_, parsed_inst) = parse_mcnf_body(reader).unwrap();
+
+        let mut true_inst = MultiOptInstance::new(2);
+        true_inst
+            .get_constraints()
+            .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_inst
+            .get_objective(1)
             .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         assert_eq!(parsed_inst, true_inst);
@@ -682,6 +942,7 @@ mod tests {
         assert_eq!(parsed_inst, true_inst);
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_pre22() {
         let data = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
@@ -701,6 +962,7 @@ mod tests {
         assert_eq!(parsed_inst, true_inst);
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_post22() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
@@ -716,6 +978,28 @@ mod tests {
             .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         let true_inst = DimacsInstance::WCNF(inst);
+
+        assert_eq!(parsed_inst, true_inst);
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_mcnf() {
+        let data = "c test\np mcnf\nh 1 2 0\n2 10 -3 4 5 0\n1 3 -1 0\n";
+        let reader = Cursor::new(data);
+        let reader = BufReader::new(reader);
+
+        let parsed_inst = parse_dimacs(reader).unwrap();
+
+        let mut inst = MultiOptInstance::new(2);
+        inst.get_constraints()
+            .add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        inst.get_objective(0)
+            .add_soft_clause(3, clause![ipasir_lit![-1]]);
+        inst.get_objective(1)
+            .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+        let true_inst = DimacsInstance::MCNF(inst);
 
         assert_eq!(parsed_inst, true_inst);
     }
