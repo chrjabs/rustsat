@@ -32,8 +32,13 @@ use flate2::read::GzDecoder;
 #[cfg(feature = "compression")]
 use std::ffi::OsStr;
 
+/// DIMACS parsing module
 mod dimacs;
 pub use dimacs::DimacsError;
+
+/// OPB parsing module
+mod opb;
+pub use opb::OpbError;
 
 /// Combined Parsing Errors
 #[derive(Debug)]
@@ -462,6 +467,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 pub struct Objective {
     soft_lits: HashMap<Lit, usize>,
     soft_clauses: HashMap<Clause, usize>,
+    offset: isize,
 }
 
 #[cfg(feature = "optimization")]
@@ -471,12 +477,40 @@ impl Objective {
         Objective {
             soft_lits: HashMap::new(),
             soft_clauses: HashMap::new(),
+            offset: 0,
         }
+    }
+
+    /// Sets the value offset
+    pub fn set_offset(&mut self, offset: isize) {
+        self.offset = offset
+    }
+
+    /// Gets the global value offset
+    pub fn offset(&self) -> isize {
+        self.offset
+    }
+
+    /// Increases the value offset
+    pub fn increase_offset(&mut self, offset_incr: isize) {
+        self.offset += offset_incr
     }
 
     /// Adds a soft literal or updates its weight
     pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
         self.soft_lits.insert(l, w);
+    }
+
+    /// Add a soft literal with negative weight. Internally all weights are
+    /// positive, negative weights are represented by a global value offset and
+    /// negated literals.
+    pub fn add_soft_lit_int(&mut self, w: isize, l: Lit) {
+        if w < 0 {
+            self.increase_offset(w);
+            self.add_soft_lit(-w as usize, !l);
+        } else {
+            self.add_soft_lit(w as usize, l);
+        }
     }
 
     /// Adds a soft clause or updates its weight
