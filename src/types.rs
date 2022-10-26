@@ -2,8 +2,8 @@
 //!
 //! Common types used throughout the library to guarantee type safety.
 
-use core::{ffi::c_int, ops::Not};
-use std::fmt;
+use core::ffi::c_int;
+use std::{fmt, ops};
 
 pub mod constraints;
 pub use constraints::Clause;
@@ -100,6 +100,28 @@ impl Var {
     #[inline]
     pub fn idx(&self) -> usize {
         self.idx
+    }
+}
+
+/// Incrementing variables
+impl ops::Add<usize> for Var {
+    type Output = Var;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Var {
+            idx: self.idx + rhs,
+        }
+    }
+}
+
+/// Decrementing variables
+impl ops::Sub<usize> for Var {
+    type Output = Var;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Var {
+            idx: self.idx - rhs,
+        }
     }
 }
 
@@ -306,13 +328,47 @@ impl Lit {
 }
 
 /// Trait implementation allowing for negating literals with the `!` operator.
-impl Not for Lit {
+impl ops::Not for Lit {
     type Output = Lit;
 
     #[inline]
     fn not(self) -> Lit {
         Lit {
             lidx: self.lidx ^ 1usize,
+        }
+    }
+}
+
+/// Trait implementation allowing for negating literals with the unary `-` operator.
+impl ops::Neg for Lit {
+    type Output = Lit;
+
+    #[inline]
+    fn neg(self) -> Lit {
+        Lit {
+            lidx: self.lidx ^ 1usize,
+        }
+    }
+}
+
+/// Incrementing literals. This preserves the sign of the literal.
+impl ops::Add<usize> for Lit {
+    type Output = Lit;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Lit {
+            lidx: self.lidx + 2 * rhs,
+        }
+    }
+}
+
+/// Decrementing literals. This preserves the sign of the literal.
+impl ops::Sub<usize> for Lit {
+    type Output = Lit;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Lit {
+            lidx: self.lidx - 2 * rhs,
         }
     }
 }

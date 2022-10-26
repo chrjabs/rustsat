@@ -338,6 +338,12 @@ pub fn default_encode_cardinality_constraint(
         cnf.add_clause(Clause::new());
         return cnf;
     }
+    if constr.is_assignment() {
+        let mut cnf = CNF::new();
+        let lits = constr.into_lits();
+        lits.into_iter().for_each(|l| cnf.add_unit(l));
+        return cnf;
+    }
     if constr.is_clause() {
         let lits = constr.into_lits();
         let mut cnf = CNF::new();

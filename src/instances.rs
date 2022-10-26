@@ -18,6 +18,7 @@ use std::{
 
 use crate::{
     clause,
+    encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
         Clause, Lit, Var,
@@ -276,7 +277,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds a clause to the instance
     pub fn add_clause(&mut self, cl: Clause) {
         cl.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_clause(cl);
     }
@@ -298,25 +299,25 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Adds an implication of form (a -> b) to the instance
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.var_manager.increase_next_free(a.var());
-        self.var_manager.increase_next_free(b.var());
+        self.var_manager.mark_used(a.var());
+        self.var_manager.mark_used(b.var());
         self.cnf.add_lit_impl_lit(a, b);
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
-        self.var_manager.increase_next_free(a.var());
+        self.var_manager.mark_used(a.var());
         b.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_lit_impl_clause(a, b);
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
-        self.var_manager.increase_next_free(a.var());
+        self.var_manager.mark_used(a.var());
         b.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_lit_impl_cube(a, b);
     }
@@ -324,28 +325,28 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
     pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         a.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
-        self.var_manager.increase_next_free(b.var());
+        self.var_manager.mark_used(b.var());
         self.cnf.add_cube_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         a.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
-        self.var_manager.increase_next_free(b.var());
+        self.var_manager.mark_used(b.var());
         self.cnf.add_clause_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
     pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         a.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         b.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_cube_impl_clause(a, b);
     }
@@ -353,10 +354,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         a.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         b.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_clause_impl_clause(a, b);
     }
@@ -364,10 +365,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         a.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         b.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_clause_impl_cube(a, b);
     }
@@ -375,10 +376,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         a.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         b.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_cube_impl_cube(a, b);
     }
@@ -386,7 +387,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds a cardinality constraint
     pub fn add_card_constr(&mut self, card: CardConstraint) {
         card.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cards.push(card)
     }
@@ -394,7 +395,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds a cardinality constraint
     pub fn add_pb_constr(&mut self, pb: PBConstraint) {
         pb.iter().for_each(|(l, _)| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.pbs.push(pb)
     }
@@ -418,8 +419,32 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    /// Converts the instance to a set of clauses
+    /// Converts the instance to a set of clauses.
+    /// Uses the default encoders from the `encodings` module.
     pub fn as_cnf(self) -> (CNF, VM) {
+        self.as_cnf_with_encoders(
+            card::default_encode_cardinality_constraint,
+            pb::default_encode_pb_constraint,
+        )
+    }
+
+    /// Converts the instance to a set of clauses with explicitly specified
+    /// converters for non-clausal constraints.
+    pub fn as_cnf_with_encoders<CardEnc, PBEnc>(
+        mut self,
+        mut card_encoder: CardEnc,
+        mut pb_encoder: PBEnc,
+    ) -> (CNF, VM)
+    where
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+    {
+        self.cards
+            .into_iter()
+            .for_each(|constr| self.cnf.extend(card_encoder(constr, &mut self.var_manager)));
+        self.pbs
+            .into_iter()
+            .for_each(|constr| self.cnf.extend(pb_encoder(constr, &mut self.var_manager)));
         (self.cnf, self.var_manager)
     }
 
@@ -856,6 +881,12 @@ pub trait ManageVars {
     /// higher index than the next variable in the manager.
     /// Returns true if the next free index has been increased and false otherwise.
     fn increase_next_free(&mut self, v: Var) -> bool;
+
+    /// Marks variables up to the given one as used. Returns true if the next
+    /// free index has been increased and false otherwise.
+    fn mark_used(&mut self, v: Var) -> bool {
+        self.increase_next_free(v + 1)
+    }
 
     /// Combines two variable managers.
     /// In case an object is in both object maps, the one of `other` has precedence.

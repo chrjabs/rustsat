@@ -229,6 +229,15 @@ impl CardConstraint {
         }
     }
 
+    /// Checks if the constraint is an assignment
+    pub fn is_assignment(&self) -> bool {
+        match self {
+            CardConstraint::UB(_) => false,
+            CardConstraint::LB(constr) => constr.is_assignment(),
+            CardConstraint::EQ(constr) => constr.is_assignment(),
+        }
+    }
+
     /// Checks if the constraint is a clause
     pub fn is_clause(&self) -> bool {
         match self {
@@ -300,6 +309,11 @@ impl CardLBConstr {
         self.b > self.lits.len()
     }
 
+    /// Checks if the constraint is an assignment
+    pub fn is_assignment(&self) -> bool {
+        self.b == self.lits.len()
+    }
+
     /// Checks if the constraint is a clause
     pub fn is_clause(&self) -> bool {
         self.b == 1
@@ -322,6 +336,11 @@ impl CardEQConstr {
     /// Checks if the constraint is unsatisfiable
     pub fn is_unsat(&self) -> bool {
         self.b > self.lits.len()
+    }
+
+    /// Checks if the constraint is an assignment
+    pub fn is_assignment(&self) -> bool {
+        self.b == self.lits.len()
     }
 }
 
@@ -437,6 +456,15 @@ impl PBConstraint {
             PBConstraint::UB(constr) => constr.is_unsat(),
             PBConstraint::LB(constr) => constr.is_unsat(),
             PBConstraint::EQ(constr) => constr.is_unsat(),
+        }
+    }
+
+    /// Checks if the constraint is an assignment
+    pub fn is_assignment(&self) -> bool {
+        match self {
+            PBConstraint::UB(_) => false,
+            PBConstraint::LB(constr) => constr.is_assignment(),
+            PBConstraint::EQ(constr) => constr.is_assignment(),
         }
     }
 
@@ -586,6 +614,15 @@ impl PBLBConstr {
         }
     }
 
+    /// Checks if the constraint is an assignment
+    pub fn is_assignment(&self) -> bool {
+        if self.b < 0 {
+            false
+        } else {
+            self.b as usize == self.weight_sum
+        }
+    }
+
     /// Gets the unit weight of the constraint, if it exists
     pub fn get_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
@@ -625,6 +662,15 @@ impl PBEQConstr {
         }
     }
 
+    /// Checks if the constraint is an assignment
+    pub fn is_assignment(&self) -> bool {
+        if self.b < 0 {
+            false
+        } else {
+            self.b as usize == self.weight_sum
+        }
+    }
+
     /// Gets the unit weight of the constraint, if it exists
     pub fn get_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
@@ -638,5 +684,124 @@ impl PBEQConstr {
             }
         }
         unit_weight
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CardConstraint, Clause, PBConstraint};
+    use crate::{lit, types::Lit};
+    use std::collections::HashMap;
+
+    #[test]
+    fn clause_remove() {
+        let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
+        assert!(!cl.remove(&lit![3]));
+        assert!(cl.remove(&lit![1]));
+        assert_eq!(cl.len(), 3);
+    }
+
+    #[test]
+    fn clause_remove_thorough() {
+        let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
+        assert!(!cl.remove_thorough(&lit![3]));
+        assert!(cl.remove_thorough(&lit![1]));
+        assert_eq!(cl.len(), 2);
+    }
+
+    #[test]
+    fn card_is_tautology() {
+        let lits = vec![lit![0], lit![1], lit![2]];
+        assert!(CardConstraint::new_ub(lits.clone(), 3).is_tautology());
+        assert!(!CardConstraint::new_ub(lits.clone(), 2).is_tautology());
+        assert!(CardConstraint::new_lb(lits.clone(), 0).is_tautology());
+        assert!(!CardConstraint::new_lb(lits.clone(), 1).is_tautology());
+        assert!(!CardConstraint::new_eq(lits.clone(), 2).is_tautology());
+    }
+
+    #[test]
+    fn card_is_unsat() {
+        let lits = vec![lit![0], lit![1], lit![2]];
+        assert!(!CardConstraint::new_ub(lits.clone(), 1).is_unsat());
+        assert!(!CardConstraint::new_lb(lits.clone(), 3).is_unsat());
+        assert!(CardConstraint::new_lb(lits.clone(), 4).is_unsat());
+        assert!(!CardConstraint::new_eq(lits.clone(), 2).is_unsat());
+        assert!(CardConstraint::new_eq(lits.clone(), 4).is_unsat());
+    }
+
+    #[test]
+    fn card_is_assignment() {
+        let lits = vec![lit![0], lit![1], lit![2]];
+        assert!(!CardConstraint::new_ub(lits.clone(), 1).is_assignment());
+        assert!(CardConstraint::new_lb(lits.clone(), 3).is_assignment());
+        assert!(!CardConstraint::new_lb(lits.clone(), 2).is_assignment());
+        assert!(CardConstraint::new_eq(lits.clone(), 3).is_assignment());
+        assert!(!CardConstraint::new_eq(lits.clone(), 2).is_assignment());
+    }
+
+    #[test]
+    fn card_is_clause() {
+        let lits = vec![lit![0], lit![1], lit![2]];
+        assert!(!CardConstraint::new_ub(lits.clone(), 1).is_clause());
+        assert!(!CardConstraint::new_lb(lits.clone(), 3).is_clause());
+        assert!(CardConstraint::new_lb(lits.clone(), 1).is_clause());
+        assert!(!CardConstraint::new_eq(lits.clone(), 2).is_clause());
+    }
+
+    #[test]
+    fn pb_is_tautology() {
+        let mut lits = HashMap::new();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 2);
+        lits.insert(lit![2], 3);
+        assert!(PBConstraint::new_ub(lits.clone(), 6).is_tautology());
+        assert!(!PBConstraint::new_ub(lits.clone(), 5).is_tautology());
+        assert!(PBConstraint::new_lb(lits.clone(), 0).is_tautology());
+        assert!(!PBConstraint::new_lb(lits.clone(), 1).is_tautology());
+        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_tautology());
+    }
+
+    #[test]
+    fn pb_is_unsat() {
+        let mut lits = HashMap::new();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 2);
+        lits.insert(lit![2], 3);
+        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_unsat());
+        assert!(!PBConstraint::new_lb(lits.clone(), 6).is_unsat());
+        assert!(PBConstraint::new_lb(lits.clone(), 7).is_unsat());
+        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_unsat());
+        assert!(PBConstraint::new_eq(lits.clone(), 7).is_unsat());
+    }
+
+    #[test]
+    fn pb_is_assignment() {
+        let mut lits = HashMap::new();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 2);
+        lits.insert(lit![2], 3);
+        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_assignment());
+        assert!(PBConstraint::new_lb(lits.clone(), 6).is_assignment());
+        assert!(!PBConstraint::new_lb(lits.clone(), 2).is_assignment());
+        assert!(PBConstraint::new_eq(lits.clone(), 6).is_assignment());
+        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_assignment());
+    }
+
+    #[test]
+    fn pb_is_card() {
+        let mut lits = HashMap::new();
+        lits.insert(lit![0], 2);
+        lits.insert(lit![1], 2);
+        lits.insert(lit![2], 2);
+        assert!(PBConstraint::new_ub(lits.clone(), 1).is_card());
+        assert!(PBConstraint::new_lb(lits.clone(), 3).is_card());
+        assert!(PBConstraint::new_eq(lits.clone(), 2).is_card());
+        let mut lits = HashMap::new();
+        lits.insert(lit![0], 2);
+        lits.insert(lit![1], 1);
+        lits.insert(lit![2], 2);
+        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_card());
+        assert!(!PBConstraint::new_lb(lits.clone(), 3).is_card());
+        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_card());
     }
 }

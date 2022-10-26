@@ -362,6 +362,12 @@ pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn 
         cnf.add_clause(Clause::new());
         return cnf;
     }
+    if constr.is_assignment() {
+        let mut cnf = CNF::new();
+        let lits = constr.into_lits();
+        lits.into_iter().for_each(|(l, _)| cnf.add_unit(l));
+        return cnf;
+    }
     if constr.is_card() {
         let card = constr.as_card_constr().unwrap();
         return card::default_encode_cardinality_constraint(card, var_manager);
