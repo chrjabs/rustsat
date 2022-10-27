@@ -40,7 +40,10 @@
 use super::EncodingError;
 use crate::{
     instances::{ManageVars, CNF},
-    types::Lit,
+    types::{
+        constraints::{CardConstraint, CardEQConstr, CardLBConstr, CardUBConstr},
+        Clause, Lit,
+    },
 };
 
 mod totalizer;
@@ -88,6 +91,24 @@ pub trait UBCard: EncodeCard {
     /// and nothing has been called afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
+    /// Encodes an upper bound cardinality constraint to CNF
+    fn encode_ub_constr(
+        constr: CardUBConstr,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        let mut enc = Self::new();
+        let (lits, ub) = constr.decompose();
+        enc.add(lits);
+        let mut cnf = enc.encode_ub(ub, ub, var_manager)?;
+        enc.enforce_ub(ub)
+            .unwrap()
+            .into_iter()
+            .for_each(|unit| cnf.add_unit(unit));
+        Ok(cnf)
+    }
 }
 
 /// Trait for cardinality encodings that allow upper bounding of the form `sum
@@ -111,6 +132,24 @@ pub trait LBCard: EncodeCard {
     /// the number of literals in the encoding, [`EncodingError::Unsat`] is
     /// returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError>;
+    /// Encodes a lower bound cardinality constraint to CNF
+    fn encode_lb_constr(
+        constr: CardLBConstr,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        let mut enc = Self::new();
+        let (lits, lb) = constr.decompose();
+        enc.add(lits);
+        let mut cnf = enc.encode_lb(lb, lb, var_manager)?;
+        enc.enforce_lb(lb)
+            .unwrap()
+            .into_iter()
+            .for_each(|unit| cnf.add_unit(unit));
+        Ok(cnf)
+    }
 }
 
 /// Trait for cardinality encodings that allow upper and lower bounding
@@ -141,6 +180,38 @@ pub trait BothBCard: UBCard + LBCard {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
         Ok(assumps)
+    }
+    /// Encodes an equality cardinality constraint to CNF
+    fn encode_eq_constr(
+        constr: CardEQConstr,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        let mut enc = Self::new();
+        let (lits, b) = constr.decompose();
+        enc.add(lits);
+        let mut cnf = enc.encode_both(b, b, var_manager)?;
+        enc.enforce_eq(b)
+            .unwrap()
+            .into_iter()
+            .for_each(|unit| cnf.add_unit(unit));
+        Ok(cnf)
+    }
+    /// Encodes any cardinality constraint to CNF
+    fn encode_constr(
+        constr: CardConstraint,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<CNF, EncodingError>
+    where
+        Self: Sized,
+    {
+        match constr {
+            CardConstraint::UB(constr) => Self::encode_ub_constr(constr, var_manager),
+            CardConstraint::LB(constr) => Self::encode_lb_constr(constr, var_manager),
+            CardConstraint::EQ(constr) => Self::encode_eq_constr(constr, var_manager),
+        }
     }
 }
 
@@ -251,4 +322,33 @@ pub fn new_default_inc_lb() -> Box<dyn LBCard> {
 /// now this is a [`Totalizer`]
 pub fn new_default_inc_both() -> Box<dyn BothBCard> {
     Box::new(Totalizer::new())
+}
+
+/// A default encoder for any cardinality constraint.
+/// This uses a [`Totalizer`] to encode non-trivial constraints.
+pub fn default_encode_cardinality_constraint(
+    constr: CardConstraint,
+    var_manager: &mut dyn ManageVars,
+) -> CNF {
+    if constr.is_tautology() {
+        return CNF::new();
+    }
+    if constr.is_unsat() {
+        let mut cnf = CNF::new();
+        cnf.add_clause(Clause::new());
+        return cnf;
+    }
+    if constr.is_assignment() {
+        let mut cnf = CNF::new();
+        let lits = constr.into_lits();
+        lits.into_iter().for_each(|l| cnf.add_unit(l));
+        return cnf;
+    }
+    if constr.is_clause() {
+        let lits = constr.into_lits();
+        let mut cnf = CNF::new();
+        cnf.add_clause(Clause::from(lits.into_iter()));
+        return cnf;
+    }
+    Totalizer::encode_constr(constr, var_manager).unwrap()
 }

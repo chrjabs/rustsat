@@ -60,7 +60,7 @@ pub trait Solve {
         self.add_clause(clause![lit])
     }
     /// Like [`Solve::add_clause`] but for clauses with two literals.
-    fn add_pair(&mut self, lit1: Lit, lit2: Lit) {
+    fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
         self.add_clause(clause![lit1, lit2])
     }
     /// Like [`Solve::add_clause`] but for clauses with three literals.

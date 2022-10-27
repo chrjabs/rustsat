@@ -1,0 +1,4 @@
+* A handwritten OPB sat instance for basic testing
+5 x0 -3 x1 >= 4;
+5 x2 -3 x3 >= 2;
+5 ~x3 >= 4;

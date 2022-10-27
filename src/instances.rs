@@ -18,7 +18,11 @@ use std::{
 
 use crate::{
     clause,
-    types::{Clause, Lit, Var},
+    encodings::{card, pb},
+    types::{
+        constraints::{CardConstraint, PBConstraint},
+        Clause, Lit, Var,
+    },
 };
 
 #[cfg(feature = "compression")]
@@ -28,8 +32,13 @@ use flate2::read::GzDecoder;
 #[cfg(feature = "compression")]
 use std::ffi::OsStr;
 
+/// DIMACS parsing module
 mod dimacs;
 pub use dimacs::DimacsError;
+
+/// OPB parsing module
+mod opb;
+pub use opb::OpbError;
 
 /// Combined Parsing Errors
 #[derive(Debug)]
@@ -38,6 +47,8 @@ pub enum ParsingError {
     IO(std::io::Error),
     /// Dimacs Parsing Error
     Dimacs(DimacsError),
+    /// OPB Parsing Error
+    Opb(OpbError),
 }
 
 impl fmt::Display for ParsingError {
@@ -45,6 +56,7 @@ impl fmt::Display for ParsingError {
         match self {
             ParsingError::IO(ioe) => write!(f, "IO error: {}", ioe),
             ParsingError::Dimacs(de) => write!(f, "Dimacs error: {}", de),
+            ParsingError::Opb(oe) => write!(f, "OPB error: {}", oe),
         }
     }
 }
@@ -89,6 +101,21 @@ impl CNF {
     /// Adds a clause to the CNF
     pub fn add_clause(&mut self, clause: Clause) {
         self.clauses.push(clause);
+    }
+
+    /// Adds a unit clause to the CNF
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the CNF
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the CNF
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
     }
 
     /// Returns the number of clauses in the instance
@@ -187,11 +214,13 @@ impl IntoIterator for CNF {
     }
 }
 
-/// Type representing a satisfiability instance.
-/// For now this only supports clausal constraints, but more will be added.
+/// Type representing a satisfiability instance. Supported constraints are
+/// clauses, cardinality constraints and pseudo-boolean constraints.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SatInstance<VM: ManageVars = BasicVarManager> {
     cnf: CNF,
+    cards: Vec<CardConstraint>,
+    pbs: Vec<PBConstraint>,
     var_manager: VM,
 }
 
@@ -200,6 +229,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn new() -> SatInstance<VM> {
         SatInstance {
             cnf: CNF::new(),
+            cards: vec![],
+            pbs: vec![],
             var_manager: VM::new(),
         }
     }
@@ -208,12 +239,13 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn new_with_manager(var_manager: VM) -> Self {
         SatInstance {
             cnf: CNF::new(),
+            cards: vec![],
+            pbs: vec![],
             var_manager,
         }
     }
 
-    /// Parse a DIMACS instance from a reader object with a specific variable
-    /// manager.
+    /// Parses a DIMACS instance from a reader object.
     ///
     /// # File Format
     ///
@@ -235,12 +267,45 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path with a specific variable
-    /// manager. For more details see [`SatInstance::from_dimacs_reader`].
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean satisfaction instances. For details on the file format
+    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        match opb::parse_sat(reader) {
+            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => SatInstance::from_opb_reader(reader),
         }
     }
 
@@ -252,54 +317,127 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds a clause to the instance
     pub fn add_clause(&mut self, cl: Clause) {
         cl.iter().for_each(|l| {
-            self.var_manager.increase_next_free(l.var());
+            self.var_manager.mark_used(l.var());
         });
         self.cnf.add_clause(cl);
     }
 
+    /// Adds a unit clause to the instance
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the instance
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the instance
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
+    }
+
     /// Adds an implication of form (a -> b) to the instance
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
+        self.var_manager.mark_used(a.var());
+        self.var_manager.mark_used(b.var());
         self.cnf.add_lit_impl_lit(a, b);
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+        self.var_manager.mark_used(a.var());
+        b.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
         self.cnf.add_lit_impl_clause(a, b);
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+        self.var_manager.mark_used(a.var());
+        b.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
         self.cnf.add_lit_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
     pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        a.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        self.var_manager.mark_used(b.var());
         self.cnf.add_cube_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        a.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        self.var_manager.mark_used(b.var());
         self.cnf.add_clause_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
     pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
         self.cnf.add_cube_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
         self.cnf.add_clause_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
         self.cnf.add_clause_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        a.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        b.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
         self.cnf.add_cube_impl_cube(a, b);
+    }
+
+    /// Adds a cardinality constraint
+    pub fn add_card_constr(&mut self, card: CardConstraint) {
+        card.iter().for_each(|l| {
+            self.var_manager.mark_used(l.var());
+        });
+        self.cards.push(card)
+    }
+
+    /// Adds a cardinality constraint
+    pub fn add_pb_constr(&mut self, pb: PBConstraint) {
+        pb.iter().for_each(|(l, _)| {
+            self.var_manager.mark_used(l.var());
+        });
+        self.pbs.push(pb)
     }
 
     /// Get a reference to the variable manager
@@ -315,12 +453,38 @@ impl<VM: ManageVars> SatInstance<VM> {
     {
         SatInstance {
             cnf: self.cnf,
+            cards: self.cards,
+            pbs: self.pbs,
             var_manager: vm_converter(self.var_manager),
         }
     }
 
-    /// Converts the instance to a set of clauses
+    /// Converts the instance to a set of clauses.
+    /// Uses the default encoders from the `encodings` module.
     pub fn as_cnf(self) -> (CNF, VM) {
+        self.as_cnf_with_encoders(
+            card::default_encode_cardinality_constraint,
+            pb::default_encode_pb_constraint,
+        )
+    }
+
+    /// Converts the instance to a set of clauses with explicitly specified
+    /// converters for non-clausal constraints.
+    pub fn as_cnf_with_encoders<CardEnc, PBEnc>(
+        mut self,
+        mut card_encoder: CardEnc,
+        mut pb_encoder: PBEnc,
+    ) -> (CNF, VM)
+    where
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+    {
+        self.cards
+            .into_iter()
+            .for_each(|constr| self.cnf.extend(card_encoder(constr, &mut self.var_manager)));
+        self.pbs
+            .into_iter()
+            .for_each(|constr| self.cnf.extend(pb_encoder(constr, &mut self.var_manager)));
         (self.cnf, self.var_manager)
     }
 
@@ -334,10 +498,12 @@ impl<VM: ManageVars> SatInstance<VM> {
 #[cfg(feature = "optimization")]
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
+/// All objectives are considered minimization objectives.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Objective {
     soft_lits: HashMap<Lit, usize>,
     soft_clauses: HashMap<Clause, usize>,
+    offset: isize,
 }
 
 #[cfg(feature = "optimization")]
@@ -347,12 +513,40 @@ impl Objective {
         Objective {
             soft_lits: HashMap::new(),
             soft_clauses: HashMap::new(),
+            offset: 0,
         }
+    }
+
+    /// Sets the value offset
+    pub fn set_offset(&mut self, offset: isize) {
+        self.offset = offset
+    }
+
+    /// Gets the global value offset
+    pub fn offset(&self) -> isize {
+        self.offset
+    }
+
+    /// Increases the value offset
+    pub fn increase_offset(&mut self, offset_incr: isize) {
+        self.offset += offset_incr
     }
 
     /// Adds a soft literal or updates its weight
     pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
         self.soft_lits.insert(l, w);
+    }
+
+    /// Add a soft literal with negative weight. Internally all weights are
+    /// positive, negative weights are represented by a global value offset and
+    /// negated literals.
+    pub fn add_soft_lit_int(&mut self, w: isize, l: Lit) {
+        if w < 0 {
+            self.increase_offset(w);
+            self.add_soft_lit(-w as usize, !l);
+        } else {
+            self.add_soft_lit(w as usize, l);
+        }
     }
 
     /// Adds a soft clause or updates its weight
@@ -435,7 +629,7 @@ impl<VM: ManageVars> OptInstance<VM> {
         (self.constr, self.obj)
     }
 
-    /// Parse a DIMACS instance from a reader object.
+    /// Parses a DIMACS instance from a reader object.
     ///
     /// # File Format
     ///
@@ -459,12 +653,67 @@ impl<VM: ManageVars> OptInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader`].
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean optimization instances. For details on the file format
+    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        OptInstance::from_opb_reader_with_idx(reader, 0)
+    }
+
+    /// Parses an OPB instance from a reader object, selecting the objective
+    /// with index `obj_idx` if multiple are available. The index starts from 0.
+    /// For more details see [`OptInstance::from_opb_reader`].
+    pub fn from_opb_reader_with_idx<R: Read>(
+        reader: R,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        match opb::parse_opt_with_idx(reader, obj_idx) {
+            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_opb_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a file path, selecting the objective with
+    /// index `obj_idx` if multiple are available. The index starts from 0. For
+    /// more details see [`OptInstance::from_opb_reader`]. With feature
+    /// `compression` supports bzip2 and gzip compression, detected by the file
+    /// extension.
+    pub fn from_opb_path_with_idx(path: &Path, obj_idx: usize) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx),
         }
     }
 
@@ -647,7 +896,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         (self.constr, self.objs)
     }
 
-    /// Gets a mutable reference to the hard constraints for modifying them
     /// Parse a DIMACS instance from a reader object.
     ///
     /// # File Format
@@ -688,7 +936,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path. For more details see
+    /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs_reader`].
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
@@ -697,6 +945,40 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         }
     }
 
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean optimization instances with multiple objectives defined.
+    /// For details on the file format see
+    /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        match opb::parse_multi_opt(reader) {
+            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => MultiOptInstance::from_opb_reader(reader),
+        }
+    }
+
+    /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constr
     }
@@ -757,6 +1039,12 @@ pub trait ManageVars {
     /// higher index than the next variable in the manager.
     /// Returns true if the next free index has been increased and false otherwise.
     fn increase_next_free(&mut self, v: Var) -> bool;
+
+    /// Marks variables up to the given one as used. Returns true if the next
+    /// free index has been increased and false otherwise.
+    fn mark_used(&mut self, v: Var) -> bool {
+        self.increase_next_free(v + 1)
+    }
 
     /// Combines two variable managers.
     /// In case an object is in both object maps, the one of `other` has precedence.
