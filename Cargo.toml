@@ -19,9 +19,10 @@ git2 = "0.15"
 glob = "0.3"
 
 [features]
-default = ["ipasir", "cadical", "optimization"]
+default = ["cadical", "optimization"]
 ipasir = []
 cadical = []
 optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2"]
+all-non-conflicting = ["cadical", "optimization", "multiopt", "compression"]
