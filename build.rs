@@ -15,7 +15,8 @@ fn main() {
             .expect("failed to update CaDiCaL submodule");
         if !Path::new(&format!("{}/makefile", cadical_path)).exists() {
             // Only configure if makefile doesn't exist
-            Command::new("./configure")
+            Command::new("sh")
+                .arg("configure")
                 .current_dir(cadical_path)
                 .output()
                 .expect("failed to run CaDiCal configure script");
