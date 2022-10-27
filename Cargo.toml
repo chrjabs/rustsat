@@ -11,7 +11,12 @@ build = "build.rs"
 [dependencies]
 nom = "7.1.1"
 bzip2 = { version = "0.4", optional = true }
-flate2 = { version = "1.0", optional = true }
+flate2 = { version = "1.0", optional = true, features = ["zlib-ng"], default-features = false }
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }
+git2 = "0.15"
+glob = "0.3"
 
 [features]
 default = ["ipasir", "cadical", "optimization"]
