@@ -1,8 +1,11 @@
 use rustsat::{
     clause,
-    encodings::pb::{
-        DoubleGeneralizedTotalizer, EncodePB, GeneralizedTotalizer, IncBothBPB, IncUBPB,
-        InvertedGeneralizedTotalizer, LBPB, UBPB,
+    encodings::{
+        card::Totalizer,
+        pb::{
+            simulators::CardPB, DoubleGeneralizedTotalizer, EncodePB, GeneralizedTotalizer,
+            IncBothBPB, IncUBPB, InvertedGeneralizedTotalizer, LBPB, UBPB,
+        },
     },
     instances::{BasicVarManager, ManageVars},
     lit,
@@ -248,4 +251,10 @@ fn gte_min_enc() {
 fn gte_eq() {
     let gte = DoubleGeneralizedTotalizer::new();
     test_pb_eq(gte);
+}
+
+#[test]
+fn tot_pb_sim_eq() {
+    let sim: CardPB<Totalizer> = CardPB::new();
+    test_pb_eq(sim);
 }

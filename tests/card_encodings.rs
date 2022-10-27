@@ -1,6 +1,6 @@
 use rustsat::{
     clause,
-    encodings::card::{BothBCard, EncodeCard, IncBothBCard, Totalizer},
+    encodings::card::{BothBCard, EncodeCard, IncBothBCard, Totalizer, simulators::{InvertedCard,DoubleCard}},
     instances::{BasicVarManager, ManageVars},
     lit,
     solvers::{new_default_inc_solver, SolverResult},
@@ -180,4 +180,10 @@ fn tot_negative_lits() {
 fn tot_min_enc() {
     let tot = Totalizer::new();
     test_both_card_min_enc(tot);
+}
+
+#[test]
+fn double_invertet_tot() {
+    let double_inv_tot: DoubleCard<InvertedCard<Totalizer>, InvertedCard<Totalizer>> = DoubleCard::new();
+    test_inc_both_card(double_inv_tot)
 }

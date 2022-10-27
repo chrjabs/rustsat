@@ -3,6 +3,39 @@
 //! The module contains implementations of CNF encodings for cardinality
 //! constraints. It defines traits for (non-)incremental cardinality constraints
 //! and encodings implementing these traits.
+//!
+//! ## Example Useage
+//!
+//! ```
+//! use rustsat::{
+//!     clause,
+//!     encodings::card,
+//!     instances::{BasicVarManager, ManageVars},
+//!     lit, solvers,
+//!     solvers::SolverResult,
+//!     types::{Clause, Lit, Var},
+//!     var,
+//! };
+//!
+//! let mut solver = solvers::new_default_inc_solver();
+//! solver.add_clause(clause![lit![0], lit![1], lit![2], lit![3]]);
+//! let mut var_manager = BasicVarManager::new();
+//! var_manager.increase_next_free(var![4]);
+//!
+//! let mut enc = card::new_default_inc_both();
+//! enc.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+//! solver.add_cnf(enc.encode_both(3, 3, &mut var_manager).unwrap());
+//!
+//! let mut assumps = enc.enforce_eq(3).unwrap();
+//! assumps.extend(vec![lit![0], lit![1], lit![2], !lit![3]]);
+//! let res = solver.solve_assumps(assumps).unwrap();
+//! assert_eq!(res, SolverResult::SAT);
+//!
+//! let mut assumps = enc.enforce_eq(3).unwrap();
+//! assumps.extend(vec![!lit![0], !lit![1], lit![2], lit![3]]);
+//! let res = solver.solve_assumps(assumps).unwrap();
+//! assert_eq!(res, SolverResult::UNSAT);
+//! ```
 
 use super::EncodingError;
 use crate::{
@@ -12,6 +45,7 @@ use crate::{
 
 mod totalizer;
 pub use totalizer::Totalizer;
+pub mod simulators;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait EncodeCard {
