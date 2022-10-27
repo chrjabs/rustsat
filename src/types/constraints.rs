@@ -492,7 +492,7 @@ impl PBConstraint {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
-                        CardConstraint::new_ub(lits, (constr.b as usize + 1) / unit_weight)
+                        CardConstraint::new_ub(lits, constr.b as usize / unit_weight)
                     }
                 }
             }
@@ -502,7 +502,7 @@ impl PBConstraint {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
-                        CardConstraint::new_lb(lits, constr.b as usize / unit_weight)
+                        CardConstraint::new_lb(lits, constr.b as usize / unit_weight + 1)
                     }
                 }
             }

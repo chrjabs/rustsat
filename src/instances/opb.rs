@@ -14,14 +14,15 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{anychar, i64, line_ending, space0, space1, u64},
-    combinator::{all_consuming, map_res, opt, recognize, success},
-    error::{Error, ErrorKind},
+    combinator::{map_res, opt, recognize},
+    error::Error,
     multi::{many0, many1, many_till},
-    sequence::{delimited, pair, terminated, tuple},
+    sequence::{pair, tuple},
     IResult,
 };
 use std::{
     collections::HashMap,
+    fmt,
     io::{BufRead, BufReader, Read},
     num::TryFromIntError,
 };
@@ -40,6 +41,16 @@ pub enum OpbError {
     InvalidLine(String),
     /// Error while reading input data
     IOError,
+}
+
+impl fmt::Display for OpbError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OpbError::ObjectiveNotFound => write!(f, "No matching objective found in file"),
+            OpbError::InvalidLine(line) => write!(f, "Invalid OPB line: {}", line),
+            OpbError::IOError => write!(f, "Encountered error reading file"),
+        }
+    }
 }
 
 /// Possible relational operators
@@ -73,21 +84,58 @@ enum OpbData {
 
 /// Parses the constraints from an OPB file as a [`SatInstance`]
 pub fn parse_sat<R: Read>(reader: R) -> Result<SatInstance, OpbError> {
-    todo!()
-}
-
-#[cfg(feature = "optimization")]
-/// Parses an OPB file as an [`OptInstance`] using the _first_ objective in the
-/// file, if there are multiples.
-pub fn parse_opt<R: Read>(reader: R) -> Result<OptInstance, OpbError> {
-    parse_opt_with_idx(reader, 0)
+    let data = parse_opb_data(reader)?;
+    let mut inst = SatInstance::new();
+    data.into_iter().for_each(|d| {
+        if let OpbData::Constr(constr) = d {
+            inst.add_pb_constr(constr);
+        }
+    });
+    Ok(inst)
 }
 
 #[cfg(feature = "optimization")]
 /// Parses an OPB file as an [`OptInstance`] using the objective with the given
 /// index (starting from 0).
 pub fn parse_opt_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInstance, OpbError> {
-    todo!()
+    let data = parse_opb_data(reader)?;
+    let mut sat_inst = SatInstance::new();
+    let mut obj_cnt = 0;
+    let obj = data.into_iter().fold(Objective::new(), |o, d| match d {
+        OpbData::Cmt(_) => o,
+        OpbData::Constr(constr) => {
+            sat_inst.add_pb_constr(constr);
+            o
+        }
+        OpbData::Obj(obj) => {
+            obj_cnt += 1;
+            if obj_cnt - 1 == obj_idx {
+                obj
+            } else {
+                o
+            }
+        }
+    });
+    if obj_cnt <= obj_idx {
+        Err(OpbError::ObjectiveNotFound)
+    } else {
+        Ok(OptInstance::compose(sat_inst, obj))
+    }
+}
+
+#[cfg(feature = "multiopt")]
+/// Parses an OPB file as an [`OptInstance`] using the objective with the given
+/// index (starting from 0).
+pub fn parse_multi_opt<R: Read>(reader: R) -> Result<MultiOptInstance, OpbError> {
+    let data = parse_opb_data(reader)?;
+    let mut sat_inst = SatInstance::new();
+    let mut objs = vec![];
+    data.into_iter().for_each(|d| match d {
+        OpbData::Cmt(_) => (),
+        OpbData::Constr(constr) => sat_inst.add_pb_constr(constr),
+        OpbData::Obj(obj) => objs.push(obj),
+    });
+    Ok(MultiOptInstance::compose(sat_inst, objs))
 }
 
 /// Parses all OPB data of a reader
@@ -100,16 +148,29 @@ fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, OpbError> {
             return Ok(data);
         }
         match many0(opb_data)(&buf) {
-            Ok((_, new_data)) => data.extend(new_data),
+            Ok((rem, new_data)) => {
+                if rem.len() > 0 {
+                    return Err(OpbError::InvalidLine(buf.clone()));
+                } else {
+                    data.extend(new_data)
+                }
+            }
             Err(_) => return Err(OpbError::InvalidLine(buf.clone())),
         }
+        buf.clear();
     }
     return Err(OpbError::IOError);
 }
 
 /// Matches an OPB comment
 fn comment(input: &str) -> IResult<&str, &str> {
-    recognize(pair(tag("*"), many_till(anychar, line_ending)))(input)
+    recognize(pair(
+        tag("*"),
+        alt((
+            recognize(many_till(anychar, line_ending)),
+            recognize(many0(anychar)),
+        )),
+    ))(input)
 }
 
 /// Parses an OPB variable
@@ -235,11 +296,14 @@ fn opb_data(input: &str) -> IResult<&str, OpbData> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        io::{BufReader, Cursor},
+    };
 
     use super::{
-        comment, constraint, literal, objective, opb_ending, operator, variable, weight,
-        weighted_lit_sum, weighted_literal, OpbOperator,
+        comment, constraint, literal, objective, opb_data, opb_ending, operator, parse_opb_data,
+        variable, weight, weighted_lit_sum, weighted_literal, OpbData, OpbError, OpbOperator,
     };
     use crate::{
         instances::Objective,
@@ -252,6 +316,7 @@ mod test {
     #[test]
     fn match_comment() {
         assert_eq!(comment("* test\n"), Ok(("", "* test\n")));
+        assert_eq!(comment("* test"), Ok(("", "* test")));
         assert_eq!(comment("*\n"), Ok(("", "*\n")));
         assert_eq!(
             comment(" test\n"),
@@ -353,11 +418,70 @@ mod test {
             }
             Err(_) => panic!(),
         }
+        match objective("min: x0;") {
+            Ok(_) => panic!(),
+            Err(err) => assert_eq!(err, nom::Err::Error(Error::new("x0;", ErrorKind::Digit))),
+        }
     }
 
     #[cfg(not(feature = "optimization"))]
     #[test]
     fn parse_objective() {
         assert_eq!(objective("min: 3 x1 -2 ~x2;"), Ok(("", "min: 3 x1 -2 ~x2")));
+    }
+
+    #[test]
+    fn single_opb_data() {
+        assert_eq!(
+            opb_data("* test\n"),
+            Ok(("", OpbData::Cmt(String::from("* test\n"))))
+        );
+        let mut lits = HashMap::new();
+        lits.insert(lit![1], 3);
+        lits.insert(!lit![2], -2);
+        let should_be_constr = PBConstraint::new_ub(lits, 4);
+        assert_eq!(
+            opb_data("3 x1 -2 ~x2 <= 4;\n"),
+            Ok(("", OpbData::Constr(should_be_constr)))
+        );
+        let mut obj = Objective::new();
+        obj.add_soft_lit_int(-3, lit![0]);
+        obj.add_soft_lit_int(4, lit![1]);
+        assert_eq!(opb_data("min: -3 x0 4 x1;"), Ok(("", OpbData::Obj(obj))));
+        assert_eq!(
+            opb_data("min: x0;"),
+            Err(nom::Err::Error(Error::new("x0;", ErrorKind::Digit)))
+        );
+    }
+
+    #[test]
+    fn multi_opb_data() {
+        let data = "* test\n5 x0 -3 x1 >= 4;\nmin: 1 x0;";
+        let reader = Cursor::new(data);
+        let reader = BufReader::new(reader);
+        match parse_opb_data(reader) {
+            Ok(data) => {
+                assert_eq!(data.len(), 3);
+                assert_eq!(data[0], OpbData::Cmt(String::from("* test\n")));
+                if let OpbData::Constr(_) = data[1] {
+                    ()
+                } else {
+                    panic!()
+                }
+                if let OpbData::Obj(_) = data[2] {
+                    ()
+                } else {
+                    panic!()
+                }
+            }
+            Err(_) => panic!(),
+        }
+        let data = "* test\n5 x0 -3 x1 >= 4;\nmin: x0;";
+        let reader = Cursor::new(data);
+        let reader = BufReader::new(reader);
+        assert_eq!(
+            parse_opb_data(reader),
+            Err(OpbError::InvalidLine(String::from("min: x0;")))
+        );
     }
 }

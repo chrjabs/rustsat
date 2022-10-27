@@ -47,6 +47,8 @@ pub enum ParsingError {
     IO(std::io::Error),
     /// Dimacs Parsing Error
     Dimacs(DimacsError),
+    /// OPB Parsing Error
+    Opb(OpbError),
 }
 
 impl fmt::Display for ParsingError {
@@ -54,6 +56,7 @@ impl fmt::Display for ParsingError {
         match self {
             ParsingError::IO(ioe) => write!(f, "IO error: {}", ioe),
             ParsingError::Dimacs(de) => write!(f, "Dimacs error: {}", de),
+            ParsingError::Opb(oe) => write!(f, "OPB error: {}", oe),
         }
     }
 }
@@ -242,8 +245,7 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a reader object with a specific variable
-    /// manager.
+    /// Parses a DIMACS instance from a reader object.
     ///
     /// # File Format
     ///
@@ -265,12 +267,45 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path with a specific variable
-    /// manager. For more details see [`SatInstance::from_dimacs_reader`].
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean satisfaction instances. For details on the file format
+    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        match opb::parse_sat(reader) {
+            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => SatInstance::from_opb_reader(reader),
         }
     }
 
@@ -463,6 +498,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 #[cfg(feature = "optimization")]
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
+/// All objectives are considered minimization objectives.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Objective {
     soft_lits: HashMap<Lit, usize>,
@@ -593,7 +629,7 @@ impl<VM: ManageVars> OptInstance<VM> {
         (self.constr, self.obj)
     }
 
-    /// Parse a DIMACS instance from a reader object.
+    /// Parses a DIMACS instance from a reader object.
     ///
     /// # File Format
     ///
@@ -617,12 +653,67 @@ impl<VM: ManageVars> OptInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader`].
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean optimization instances. For details on the file format
+    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        OptInstance::from_opb_reader_with_idx(reader, 0)
+    }
+
+    /// Parses an OPB instance from a reader object, selecting the objective
+    /// with index `obj_idx` if multiple are available. The index starts from 0.
+    /// For more details see [`OptInstance::from_opb_reader`].
+    pub fn from_opb_reader_with_idx<R: Read>(
+        reader: R,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        match opb::parse_opt_with_idx(reader, obj_idx) {
+            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_opb_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a file path, selecting the objective with
+    /// index `obj_idx` if multiple are available. The index starts from 0. For
+    /// more details see [`OptInstance::from_opb_reader`]. With feature
+    /// `compression` supports bzip2 and gzip compression, detected by the file
+    /// extension.
+    pub fn from_opb_path_with_idx(path: &Path, obj_idx: usize) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx),
         }
     }
 
@@ -805,7 +896,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         (self.constr, self.objs)
     }
 
-    /// Gets a mutable reference to the hard constraints for modifying them
     /// Parse a DIMACS instance from a reader object.
     ///
     /// # File Format
@@ -846,7 +936,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         }
     }
 
-    /// Parse a DIMACS instance from a file path. For more details see
+    /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs_reader`].
     pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
@@ -855,6 +945,40 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         }
     }
 
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean optimization instances with multiple objectives defined.
+    /// For details on the file format see
+    /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        match opb::parse_multi_opt(reader) {
+            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
+            Ok(inst) => {
+                let inst = inst.change_var_manager(|mut vm| {
+                    let nfv = vm.next_free();
+                    let mut vm2 = VM::new();
+                    vm2.increase_next_free(nfv);
+                    vm2
+                });
+                Ok(inst)
+            }
+        }
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => MultiOptInstance::from_opb_reader(reader),
+        }
+    }
+
+    /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constr
     }
