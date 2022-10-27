@@ -12,10 +12,12 @@ use std::fmt;
 
 #[cfg(feature = "ipasir")]
 mod ipasir;
+#[cfg(feature = "ipasir")]
 pub use ipasir::IpasirSolver;
 
 #[cfg(feature = "cadical")]
 pub mod cadical;
+#[cfg(feature = "cadical")]
 pub use cadical::CaDiCaL;
 
 /// Trait for all SAT solvers in this library.
