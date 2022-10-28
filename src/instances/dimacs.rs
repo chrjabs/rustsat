@@ -3,9 +3,9 @@
 //! Internal module containing functions for parsing DIMACS files.
 //! The approach is to accept input instances, even if they are not technically
 //! in spec, as long as the input is still reasonable.
-//! 
+//!
 //! ## References
-//! 
+//!
 //! - [DIMACS CNF](http://www.satcompetition.org/2011/format-benchmarks2011.html)
 //! - [DIMACS WCNF pre22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
