@@ -1,3 +1,5 @@
+#![cfg(incsolver)]
+
 use rustsat::{
     instances::CNF,
     lit,

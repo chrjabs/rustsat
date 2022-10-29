@@ -1,7 +1,73 @@
 //! # Interfaces to SAT Solvers
 //!
-//! This module holds types and functions regarding SAT solvers.
-//! The main element is the [`Solve`] trait that every SAT solver in this library implements.
+//! This module holds types and functions regarding SAT solvers. The main
+//! element is the [`Solve`] trait that every SAT solver in this library
+//! implements.
+//! 
+//! ## Available Solvers
+//! 
+//! ### CaDiCaL
+//! 
+//! [CaDiCaL](https://github.com/arminbiere/cadical) is a fully incremental SAT
+//! solver by Armin Biere implemented in C++. It includes incremental
+//! inprocessing. CaDiCaL is the default incremental solver for RustSAT. The
+//! actual version used in RustSAT is from a fork of CaDiCaL available
+//! [here](https://github.com/chrjabs/cadical/). This fork extends CaDiCaL's C
+//! interface to make all functionality of the C++ interface available.
+//! 
+//! Including CaDiCaL in a build of RustSAT is controlled by the `cadical`
+//! feature.
+//! 
+//! #### References
+//! 
+//! - Armin Biere and Katalin Fazekas and Mathias Fleury and Maximillian
+//!   Heisinger: _CaDiCaL, Kissat, Paracooba, Plingeling and Treengeling
+//!   Entering the SAT Competition 2020_, SAT Competition 2020.
+//! - Original Repository:
+//!   [https://github.com/arminbiere/cadical](https://github.com/arminbiere/cadical)
+//! - Fork used in RustSAT:
+//!   [https://github.com/chrjabs/cadical](https://github.com/chrjabs/cadical)
+//! 
+//! ### Kissat
+//! 
+//! [Kissat](https://github.com/arminbiere/kissat) is a non-incremental SAT
+//! solver by Armin Biere implemented in C. Kissat is the default
+//! non-incremental solver for RustSAT.
+//! 
+//! Including Kissat in a build of RustSAT is controlled by the `kissat`
+//! feature.
+//! 
+//! #### References
+//! 
+//! - Armin Biere and Katalin Fazekas and Mathias Fleury and Maximillian
+//!   Heisinger: _CaDiCaL, Kissat, Paracooba, Plingeling and Treengeling
+//!   Entering the SAT Competition 2020_, SAT Competition 2020.
+//! - Repository:
+//!   [https://github.com/arminbiere/kissat](https://github.com/arminbiere/kissat)
+//! 
+//! ### IPASIR
+//! 
+//! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
+//! solvers. RustSAT's IPASIR interface is disabled by default since linking to
+//! multiple solvers implementing IPASIR at the same time is not possible. The
+//! main reason for including the IPASIR interface in RustSAT is to make it
+//! easier to include solvers not natively supported by RustSAT. For this,
+//! disable the default features of RustSAT to disable potentially conflicting
+//! solvers. Then enable the `ipasir` feature and modify the following lines in
+//! the build script `build.rs` accordingly.
+//!
+//! ```
+//! // Link to custom IPASIR solver
+//! // Modify this for linking to your static library
+//! // The name of the library should be _without_ the prefix 'lib' and the suffix '.a'
+//! println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
+//! println!("cargo:rustc-link-search=<name-of-your-static-lib>");
+//! // If your IPASIR solver links to the C++ stdlib, uncomment the next four lines
+//! //#[cfg(target_os = "macos")]
+//! //println!("cargo:rustc-flags=-l dylib=c++");
+//! //#[cfg(not(target_os = "macos"))]
+//! //println!("cargo:rustc-flags=-l dylib=stdc++");
+//! ```
 
 use crate::{
     clause,
@@ -122,17 +188,18 @@ pub trait SolveStats {
 }
 
 #[derive(Debug, PartialEq, Eq, Default)]
+#[allow(dead_code)] // Not all solvers use all states
 enum InternalSolverState {
     #[default]
     Configuring,
     Input,
     Sat,
     Unsat(Vec<Lit>),
-    #[allow(dead_code)] // Variant will be used in the future
     Error(String),
 }
 
 impl InternalSolverState {
+    #[cfg(solver)]
     fn to_external(&self) -> SolverState {
         match self {
             InternalSolverState::Configuring => SolverState::Configuring,
@@ -229,16 +296,24 @@ type LearnCallback<'a> = Box<dyn FnMut(Vec<Lit>) + 'a>;
 type OptTermCallbackStore<'a> = Option<Box<TermCallback<'a>>>;
 type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 
+#[cfg(solver)]
 /// Constructs a default non-incremental solver. Since the return value cannot
 /// be upcast, it might be necessary to directly instantiate a solver. For now
 /// the default is an instance of CaDiCaL.
 pub fn new_default_solver() -> Box<dyn Solve> {
-    Box::new(CaDiCaL::new())
+    #[cfg(feature = "cadical")]
+    {Box::new(CaDiCaL::new())}
+    #[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
+    {Box::new(IpasirSolver::new())}
 }
 
+#[cfg(incsolver)]
 /// Constructs a default incremental solver. Since the return value cannot be
 /// upcast, it might be necessary to directly instantiate a solver. For now the
 /// default is an instance of CaDiCaL.
 pub fn new_default_inc_solver() -> Box<dyn IncrementalSolve> {
-    Box::new(CaDiCaL::new())
+    #[cfg(feature = "cadical")]
+    {Box::new(CaDiCaL::new())}
+    #[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
+    {Box::new(IpasirSolver::new())}
 }

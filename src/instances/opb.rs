@@ -503,12 +503,11 @@ fn write_objective<W: Write>(writer: &mut W, softs: SoftLitsOffset) -> Result<()
 
 #[cfg(test)]
 mod test {
-    use std::io::{BufReader, Cursor, Seek};
+    use std::io::{Cursor, Seek};
 
     use super::{
-        comment, constraint, literal, objective, opb_data, opb_ending, operator, parse_opb_data,
-        variable, weight, weighted_lit_sum, weighted_literal, write_clause, OpbData, OpbError,
-        OpbOperator,
+        comment, constraint, literal, objective, opb_ending, operator, variable, weight,
+        weighted_lit_sum, weighted_literal, write_clause, OpbOperator,
     };
     use crate::{
         clause,
@@ -523,7 +522,11 @@ mod test {
     use nom::error::{Error, ErrorKind};
 
     #[cfg(feature = "optimization")]
+    use super::{opb_data, parse_opb_data, OpbData, OpbError};
+    #[cfg(feature = "optimization")]
     use crate::instances::Objective;
+    #[cfg(feature = "optimization")]
+    use std::io::BufReader;
 
     #[test]
     fn match_comment() {
@@ -645,6 +648,7 @@ mod test {
         );
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn single_opb_data() {
         assert_eq!(
@@ -672,6 +676,7 @@ mod test {
         }
     }
 
+    #[cfg(feature = "optimization")]
     #[test]
     fn multi_opb_data() {
         let data = "* test\n5 x0 -3 x1 >= 4;\nmin: 1 x0;";

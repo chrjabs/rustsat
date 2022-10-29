@@ -19,8 +19,8 @@ use std::{cmp, collections::BTreeMap, ops::Bound};
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
 /// This encoding only support upper bounding. Lower bounding can be achieved by
-/// negating the input literals. This  is implemented in
-/// [`InvertedGeneralizedTotalizer`].
+/// negating the input literals. This is implemented in
+/// [`super::simulators::InvertedPB`].
 ///
 /// # References
 ///
