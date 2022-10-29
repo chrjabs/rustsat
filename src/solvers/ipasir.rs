@@ -52,7 +52,7 @@ impl<'a> IpasirSolver<'a> {
     }
 
     /// Gets the signature of the linked IPASIR solver.
-    pub fn signature(&self) -> &'static str {
+    pub fn signature() -> &'static str {
         let c_chars = unsafe { ffi::ipasir_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
         c_str
@@ -156,7 +156,7 @@ impl<'a> IpasirSolver<'a> {
     }
 }
 
-impl Solve for IpasirSolver<'_> {
+impl<'a> Solve for IpasirSolver<'a> {
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
@@ -211,23 +211,24 @@ impl Solve for IpasirSolver<'_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) {
+    fn add_clause(&mut self, clause: Clause) -> Result<(), SolverError> {
         if let InternalSolverState::Error(_) = self.state {
             // Don't add clause if already in error state.
-            return;
+            return Err(SolverError::State(
+                self.state.to_external(),
+                SolverState::Input,
+            ));
         }
         // Update wrapper-internal state
         self.n_clauses += 1;
-        for lit in &clause {
-            match self.max_var {
-                None => self.max_var = Some(lit.var()),
-                Some(var) => {
-                    if lit.var() > var {
-                        self.max_var = Some(lit.var());
-                    }
+        clause.iter().for_each(|l| match self.max_var {
+            None => self.max_var = Some(l.var()),
+            Some(var) => {
+                if l.var() > var {
+                    self.max_var = Some(l.var())
                 }
             }
-        }
+        });
         self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
             + clause.len() as f32)
             / self.n_clauses as f32;
@@ -236,11 +237,12 @@ impl Solve for IpasirSolver<'_> {
         for lit in &clause {
             unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
         }
-        unsafe { ffi::ipasir_add(self.handle, 0) }
+        unsafe { ffi::ipasir_add(self.handle, 0) };
+        Ok(())
     }
 }
 
-impl IncrementalSolve for IpasirSolver<'_> {
+impl<'a> IncrementalSolve for IpasirSolver<'a> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -285,7 +287,7 @@ impl IncrementalSolve for IpasirSolver<'_> {
     }
 }
 
-impl SolveStats for IpasirSolver<'_> {
+impl<'a> SolveStats for IpasirSolver<'a> {
     fn get_n_sat_solves(&self) -> u32 {
         self.n_sat
     }
@@ -315,7 +317,7 @@ impl SolveStats for IpasirSolver<'_> {
     }
 }
 
-impl Drop for IpasirSolver<'_> {
+impl<'a> Drop for IpasirSolver<'a> {
     fn drop(&mut self) {
         unsafe { ffi::ipasir_release(self.handle) }
     }
@@ -344,8 +346,8 @@ mod test {
     #[test]
     fn tiny_instance() {
         let mut solver = IpasirSolver::new();
-        solver.add_binary(lit![0], !lit![1]);
-        solver.add_binary(lit![1], !lit![2]);
+        solver.add_binary(lit![0], !lit![1]).unwrap();
+        solver.add_binary(lit![1], !lit![2]).unwrap();
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
@@ -356,15 +358,15 @@ mod test {
     #[test]
     fn termination_callback() {
         let mut solver = IpasirSolver::new();
-        solver.add_binary(lit![0], !lit![1]);
-        solver.add_binary(lit![1], !lit![2]);
-        solver.add_binary(lit![2], !lit![3]);
-        solver.add_binary(lit![3], !lit![4]);
-        solver.add_binary(lit![4], !lit![5]);
-        solver.add_binary(lit![5], !lit![6]);
-        solver.add_binary(lit![6], !lit![7]);
-        solver.add_binary(lit![7], !lit![8]);
-        solver.add_binary(lit![8], !lit![9]);
+        solver.add_binary(lit![0], !lit![1]).unwrap();
+        solver.add_binary(lit![1], !lit![2]).unwrap();
+        solver.add_binary(lit![2], !lit![3]).unwrap();
+        solver.add_binary(lit![3], !lit![4]).unwrap();
+        solver.add_binary(lit![4], !lit![5]).unwrap();
+        solver.add_binary(lit![5], !lit![6]).unwrap();
+        solver.add_binary(lit![6], !lit![7]).unwrap();
+        solver.add_binary(lit![7], !lit![8]).unwrap();
+        solver.add_binary(lit![8], !lit![9]).unwrap();
 
         solver.set_terminator(|| ControlSignal::Terminate);
 
@@ -383,15 +385,15 @@ mod test {
     #[test]
     fn learner_callback() {
         let mut solver = IpasirSolver::new();
-        solver.add_binary(lit![0], !lit![1]);
-        solver.add_binary(lit![1], !lit![2]);
-        solver.add_binary(lit![2], !lit![3]);
-        solver.add_binary(lit![3], !lit![4]);
-        solver.add_binary(lit![4], !lit![5]);
-        solver.add_binary(lit![5], !lit![6]);
-        solver.add_binary(lit![6], !lit![7]);
-        solver.add_binary(lit![7], !lit![8]);
-        solver.add_binary(lit![8], !lit![9]);
+        solver.add_binary(lit![0], !lit![1]).unwrap();
+        solver.add_binary(lit![1], !lit![2]).unwrap();
+        solver.add_binary(lit![2], !lit![3]).unwrap();
+        solver.add_binary(lit![3], !lit![4]).unwrap();
+        solver.add_binary(lit![4], !lit![5]).unwrap();
+        solver.add_binary(lit![5], !lit![6]).unwrap();
+        solver.add_binary(lit![6], !lit![7]).unwrap();
+        solver.add_binary(lit![7], !lit![8]).unwrap();
+        solver.add_binary(lit![8], !lit![9]).unwrap();
         solver.add_unit(lit![9]);
         solver.add_unit(!lit![0]);
 

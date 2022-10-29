@@ -119,6 +119,14 @@ impl Var {
     pub fn idx(&self) -> usize {
         self.idx
     }
+
+    /// Converts the variable to an integer as accepted by the IPASIR API and
+    /// similar. The IPASIR variable will have idx+1. Panics if the literal does not fit into a `c_int`.
+    pub fn to_ipasir(self) -> c_int {
+        (self.idx() + 1)
+            .try_into()
+            .expect("variable index too high to fit in c_int")
+    }
 }
 
 /// Incrementing variables

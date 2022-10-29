@@ -19,7 +19,7 @@ macro_rules! opb_test {
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
         let mut solver = solvers::new_default_solver();
-        solver.add_cnf(cnf);
+        solver.add_cnf(cnf).unwrap();
         assert_eq!(solver.solve().unwrap(), $expect);
     }};
 }
