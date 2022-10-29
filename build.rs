@@ -79,11 +79,24 @@ fn build_cadical(repo: &str, commit: &str) -> bool {
                         None
                     }
                 });
-            cc::Build::new()
-                .cpp(true)
-                .opt_level(3)
-                .define("NDEBUG", None)
-                .define("NBUILD", None) // Build without build.hpp
+            // Setup build configuration
+            let mut cadical_build = cc::Build::new();
+            cadical_build.cpp(true).opt_level(3).define("NDEBUG", None);
+            // Generate build header
+            let mut build_header = File::create(cadical_dir.join("src").join("build.hpp"))
+                .expect("Could not create kissat CaDiCaL header");
+            let mut cadical_version = fs::read_to_string(cadical_dir.join("VERSION"))
+                .expect("Cannot read CaDiCaL version");
+            cadical_version.retain(|c| c != '\n');
+            let (compiler_desc, compiler_flags) =
+                get_compiler_description(cadical_build.get_compiler());
+            write!(
+                build_header,
+                "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
+                cadical_version, commit, compiler_desc, compiler_flags, chrono::Utc::now()
+            ).expect("Failed to write CaDiCaL build.hpp");
+            // Build CaDiCaL
+            cadical_build
                 .include(cadical_dir.join("src"))
                 .warnings(false)
                 .files(src_files)
@@ -144,12 +157,14 @@ fn build_kissat(repo: &str, commit: &str) -> bool {
             let mut kissat_version =
                 fs::read_to_string(kissat_dir.join("VERSION")).expect("Cannot read kissat version");
             kissat_version.retain(|c| c != '\n');
-            let compiler_desc = get_compiler_description(kissat_build.get_compiler());
+            let (compiler_desc, compiler_flags) =
+                get_compiler_description(kissat_build.get_compiler());
             write!(
                 build_header,
-                "#define VERSION \"{}\"\n#define COMPILER \"{}\"\n#define ID \"{}\"\n#define BUILD \"{}\"\n#define DIR \"{}\"",
-                kissat_version, compiler_desc, commit, chrono::Utc::now(), kissat_dir.as_os_str().to_str().unwrap()
+                "#define VERSION \"{}\"\n#define COMPILER \"{} {}\"\n#define ID \"{}\"\n#define BUILD \"{}\"\n#define DIR \"{}\"",
+                kissat_version, compiler_desc, compiler_flags, commit, chrono::Utc::now(), kissat_dir.as_os_str().to_str().unwrap()
             ).expect("Failed to write kissat build.h");
+            // Build Kissat
             kissat_build
                 .include(kissat_dir.join("src"))
                 .warnings(false)
@@ -191,8 +206,8 @@ fn update_repo(path: &Path, url: &str, commit: &str) -> bool {
     changed
 }
 
-/// Gets a description of the C(++) compiler used
-fn get_compiler_description(compiler: cc::Tool) -> String {
+/// Gets a description of the C(++) compiler used and the used flags
+fn get_compiler_description(compiler: cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;
     let compiler_version = match Command::new(compiler_command.get_program())
@@ -214,5 +229,8 @@ fn get_compiler_description(compiler: cc::Tool) -> String {
         Err(_) => String::from(compiler_command.get_program().to_str().unwrap()),
     };
     let compiler_flags = compiler.cflags_env();
-    format!("{} {}", compiler_version, compiler_flags.to_str().unwrap())
+    (
+        compiler_version,
+        String::from(compiler_flags.to_str().unwrap()),
+    )
 }
