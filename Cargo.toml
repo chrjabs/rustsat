@@ -18,12 +18,14 @@ rustc-hash = { version = "1.1", optional = true }
 cc = { version = "1.0", features = ["parallel"] }
 git2 = "0.15"
 glob = "0.3"
+chrono = "0.4"
 
 [features]
-default = ["cadical", "optimization", "fxhash"]
+default = ["cadical", "kissat", "optimization", "fxhash"]
 fxhash = ["dep:rustc-hash"]
 ipasir = []
 cadical = []
+kissat = []
 optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2"]
