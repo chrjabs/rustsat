@@ -17,7 +17,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_lit_impl_lit(a0, b0);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, b0]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, !b0]).unwrap();
@@ -30,7 +30,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_lit_impl_clause(a0, vec![b0, b1]);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, b0, b1]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, b0, !b1]).unwrap();
@@ -51,7 +51,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_lit_impl_cube(a0, vec![b0, b1]);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, b0, b1]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, b0, !b1]).unwrap();
@@ -72,7 +72,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_cube_impl_lit(vec![a0, a1], b0);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, a1, b0]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, a1, !b0]).unwrap();
@@ -93,7 +93,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_clause_impl_lit(vec![a0, a1], b0);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, a1, b0]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, a1, !b0]).unwrap();
@@ -114,7 +114,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_cube_impl_clause(vec![a0, a1], vec![b0, b1]);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, a1, b0, b1]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, a1, b0, !b1]).unwrap();
@@ -151,7 +151,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_clause_impl_clause(vec![a0, a1], vec![b0, b1]);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, a1, b0, b1]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, a1, b0, !b1]).unwrap();
@@ -188,7 +188,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_clause_impl_cube(vec![a0, a1], vec![b0, b1]);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, a1, b0, b1]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, a1, b0, !b1]).unwrap();
@@ -225,7 +225,7 @@ fn cnf_implications() {
     let mut cnf = CNF::new();
     cnf.add_cube_impl_cube(vec![a0, a1], vec![b0, b1]);
     let mut solver = new_default_inc_solver();
-    solver.add_cnf(cnf);
+    solver.add_cnf(cnf).unwrap();
     let ret = solver.solve_assumps(vec![a0, a1, b0, b1]).unwrap();
     assert_eq!(ret, SolverResult::SAT);
     let ret = solver.solve_assumps(vec![a0, a1, b0, !b1]).unwrap();

@@ -121,7 +121,8 @@ fn build_kissat(repo: &str, commit: &str) -> bool {
                 .filter_map(|res| {
                     if let Ok(p) = res {
                         if let Some(name) = p.file_name() {
-                            if name == "application.c"
+                            if name == "main.c"
+                                || name == "application.c"
                                 || name == "handle.c"
                                 || name == "parse.c"
                                 || name == "witness.c"

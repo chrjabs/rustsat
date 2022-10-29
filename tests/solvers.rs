@@ -70,3 +70,37 @@ fn cadical_unsat_small_unsat() {
         .unwrap();
     small_unsat_instance(solver);
 }
+
+#[test]
+#[cfg(feature = "kissat")]
+fn kissat_small_sat() {
+    let solver = solvers::Kissat::new();
+    small_sat_instance(solver);
+}
+
+#[test]
+#[cfg(feature = "kissat")]
+fn kissat_small_unsat() {
+    let solver = solvers::Kissat::new();
+    small_unsat_instance(solver);
+}
+
+#[test]
+#[cfg(feature = "kissat")]
+fn kissat_sat_small_sat() {
+    let mut solver = solvers::Kissat::new();
+    solver
+        .set_configuration(solvers::kissat::Config::SAT)
+        .unwrap();
+    small_sat_instance(solver);
+}
+
+#[test]
+#[cfg(feature = "kissat")]
+fn kissat_unsat_small_unsat() {
+    let mut solver = solvers::Kissat::new();
+    solver
+        .set_configuration(solvers::kissat::Config::UNSAT)
+        .unwrap();
+    small_unsat_instance(solver);
+}

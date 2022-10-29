@@ -17,7 +17,7 @@ macro_rules! test_card {
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
         let mut solver = solvers::new_default_inc_solver();
-        solver.add_cnf(cnf);
+        solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),
             SolverResult::SAT
@@ -36,7 +36,7 @@ macro_rules! test_pb {
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
         let mut solver = solvers::new_default_inc_solver();
-        solver.add_cnf(cnf);
+        solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),
             SolverResult::SAT
