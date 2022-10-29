@@ -1,12 +1,16 @@
+#![cfg(solver)]
+
 use rustsat::{instances::SatInstance, solvers, solvers::SolverResult};
 
 #[cfg(feature = "multiopt")]
 use rustsat::instances::MultiOptInstance;
 #[cfg(feature = "optimization")]
+use rustsat::types::RsHashMap;
+#[cfg(feature = "optimization")]
 use rustsat::{
     instances::{Objective, OptInstance},
     lit,
-    types::{constraints::PBConstraint, Lit, RsHashMap},
+    types::{constraints::PBConstraint, Lit},
 };
 
 macro_rules! opb_test {

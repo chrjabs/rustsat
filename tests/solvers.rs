@@ -1,3 +1,5 @@
+#![allow(dead_code, unused)]
+
 use rustsat::{
     instances::{BasicVarManager, SatInstance},
     solvers,

@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 use glob::glob;
 use std::{
     env,
@@ -9,6 +10,24 @@ use std::{
 };
 
 fn main() {
+    #[cfg(feature = "ipasir")]
+    {
+        // IPASIR conflicts with incremental solvers that implement IPASIR
+        #[cfg(feature = "cadical")]
+        println!("cargo:warning=Feature `cadical` (potentially) conflicts with feature `ipasir`");
+
+        // Link to custom IPASIR solver
+        // Modify this for linking to your static library
+        // The name of the library should be _without_ the prefix 'lib' and the suffix '.a'
+        println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
+        println!("cargo:rustc-link-search=<name-of-your-static-lib>");
+        // If your IPASIR solver links to the C++ stdlib, uncomment the next four lines
+        //#[cfg(target_os = "macos")]
+        //println!("cargo:rustc-flags=-l dylib=c++");
+        //#[cfg(not(target_os = "macos"))]
+        //println!("cargo:rustc-flags=-l dylib=stdc++");
+    }
+
     // Build external solver dependencies
     // Full commit hashes need to be provided
     build_cadical(
@@ -24,9 +43,16 @@ fn main() {
 
     // All built solvers are there
     println!("cargo:rustc-link-search={}", out_dir);
+
+    // Configuration has a solver
+    #[cfg(any(feature = "kissat", feature = "cadical", feature = "ipasir"))]
+    println!("cargo:rustc-cfg=solver");
+    // Configuration has an incremental solver
+    #[cfg(any(feature = "cadical", feature = "ipasir"))]
+    println!("cargo:rustc-cfg=incsolver");
 }
 
-fn build_cadical(repo: &str, commit: &str) {
+fn build_cadical(repo: &str, commit: &str) -> bool {
     #[cfg(feature = "cadical")]
     {
         let out_dir = env::var("OUT_DIR").unwrap();
@@ -71,10 +97,13 @@ fn build_cadical(repo: &str, commit: &str) {
 
         #[cfg(not(target_os = "macos"))]
         println!("cargo:rustc-flags=-l dylib=stdc++");
+
+        return true;
     }
+    false
 }
 
-fn build_kissat(repo: &str, commit: &str) {
+fn build_kissat(repo: &str, commit: &str) -> bool {
     #[cfg(feature = "kissat")]
     {
         let out_dir = env::var("OUT_DIR").unwrap();
@@ -128,7 +157,10 @@ fn build_kissat(repo: &str, commit: &str) {
         };
 
         println!("cargo:rustc-link-lib=static=kissat");
+
+        return true;
     }
+    false
 }
 
 /// Returns true if there were changes, false if not
