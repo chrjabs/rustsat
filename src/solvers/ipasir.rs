@@ -46,20 +46,6 @@ impl Default for IpasirSolver<'_> {
 }
 
 impl<'a> IpasirSolver<'a> {
-    /// Creates a new IPASIR solver.
-    pub fn new() -> IpasirSolver<'a> {
-        Self::default()
-    }
-
-    /// Gets the signature of the linked IPASIR solver.
-    pub fn signature() -> &'static str {
-        let c_chars = unsafe { ffi::ipasir_signature() };
-        let c_str = unsafe { CStr::from_ptr(c_chars) };
-        c_str
-            .to_str()
-            .expect("IPASIR signature returned invalid UTF-8.")
-    }
-
     fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
@@ -157,6 +143,18 @@ impl<'a> IpasirSolver<'a> {
 }
 
 impl<'a> Solve for IpasirSolver<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn signature(&self) -> &'static str {
+        let c_chars = unsafe { ffi::ipasir_signature() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("IPASIR signature returned invalid UTF-8.")
+    }
+
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
@@ -394,8 +392,8 @@ mod test {
         solver.add_binary(lit![6], !lit![7]).unwrap();
         solver.add_binary(lit![7], !lit![8]).unwrap();
         solver.add_binary(lit![8], !lit![9]).unwrap();
-        solver.add_unit(lit![9]);
-        solver.add_unit(!lit![0]);
+        solver.add_unit(lit![9]).unwrap();
+        solver.add_unit(!lit![0]).unwrap();
 
         let mut cl_len = 0;
         let ret;

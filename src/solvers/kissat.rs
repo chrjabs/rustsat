@@ -26,35 +26,6 @@ pub struct Kissat<'a> {
 }
 
 impl<'a> Kissat<'a> {
-    /// Creates a new instance of Kissat
-    pub fn new() -> Self {
-        let handle = unsafe { ffi::kissat_init() };
-        // Suppress output by default
-        let quiet = CString::new("quiet").unwrap();
-        unsafe { ffi::kissat_set_option(handle, quiet.as_ptr(), 1) };
-        Kissat {
-            handle,
-            state: InternalSolverState::Configuring,
-            terminate_cb: None,
-            n_sat: 0,
-            n_unsat: 0,
-            n_terminated: 0,
-            n_clauses: 0,
-            max_var: None,
-            avg_clause_len: 0.0,
-            cpu_solve_time: 0.0,
-        }
-    }
-
-    /// Gets the signature of Kissat
-    pub fn signature() -> &'static str {
-        let c_chars = unsafe { ffi::kissat_signature() };
-        let c_str = unsafe { CStr::from_ptr(c_chars) };
-        c_str
-            .to_str()
-            .expect("Kissat signature returned invalid UTF-8.")
-    }
-
     /// Gets the commit ID that Kissat was built from
     pub fn commit_id() -> &'static str {
         let c_chars = unsafe { ffi::kissat_id() };
@@ -66,14 +37,18 @@ impl<'a> Kissat<'a> {
     pub fn version() -> &'static str {
         let c_chars = unsafe { ffi::kissat_version() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
-        c_str.to_str().expect("Kissat version returned invalid UTF-8.")
+        c_str
+            .to_str()
+            .expect("Kissat version returned invalid UTF-8.")
     }
 
     /// Gets the compiler Kissat was built with
     pub fn compiler() -> &'static str {
         let c_chars = unsafe { ffi::kissat_compiler() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
-        c_str.to_str().expect("Kissat compiler returned invalid UTF-8.")
+        c_str
+            .to_str()
+            .expect("Kissat compiler returned invalid UTF-8.")
     }
 
     /// Reserves memory in the solver until a maximum variable
@@ -198,6 +173,33 @@ impl<'a> Kissat<'a> {
 }
 
 impl<'a> Solve for Kissat<'a> {
+    fn new() -> Self {
+        let handle = unsafe { ffi::kissat_init() };
+        // Suppress output by default
+        let quiet = CString::new("quiet").unwrap();
+        unsafe { ffi::kissat_set_option(handle, quiet.as_ptr(), 1) };
+        Kissat {
+            handle,
+            state: InternalSolverState::Configuring,
+            terminate_cb: None,
+            n_sat: 0,
+            n_unsat: 0,
+            n_terminated: 0,
+            n_clauses: 0,
+            max_var: None,
+            avg_clause_len: 0.0,
+            cpu_solve_time: 0.0,
+        }
+    }
+
+    fn signature(&self) -> &'static str {
+        let c_chars = unsafe { ffi::kissat_signature() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("Kissat signature returned invalid UTF-8.")
+    }
+
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
