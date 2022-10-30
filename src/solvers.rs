@@ -95,6 +95,12 @@ pub use kissat::Kissat;
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
 pub trait Solve {
+    /// Instantiates a new solver object
+    fn new() -> Self
+    where
+        Self: Sized;
+    /// Gets a signature of the solver implementation
+    fn signature(&self) -> &'static str;
     /// Solves the internal CNF formula without any assumptions.
     fn solve(&mut self) -> Result<SolverResult, SolverError>;
     /// Gets a solution found by the solver.

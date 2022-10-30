@@ -44,20 +44,6 @@ impl Default for CaDiCaL<'_> {
 }
 
 impl<'a> CaDiCaL<'a> {
-    /// Creates a new instance of CaDiCaL
-    pub fn new() -> CaDiCaL<'a> {
-        Self::default()
-    }
-
-    /// Gets the signature of CaDiCaL
-    pub fn signature() -> &'static str {
-        let c_chars = unsafe { ffi::ccadical_signature() };
-        let c_str = unsafe { CStr::from_ptr(c_chars) };
-        c_str
-            .to_str()
-            .expect("CaDiCaL signature returned invalid UTF-8.")
-    }
-
     fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
@@ -450,6 +436,18 @@ impl<'a> CaDiCaL<'a> {
 }
 
 impl<'a> Solve for CaDiCaL<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn signature(&self) -> &'static str {
+        let c_chars = unsafe { ffi::ccadical_signature() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("CaDiCaL signature returned invalid UTF-8.")
+    }
+
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
