@@ -436,7 +436,7 @@ impl<'a> CaDiCaL<'a> {
     }
 }
 
-impl<'a> Solve for CaDiCaL<'a> {
+impl Solve for CaDiCaL<'_> {
     fn new() -> Self {
         Self::default()
     }
@@ -539,7 +539,7 @@ impl<'a> Solve for CaDiCaL<'a> {
     }
 }
 
-impl<'a> IncrementalSolve for CaDiCaL<'a> {
+impl IncrementalSolve for CaDiCaL<'_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -576,7 +576,7 @@ impl<'a> IncrementalSolve for CaDiCaL<'a> {
         }
     }
 
-    fn get_core(&mut self) -> Result<Vec<Lit>, SolverError> {
+    fn core(&mut self) -> Result<Vec<Lit>, SolverError> {
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
             other => Err(SolverError::State(other.to_external(), SolverState::UNSAT)),
@@ -584,24 +584,24 @@ impl<'a> IncrementalSolve for CaDiCaL<'a> {
     }
 }
 
-impl<'a> SolveStats for CaDiCaL<'a> {
-    fn get_n_sat_solves(&self) -> u32 {
+impl SolveStats for CaDiCaL<'_> {
+    fn n_sat_solves(&self) -> u32 {
         self.n_sat
     }
 
-    fn get_n_unsat_solves(&self) -> u32 {
+    fn n_unsat_solves(&self) -> u32 {
         self.n_unsat
     }
 
-    fn get_n_terminated(&self) -> u32 {
+    fn n_terminated(&self) -> u32 {
         self.n_terminated
     }
 
-    fn get_n_clauses(&self) -> u32 {
+    fn n_clauses(&self) -> u32 {
         self.n_clauses
     }
 
-    fn get_max_var(&self) -> Option<Var> {
+    fn max_var(&self) -> Option<Var> {
         let max_var_idx = unsafe { ffi::ccadical_vars(self.handle) };
         if max_var_idx > 0 {
             Some(Var::new((max_var_idx - 1) as usize))
@@ -610,16 +610,16 @@ impl<'a> SolveStats for CaDiCaL<'a> {
         }
     }
 
-    fn get_avg_clause_len(&self) -> f32 {
+    fn avg_clause_len(&self) -> f32 {
         self.avg_clause_len
     }
 
-    fn get_cpu_solve_time(&self) -> f32 {
+    fn cpu_solve_time(&self) -> f32 {
         self.cpu_solve_time
     }
 }
 
-impl<'a> Drop for CaDiCaL<'a> {
+impl Drop for CaDiCaL<'_> {
     fn drop(&mut self) {
         unsafe { ffi::ccadical_release(self.handle) }
     }

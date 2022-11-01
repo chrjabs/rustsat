@@ -114,7 +114,7 @@ pub trait Solve {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn get_solution(&self, high_var: &Var) -> Result<Solution, SolverError> {
+    fn solution(&self, high_var: &Var) -> Result<Solution, SolverError> {
         let mut assignment = Vec::new();
         let len = high_var.idx() + 1;
         assignment.reserve(len);
@@ -171,39 +171,39 @@ pub trait IncrementalSolve: Solve {
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted
     /// literals of the assumptions.
-    fn get_core(&mut self) -> Result<Vec<Lit>, SolverError>;
+    fn core(&mut self) -> Result<Vec<Lit>, SolverError>;
 }
 
 /// Trait for solvers that track certain statistics.
 pub trait SolveStats {
     /// Gets the number of satisfiable queries executed.
-    fn get_n_sat_solves(&self) -> u32;
+    fn n_sat_solves(&self) -> u32;
     /// Gets the number of unsatisfiable queries executed.
-    fn get_n_unsat_solves(&self) -> u32;
+    fn n_unsat_solves(&self) -> u32;
     /// Gets the number of queries that were prematurely terminated.
-    fn get_n_terminated(&self) -> u32;
+    fn n_terminated(&self) -> u32;
     /// Gets the total number of queries executed.
-    fn get_n_solves(&self) -> u32 {
-        self.get_n_sat_solves() + self.get_n_unsat_solves() + self.get_n_terminated()
+    fn n_solves(&self) -> u32 {
+        self.n_sat_solves() + self.n_unsat_solves() + self.n_terminated()
     }
     /// Gets the number of clauses in the solver.
-    fn get_n_clauses(&self) -> u32;
+    fn n_clauses(&self) -> u32;
     /// Gets the variable with the highest index in the solver, if any.
     /// If all variables below have been used, the index of this variable +1 is
     /// the number of variables in the solver.
-    fn get_max_var(&self) -> Option<Var>;
+    fn max_var(&self) -> Option<Var>;
     /// Get number of variables.
     /// Note: this is only correct if all variables are used in order!
-    fn get_n_vars(&self) -> usize {
-        match self.get_max_var() {
+    fn n_vars(&self) -> usize {
+        match self.max_var() {
             Some(var) => var.idx() + 1,
             None => 0,
         }
     }
     /// Gets the average length of all clauses in the solver.
-    fn get_avg_clause_len(&self) -> f32;
+    fn avg_clause_len(&self) -> f32;
     /// Gets the total CPU time spent solving.
-    fn get_cpu_solve_time(&self) -> f32;
+    fn cpu_solve_time(&self) -> f32;
 }
 
 #[derive(Debug, PartialEq, Eq, Default)]
