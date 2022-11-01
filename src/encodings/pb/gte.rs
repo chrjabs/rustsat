@@ -8,7 +8,7 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{EncodePB, EncodingError, IncEncodePB, IncUBPB, UBPB};
+use super::{EncodePB, EncodingError, IncEncodePB, IncUBPB, IterPBEncoding, UBPB};
 use crate::{
     encodings::EncodeStats,
     instances::{ManageVars, CNF},
@@ -27,7 +27,7 @@ use std::{cmp, collections::BTreeMap, ops::Bound};
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 pub struct GeneralizedTotalizer {
-    /// Input literals and weights already in the tree
+    /// Input literals and weights for the encoding
     in_lits: RsHashMap<Lit, usize>,
     /// Input literals and weights not yet in the tree
     lit_buffer: RsHashMap<Lit, usize>,
@@ -97,17 +97,7 @@ impl GeneralizedTotalizer {
                         Some(Box::new(new_root))
                     }
                 };
-                // Update total weights in tree
-                self.lit_buffer.iter_mut().for_each(|(l, w)| {
-                    if *w <= max_weight {
-                        match self.in_lits.get(l) {
-                            Some(old_w) => self.in_lits.insert(*l, *old_w + *w),
-                            None => self.in_lits.insert(*l, *w),
-                        };
-                        *w = 0;
-                    }
-                });
-                self.lit_buffer.retain(|_, v| *v != 0);
+                self.lit_buffer.retain(|_, w| *w > max_weight);
             }
         }
     }
@@ -121,7 +111,9 @@ impl GeneralizedTotalizer {
     }
 }
 
-impl EncodePB for GeneralizedTotalizer {
+impl<'a> EncodePB<'a> for GeneralizedTotalizer {
+    type Iter = GTEIter<'a>;
+
     fn new() -> Self
     where
         Self: Sized,
@@ -141,15 +133,29 @@ impl EncodePB for GeneralizedTotalizer {
     fn add(&mut self, lits: RsHashMap<Lit, usize>) {
         lits.iter().for_each(|(l, w)| {
             self.total_weight += w;
-            match self.lit_buffer.get(l) {
-                Some(old_w) => self.lit_buffer.insert(*l, *old_w + *w),
-                None => self.lit_buffer.insert(*l, *w),
+            // Insert into buffer to be added to tree
+            match self.lit_buffer.get_mut(l) {
+                Some(old_w) => *old_w += *w,
+                None => {
+                    self.lit_buffer.insert(*l, *w);
+                }
+            };
+            // Insert into map of input literals
+            match self.in_lits.get_mut(l) {
+                Some(old_w) => *old_w += *w,
+                None => {
+                    self.lit_buffer.insert(*l, *w);
+                }
             };
         });
     }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.in_lits.iter().map(copy_key_val)
+    }
 }
 
-impl IncEncodePB for GeneralizedTotalizer {
+impl IncEncodePB<'_> for GeneralizedTotalizer {
     fn new_reserving() -> Self
     where
         Self: Sized,
@@ -167,7 +173,7 @@ impl IncEncodePB for GeneralizedTotalizer {
     }
 }
 
-impl UBPB for GeneralizedTotalizer {
+impl UBPB<'_> for GeneralizedTotalizer {
     fn encode_ub(
         &mut self,
         min_ub: usize,
@@ -246,7 +252,7 @@ impl UBPB for GeneralizedTotalizer {
     }
 }
 
-impl IncUBPB for GeneralizedTotalizer {
+impl IncUBPB<'_> for GeneralizedTotalizer {
     fn encode_ub_change(
         &mut self,
         min_ub: usize,
@@ -279,6 +285,15 @@ impl EncodeStats for GeneralizedTotalizer {
         self.n_vars
     }
 }
+
+fn copy_key_val(key_val_refs: (&Lit, &usize)) -> (Lit, usize) {
+    (*key_val_refs.0, *key_val_refs.1)
+}
+type GTEIter<'a> = std::iter::Map<
+    std::collections::hash_map::Iter<'a, Lit, usize>,
+    fn((&Lit, &usize)) -> (Lit, usize),
+>;
+impl<'a> IterPBEncoding<'a> for GTEIter<'a> {}
 
 /// The Totalzier nodes are _only_ for upper bounding. Lower bounding in the GTE
 /// is possible by negating input literals. This conversion entirely happens in

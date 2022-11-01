@@ -9,7 +9,7 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::pb,
+//!     encodings::{pb, pb::{BothBPB, EncodePB}},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
 //!     solvers::{SolverResult, Solve, IncrementalSolve},
@@ -54,12 +54,13 @@ use crate::{
 mod gte;
 pub use gte::GeneralizedTotalizer;
 pub mod simulators;
-pub type InvertedGeneralizedTotalizer = simulators::InvertedPB<GeneralizedTotalizer>;
+pub type InvertedGeneralizedTotalizer = simulators::InvertedPB<'static, GeneralizedTotalizer>;
 pub type DoubleGeneralizedTotalizer =
-    simulators::DoublePB<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
+    simulators::DoublePB<'static, GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
-pub trait EncodePB {
+pub trait EncodePB<'a> {
+    type Iter: IterPBEncoding<'a>;
     /// Constructs a new cardinality encoding
     fn new() -> Self
     where
@@ -78,11 +79,18 @@ pub trait EncodePB {
     }
     /// Adds new literals to the cardinality encoding
     fn add(&mut self, lits: RsHashMap<Lit, usize>);
+    /// Gets an iterator over copies of the input literals
+    fn iter(&'a self) -> Self::Iter;
 }
+
+/// An iterator over the weighted input literals in a cardinality encoding. The
+/// iterator returns copied input literals and is only valid as long as the
+/// parent encoding is alive.
+pub trait IterPBEncoding<'a>: Iterator<Item = (Lit, usize)> {}
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait UBPB: EncodePB {
+pub trait UBPB<'a>: EncodePB<'a> {
     /// Lazily builds the pseudo-boolean encoding to enable upper bounds from
     /// `min_ub` to `max_ub`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_ub` or
@@ -126,7 +134,7 @@ pub trait UBPB: EncodePB {
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait LBPB: EncodePB {
+pub trait LBPB<'a>: EncodePB<'a> {
     /// Lazily builds the pseudo-boolean encoding to enable lower bounds from
     /// `min_lb` to `max_lb`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_lb` or
@@ -171,7 +179,7 @@ pub trait LBPB: EncodePB {
 }
 
 /// Trait for pseudo-boolean encodings that allow upper and lower bounding
-pub trait BothBPB: UBPB + LBPB {
+pub trait BothBPB<'a>: UBPB<'a> + LBPB<'a> {
     /// Lazily builds the pseudo-boolean encoding to enable both bounds from
     /// `min_b` to `max_b`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_lb` or
@@ -238,8 +246,12 @@ pub trait BothBPB: UBPB + LBPB {
     }
 }
 
+/// Default implementation of [`BothBPB`] for every encoding that does upper
+/// and lower bounding
+impl<'a, PBE> BothBPB<'a> for PBE where PBE: UBPB<'a> + LBPB<'a> {}
+
 /// Trait for all pseudo-boolean encodings of form `sum of lits <> rhs`
-pub trait IncEncodePB: EncodePB {
+pub trait IncEncodePB<'a>: EncodePB<'a> {
     /// Constructs a new pseudo-boolean encoding that reserves all variables on the
     /// first call to an encode method
     fn new_reserving() -> Self
@@ -261,7 +273,7 @@ pub trait IncEncodePB: EncodePB {
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncUBPB: UBPB + IncEncodePB {
+pub trait IncUBPB<'a>: UBPB<'a> + IncEncodePB<'a> {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable upper
     /// bounds from `min_ub` to `max_ub`. A change might be added literals or
     /// changed bounds. `var_manager` is the variable manager to use for
@@ -278,7 +290,7 @@ pub trait IncUBPB: UBPB + IncEncodePB {
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncLBPB: LBPB + IncEncodePB {
+pub trait IncLBPB<'a>: LBPB<'a> + IncEncodePB<'a> {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable lower
     /// bounds from `min_lb` to `max_lb`. `var_manager` is the variable manager
     /// to use for tracking new variables. A specific encoding might ignore
@@ -293,7 +305,7 @@ pub trait IncLBPB: LBPB + IncEncodePB {
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
-pub trait IncBothBPB: IncUBPB + IncLBPB + BothBPB {
+pub trait IncBothBPB<'a>: IncUBPB<'a> + IncLBPB<'a> {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable both bounds
     /// from `min_b` to `max_b`. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore `min_lb` or
@@ -311,40 +323,44 @@ pub trait IncBothBPB: IncUBPB + IncLBPB + BothBPB {
     }
 }
 
+/// Default implementation of [`IncBothBPB`] for every encoding that does
+/// incremental upper and lower bounding
+impl<'a, PBE> IncBothBPB<'a> for PBE where PBE: IncUBPB<'a> + IncLBPB<'a> {}
+
 /// Constructs a default upper bounding pseudo-boolean encoding. For now this is
 /// a [`GeneralizedTotalizer`]
-pub fn new_default_ub() -> Box<dyn UBPB> {
-    Box::new(GeneralizedTotalizer::new())
+pub fn new_default_ub<'a>() -> impl UBPB<'a> {
+    GeneralizedTotalizer::new()
 }
 
 /// Constructs a default lower bounding pseudo-boolean encoding. For now this is
 /// a [`InvertedGeneralizedTotalizer`]
-pub fn new_default_lb() -> Box<dyn LBPB> {
-    Box::new(InvertedGeneralizedTotalizer::new())
+pub fn new_default_lb<'a>() -> impl LBPB<'a> {
+    InvertedGeneralizedTotalizer::new()
 }
 
 /// Constructs a default double bounding pseudo-boolean encoding. For now this
 /// is a [`DoubleGeneralizedTotalizer`]
-pub fn new_default_both() -> Box<dyn BothBPB> {
-    Box::new(DoubleGeneralizedTotalizer::new())
+pub fn new_default_both<'a>() -> impl BothBPB<'a> {
+    DoubleGeneralizedTotalizer::new()
 }
 
 /// Constructs a default incremental upper bounding pseudo-boolean encoding. For
 /// now this is a [`GeneralizedTotalizer`]
-pub fn new_default_inc_ub() -> Box<dyn IncUBPB> {
-    Box::new(GeneralizedTotalizer::new())
+pub fn new_default_inc_ub<'a>() -> impl IncUBPB<'a> {
+    GeneralizedTotalizer::new()
 }
 
 /// Constructs a default incremental lower bounding pseudo-boolean encoding. For
 /// now this is a [`InvertedGeneralizedTotalizer`]
-pub fn new_default_inc_lb() -> Box<dyn LBPB> {
-    Box::new(InvertedGeneralizedTotalizer::new())
+pub fn new_default_inc_lb<'a>() -> impl LBPB<'a> {
+    InvertedGeneralizedTotalizer::new()
 }
 
 /// Constructs a default incremental double bounding pseudo-boolean encoding.
 /// For now this is a [`DoubleGeneralizedTotalizer`]
-pub fn new_default_inc_both() -> Box<dyn BothBPB> {
-    Box::new(DoubleGeneralizedTotalizer::new())
+pub fn new_default_inc_both<'a>() -> impl BothBPB<'a> {
+    DoubleGeneralizedTotalizer::new()
 }
 
 /// A default encoder for any pseudo-boolean constraint. This uses a
