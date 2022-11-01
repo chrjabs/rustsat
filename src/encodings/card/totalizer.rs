@@ -10,8 +10,8 @@
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
 use super::{
-    BothBCard, EncodeCard, EncodingError, IncBothBCard, IncEncodeCard, IncLBCard, IncUBCard,
-    LBCard, UBCard,
+    EncodeCard, EncodingError, IncEncodeCard, IncLBCard, IncUBCard, IterCardEncoding, LBCard,
+    UBCard,
 };
 use crate::{
     encodings::EncodeStats,
@@ -29,10 +29,10 @@ use std::{cmp, slice};
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 pub struct Totalizer {
-    /// Input literals already in the tree
+    /// Input literals to the totalizer
     in_lits: Vec<Lit>,
-    /// Input literals not yet in the tree
-    lit_buffer: Vec<Lit>,
+    /// Index of the next literal in [`Totalizer::in_lit`] that is not in the tree yet
+    not_enc_idx: usize,
     /// The root of the tree, if constructed
     root: Option<Box<Node>>,
     /// Whether or not to reserve all variables when constructing the tree
@@ -61,10 +61,8 @@ impl Totalizer {
 
     /// Extends the tree at the root node with added literals
     fn extend_tree(&mut self, var_manager: &mut dyn ManageVars) {
-        if !self.lit_buffer.is_empty() {
-            let n_in_tree = self.in_lits.len();
-            self.in_lits.extend(&self.lit_buffer);
-            let mut subtree = Totalizer::build_tree(&self.in_lits[n_in_tree..]);
+        if self.not_enc_idx != self.in_lits.len() {
+            let mut subtree = Totalizer::build_tree(&self.in_lits[self.not_enc_idx..]);
             if self.reserve_vars {
                 subtree.reserve_all_vars_rec(var_manager);
             }
@@ -78,7 +76,7 @@ impl Totalizer {
                     Some(Box::new(new_root))
                 }
             };
-            self.lit_buffer.clear();
+            self.not_enc_idx = self.in_lits.len();
         }
     }
 
@@ -91,11 +89,13 @@ impl Totalizer {
     }
 }
 
-impl EncodeCard for Totalizer {
+impl<'a> EncodeCard<'a> for Totalizer {
+    type Iter = TotIter<'a>;
+
     fn new() -> Self {
         Totalizer {
             in_lits: vec![],
-            lit_buffer: vec![],
+            not_enc_idx: 0,
             root: None,
             reserve_vars: false,
             n_vars: 0,
@@ -104,15 +104,19 @@ impl EncodeCard for Totalizer {
     }
 
     fn add(&mut self, lits: Vec<Lit>) {
-        self.lit_buffer.extend(lits);
+        self.in_lits.extend(lits);
+    }
+
+    fn iter(&'a self) -> Self::Iter {
+        self.in_lits.iter().copied()
     }
 }
 
-impl IncEncodeCard for Totalizer {
+impl IncEncodeCard<'_> for Totalizer {
     fn new_reserving() -> Self {
         Totalizer {
             in_lits: vec![],
-            lit_buffer: vec![],
+            not_enc_idx: 0,
             root: None,
             reserve_vars: true,
             n_vars: 0,
@@ -121,7 +125,7 @@ impl IncEncodeCard for Totalizer {
     }
 }
 
-impl UBCard for Totalizer {
+impl UBCard<'_> for Totalizer {
     fn encode_ub(
         &mut self,
         min_ub: usize,
@@ -145,7 +149,7 @@ impl UBCard for Totalizer {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
-        if !self.lit_buffer.is_empty() {
+        if self.not_enc_idx != self.in_lits.len() {
             return Err(EncodingError::NotEncoded);
         };
         if ub >= self.in_lits.len() {
@@ -175,7 +179,7 @@ impl UBCard for Totalizer {
     }
 }
 
-impl LBCard for Totalizer {
+impl LBCard<'_> for Totalizer {
     fn encode_lb(
         &mut self,
         min_lb: usize,
@@ -199,7 +203,7 @@ impl LBCard for Totalizer {
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
-        if !self.lit_buffer.is_empty() {
+        if self.not_enc_idx != self.in_lits.len() {
             return Err(EncodingError::NotEncoded);
         };
         if lb > self.in_lits.len() {
@@ -231,9 +235,7 @@ impl LBCard for Totalizer {
     }
 }
 
-impl BothBCard for Totalizer {}
-
-impl IncUBCard for Totalizer {
+impl IncUBCard<'_> for Totalizer {
     fn encode_ub_change(
         &mut self,
         min_ub: usize,
@@ -257,7 +259,7 @@ impl IncUBCard for Totalizer {
     }
 }
 
-impl IncLBCard for Totalizer {
+impl IncLBCard<'_> for Totalizer {
     fn encode_lb_change(
         &mut self,
         min_lb: usize,
@@ -281,8 +283,6 @@ impl IncLBCard for Totalizer {
     }
 }
 
-impl IncBothBCard for Totalizer {}
-
 impl EncodeStats for Totalizer {
     fn n_clauses(&self) -> usize {
         self.n_clauses
@@ -292,6 +292,9 @@ impl EncodeStats for Totalizer {
         self.n_vars
     }
 }
+
+type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
+impl<'a> IterCardEncoding<'a> for TotIter<'a> {}
 
 enum Node {
     Leaf {

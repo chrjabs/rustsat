@@ -9,7 +9,7 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::card,
+//!     encodings::{card, card::{BothBCard, EncodeCard}},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
 //!     solvers::{SolverResult, Solve, IncrementalSolve},
@@ -51,7 +51,8 @@ pub use totalizer::Totalizer;
 pub mod simulators;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
-pub trait EncodeCard {
+pub trait EncodeCard<'a> {
+    type Iter: IterCardEncoding<'a>;
     /// Constructs a new cardinality encoding
     fn new() -> Self
     where
@@ -70,11 +71,18 @@ pub trait EncodeCard {
     }
     /// Adds new literals to the cardinality encoding
     fn add(&mut self, lits: Vec<Lit>);
+    /// Gets an iterator over copies of the input literals
+    fn iter(&'a self) -> Self::Iter;
 }
+
+/// An iterator over the input literals in a cardinality encoding. The iterator
+/// returns copied input literals and is only valid as long as the parent
+/// encoding is alive.
+pub trait IterCardEncoding<'a>: Iterator<Item = Lit> {}
 
 /// Trait for cardinality encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait UBCard: EncodeCard {
+pub trait UBCard<'a>: EncodeCard<'a> {
     /// Lazily builds the cardinality encoding to enable upper bounds from
     /// `min_ub` to `max_ub`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_ub` or
@@ -113,7 +121,7 @@ pub trait UBCard: EncodeCard {
 
 /// Trait for cardinality encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait LBCard: EncodeCard {
+pub trait LBCard<'a>: EncodeCard<'a> {
     /// Lazily builds the cardinality encoding to enable lower bounds from
     /// `min_lb` to `max_lb`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_lb` or
@@ -153,7 +161,7 @@ pub trait LBCard: EncodeCard {
 }
 
 /// Trait for cardinality encodings that allow upper and lower bounding
-pub trait BothBCard: UBCard + LBCard {
+pub trait BothBCard<'a>: UBCard<'a> + LBCard<'a> {
     /// Lazily builds the cardinality encoding to enable both bounds from
     /// `min_b` to `max_b`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_lb` or
@@ -215,8 +223,12 @@ pub trait BothBCard: UBCard + LBCard {
     }
 }
 
+/// Default implementation of [`BothBCard`] for every encoding that does upper
+/// and lower bounding
+impl<'a, CE> BothBCard<'a> for CE where CE: UBCard<'a> + LBCard<'a> {}
+
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
-pub trait IncEncodeCard: EncodeCard {
+pub trait IncEncodeCard<'a>: EncodeCard<'a> {
     /// Constructs a new cardinality encoding that reserves all variables on the
     /// first call to an encode method
     fn new_reserving() -> Self
@@ -238,7 +250,7 @@ pub trait IncEncodeCard: EncodeCard {
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncUBCard: UBCard + IncEncodeCard {
+pub trait IncUBCard<'a>: UBCard<'a> + IncEncodeCard<'a> {
     /// Lazily builds the _change in_ cardinality encoding to enable upper
     /// bounds from `min_ub` to `max_ub`. A change might be added literals or
     /// changed bounds. `var_manager` is the variable manager to use for
@@ -255,7 +267,7 @@ pub trait IncUBCard: UBCard + IncEncodeCard {
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncLBCard: LBCard + IncEncodeCard {
+pub trait IncLBCard<'a>: LBCard<'a> + IncEncodeCard<'a> {
     /// Lazily builds the _change in_ cardinality encoding to enable lower
     /// bounds from `min_lb` to `max_lb`. `var_manager` is the variable manager
     /// to use for tracking new variables. A specific encoding might ignore
@@ -270,7 +282,7 @@ pub trait IncLBCard: LBCard + IncEncodeCard {
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
-pub trait IncBothBCard: IncUBCard + IncLBCard + BothBCard {
+pub trait IncBothBCard<'a>: IncUBCard<'a> + IncLBCard<'a> {
     /// Lazily builds the _change in_ cardinality encoding to enable both bounds
     /// from `min_b` to `max_b`. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore `min_lb` or
@@ -288,40 +300,44 @@ pub trait IncBothBCard: IncUBCard + IncLBCard + BothBCard {
     }
 }
 
+/// Default implementation of [`IncBothBCard`] for every encoding that does
+/// incremental upper and lower bounding
+impl<'a, CE> IncBothBCard<'a> for CE where CE: IncUBCard<'a> + IncLBCard<'a> {}
+
 /// Constructs a default upper bounding cardinality encoding. For now this is a
 /// [`Totalizer`]
-pub fn new_default_ub() -> Box<dyn UBCard> {
-    Box::new(Totalizer::new())
+pub fn new_default_ub<'a>() -> impl UBCard<'a> {
+    Totalizer::new()
 }
 
 /// Constructs a default lower bounding cardinality encoding. For now this is a
 /// [`Totalizer`]
-pub fn new_default_lb() -> Box<dyn LBCard> {
-    Box::new(Totalizer::new())
+pub fn new_default_lb<'a>() -> impl LBCard<'a> {
+    Totalizer::new()
 }
 
 /// Constructs a default double bounding cardinality encoding. For now this is a
 /// [`Totalizer`]
-pub fn new_default_both() -> Box<dyn BothBCard> {
-    Box::new(Totalizer::new())
+pub fn new_default_both<'a>() -> impl BothBCard<'a> {
+    Totalizer::new()
 }
 
 /// Constructs a default incremental upper bounding cardinality encoding. For
 /// now this is a [`Totalizer`]
-pub fn new_default_inc_ub() -> Box<dyn IncUBCard> {
-    Box::new(Totalizer::new())
+pub fn new_default_inc_ub<'a>() -> impl IncUBCard<'a> {
+    Totalizer::new()
 }
 
 /// Constructs a default incremental lower bounding cardinality encoding. For
 /// now this is a [`Totalizer`]
-pub fn new_default_inc_lb() -> Box<dyn LBCard> {
-    Box::new(Totalizer::new())
+pub fn new_default_inc_lb<'a>() -> impl LBCard<'a> {
+    Totalizer::new()
 }
 
 /// Constructs a default incremental double bounding cardinality encoding. For
 /// now this is a [`Totalizer`]
-pub fn new_default_inc_both() -> Box<dyn BothBCard> {
-    Box::new(Totalizer::new())
+pub fn new_default_inc_both<'a>() -> impl BothBCard<'a> {
+    Totalizer::new()
 }
 
 /// A default encoder for any cardinality constraint.
