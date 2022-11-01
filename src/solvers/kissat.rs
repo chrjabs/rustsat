@@ -168,7 +168,7 @@ impl<'a> Kissat<'a> {
     }
 }
 
-impl<'a> Solve for Kissat<'a> {
+impl Solve for Kissat<'_> {
     fn new() -> Self {
         let handle = unsafe { ffi::kissat_init() };
         // Suppress output by default
@@ -305,37 +305,37 @@ impl<'a> Solve for Kissat<'a> {
     }
 }
 
-impl<'a> SolveStats for Kissat<'a> {
-    fn get_n_sat_solves(&self) -> u32 {
+impl SolveStats for Kissat<'_> {
+    fn n_sat_solves(&self) -> u32 {
         self.n_sat as u32
     }
 
-    fn get_n_unsat_solves(&self) -> u32 {
+    fn n_unsat_solves(&self) -> u32 {
         self.n_unsat as u32
     }
 
-    fn get_n_terminated(&self) -> u32 {
+    fn n_terminated(&self) -> u32 {
         self.n_terminated as u32
     }
 
-    fn get_n_clauses(&self) -> u32 {
+    fn n_clauses(&self) -> u32 {
         self.n_clauses
     }
 
-    fn get_max_var(&self) -> Option<Var> {
+    fn max_var(&self) -> Option<Var> {
         self.max_var
     }
 
-    fn get_avg_clause_len(&self) -> f32 {
+    fn avg_clause_len(&self) -> f32 {
         self.avg_clause_len
     }
 
-    fn get_cpu_solve_time(&self) -> f32 {
+    fn cpu_solve_time(&self) -> f32 {
         self.cpu_solve_time
     }
 }
 
-impl<'a> Drop for Kissat<'a> {
+impl Drop for Kissat<'_> {
     fn drop(&mut self) {
         unsafe { ffi::kissat_release(self.handle) }
     }
