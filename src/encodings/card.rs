@@ -12,7 +12,7 @@
 //!     encodings::card,
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
-//!     solvers::SolverResult,
+//!     solvers::{SolverResult, Solve, IncrementalSolve},
 //!     types::{Clause, Lit, Var},
 //!     var,
 //! };

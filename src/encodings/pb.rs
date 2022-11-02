@@ -12,7 +12,7 @@
 //!     encodings::pb,
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
-//!     solvers::SolverResult,
+//!     solvers::{SolverResult, Solve, IncrementalSolve},
 //!     types::{Clause, Lit, Var, RsHashMap},
 //!     var,
 //! };

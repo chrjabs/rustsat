@@ -322,18 +322,18 @@ type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 /// Constructs a default non-incremental solver. Since the return value cannot
 /// be upcast, it might be necessary to directly instantiate a solver. For now
 /// the default is an instance of CaDiCaL.
-pub fn new_default_solver() -> Box<dyn Solve> {
+pub fn new_default_solver() -> impl Solve {
     #[cfg(feature = "kissat")]
     {
-        Box::new(Kissat::new())
+        Kissat::new()
     }
     #[cfg(all(not(feature = "kissat"), feature = "cadical"))]
     {
-        Box::new(CaDiCaL::new())
+        CaDiCaL::new()
     }
     #[cfg(all(not(feature = "kissat"), not(feature = "cadical"), feature = "ipasir"))]
     {
-        Box::new(IpasirSolver::new())
+        IpasirSolver::new()
     }
 }
 
@@ -341,13 +341,13 @@ pub fn new_default_solver() -> Box<dyn Solve> {
 /// Constructs a default incremental solver. Since the return value cannot be
 /// upcast, it might be necessary to directly instantiate a solver. For now the
 /// default is an instance of CaDiCaL.
-pub fn new_default_inc_solver() -> Box<dyn IncrementalSolve> {
+pub fn new_default_inc_solver() -> impl IncrementalSolve {
     #[cfg(feature = "cadical")]
     {
-        Box::new(CaDiCaL::new())
+        CaDiCaL::new()
     }
     #[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
     {
-        Box::new(IpasirSolver::new())
+        IpasirSolver::new()
     }
 }
