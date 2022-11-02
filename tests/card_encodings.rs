@@ -8,7 +8,7 @@ use rustsat::{
     },
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{new_default_inc_solver, SolverResult},
+    solvers::{new_default_inc_solver, IncrementalSolve, Solve, SolverResult},
     types::{Clause, Lit, Var},
     var,
 };

@@ -1,6 +1,9 @@
 #![cfg(solver)]
 
-use rustsat::{instances::SatInstance, solvers, solvers::SolverResult};
+use rustsat::{
+    instances::SatInstance,
+    solvers::{self, Solve, SolverResult},
+};
 
 #[cfg(feature = "multiopt")]
 use rustsat::instances::MultiOptInstance;

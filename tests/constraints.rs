@@ -3,7 +3,7 @@
 use rustsat::{
     instances::SatInstance,
     lit, solvers,
-    solvers::SolverResult,
+    solvers::{IncrementalSolve, Solve, SolverResult},
     types::{
         constraints::{CardConstraint, PBConstraint},
         Lit, RsHashMap,

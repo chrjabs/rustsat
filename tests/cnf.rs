@@ -3,7 +3,7 @@
 use rustsat::{
     instances::CNF,
     lit,
-    solvers::{new_default_inc_solver, SolverResult},
+    solvers::{new_default_inc_solver, IncrementalSolve, Solve, SolverResult},
     types::Lit,
 };
 
