@@ -74,7 +74,7 @@ impl<'a> IpasirSolver<'a> {
     /// ```
     /// use rustsat::solvers::{IpasirSolver, ControlSignal, Solve, SolverResult};
     ///
-    /// let mut solver = IpasirSolver::new();
+    /// let mut solver = IpasirSolver::default();
     ///
     /// // Load instance
     ///
@@ -116,7 +116,7 @@ impl<'a> IpasirSolver<'a> {
     /// let mut cnt = 0;
     ///
     /// {
-    ///     let mut solver = IpasirSolver::new();
+    ///     let mut solver = IpasirSolver::default();
     ///     // Load instance
     ///
     ///     solver.set_learner(|_| cnt += 1, 10);
@@ -144,10 +144,6 @@ impl<'a> IpasirSolver<'a> {
 }
 
 impl Solve for IpasirSolver<'_> {
-    fn new() -> Self {
-        Self::default()
-    }
-
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ipasir_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -333,18 +329,18 @@ mod test {
 
     #[test]
     fn build_destroy() {
-        let _solver = IpasirSolver::new();
+        let _solver = IpasirSolver::default();
     }
 
     #[test]
     fn build_two() {
-        let _solver1 = IpasirSolver::new();
-        let _solver2 = IpasirSolver::new();
+        let _solver1 = IpasirSolver::default();
+        let _solver2 = IpasirSolver::default();
     }
 
     #[test]
     fn tiny_instance() {
-        let mut solver = IpasirSolver::new();
+        let mut solver = IpasirSolver::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         let ret = solver.solve();
@@ -356,7 +352,7 @@ mod test {
 
     #[test]
     fn termination_callback() {
-        let mut solver = IpasirSolver::new();
+        let mut solver = IpasirSolver::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -383,7 +379,7 @@ mod test {
 
     #[test]
     fn learner_callback() {
-        let mut solver = IpasirSolver::new();
+        let mut solver = IpasirSolver::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();

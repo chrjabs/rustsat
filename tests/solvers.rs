@@ -26,35 +26,35 @@ fn small_unsat_instance<S: Solve>(mut solver: S) {
 #[test]
 #[cfg(feature = "ipasir")]
 fn ipasir_small_sat() {
-    let solver = solvers::IpasirSolver::new();
+    let solver = solvers::IpasirSolver::default();
     small_sat_instance(solver);
 }
 
 #[test]
 #[cfg(feature = "ipasir")]
 fn ipasir_small_unsat() {
-    let solver = solvers::IpasirSolver::new();
+    let solver = solvers::IpasirSolver::default();
     small_unsat_instance(solver);
 }
 
 #[test]
 #[cfg(feature = "cadical")]
 fn cadical_small_sat() {
-    let solver = solvers::CaDiCaL::new();
+    let solver = solvers::CaDiCaL::default();
     small_sat_instance(solver);
 }
 
 #[test]
 #[cfg(feature = "cadical")]
 fn cadical_small_unsat() {
-    let solver = solvers::CaDiCaL::new();
+    let solver = solvers::CaDiCaL::default();
     small_unsat_instance(solver);
 }
 
 #[test]
 #[cfg(feature = "cadical")]
 fn cadical_sat_small_sat() {
-    let mut solver = solvers::CaDiCaL::new();
+    let mut solver = solvers::CaDiCaL::default();
     solver
         .set_configuration(solvers::cadical::Config::SAT)
         .unwrap();
@@ -64,7 +64,7 @@ fn cadical_sat_small_sat() {
 #[test]
 #[cfg(feature = "cadical")]
 fn cadical_unsat_small_unsat() {
-    let mut solver = solvers::CaDiCaL::new();
+    let mut solver = solvers::CaDiCaL::default();
     solver
         .set_configuration(solvers::cadical::Config::UNSAT)
         .unwrap();
@@ -74,21 +74,21 @@ fn cadical_unsat_small_unsat() {
 #[test]
 #[cfg(feature = "kissat")]
 fn kissat_small_sat() {
-    let solver = solvers::Kissat::new();
+    let solver = solvers::Kissat::default();
     small_sat_instance(solver);
 }
 
 #[test]
 #[cfg(feature = "kissat")]
 fn kissat_small_unsat() {
-    let solver = solvers::Kissat::new();
+    let solver = solvers::Kissat::default();
     small_unsat_instance(solver);
 }
 
 #[test]
 #[cfg(feature = "kissat")]
 fn kissat_sat_small_sat() {
-    let mut solver = solvers::Kissat::new();
+    let mut solver = solvers::Kissat::default();
     solver
         .set_configuration(solvers::kissat::Config::SAT)
         .unwrap();
@@ -98,7 +98,7 @@ fn kissat_sat_small_sat() {
 #[test]
 #[cfg(feature = "kissat")]
 fn kissat_unsat_small_unsat() {
-    let mut solver = solvers::Kissat::new();
+    let mut solver = solvers::Kissat::default();
     solver
         .set_configuration(solvers::kissat::Config::UNSAT)
         .unwrap();
