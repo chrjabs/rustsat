@@ -66,17 +66,14 @@ impl fmt::Display for ParsingError {
 fn open_compressed_uncompressed(path: &Path) -> Result<Box<dyn Read>, io::Error> {
     let raw_reader = File::open(path)?;
     #[cfg(feature = "compression")]
-    match path.extension() {
-        Some(ext) => {
-            if ext.eq_ignore_ascii_case(OsStr::new("bz2")) {
-                return Ok(Box::new(BzDecoder::new(raw_reader)));
-            }
-            if ext.eq_ignore_ascii_case(OsStr::new("gz")) {
-                return Ok(Box::new(GzDecoder::new(raw_reader)));
-            }
+    if let Some(ext) = path.extension() {
+        if ext.eq_ignore_ascii_case(OsStr::new("bz2")) {
+            return Ok(Box::new(BzDecoder::new(raw_reader)));
         }
-        None => (),
-    };
+        if ext.eq_ignore_ascii_case(OsStr::new("gz")) {
+            return Ok(Box::new(GzDecoder::new(raw_reader)));
+        }
+    }
     Ok(Box::new(raw_reader))
 }
 
@@ -762,7 +759,7 @@ impl<VM: ManageVars> OptInstance<VM> {
 #[cfg(feature = "multiopt")]
 /// Type representing a bi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct BiOptInstance<VM: ManageVars = BasicVarManager> {
     constr: SatInstance<VM>,
     obj_1: Objective,
@@ -856,7 +853,7 @@ impl<VM: ManageVars> BiOptInstance<VM> {
 #[cfg(feature = "multiopt")]
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
     constr: SatInstance<VM>,
     objs: Vec<Objective>,

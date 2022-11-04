@@ -6,8 +6,8 @@
 use core::ffi::{c_void, CStr};
 
 use super::{
-    ControlSignal, IncrementalSolve, InternalSolverState, Solve, SolveStats, SolverError,
-    SolverResult, SolverState,
+    ControlSignal, IncrementalSolve, InternalSolverState, OptLearnCallbackStore,
+    OptTermCallbackStore, Solve, SolveStats, SolverError, SolverResult, SolverState,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::IpasirHandle;
@@ -16,8 +16,8 @@ use ffi::IpasirHandle;
 pub struct IpasirSolver<'a> {
     handle: *mut IpasirHandle,
     state: InternalSolverState,
-    terminate_cb: OptBoxedTermCallback<'a>,
-    learner_cb: OptBoxedLearnCallback<'a>,
+    terminate_cb: OptTermCallbackStore<'a>,
+    learner_cb: OptLearnCallbackStore<'a>,
     n_sat: u32,
     n_unsat: u32,
     n_terminated: u32,
@@ -27,22 +27,28 @@ pub struct IpasirSolver<'a> {
     cpu_solve_time: f32,
 }
 
+impl Default for IpasirSolver<'_> {
+    fn default() -> Self {
+        Self {
+            handle: unsafe { ffi::ipasir_init() },
+            state: Default::default(),
+            terminate_cb: Default::default(),
+            learner_cb: Default::default(),
+            n_sat: Default::default(),
+            n_unsat: Default::default(),
+            n_terminated: Default::default(),
+            n_clauses: Default::default(),
+            max_var: Default::default(),
+            avg_clause_len: Default::default(),
+            cpu_solve_time: Default::default(),
+        }
+    }
+}
+
 impl<'a> IpasirSolver<'a> {
     /// Creates a new IPASIR solver.
     pub fn new() -> IpasirSolver<'a> {
-        IpasirSolver {
-            handle: unsafe { ffi::ipasir_init() },
-            state: InternalSolverState::Input,
-            terminate_cb: None,
-            learner_cb: None,
-            n_sat: 0,
-            n_unsat: 0,
-            n_terminated: 0,
-            n_clauses: 0,
-            max_var: None,
-            avg_clause_len: 0.0,
-            cpu_solve_time: 0.0,
-        }
+        Self::default()
     }
 
     /// Gets the signature of the linked IPASIR solver.
@@ -153,9 +159,9 @@ impl<'a> IpasirSolver<'a> {
 impl Solve for IpasirSolver<'_> {
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
-        if let InternalSolverState::SAT = self.state {
+        if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::SAT);
-        } else if let InternalSolverState::UNSAT(_) = self.state {
+        } else if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::UNSAT);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
@@ -172,12 +178,12 @@ impl Solve for IpasirSolver<'_> {
             }
             10 => {
                 self.n_sat += 1;
-                self.state = InternalSolverState::SAT;
+                self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
                 self.n_unsat += 1;
-                self.state = InternalSolverState::UNSAT(vec![]);
+                self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
@@ -189,7 +195,7 @@ impl Solve for IpasirSolver<'_> {
 
     fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError> {
         match &self.state {
-            InternalSolverState::SAT => {
+            InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
                 match unsafe { ffi::ipasir_val(self.handle, lit) } {
                     0 => Ok(TernaryVal::DontCare),
@@ -256,12 +262,12 @@ impl IncrementalSolve for IpasirSolver<'_> {
             }
             10 => {
                 self.n_sat += 1;
-                self.state = InternalSolverState::SAT;
+                self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
                 self.n_unsat += 1;
-                self.state = InternalSolverState::UNSAT(self.get_core_assumps(&assumps)?);
+                self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
@@ -273,7 +279,7 @@ impl IncrementalSolve for IpasirSolver<'_> {
 
     fn get_core(&mut self) -> Result<Vec<Lit>, SolverError> {
         match &self.state {
-            InternalSolverState::UNSAT(core) => Ok(core.clone()),
+            InternalSolverState::Unsat(core) => Ok(core.clone()),
             other => Err(SolverError::State(other.to_external(), SolverState::UNSAT)),
         }
     }
@@ -415,10 +421,10 @@ mod test {
 }
 
 mod ffi {
-    use crate::solvers::ControlSignal;
+    use crate::solvers::{ControlSignal, LearnCallback, TermCallback};
     use crate::types::Lit;
     use core::ffi::{c_char, c_int, c_void};
-    use std::{mem, slice};
+    use std::slice;
 
     #[repr(C)]
     pub struct IpasirHandle {
@@ -450,7 +456,7 @@ mod ffi {
 
     // Raw callbacks forwarding to user callbacks
     pub extern "C" fn ipasir_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb: &mut Box<dyn FnMut() -> ControlSignal> = unsafe { mem::transmute(ptr) };
+        let cb = unsafe { &mut *(ptr as *mut TermCallback<'_>) };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
@@ -458,7 +464,7 @@ mod ffi {
     }
 
     pub extern "C" fn ipasir_learn_cb(ptr: *const c_void, clause: *const c_int) {
-        let cb: &mut Box<dyn FnMut(Vec<Lit>)> = unsafe { mem::transmute(ptr) };
+        let cb = unsafe { &mut *(ptr as *mut LearnCallback<'_>) };
 
         let mut cnt = 0;
         for n in 0.. {
@@ -468,7 +474,7 @@ mod ffi {
         }
         let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
         let clause: Vec<Lit> = int_slice
-            .into_iter()
+            .iter()
             .map(|il| {
                 Lit::from_ipasir(*il).expect("Invalid literal in learned clause from IPASIR solver")
             })

@@ -449,8 +449,11 @@ fn parse_wcnf_post22_line(input: &str) -> IResult<&str, Option<(Option<usize>, C
 }
 
 #[cfg(feature = "multiopt")]
+type McnfLine = Option<(Option<(usize, usize)>, Clause)>;
+
+#[cfg(feature = "multiopt")]
 /// Parses a MCNF line, either a comment or a clause
-fn parse_mcnf_line(input: &str) -> IResult<&str, Option<(Option<(usize, usize)>, Clause)>> {
+fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine> {
     let (input, _) = multispace0(input)?;
     match tag::<&str, &str, Error<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
