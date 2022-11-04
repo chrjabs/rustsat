@@ -121,12 +121,13 @@ pub trait SolveStats {
     fn get_cpu_solve_time(&self) -> f32;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
+    #[default]
     Configuring,
     Input,
-    SAT,
-    UNSAT(Vec<Lit>),
+    Sat,
+    Unsat(Vec<Lit>),
     #[allow(dead_code)] // Variant will be used in the future
     Error(String),
 }
@@ -136,8 +137,8 @@ impl InternalSolverState {
         match self {
             InternalSolverState::Configuring => SolverState::Configuring,
             InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::SAT => SolverState::SAT,
-            InternalSolverState::UNSAT(_) => SolverState::UNSAT,
+            InternalSolverState::Sat => SolverState::SAT,
+            InternalSolverState::Unsat(_) => SolverState::UNSAT,
             InternalSolverState::Error(desc) => SolverState::Error(desc.clone()),
         }
     }
@@ -222,6 +223,11 @@ impl fmt::Display for SolverError {
         }
     }
 }
+
+type TermCallback<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+type LearnCallback<'a> = Box<dyn FnMut(Vec<Lit>) + 'a>;
+type OptTermCallbackStore<'a> = Option<Box<TermCallback<'a>>>;
+type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 
 /// Constructs a default non-incremental solver. Since the return value cannot
 /// be upcast, it might be necessary to directly instantiate a solver. For now

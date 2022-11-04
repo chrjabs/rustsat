@@ -1,5 +1,3 @@
-use cc;
-use git2;
 use glob::glob;
 use std::{env, fs, path::Path};
 
@@ -72,14 +70,13 @@ fn update_repo(path: &Path, url: &str, commit: &str) -> bool {
         Ok(repo) => repo,
         Err(_) => {
             if path.exists() {
-                fs::remove_dir_all(path).expect(&format!(
-                    "Could not delete directory: {}",
-                    path.to_str().unwrap()
-                ));
+                fs::remove_dir_all(path).unwrap_or_else(|_| {
+                    panic!("Could not delete directory: {}", path.to_str().unwrap())
+                });
             };
             changed = true;
             git2::Repository::clone(url, path)
-                .expect(&format!("Could not clone repository: {}", url))
+                .unwrap_or_else(|_| panic!("Could not clone repository: {}", url))
         }
     };
     let target_oid = git2::Oid::from_str(commit).unwrap();
@@ -89,6 +86,6 @@ fn update_repo(path: &Path, url: &str, commit: &str) -> bool {
         }
     };
     repo.set_head_detached(target_oid)
-        .expect(&format!("Could not checkout commit: {}", commit));
+        .unwrap_or_else(|_| panic!("Could not checkout commit: {}", commit));
     changed
 }

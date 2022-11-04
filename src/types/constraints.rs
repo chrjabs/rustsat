@@ -11,15 +11,15 @@ use super::Lit;
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
-#[derive(Hash, Eq, PartialEq, Clone)]
+#[derive(Hash, Eq, PartialEq, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
 }
 
 impl Clause {
     /// Creates a new empty clause
-    pub fn new() -> Clause {
-        Clause { lits: Vec::new() }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Create a new clause from an iterator
@@ -36,6 +36,23 @@ impl Clause {
     #[inline]
     pub fn len(&self) -> usize {
         self.lits.len()
+    }
+
+    /// Checks if the clause is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.lits.is_empty()
+    }
+
+    /// Checks if the clause is a unit clause
+    #[inline]
+    pub fn is_unit(&self) -> bool {
+        self.lits.len() == 1
+    }
+
+    /// Checks if the clause is binary
+    pub fn is_binary(&self) -> bool {
+        self.lits.len() == 2
     }
 
     /// Adds a literal to the clause
@@ -99,7 +116,7 @@ impl<'a> IntoIterator for &'a Clause {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        (&self.lits).into_iter()
+        self.lits.iter()
     }
 }
 
@@ -110,7 +127,7 @@ impl<'a> IntoIterator for &'a mut Clause {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        (&mut self.lits).into_iter()
+        self.lits.iter_mut()
     }
 }
 
@@ -301,7 +318,7 @@ impl CardLBConstr {
 
     /// Checks if the constraint is always satisfied
     pub fn is_tautology(&self) -> bool {
-        self.b <= 0
+        self.b == 0
     }
 
     /// Checks if the constraint is unsatisfiable

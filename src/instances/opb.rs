@@ -149,7 +149,7 @@ fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, OpbError> {
         }
         match many0(opb_data)(&buf) {
             Ok((rem, new_data)) => {
-                if rem.len() > 0 {
+                if !rem.is_empty() {
                     return Err(OpbError::InvalidLine(buf.clone()));
                 } else {
                     data.extend(new_data)
@@ -159,7 +159,7 @@ fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, OpbError> {
         }
         buf.clear();
     }
-    return Err(OpbError::IOError);
+    Err(OpbError::IOError)
 }
 
 /// Matches an OPB comment

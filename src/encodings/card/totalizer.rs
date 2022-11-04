@@ -379,7 +379,7 @@ impl Node {
         // Reserve vars if needed
         self.reserve_vars_from_till(min_ub, max_ub, var_manager);
         match self {
-            Node::Leaf { .. } => return CNF::new(),
+            Node::Leaf { .. } => CNF::new(),
             Node::Internal {
                 out_lits,
                 max_val,
@@ -423,7 +423,7 @@ impl Node {
                         if right_val != 0 {
                             lhs.push(right_lits[right_val - 1].unwrap());
                         }
-                        if lhs.len() > 0 {
+                        if !lhs.is_empty() {
                             // (left > x) & (right > y) -> (out > x+y)
                             cnf.add_cube_impl_lit(lhs, out_lits[sum_val - 1].unwrap());
                         }
@@ -453,7 +453,7 @@ impl Node {
             var_manager,
         );
         match self {
-            Node::Leaf { .. } => return CNF::new(),
+            Node::Leaf { .. } => CNF::new(),
             Node::Internal {
                 out_lits,
                 max_val,
@@ -497,7 +497,7 @@ impl Node {
                         if right_val < right_lits.len() {
                             lhs.push(!right_lits[right_val].unwrap());
                         }
-                        if lhs.len() > 0 {
+                        if !lhs.is_empty() {
                             // (left <= x) & (right <= y) -> (out <= x+y)
                             cnf.add_cube_impl_lit(lhs, !out_lits[sum_val].unwrap());
                         }
@@ -750,10 +750,10 @@ impl Node {
                 if out_lits.len() < max_idx + 1 {
                     out_lits.resize(max_idx + 1, None);
                 };
-                for idx in min_idx..=max_idx {
-                    if out_lits[idx].is_none() {
-                        out_lits[idx] = Some(var_manager.next_free().pos_lit());
-                    };
+                for olit in out_lits.iter_mut().take(max_idx + 1).skip(min_idx) {
+                    if olit.is_none() {
+                        *olit = Some(var_manager.next_free().pos_lit());
+                    }
                 }
                 assert!(out_lits.len() <= *max_val);
             }
@@ -789,9 +789,9 @@ impl Node {
     fn compute_required_min_rhs(
         min_rhs_requested: usize,
         max_rhs_requested: usize,
-        sibling: &Box<Node>,
+        sibling: &Node,
     ) -> usize {
-        match **sibling {
+        match *sibling {
             Node::Leaf { .. } => {
                 if min_rhs_requested > 1 {
                     min_rhs_requested - 1
