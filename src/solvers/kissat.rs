@@ -26,6 +26,26 @@ pub struct Kissat<'a> {
     cpu_solve_time: f32,
 }
 
+impl Default for Kissat<'_> {
+    fn default() -> Self {
+        let solver = Self {
+            handle: unsafe { ffi::kissat_init() },
+            state: Default::default(),
+            terminate_cb: Default::default(),
+            n_sat: Default::default(),
+            n_unsat: Default::default(),
+            n_terminated: Default::default(),
+            n_clauses: Default::default(),
+            max_var: Default::default(),
+            avg_clause_len: Default::default(),
+            cpu_solve_time: Default::default(),
+        };
+        let quiet = CString::new("quiet").unwrap();
+        unsafe { ffi::kissat_set_option(solver.handle, quiet.as_ptr(), 1) };
+        solver
+    }
+}
+
 impl<'a> Kissat<'a> {
     /// Gets the commit ID that Kissat was built from
     pub fn commit_id() -> &'static str {
@@ -61,7 +81,7 @@ impl<'a> Kissat<'a> {
     /// ```
     /// use rustsat::solvers::{Kissat, ControlSignal, Solve, SolverResult};
     ///
-    /// let mut solver = Kissat::new();
+    /// let mut solver = Kissat::default();
     ///
     /// // Load instance
     ///
@@ -169,25 +189,6 @@ impl<'a> Kissat<'a> {
 }
 
 impl Solve for Kissat<'_> {
-    fn new() -> Self {
-        let handle = unsafe { ffi::kissat_init() };
-        // Suppress output by default
-        let quiet = CString::new("quiet").unwrap();
-        unsafe { ffi::kissat_set_option(handle, quiet.as_ptr(), 1) };
-        Kissat {
-            handle,
-            state: InternalSolverState::Configuring,
-            terminate_cb: None,
-            n_sat: 0,
-            n_unsat: 0,
-            n_terminated: 0,
-            n_clauses: 0,
-            max_var: None,
-            avg_clause_len: 0.0,
-            cpu_solve_time: 0.0,
-        }
-    }
-
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::kissat_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -398,18 +399,18 @@ mod test {
 
     #[test]
     fn build_destroy() {
-        let _solver = Kissat::new();
+        let _solver = Kissat::default();
     }
 
     #[test]
     fn build_two() {
-        let _solver1 = Kissat::new();
-        let _solver2 = Kissat::new();
+        let _solver1 = Kissat::default();
+        let _solver2 = Kissat::default();
     }
 
     #[test]
     fn tiny_instance() {
-        let mut solver = Kissat::new();
+        let mut solver = Kissat::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         let ret = solver.solve();
@@ -421,7 +422,7 @@ mod test {
 
     #[test]
     fn configure() {
-        let mut solver = Kissat::new();
+        let mut solver = Kissat::default();
         solver.set_configuration(Config::Default).unwrap();
         solver.set_configuration(Config::Basic).unwrap();
         solver.set_configuration(Config::Plain).unwrap();
@@ -439,7 +440,7 @@ mod test {
 
     #[test]
     fn options() {
-        let mut solver = Kissat::new();
+        let mut solver = Kissat::default();
         assert_eq!(solver.get_option("warmup").unwrap(), 1);
         solver.set_option("warmup", 0).unwrap();
         assert_eq!(solver.get_option("warmup").unwrap(), 0);
@@ -447,7 +448,7 @@ mod test {
 
     #[test]
     fn limit() {
-        let mut solver = Kissat::new();
+        let mut solver = Kissat::default();
         solver.set_limit(Limit::Conflicts(100));
     }
 }

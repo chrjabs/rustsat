@@ -29,7 +29,7 @@ pub struct CaDiCaL<'a> {
 
 impl Default for CaDiCaL<'_> {
     fn default() -> Self {
-        Self {
+        let solver = Self {
             handle: unsafe { ffi::ccadical_init() },
             state: Default::default(),
             terminate_cb: Default::default(),
@@ -40,7 +40,10 @@ impl Default for CaDiCaL<'_> {
             n_clauses: Default::default(),
             avg_clause_len: Default::default(),
             cpu_solve_time: Default::default(),
-        }
+        };
+        let quiet = CString::new("quiet").unwrap();
+        unsafe { ffi::ccadical_set_option_ret(solver.handle, quiet.as_ptr(), 1) };
+        solver
     }
 }
 
@@ -72,7 +75,7 @@ impl<'a> CaDiCaL<'a> {
     /// ```
     /// use rustsat::solvers::{CaDiCaL, ControlSignal, Solve, SolverResult};
     ///
-    /// let mut solver = CaDiCaL::new();
+    /// let mut solver = CaDiCaL::default();
     ///
     /// // Load instance
     ///
@@ -114,7 +117,7 @@ impl<'a> CaDiCaL<'a> {
     /// let mut cnt = 0;
     ///
     /// {
-    ///     let mut solver = CaDiCaL::new();
+    ///     let mut solver = CaDiCaL::default();
     ///     // Load instance
     ///
     ///     solver.set_learner(|_| cnt += 1, 10);
@@ -437,13 +440,6 @@ impl<'a> CaDiCaL<'a> {
 }
 
 impl Solve for CaDiCaL<'_> {
-    fn new() -> Self {
-        let solver = Self::default();
-        let quiet = CString::new("quiet").unwrap();
-        unsafe { ffi::ccadical_set_option_ret(solver.handle, quiet.as_ptr(), 1) };
-        solver
-    }
-
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ccadical_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -691,18 +687,18 @@ mod test {
 
     #[test]
     fn build_destroy() {
-        let _solver = CaDiCaL::new();
+        let _solver = CaDiCaL::default();
     }
 
     #[test]
     fn build_two() {
-        let _solver1 = CaDiCaL::new();
-        let _solver2 = CaDiCaL::new();
+        let _solver1 = CaDiCaL::default();
+        let _solver2 = CaDiCaL::default();
     }
 
     #[test]
     fn tiny_instance() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         let ret = solver.solve();
@@ -714,7 +710,7 @@ mod test {
 
     #[test]
     fn termination_callback() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -741,7 +737,7 @@ mod test {
 
     #[test]
     fn learner_callback() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -780,7 +776,7 @@ mod test {
 
     #[test]
     fn configure() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.set_configuration(Config::Default).unwrap();
         solver.set_configuration(Config::Plain).unwrap();
         solver.set_configuration(Config::SAT).unwrap();
@@ -797,7 +793,7 @@ mod test {
 
     #[test]
     fn options() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         assert_eq!(solver.get_option("arena").unwrap(), 1);
         solver.set_option("arena", 0).unwrap();
         assert_eq!(solver.get_option("arena").unwrap(), 0);
@@ -805,13 +801,13 @@ mod test {
 
     #[test]
     fn limit() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.set_limit(Limit::Conflicts(100)).unwrap();
     }
 
     #[test]
     fn backend_stats() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -830,7 +826,7 @@ mod test {
 
     #[test]
     fn freezing() {
-        let mut solver = CaDiCaL::new();
+        let mut solver = CaDiCaL::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
 
         solver.freeze_lit(lit![0]);

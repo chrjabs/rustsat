@@ -17,10 +17,10 @@ fn main() {
         println!("cargo:warning=Feature `cadical` (potentially) conflicts with feature `ipasir`");
 
         // Link to custom IPASIR solver
-        // Modify this for linking to your static library
+        // Uncomment and modify this for linking to your static library
         // The name of the library should be _without_ the prefix 'lib' and the suffix '.a'
-        println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
-        println!("cargo:rustc-link-search=<name-of-your-static-lib>");
+        //println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
+        //println!("cargo:rustc-link-search=<name-of-your-static-lib>");
         // If your IPASIR solver links to the C++ stdlib, uncomment the next four lines
         //#[cfg(target_os = "macos")]
         //println!("cargo:rustc-flags=-l dylib=c++");

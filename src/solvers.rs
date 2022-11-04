@@ -59,9 +59,10 @@
 //! ```
 //! // Link to custom IPASIR solver
 //! // Modify this for linking to your static library
+//! // Uncomment and modify this for linking to your static library
 //! // The name of the library should be _without_ the prefix 'lib' and the suffix '.a'
-//! println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
-//! println!("cargo:rustc-link-search=<name-of-your-static-lib>");
+//! //println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
+//! //println!("cargo:rustc-link-search=<name-of-your-static-lib>");
 //! // If your IPASIR solver links to the C++ stdlib, uncomment the next four lines
 //! //#[cfg(target_os = "macos")]
 //! //println!("cargo:rustc-flags=-l dylib=c++");
@@ -95,10 +96,6 @@ pub use kissat::Kissat;
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
 pub trait Solve {
-    /// Instantiates a new solver object
-    fn new() -> Self
-    where
-        Self: Sized;
     /// Gets a signature of the solver implementation
     fn signature(&self) -> &'static str;
     /// Reserves memory in the solver until a maximum variables, if the solver
@@ -325,15 +322,15 @@ type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 pub fn new_default_solver() -> impl Solve {
     #[cfg(feature = "kissat")]
     {
-        Kissat::new()
+        Kissat::default()
     }
     #[cfg(all(not(feature = "kissat"), feature = "cadical"))]
     {
-        CaDiCaL::new()
+        CaDiCaL::default()
     }
     #[cfg(all(not(feature = "kissat"), not(feature = "cadical"), feature = "ipasir"))]
     {
-        IpasirSolver::new()
+        IpasirSolver::default()
     }
 }
 
@@ -344,10 +341,10 @@ pub fn new_default_solver() -> impl Solve {
 pub fn new_default_inc_solver() -> impl IncrementalSolve {
     #[cfg(feature = "cadical")]
     {
-        CaDiCaL::new()
+        CaDiCaL::default()
     }
     #[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
     {
-        IpasirSolver::new()
+        IpasirSolver::default()
     }
 }
