@@ -177,7 +177,7 @@ impl<'a> CaDiCaL<'a> {
     }
 
     /// Sets a pre-defined configuration for CaDiCaL's internal options
-    pub fn set_configuration(&mut self, config: Config) -> Result<(), SolverError> {
+    pub fn set_configuration(&mut self, config: Config) -> SolveMightFail {
         if self.state == InternalSolverState::Configuring {
             let config_name = match config {
                 Config::Default => CString::new("default").unwrap(),
@@ -210,7 +210,7 @@ impl<'a> CaDiCaL<'a> {
     /// and `<val>` can be parsed then 'true' is returned.  If the option value
     /// is out of range the actual value is computed as the closest (minimum or
     /// maximum) value possible, but still `true` is returned.
-    pub fn set_option(&mut self, name: &str, value: c_int) -> Result<(), SolverError> {
+    pub fn set_option(&mut self, name: &str, value: c_int) -> SolveMightFail {
         let c_name = match CString::new(name) {
             Ok(cstr) => cstr,
             Err(_) => {
@@ -266,7 +266,7 @@ impl<'a> CaDiCaL<'a> {
     /// well as overwritten and reset during calls to `simplify` and
     /// `lookahead`).  We actually also have an internal "terminate" limit
     /// which however should only be used for testing and debugging.
-    pub fn set_limit(&mut self, limit: Limit) -> Result<(), SolverError> {
+    pub fn set_limit(&mut self, limit: Limit) -> SolveMightFail {
         let (name, val) = match limit {
             Limit::Terminate(val) => (CString::new("terminate").unwrap(), val),
             Limit::Conflicts(val) => (CString::new("conflicts").unwrap(), val),
@@ -462,7 +462,8 @@ impl Solve for CaDiCaL<'_> {
             }
             _ => InternalSolverState::Input,
         };
-        Ok(unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) })
+        unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) };
+        Ok(())
     }
 
     fn solve(&mut self) -> Result<SolverResult, SolverError> {

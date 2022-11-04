@@ -6,8 +6,8 @@ use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
 use super::{
-    ControlSignal, InternalSolverState, Solve, SolveMightFail, SolveStats, SolverError,
-    SolverResult, SolverState,
+    ControlSignal, InternalSolverState, OptTermCallbackStore, Solve, SolveMightFail, SolveStats,
+    SolverError, SolverResult, SolverState,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::KissatHandle;
@@ -16,10 +16,10 @@ use ffi::KissatHandle;
 pub struct Kissat<'a> {
     handle: *mut KissatHandle,
     state: InternalSolverState,
-    terminate_cb: Option<Box<Box<dyn FnMut() -> ControlSignal + 'a>>>,
-    n_sat: u8,        // Since kissat is incremental, this should never be high
-    n_unsat: u8,      // Since kissat is incremental, this should never be high
-    n_terminated: u8, // Since kissat is incremental, this should never be high
+    terminate_cb: OptTermCallbackStore<'a>,
+    n_sat: u8,        // Since kissat is non-incremental, this should never be high
+    n_unsat: u8,      // Since kissat is non-incremental, this should never be high
+    n_terminated: u8, // Since kissat is non-incremental, this should never be high
     n_clauses: u32,
     max_var: Option<Var>,
     avg_clause_len: f32,
@@ -90,7 +90,7 @@ impl<'a> Kissat<'a> {
     }
 
     /// Sets a pre-defined configuration for Kissat's internal options
-    pub fn set_configuration(&mut self, config: Config) -> Result<(), SolverError> {
+    pub fn set_configuration(&mut self, config: Config) -> SolveMightFail {
         if self.state == InternalSolverState::Configuring {
             let config_name = match config {
                 Config::Default => CString::new("default").unwrap(),
@@ -103,7 +103,7 @@ impl<'a> Kissat<'a> {
             if ret != 0 {
                 Ok(())
             } else {
-                Err(SolverError::API(format!("kissat_configure returned 0")))
+                Err(SolverError::API("kissat_configure returned 0".to_string()))
             }
         } else {
             Err(SolverError::State(
@@ -115,7 +115,7 @@ impl<'a> Kissat<'a> {
 
     /// Sets the value of a Kissat option. For possible options, check Kissat with `kissat --help`.
     /// Requires state [`SolverState::Configuring`].
-    pub fn set_option(&mut self, name: &str, value: c_int) -> Result<(), SolverError> {
+    pub fn set_option(&mut self, name: &str, value: c_int) -> SolveMightFail {
         let c_name = match CString::new(name) {
             Ok(cstr) => cstr,
             Err(_) => {
@@ -206,7 +206,8 @@ impl Solve for Kissat<'_> {
             }
             _ => InternalSolverState::Input,
         };
-        Ok(unsafe { ffi::kissat_reserve(self.handle, max_var.to_ipasir()) })
+        unsafe { ffi::kissat_reserve(self.handle, max_var.to_ipasir()) };
+        Ok(())
     }
 
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
@@ -263,7 +264,7 @@ impl Solve for Kissat<'_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> Result<(), SolverError> {
+    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
         // Kissat is non-incremental, so only add if in input or configuring state
         match &mut self.state {
             InternalSolverState::Input | InternalSolverState::Configuring => (),
@@ -452,9 +453,8 @@ mod test {
 }
 
 mod ffi {
-    use crate::solvers::ControlSignal;
+    use crate::solvers::{ControlSignal, TermCallback};
     use core::ffi::{c_char, c_int, c_uint, c_void};
-    use std::mem;
 
     #[repr(C)]
     pub struct KissatHandle {
@@ -493,7 +493,7 @@ mod ffi {
 
     // Raw callbacks forwarding to user callbacks
     pub extern "C" fn kissat_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb: &mut Box<dyn FnMut() -> ControlSignal> = unsafe { mem::transmute(ptr) };
+        let cb = unsafe { &mut *(ptr as *mut TermCallback<'_>) };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
