@@ -111,19 +111,19 @@ pub trait Solve {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn solution(&self, high_var: &Var) -> Result<Solution, SolverError> {
+    fn solution(&self, high_var: Var) -> Result<Solution, SolverError> {
         let mut assignment = Vec::new();
         let len = high_var.idx() + 1;
         assignment.reserve(len);
         for idx in 0..len {
             let lit = Lit::positive(idx);
-            assignment.push(self.lit_val(&lit)?);
+            assignment.push(self.lit_val(lit)?);
         }
         Ok(Solution::from_vec(assignment))
     }
     /// Same as [`Solve::lit_val`], but for variables.
-    fn var_val(&self, var: &Var) -> Result<TernaryVal, SolverError> {
-        self.lit_val(&var.pos_lit())
+    fn var_val(&self, var: Var) -> Result<TernaryVal, SolverError> {
+        self.lit_val(var.pos_lit())
     }
     /// Gets an assignment of a variable in the solver.
     ///
@@ -131,7 +131,7 @@ pub trait Solve {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError>;
+    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError>;
     /// Adds a clause to the solver
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.

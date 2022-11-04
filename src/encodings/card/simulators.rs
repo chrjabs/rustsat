@@ -51,6 +51,10 @@ where
     fn iter(&'a self) -> Self::Iter {
         self.card_enc.iter().map(Lit::not)
     }
+
+    fn n_lits(&self) -> usize {
+        self.n_lits
+    }
 }
 
 impl<'a, CE> IncEncodeCard<'a> for InvertedCard<'a, CE>
@@ -237,6 +241,10 @@ where
 
     fn iter(&'a self) -> Self::Iter {
         self.ub_enc.iter()
+    }
+
+    fn n_lits(&self) -> usize {
+        self.ub_enc.n_lits()
     }
 }
 

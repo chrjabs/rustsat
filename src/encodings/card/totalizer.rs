@@ -46,7 +46,7 @@ pub struct Totalizer {
 impl Totalizer {
     /// Recursively builds the tree data structure
     fn build_tree(lits: &[Lit]) -> Node {
-        assert_ne!(lits.len(), 0);
+        debug_assert_ne!(lits.len(), 0);
 
         if lits.len() == 1 {
             return Node::new_leaf(lits[0]);
@@ -109,6 +109,10 @@ impl<'a> EncodeCard<'a> for Totalizer {
 
     fn iter(&'a self) -> Self::Iter {
         self.in_lits.iter().copied()
+    }
+
+    fn n_lits(&self) -> usize {
+        self.in_lits.len()
     }
 }
 
@@ -755,10 +759,10 @@ impl Node {
                 };
                 for olit in out_lits.iter_mut().take(max_idx + 1).skip(min_idx) {
                     if olit.is_none() {
-                        *olit = Some(var_manager.next_free().pos_lit());
+                        *olit = Some(var_manager.new_var().pos_lit());
                     }
                 }
-                assert!(out_lits.len() <= *max_val);
+                debug_assert!(out_lits.len() <= *max_val);
             }
         }
     }

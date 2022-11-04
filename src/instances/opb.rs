@@ -299,14 +299,12 @@ fn opb_data(input: &str) -> IResult<&str, OpbData> {
 /// Writes a [`SatInstance`] to an OPB file
 pub fn write_sat<W: Write, VM: ManageVars>(
     writer: &mut W,
-    mut inst: SatInstance<VM>,
+    inst: SatInstance<VM>,
 ) -> Result<(), io::Error> {
     writeln!(writer, "* OPB file written by RustSAT")?;
-    writeln!(
-        writer,
-        "* maximum variable: {}",
-        inst.var_manager.next_free() - 1
-    )?;
+    if let Some(max_var) = inst.var_manager.max_var() {
+        writeln!(writer, "* maximum variable: {}", max_var)?;
+    }
     writeln!(writer, "* {} clauses", inst.n_clauses())?;
     writeln!(writer, "* {} cardinality constraints", inst.cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", inst.pbs.len())?;
@@ -335,7 +333,9 @@ pub fn write_opt<W: Write, VM: ManageVars>(
     let mut vm = constrs.var_manager;
     let (hardened, softs) = obj.as_soft_lits(&mut vm);
     writeln!(writer, "* OPB file written by RustSAT")?;
-    writeln!(writer, "* maximum variable: {}", vm.next_free() - 1)?;
+    if let Some(max_var) = vm.max_var() {
+        writeln!(writer, "* maximum variable: {}", max_var)?;
+    }
     writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
@@ -373,7 +373,9 @@ pub fn write_multi_opt<W: Write, VM: ManageVars>(
         .map(|o| o.as_soft_lits(&mut vm))
         .unzip::<_, _, Vec<_>, Vec<_>>();
     writeln!(writer, "* OPB file written by RustSAT")?;
-    writeln!(writer, "* maximum variable: {}", vm.next_free() - 1)?;
+    if let Some(max_var) = vm.max_var() {
+        writeln!(writer, "* maximum variable: {}", max_var)?;
+    }
     writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
