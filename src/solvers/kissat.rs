@@ -6,7 +6,8 @@ use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
 use super::{
-    ControlSignal, InternalSolverState, Solve, SolveStats, SolverError, SolverResult, SolverState,
+    ControlSignal, InternalSolverState, Solve, SolveMightFail, SolveStats, SolverError,
+    SolverResult, SolverState,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::KissatHandle;
@@ -49,11 +50,6 @@ impl<'a> Kissat<'a> {
         c_str
             .to_str()
             .expect("Kissat compiler returned invalid UTF-8.")
-    }
-
-    /// Reserves memory in the solver until a maximum variable
-    pub fn reserve(&mut self, max_var: Var) {
-        unsafe { ffi::kissat_reserve(self.handle, max_var.to_ipasir()) }
     }
 
     /// Sets a terminator callback that is regularly called during solving.
@@ -198,6 +194,19 @@ impl<'a> Solve for Kissat<'a> {
         c_str
             .to_str()
             .expect("Kissat signature returned invalid UTF-8.")
+    }
+
+    fn reserve(&mut self, max_var: Var) -> SolveMightFail {
+        self.state = match self.state {
+            InternalSolverState::Error(_) => {
+                return Err(SolverError::State(
+                    self.state.to_external(),
+                    SolverState::Input,
+                ))
+            }
+            _ => InternalSolverState::Input,
+        };
+        Ok(unsafe { ffi::kissat_reserve(self.handle, max_var.to_ipasir()) })
     }
 
     fn solve(&mut self) -> Result<SolverResult, SolverError> {

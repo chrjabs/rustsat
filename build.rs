@@ -32,10 +32,12 @@ fn main() {
     // Full commit hashes need to be provided
     build_cadical(
         "https://github.com/chrjabs/cadical.git",
-        "0fe57b6945f1db37bb0e1adb64d24056035c3bbb",
+        "master",
+        "02d8231b6dbefdba6292c06ddea83b9892cdaf10",
     );
     build_kissat(
         "https://github.com/arminbiere/kissat.git",
+        "master",
         "97917ddf2b12adc6f63c7b2a5a403a1ee7d81836",
     );
 
@@ -52,14 +54,14 @@ fn main() {
     println!("cargo:rustc-cfg=incsolver");
 }
 
-fn build_cadical(repo: &str, commit: &str) -> bool {
+fn build_cadical(repo: &str, branch: &str, commit: &str) -> bool {
     #[cfg(feature = "cadical")]
     {
         let out_dir = env::var("OUT_DIR").unwrap();
         let mut cadical_dir_str = out_dir.clone();
         cadical_dir_str.push_str("/cadical");
         let cadical_dir = Path::new(&cadical_dir_str);
-        if update_repo(cadical_dir, repo, commit)
+        if update_repo(cadical_dir, repo, branch, commit)
             || !Path::new(&out_dir).join("libcadical.a").exists()
         {
             // Repo changed, rebuild
@@ -116,14 +118,14 @@ fn build_cadical(repo: &str, commit: &str) -> bool {
     false
 }
 
-fn build_kissat(repo: &str, commit: &str) -> bool {
+fn build_kissat(repo: &str, branch: &str, commit: &str) -> bool {
     #[cfg(feature = "kissat")]
     {
         let out_dir = env::var("OUT_DIR").unwrap();
         let mut kissat_dir_str = out_dir.clone();
         kissat_dir_str.push_str("/kissat");
         let kissat_dir = Path::new(&kissat_dir_str);
-        if update_repo(kissat_dir, repo, commit)
+        if update_repo(kissat_dir, repo, branch, commit)
             || !Path::new(&out_dir).join("libkissat.a").exists()
         {
             // Repo changed, rebuild
@@ -180,10 +182,22 @@ fn build_kissat(repo: &str, commit: &str) -> bool {
 }
 
 /// Returns true if there were changes, false if not
-fn update_repo(path: &Path, url: &str, commit: &str) -> bool {
+fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
     let mut changed = false;
     let repo = match git2::Repository::open(path) {
-        Ok(repo) => repo,
+        Ok(repo) => {
+            // Fetch repo
+            let mut remote = repo.find_remote("origin").expect(&format!(
+                "Expected remote \"origin\" in git repo {:?}",
+                path
+            ));
+            remote.fetch(&[branch], None, None).expect(&format!(
+                "Could not fetch \"origin/{}\" for git repo {:?}",
+                branch, path
+            ));
+            drop(remote);
+            repo
+        }
         Err(_) => {
             if path.exists() {
                 fs::remove_dir_all(path).unwrap_or_else(|_| {
