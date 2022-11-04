@@ -7,7 +7,8 @@ use core::ffi::{c_void, CStr};
 
 use super::{
     ControlSignal, IncrementalSolve, InternalSolverState, OptLearnCallbackStore,
-    OptTermCallbackStore, Solve, SolveStats, SolverError, SolverResult, SolverState,
+    OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
+    SolverState,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::IpasirHandle;
@@ -209,7 +210,7 @@ impl<'a> Solve for IpasirSolver<'a> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> Result<(), SolverError> {
+    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
         if let InternalSolverState::Error(_) = self.state {
             // Don't add clause if already in error state.
             return Err(SolverError::State(

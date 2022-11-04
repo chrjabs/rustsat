@@ -7,7 +7,8 @@ use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
     ControlSignal, IncrementalSolve, InternalSolverState, OptLearnCallbackStore,
-    OptTermCallbackStore, Solve, SolveStats, SolverError, SolverResult, SolverState,
+    OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
+    SolverState,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::CaDiCaLHandle;
@@ -448,6 +449,19 @@ impl<'a> Solve for CaDiCaL<'a> {
             .expect("CaDiCaL signature returned invalid UTF-8.")
     }
 
+    fn reserve(&mut self, max_var: Var) -> SolveMightFail {
+        self.state = match self.state {
+            InternalSolverState::Error(_) => {
+                return Err(SolverError::State(
+                    self.state.to_external(),
+                    SolverState::Input,
+                ))
+            }
+            _ => InternalSolverState::Input,
+        };
+        Ok(unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) })
+    }
+
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
@@ -502,7 +516,7 @@ impl<'a> Solve for CaDiCaL<'a> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> Result<(), SolverError> {
+    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
         if let InternalSolverState::Error(_) = self.state {
             // Don't add clause if already in error state.
             return Err(SolverError::State(
@@ -884,6 +898,7 @@ mod ffi {
         pub fn ccadical_phase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_unphase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_vars(solver: *mut CaDiCaLHandle) -> c_int;
+        pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int);
     }
 
     // Raw callbacks forwarding to user callbacks

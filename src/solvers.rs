@@ -101,6 +101,11 @@ pub trait Solve {
         Self: Sized;
     /// Gets a signature of the solver implementation
     fn signature(&self) -> &'static str;
+    /// Reserves memory in the solver until a maximum variables, if the solver
+    /// supports it
+    fn reserve(&mut self, _max_var: Var) -> SolveMightFail {
+        Ok(())
+    }
     /// Solves the internal CNF formula without any assumptions.
     fn solve(&mut self) -> Result<SolverResult, SolverError>;
     /// Gets a solution found by the solver.
@@ -133,21 +138,21 @@ pub trait Solve {
     /// Adds a clause to the solver
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
-    fn add_clause(&mut self, clause: Clause) -> Result<(), SolverError>;
+    fn add_clause(&mut self, clause: Clause) -> SolveMightFail;
     /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
-    fn add_unit(&mut self, lit: Lit) -> Result<(), SolverError> {
+    fn add_unit(&mut self, lit: Lit) -> SolveMightFail {
         self.add_clause(clause![lit])
     }
     /// Like [`Solve::add_clause`] but for clauses with two literals.
-    fn add_binary(&mut self, lit1: Lit, lit2: Lit) -> Result<(), SolverError> {
+    fn add_binary(&mut self, lit1: Lit, lit2: Lit) -> SolveMightFail {
         self.add_clause(clause![lit1, lit2])
     }
     /// Like [`Solve::add_clause`] but for clauses with three literals.
-    fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> Result<(), SolverError> {
+    fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> SolveMightFail {
         self.add_clause(clause![lit1, lit2, lit3])
     }
     /// Adds all clauses from a [`CNF`] instance.
-    fn add_cnf(&mut self, cnf: CNF) -> Result<(), SolverError> {
+    fn add_cnf(&mut self, cnf: CNF) -> SolveMightFail {
         for cl in cnf {
             self.add_clause(cl)?;
         }
@@ -304,6 +309,9 @@ impl fmt::Display for SolverError {
         }
     }
 }
+
+/// Return type of solver calls that don't return but might fail
+pub type SolveMightFail = Result<(), SolverError>;
 
 type TermCallback<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
 type LearnCallback<'a> = Box<dyn FnMut(Vec<Lit>) + 'a>;
