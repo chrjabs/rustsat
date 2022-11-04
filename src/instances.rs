@@ -553,65 +553,211 @@ impl<VM: ManageVars> Default for SatInstance<VM> {
     }
 }
 
+#[cfg(feature = "optimization")]
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
 /// All objectives are considered minimization objectives.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct Objective {
-    soft_lits: RsHashMap<Lit, usize>,
-    soft_clauses: RsHashMap<Clause, usize>,
-    offset: isize,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Objective {
+    Weighted {
+        offset: isize,
+        soft_lits: RsHashMap<Lit, usize>,
+        soft_clauses: RsHashMap<Clause, usize>,
+    },
+    Unweighted {
+        offset: isize,
+        unit_weight: Option<usize>,
+        soft_lits: Vec<Lit>,
+        soft_clauses: Vec<Clause>,
+    },
+}
+
+#[cfg(feature = "optimization")]
+impl Default for Objective {
+    fn default() -> Self {
+        Self::Unweighted {
+            offset: Default::default(),
+            unit_weight: Default::default(),
+            soft_lits: Default::default(),
+            soft_clauses: Default::default(),
+        }
+    }
 }
 
 #[cfg(feature = "optimization")]
 impl Objective {
     /// Creates a new empty objective
     pub fn new() -> Self {
-        Objective {
-            soft_lits: RsHashMap::default(),
-            soft_clauses: RsHashMap::default(),
-            offset: 0,
-        }
+        Default::default()
     }
 
     /// Checks if the objective is empty
     pub fn is_empty(&self) -> bool {
-        self.soft_lits.is_empty() && self.soft_clauses.is_empty() && self.offset == 0
+        match self {
+            Objective::Weighted {
+                offset,
+                soft_lits,
+                soft_clauses,
+            } => soft_lits.is_empty() && soft_clauses.is_empty() && offset == &0,
+            Objective::Unweighted {
+                offset,
+                soft_lits,
+                soft_clauses,
+                ..
+            } => soft_lits.is_empty() && soft_clauses.is_empty() && offset == &0,
+        }
     }
 
     /// Sets the value offset
-    pub fn set_offset(&mut self, offset: isize) {
-        self.offset = offset
+    pub fn set_offset(&mut self, new_offset: isize) {
+        match self {
+            Objective::Weighted { offset, .. } => *offset = new_offset,
+            Objective::Unweighted { offset, .. } => *offset = new_offset,
+        }
     }
 
     /// Gets the global value offset
     pub fn offset(&self) -> isize {
-        self.offset
+        match self {
+            Objective::Weighted { offset, .. } => *offset,
+            Objective::Unweighted { offset, .. } => *offset,
+        }
     }
 
     /// Increases the value offset
     pub fn increase_offset(&mut self, offset_incr: isize) {
-        self.offset += offset_incr
+        match self {
+            Objective::Weighted { offset, .. } => *offset += offset_incr,
+            Objective::Unweighted { offset, .. } => *offset += offset_incr,
+        }
+    }
+
+    /// Checks if the objective is weighted
+    pub fn weighted(&self) -> bool {
+        match self {
+            Objective::Weighted { .. } => true,
+            Objective::Unweighted { .. } => false,
+        }
+    }
+
+    /// Converts an objective from unweighted to weighted
+    fn unweighted_2_weighted(&mut self) {
+        match self {
+            Objective::Weighted { .. } => (),
+            Objective::Unweighted {
+                offset,
+                unit_weight,
+                soft_lits,
+                soft_clauses,
+            } => {
+                if let Some(unit_weight) = unit_weight {
+                    *self = Objective::Weighted {
+                        offset: *offset,
+                        soft_lits: soft_lits.into_iter().map(|l| (*l, *unit_weight)).collect(),
+                        soft_clauses: soft_clauses
+                            .into_iter()
+                            .map(|cl| (cl.clone(), *unit_weight))
+                            .collect(),
+                    }
+                } else {
+                    *self = Objective::Weighted {
+                        offset: *offset,
+                        soft_lits: RsHashMap::default(),
+                        soft_clauses: RsHashMap::default(),
+                    }
+                }
+            }
+        }
+    }
+
+    /// Converts an objective from weighted to unweighted
+    fn weighted_2_unweighted(&mut self) {
+        match self {
+            Objective::Unweighted { .. } => (),
+            Objective::Weighted {
+                offset,
+                soft_lits,
+                soft_clauses,
+            } => {
+                let mut soft_unit_lits = vec![];
+                soft_lits
+                    .into_iter()
+                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + *w, *l));
+                let mut soft_unit_clauses = vec![];
+                soft_clauses.into_iter().for_each(|(cl, w)| {
+                    soft_unit_clauses.resize(soft_unit_clauses.len() + *w, cl.clone())
+                });
+                *self = Objective::Unweighted {
+                    offset: *offset,
+                    unit_weight: Some(1),
+                    soft_lits: soft_unit_lits,
+                    soft_clauses: soft_unit_clauses,
+                }
+            }
+        }
     }
 
     /// Adds a soft literal or updates its weight. Returns the old weight, if
     /// the literal was already in the objective.
     pub fn add_soft_lit(&mut self, w: usize, l: Lit) -> Option<usize> {
-        if w == 0 {
-            return self.soft_lits.remove(&l);
+        match self {
+            Objective::Weighted { soft_lits, .. } => {
+                if w == 0 {
+                    return soft_lits.remove(&l);
+                }
+                soft_lits.insert(l, w)
+            }
+            Objective::Unweighted {
+                unit_weight,
+                soft_lits,
+                ..
+            } => {
+                if w == 0 {
+                    if let Some(idx) = soft_lits.iter().position(|l2| l2 == &l) {
+                        soft_lits.swap_remove(idx);
+                        return Some(unit_weight.unwrap());
+                    }
+                    None
+                } else {
+                    match unit_weight {
+                        Some(unit_weight) => {
+                            if w == *unit_weight {
+                                if let Some(_) = soft_lits.iter().position(|l2| l2 == &l) {
+                                    return Some(*unit_weight);
+                                }
+                                soft_lits.push(l);
+                                None
+                            } else {
+                                // Type changes from unweighted to weighted
+                                self.unweighted_2_weighted();
+                                // Add literal to new weighted objective
+                                self.add_soft_lit(w, l)
+                            }
+                        }
+                        None => {
+                            soft_lits.push(l);
+                            *unit_weight = Some(w);
+                            None
+                        }
+                    }
+                }
+            }
         }
-        self.soft_lits.insert(l, w)
     }
 
     /// Increases the weight of a soft literal. Returns the old weight, if the
     /// literal was already in the objective.
     pub fn increase_soft_lit(&mut self, add_w: usize, l: Lit) -> Option<usize> {
-        match self.soft_lits.get_mut(&l) {
-            Some(old_w) => {
-                *old_w += add_w;
-                Some(*old_w - add_w)
-            }
-            None => self.soft_lits.insert(l, add_w),
+        self.unweighted_2_weighted();
+        match self {
+            Objective::Weighted { soft_lits, .. } => match soft_lits.get_mut(&l) {
+                Some(old_w) => {
+                    *old_w += add_w;
+                    Some(*old_w - add_w)
+                }
+                None => soft_lits.insert(l, add_w),
+            },
+            Objective::Unweighted { .. } => panic!(),
         }
     }
 
@@ -630,44 +776,178 @@ impl Objective {
         }
     }
 
-    /// Adds a soft clause or updates its weight. Resturns the old weight, if
+    /// Adds a soft clause or updates its weight. Returns the old weight, if
     /// the clause was already in the objective.
     pub fn add_soft_clause(&mut self, w: usize, cl: Clause) -> Option<usize> {
         if cl.len() == 1 {
             return self.add_soft_lit(w, !cl[0]);
         }
-        self.soft_clauses.insert(cl, w)
-    }
-
-    /// Converts the objective to a set of soft clauses
-    pub fn as_soft_cls(mut self) -> SoftClsOffset {
-        self.soft_clauses.reserve(self.soft_lits.len());
-        for (l, w) in self.soft_lits {
-            self.soft_clauses.insert(clause![!l], w);
+        match self {
+            Objective::Weighted { soft_clauses, .. } => {
+                if w == 0 {
+                    return soft_clauses.remove(&cl);
+                }
+                soft_clauses.insert(cl, w)
+            }
+            Objective::Unweighted {
+                unit_weight,
+                soft_clauses,
+                ..
+            } => {
+                if w == 0 {
+                    if let Some(idx) = soft_clauses.iter().position(|cl2| cl2 == &cl) {
+                        soft_clauses.swap_remove(idx);
+                        return Some(unit_weight.unwrap());
+                    }
+                    None
+                } else {
+                    match unit_weight {
+                        Some(unit_weight) => {
+                            if w == *unit_weight {
+                                if let Some(_) = soft_clauses.iter().position(|cl2| cl2 == &cl) {
+                                    return Some(*unit_weight);
+                                }
+                                soft_clauses.push(cl);
+                                None
+                            } else {
+                                // Type changes from unweighted to weighted
+                                self.unweighted_2_weighted();
+                                // Add literal to new weighted objective
+                                self.add_soft_clause(w, cl)
+                            }
+                        }
+                        None => {
+                            soft_clauses.push(cl);
+                            *unit_weight = Some(w);
+                            None
+                        }
+                    }
+                }
+            }
         }
-        (self.soft_clauses, self.offset)
     }
 
-    /// Converts the objective to a set of hard clauses and soft literals
+    /// Converts the objective to a set of soft clauses and an offset
+    pub fn as_soft_cls(mut self) -> SoftClsOffset {
+        self.unweighted_2_weighted();
+        match self {
+            Objective::Unweighted { .. } => panic!(),
+            Objective::Weighted {
+                mut soft_clauses,
+                soft_lits,
+                offset,
+            } => {
+                soft_clauses.reserve(soft_lits.len());
+                for (l, w) in soft_lits {
+                    soft_clauses.insert(clause![!l], w);
+                }
+                (soft_clauses, offset)
+            }
+        }
+    }
+
+    /// Converts the objective to unweighted soft clauses, a unit weight and an offset. If the
+    /// objective is weighted, the soft clause will appear as often as its
+    /// weight in the output vector.
+    pub fn as_unweighted_soft_cls(mut self) -> (Vec<Clause>, usize, isize) {
+        self.weighted_2_unweighted();
+        match self {
+            Objective::Weighted { .. } => panic!(),
+            Objective::Unweighted {
+                offset,
+                unit_weight,
+                soft_lits,
+                mut soft_clauses,
+            } => {
+                if let Some(unit_weight) = unit_weight {
+                    soft_clauses.reserve(soft_lits.len());
+                    for l in soft_lits {
+                        soft_clauses.push(clause![!l]);
+                    }
+                    (soft_clauses, unit_weight, offset)
+                } else {
+                    (vec![], 1, offset)
+                }
+            }
+        }
+    }
+
+    /// Converts the objective to a set of hard clauses, soft literals and an offset
     pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, SoftLitsOffset)
     where
         VM: ManageVars,
     {
-        let mut cnf = CNF::new();
-        cnf.clauses.reserve(self.soft_clauses.len());
-        self.soft_lits.reserve(self.soft_clauses.len());
-        for (mut cl, w) in self.soft_clauses {
-            if cl.len() > 1 {
-                let relax_lit = var_manager.next_free().pos_lit();
-                cl.add(relax_lit);
-                cnf.add_clause(cl);
-                self.soft_lits.insert(relax_lit, w);
-            } else {
-                assert!(cl.len() == 1);
-                self.soft_lits.insert(!cl[0], w);
+        self.unweighted_2_weighted();
+        match self {
+            Objective::Unweighted { .. } => panic!(),
+            Objective::Weighted {
+                mut soft_lits,
+                soft_clauses,
+                offset,
+            } => {
+                let mut cnf = CNF::new();
+                cnf.clauses.reserve(soft_clauses.len());
+                soft_lits.reserve(soft_clauses.len());
+                for (mut cl, w) in soft_clauses {
+                    if cl.len() > 1 {
+                        let relax_lit = var_manager.next_free().pos_lit();
+                        cl.add(relax_lit);
+                        cnf.add_clause(cl);
+                        soft_lits.insert(relax_lit, w);
+                    } else {
+                        assert!(cl.len() == 1);
+                        soft_lits.insert(!cl[0], w);
+                    }
+                }
+                (cnf, (soft_lits, offset))
             }
         }
-        (cnf, (self.soft_lits, self.offset))
+    }
+
+    /// Converts the objective to hard clauses, unweighted soft literals, a unit
+    /// weight and an offset. If the objective is weighted, the soft literals
+    /// will appear as often as its weight in the output vector.
+    pub fn as_unweighted_soft_lits<VM>(self, var_manager: &mut VM) -> (CNF, Vec<Lit>, usize, isize)
+    where
+        VM: ManageVars,
+    {
+        match self {
+            Objective::Weighted { .. } => {
+                let (cnf, softs) = self.as_soft_lits(var_manager);
+                let mut soft_unit_lits = vec![];
+                softs
+                    .0
+                    .into_iter()
+                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
+                (cnf, soft_unit_lits, 1, softs.1)
+            }
+            Objective::Unweighted {
+                offset,
+                unit_weight,
+                mut soft_lits,
+                soft_clauses,
+            } => {
+                if let Some(unit_weight) = unit_weight {
+                    let mut cnf = CNF::new();
+                    cnf.clauses.reserve(soft_clauses.len());
+                    soft_lits.reserve(soft_clauses.len());
+                    for mut cl in soft_clauses {
+                        if cl.len() > 1 {
+                            let relax_lit = var_manager.next_free().pos_lit();
+                            cl.add(relax_lit);
+                            cnf.add_clause(cl);
+                            soft_lits.push(relax_lit);
+                        } else {
+                            assert!(cl.len() == 1);
+                            soft_lits.push(!cl[0]);
+                        }
+                    }
+                    (cnf, soft_lits, unit_weight, offset)
+                } else {
+                    (CNF::new(), vec![], 1, offset)
+                }
+            }
+        }
     }
 }
 
@@ -838,18 +1118,20 @@ impl<VM: ManageVars> OptInstance<VM> {
         &mut self.obj
     }
 
-    /// Converts the instance to a set of hard and soft clauses with an offset
+    /// Converts the instance to a set of hard and soft clauses, an objective
+    /// offset and a variable manager
     pub fn as_hard_cls_soft_cls(self) -> (CNF, SoftClsOffset, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
-    /// Converts the instance to a set of hard clauses and soft literals
+    /// Converts the instance to a set of hard clauses and soft literals, an
+    /// objective offset and a variable manager
     pub fn as_hard_cls_soft_lits(self) -> (CNF, SoftLitsOffset, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
-        let (hard_softs, soft_lits) = self.obj.as_soft_lits(&mut vm);
+        let (hard_softs, softs) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
-        (cnf, soft_lits, vm)
+        (cnf, softs, vm)
     }
 
     /// Converts the included variable manager to a different type
@@ -961,7 +1243,7 @@ impl<VM: ManageVars> BiOptInstance<VM> {
         &mut self.obj_2
     }
 
-    /// Converts the instance to a set of hard and soft clauses
+    /// Converts the instance to a set of hard and soft clauses with objective offsets
     pub fn as_hard_cls_soft_cls(self) -> (CNF, SoftClsOffset, SoftClsOffset, VM) {
         let (cnf, vm) = self.constr.as_cnf();
         (cnf, self.obj_1.as_soft_cls(), self.obj_2.as_soft_cls(), vm)
@@ -970,11 +1252,11 @@ impl<VM: ManageVars> BiOptInstance<VM> {
     /// Converts the instance to a set of hard clauses and soft literals
     pub fn as_hard_cls_soft_lits(self) -> (CNF, SoftLitsOffset, SoftLitsOffset, VM) {
         let (mut cnf, mut vm) = self.constr.as_cnf();
-        let (hard_softs, soft_lits_1) = self.obj_1.as_soft_lits(&mut vm);
+        let (hard_softs, softs_1) = self.obj_1.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
-        let (hard_softs, soft_lits_2) = self.obj_2.as_soft_lits(&mut vm);
+        let (hard_softs, softs_2) = self.obj_2.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
-        (cnf, soft_lits_1, soft_lits_2, vm)
+        (cnf, softs_1, softs_2, vm)
     }
 
     /// Converts the included variable manager to a different type

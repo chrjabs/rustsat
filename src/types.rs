@@ -490,6 +490,7 @@ impl fmt::Debug for TernaryVal {
 }
 
 /// Type representing a solution to a formula.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Solution {
     assignment: Vec<TernaryVal>,
 }
