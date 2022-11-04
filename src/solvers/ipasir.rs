@@ -16,8 +16,8 @@ use ffi::IpasirHandle;
 pub struct IpasirSolver<'a> {
     handle: *mut IpasirHandle,
     state: InternalSolverState,
-    terminate_cb: Option<Box<Box<dyn FnMut() -> ControlSignal + 'a>>>,
-    learner_cb: Option<Box<Box<dyn FnMut(Vec<Lit>) + 'a>>>,
+    terminate_cb: OptBoxedTermCallback<'a>,
+    learner_cb: OptBoxedLearnCallback<'a>,
     n_sat: u32,
     n_unsat: u32,
     n_terminated: u32,

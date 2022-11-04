@@ -3,11 +3,11 @@
 //! Interface to the [CaDiCaL](https://github.com/arminbiere/cadical) incremental SAT solver.
 
 use core::ffi::{c_int, c_void, CStr};
-use std::{ffi::CString, fmt};
+use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
-    ControlSignal, IncrementalSolve, InternalSolverState, Solve, SolveStats, SolverError,
-    SolverResult, SolverState,
+    ControlSignal, IncrementalSolve, InternalSolverState, OptLearnCallbackStore,
+    OptTermCallbackStore, Solve, SolveStats, SolverError, SolverResult, SolverState,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::CaDiCaLHandle;
@@ -16,8 +16,8 @@ use ffi::CaDiCaLHandle;
 pub struct CaDiCaL<'a> {
     handle: *mut CaDiCaLHandle,
     state: InternalSolverState,
-    terminate_cb: Option<Box<Box<dyn FnMut() -> ControlSignal + 'a>>>,
-    learner_cb: Option<Box<Box<dyn FnMut(Vec<Lit>) + 'a>>>,
+    terminate_cb: OptTermCallbackStore<'a>,
+    learner_cb: OptLearnCallbackStore<'a>,
     n_sat: u32,
     n_unsat: u32,
     n_terminated: u32,
@@ -26,21 +26,27 @@ pub struct CaDiCaL<'a> {
     cpu_solve_time: f32,
 }
 
+impl Default for CaDiCaL<'_> {
+    fn default() -> Self {
+        Self {
+            handle: unsafe { ffi::ccadical_init() },
+            state: Default::default(),
+            terminate_cb: Default::default(),
+            learner_cb: Default::default(),
+            n_sat: Default::default(),
+            n_unsat: Default::default(),
+            n_terminated: Default::default(),
+            n_clauses: Default::default(),
+            avg_clause_len: Default::default(),
+            cpu_solve_time: Default::default(),
+        }
+    }
+}
+
 impl<'a> CaDiCaL<'a> {
     /// Creates a new instance of CaDiCaL
     pub fn new() -> CaDiCaL<'a> {
-        CaDiCaL {
-            handle: unsafe { ffi::ccadical_init() },
-            state: InternalSolverState::Configuring,
-            terminate_cb: None,
-            learner_cb: None,
-            n_sat: 0,
-            n_unsat: 0,
-            n_terminated: 0,
-            n_clauses: 0,
-            avg_clause_len: 0.0,
-            cpu_solve_time: 0.0,
-        }
+        Self::default()
     }
 
     /// Gets the signature of CaDiCaL
@@ -176,7 +182,7 @@ impl<'a> CaDiCaL<'a> {
     /// [`IncrementalSolve::get_core`] if a [`CaDiCaL::add_tmp_clause`] is used.
     pub fn tmp_clause_in_core(&mut self) -> Result<bool, SolverError> {
         match &self.state {
-            InternalSolverState::UNSAT(_) => unsafe {
+            InternalSolverState::Unsat(_) => unsafe {
                 Ok(ffi::ccadical_constraint_failed(self.handle) != 0)
             },
             state => Err(SolverError::State(state.to_external(), SolverState::UNSAT)),
@@ -196,9 +202,9 @@ impl<'a> CaDiCaL<'a> {
             if ret {
                 Ok(())
             } else {
-                Err(SolverError::API(format!(
-                    "ccadical_configure returned false"
-                )))
+                Err(SolverError::API(
+                    "ccadical_configure returned false".to_string(),
+                ))
             }
         } else {
             Err(SolverError::State(
@@ -309,12 +315,10 @@ impl<'a> CaDiCaL<'a> {
     /// Gets the current literal value at the root level
     pub fn current_lit_val(&self, lit: Lit) -> TernaryVal {
         let int_val = unsafe { ffi::ccadical_fixed(self.handle, lit.to_ipasir()) };
-        if int_val > 0 {
-            TernaryVal::True
-        } else if int_val < 0 {
-            TernaryVal::False
-        } else {
-            TernaryVal::DontCare
+        match int_val.cmp(&0) {
+            Ordering::Greater => TernaryVal::True,
+            Ordering::Less => TernaryVal::False,
+            Ordering::Equal => TernaryVal::DontCare,
         }
     }
 
@@ -355,9 +359,9 @@ impl<'a> CaDiCaL<'a> {
 
     pub fn simplify(&mut self, rounds: u32) -> Result<SolverResult, SolverError> {
         // If already solved, return state
-        if let InternalSolverState::SAT = self.state {
+        if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::SAT);
-        } else if let InternalSolverState::UNSAT(_) = self.state {
+        } else if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::UNSAT);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
@@ -381,11 +385,11 @@ impl<'a> CaDiCaL<'a> {
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.state = InternalSolverState::SAT;
+                self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.state = InternalSolverState::UNSAT(vec![]);
+                self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
@@ -401,9 +405,9 @@ impl<'a> CaDiCaL<'a> {
         rounds: u32,
     ) -> Result<SolverResult, SolverError> {
         // If already solved, return state
-        if let InternalSolverState::SAT = self.state {
+        if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::SAT);
-        } else if let InternalSolverState::UNSAT(_) = self.state {
+        } else if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::UNSAT);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
@@ -430,11 +434,11 @@ impl<'a> CaDiCaL<'a> {
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.state = InternalSolverState::SAT;
+                self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.state = InternalSolverState::UNSAT(vec![]);
+                self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
@@ -448,9 +452,9 @@ impl<'a> CaDiCaL<'a> {
 impl Solve for CaDiCaL<'_> {
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
-        if let InternalSolverState::SAT = self.state {
+        if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::SAT);
-        } else if let InternalSolverState::UNSAT(_) = self.state {
+        } else if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::UNSAT);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
@@ -467,12 +471,12 @@ impl Solve for CaDiCaL<'_> {
             }
             10 => {
                 self.n_sat += 1;
-                self.state = InternalSolverState::SAT;
+                self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
                 self.n_unsat += 1;
-                self.state = InternalSolverState::UNSAT(vec![]);
+                self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
@@ -484,7 +488,7 @@ impl Solve for CaDiCaL<'_> {
 
     fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError> {
         match &self.state {
-            InternalSolverState::SAT => {
+            InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
                 match unsafe { ffi::ccadical_val(self.handle, lit) } {
                     0 => Ok(TernaryVal::DontCare),
@@ -541,12 +545,12 @@ impl IncrementalSolve for CaDiCaL<'_> {
             }
             10 => {
                 self.n_sat += 1;
-                self.state = InternalSolverState::SAT;
+                self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
                 self.n_unsat += 1;
-                self.state = InternalSolverState::UNSAT(self.get_core_assumps(&assumps)?);
+                self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
@@ -558,7 +562,7 @@ impl IncrementalSolve for CaDiCaL<'_> {
 
     fn get_core(&mut self) -> Result<Vec<Lit>, SolverError> {
         match &self.state {
-            InternalSolverState::UNSAT(core) => Ok(core.clone()),
+            InternalSolverState::Unsat(core) => Ok(core.clone()),
             other => Err(SolverError::State(other.to_external(), SolverState::UNSAT)),
         }
     }
@@ -820,10 +824,10 @@ mod test {
 }
 
 mod ffi {
-    use crate::solvers::ControlSignal;
+    use crate::solvers::{ControlSignal, LearnCallback, TermCallback};
     use crate::types::Lit;
     use core::ffi::{c_char, c_int, c_void};
-    use std::{mem, slice};
+    use std::slice;
 
     #[repr(C)]
     pub struct CaDiCaLHandle {
@@ -882,7 +886,7 @@ mod ffi {
 
     // Raw callbacks forwarding to user callbacks
     pub extern "C" fn ccadical_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb: &mut Box<dyn FnMut() -> ControlSignal> = unsafe { mem::transmute(ptr) };
+        let cb = unsafe { &mut *(ptr as *mut TermCallback<'_>) };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
@@ -890,7 +894,7 @@ mod ffi {
     }
 
     pub extern "C" fn ccadical_learn_cb(ptr: *const c_void, clause: *const c_int) {
-        let cb: &mut Box<dyn FnMut(Vec<Lit>)> = unsafe { mem::transmute(ptr) };
+        let cb = unsafe { &mut *(ptr as *mut LearnCallback<'_>) };
 
         let mut cnt = 0;
         for n in 0.. {
@@ -900,7 +904,7 @@ mod ffi {
         }
         let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
         let clause: Vec<Lit> = int_slice
-            .into_iter()
+            .iter()
             .map(|il| {
                 Lit::from_ipasir(*il).expect("Invalid literal in learned clause from CaDiCaL")
             })

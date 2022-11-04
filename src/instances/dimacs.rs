@@ -39,7 +39,7 @@ use nom::sequence::separated_pair;
 pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
     let reader = BufReader::new(reader);
     match parse_dimacs(reader)? {
-        DimacsInstance::CNF(inst) => Ok(inst),
+        DimacsInstance::Cnf(inst) => Ok(inst),
         _ => Err(DimacsError::InvalidInstanceType),
     }
 }
@@ -49,7 +49,7 @@ pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
 pub fn parse_wcnf<R: Read>(reader: R) -> Result<OptInstance, DimacsError> {
     let reader = BufReader::new(reader);
     match parse_dimacs(reader)? {
-        DimacsInstance::WCNF(inst) => Ok(inst),
+        DimacsInstance::Wcnf(inst) => Ok(inst),
         _ => Err(DimacsError::InvalidInstanceType),
     }
 }
@@ -59,7 +59,7 @@ pub fn parse_wcnf<R: Read>(reader: R) -> Result<OptInstance, DimacsError> {
 pub fn parse_mcnf<R: Read>(reader: R) -> Result<MultiOptInstance, DimacsError> {
     let reader = BufReader::new(reader);
     match parse_dimacs(reader)? {
-        DimacsInstance::MCNF(inst) => Ok(inst),
+        DimacsInstance::Mcnf(inst) => Ok(inst),
         _ => Err(DimacsError::InvalidInstanceType),
     }
 }
@@ -98,17 +98,17 @@ impl fmt::Display for DimacsError {
 /// Internal type of Dimacs instances
 #[derive(Debug, PartialEq)]
 enum DimacsInstance {
-    CNF(SatInstance),
+    Cnf(SatInstance),
     #[cfg(feature = "optimization")]
-    WCNF(OptInstance),
+    Wcnf(OptInstance),
     #[cfg(feature = "multiopt")]
-    MCNF(MultiOptInstance),
+    Mcnf(MultiOptInstance),
 }
 
 /// Internal type of possible preambles
 #[derive(PartialEq, Debug)]
 enum Preamble {
-    CNF {
+    Cnf {
         n_vars: usize,
         n_clauses: usize,
     },
@@ -123,7 +123,7 @@ enum Preamble {
         first_line: String,
     },
     #[cfg(feature = "multiopt")]
-    MCNF,
+    Mcnf,
 }
 
 /// Top level parser
@@ -134,12 +134,12 @@ where
     match parse_preamble(reader) {
         Err(_) => Err(DimacsError::InvalidPreamble),
         Ok((reader, preamble)) => match preamble {
-            Preamble::CNF {
+            Preamble::Cnf {
                 n_vars: _,
                 n_clauses: _,
             } => match parse_cnf_body(reader) {
                 Err(_) => Err(DimacsError::InvalidCNF),
-                Ok((_, inst)) => Ok(DimacsInstance::CNF(inst)), // n_vars and n_clauses from preamble are intentionally ignored
+                Ok((_, inst)) => Ok(DimacsInstance::Cnf(inst)), // n_vars and n_clauses from preamble are intentionally ignored
             },
             #[cfg(feature = "optimization")]
             Preamble::WcnfPre22 {
@@ -148,19 +148,19 @@ where
                 top,
             } => match parse_wcnf_pre22_body(reader, top) {
                 Err(_) => Err(DimacsError::InvalidWCNF),
-                Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)), // n_vars and n_clauses from preamble are intentionally ignored
+                Ok((_, inst)) => Ok(DimacsInstance::Wcnf(inst)), // n_vars and n_clauses from preamble are intentionally ignored
             },
             #[cfg(feature = "optimization")]
             Preamble::WcnfPost22 { first_line } => {
                 match parse_wcnf_post22_body(reader, &first_line) {
                     Err(_) => Err(DimacsError::InvalidWCNF),
-                    Ok((_, inst)) => Ok(DimacsInstance::WCNF(inst)),
+                    Ok((_, inst)) => Ok(DimacsInstance::Wcnf(inst)),
                 }
             }
             #[cfg(feature = "multiopt")]
-            Preamble::MCNF => match parse_mcnf_body(reader) {
+            Preamble::Mcnf => match parse_mcnf_body(reader) {
                 Err(_) => Err(DimacsError::InvalidMCNF),
-                Ok((_, inst)) => Ok(DimacsInstance::MCNF(inst)),
+                Ok((_, inst)) => Ok(DimacsInstance::Mcnf(inst)),
             },
         },
     }
@@ -187,10 +187,10 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> IResult<R, Preamble> {
             }
             Err(_) => return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail))),
         };
-        if buf.starts_with("c") {
+        if buf.starts_with('c') {
             continue;
         }
-        if buf.starts_with("p") {
+        if buf.starts_with('p') {
             return match parse_p_line(&buf) {
                 Ok((_, preamb)) => Ok((reader, preamb)),
                 Err(err) => Err(cast_str_error_reader(err, reader)),
@@ -351,7 +351,7 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
             Ok(v) => v,
             Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
         };
-        return Ok((input, Preamble::CNF { n_vars, n_clauses }));
+        return Ok((input, Preamble::Cnf { n_vars, n_clauses }));
     }
     #[cfg(feature = "optimization")]
     if id_token == "wcnf" {
@@ -379,7 +379,7 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
     #[cfg(feature = "multiopt")]
     if id_token == "mcnf" {
         // Is MCNF file
-        return Ok((input, Preamble::MCNF));
+        return Ok((input, Preamble::Mcnf));
     }
     Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
 }
@@ -642,7 +642,7 @@ mod tests {
             parse_p_line("p cnf 23 42"),
             Ok((
                 "",
-                Preamble::CNF {
+                Preamble::Cnf {
                     n_vars: 23,
                     n_clauses: 42
                 }
@@ -661,7 +661,7 @@ mod tests {
             ))
         );
         #[cfg(feature = "multiopt")]
-        assert_eq!(parse_p_line("p mcnf"), Ok(("", Preamble::MCNF)));
+        assert_eq!(parse_p_line("p mcnf"), Ok(("", Preamble::Mcnf)));
     }
 
     #[test]
@@ -801,7 +801,7 @@ mod tests {
 
         assert_eq!(
             preamble,
-            Preamble::CNF {
+            Preamble::Cnf {
                 n_vars: 5,
                 n_clauses: 2,
             }
@@ -853,7 +853,7 @@ mod tests {
 
         let (_, preamble) = parse_preamble(reader).unwrap();
 
-        assert_eq!(preamble, Preamble::MCNF);
+        assert_eq!(preamble, Preamble::Mcnf);
     }
 
     #[test]
@@ -943,7 +943,7 @@ mod tests {
         inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
-        let true_inst = DimacsInstance::CNF(inst);
+        let true_inst = DimacsInstance::Cnf(inst);
 
         assert_eq!(parsed_inst, true_inst);
     }
@@ -963,7 +963,7 @@ mod tests {
         inst.get_objective()
             .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
-        let true_inst = DimacsInstance::WCNF(inst);
+        let true_inst = DimacsInstance::Wcnf(inst);
 
         assert_eq!(parsed_inst, true_inst);
     }
@@ -983,7 +983,7 @@ mod tests {
         inst.get_objective()
             .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
-        let true_inst = DimacsInstance::WCNF(inst);
+        let true_inst = DimacsInstance::Wcnf(inst);
 
         assert_eq!(parsed_inst, true_inst);
     }
@@ -1005,7 +1005,7 @@ mod tests {
         inst.get_objective(1)
             .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
-        let true_inst = DimacsInstance::MCNF(inst);
+        let true_inst = DimacsInstance::Mcnf(inst);
 
         assert_eq!(parsed_inst, true_inst);
     }

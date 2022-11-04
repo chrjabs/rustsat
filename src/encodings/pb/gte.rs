@@ -367,20 +367,20 @@ impl Node {
     }
 
     fn get_child_lit_maps<'a>(
-        left: &'a Box<Node>,
-        right: &'a Box<Node>,
+        left: &'a Node,
+        right: &'a Node,
         tmp_map_1: &'a mut BTreeMap<usize, Lit>,
         tmp_map_2: &'a mut BTreeMap<usize, Lit>,
     ) -> (&'a BTreeMap<usize, Lit>, &'a BTreeMap<usize, Lit>) {
         (
-            match &**left {
+            match left {
                 Node::Leaf { lit, weight } => {
                     tmp_map_1.insert(*weight, *lit);
                     tmp_map_1
                 }
                 Node::Internal { out_lits, .. } => out_lits,
             },
-            match &**right {
+            match right {
                 Node::Leaf { lit, weight } => {
                     tmp_map_2.insert(*weight, *lit);
                     tmp_map_2
@@ -405,7 +405,7 @@ impl Node {
         // Reserve vars if needed
         self.reserve_vars_from_till(min_enc, max_enc, var_manager);
         match &*self {
-            Node::Leaf { .. } => return CNF::new(),
+            Node::Leaf { .. } => CNF::new(),
             Node::Internal {
                 out_lits,
                 max_val,
@@ -591,16 +591,16 @@ impl Node {
                 for (&left_val, _) in
                     left_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
                 {
-                    if !out_lits.contains_key(&left_val) {
-                        out_lits.insert(left_val, var_manager.next_free().pos_lit());
-                    }
+                    out_lits
+                        .entry(left_val)
+                        .or_insert_with(|| var_manager.next_free().pos_lit());
                 }
                 for (&right_val, _) in
                     right_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
                 {
-                    if !out_lits.contains_key(&right_val) {
-                        out_lits.insert(right_val, var_manager.next_free().pos_lit());
-                    }
+                    out_lits
+                        .entry(right_val)
+                        .or_insert_with(|| var_manager.next_free().pos_lit());
                 }
                 for (&left_val, _) in
                     left_lits.range((Bound::Excluded(0), Bound::Excluded(max_enc)))
@@ -617,10 +617,9 @@ impl Node {
                         if left_val + right_val > max_enc || left_val + right_val < min_enc {
                             continue;
                         }
-                        if !out_lits.contains_key(&(left_val + right_val)) {
-                            out_lits
-                                .insert(left_val + right_val, var_manager.next_free().pos_lit());
-                        }
+                        out_lits
+                            .entry(left_val + right_val)
+                            .or_insert_with(|| var_manager.next_free().pos_lit());
                     }
                 }
             }
@@ -656,9 +655,9 @@ impl Node {
     fn compute_required_min_enc(
         min_enc_requested: usize,
         max_enc_requested: usize,
-        sibling: &Box<Node>,
+        sibling: &Node,
     ) -> usize {
-        match **sibling {
+        match *sibling {
             Node::Leaf { .. } => {
                 if min_enc_requested > 2 {
                     min_enc_requested - 1

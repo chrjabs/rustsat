@@ -248,13 +248,13 @@ impl Lit {
         if val == 0 {
             return Err(TypeError::IpasirZero);
         }
-        let negated = if val > 0 { false } else { true };
+        let negated = val < 0;
         let idx: usize = if val > 0 {
             val.try_into().unwrap()
         } else {
             (-val).try_into().unwrap()
         };
-        Ok(Lit::new_with_error(idx - 1, negated)?)
+        Lit::new_with_error(idx - 1, negated)
     }
 
     /// Gets the variable index of the literal
@@ -419,7 +419,7 @@ macro_rules! ipasir_lit {
 }
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum TernaryVal {
     /// Positive assignment.
@@ -500,15 +500,14 @@ impl Solution {
     }
 
     pub fn replace_dont_care(&mut self, def: bool) {
-        self.assignment.iter_mut().for_each(|tv| match tv {
-            TernaryVal::DontCare => {
+        self.assignment.iter_mut().for_each(|tv| {
+            if tv == &TernaryVal::DontCare {
                 if def {
                     *tv = TernaryVal::True;
                 } else {
                     *tv = TernaryVal::False;
                 }
             }
-            _ => (),
         })
     }
 }

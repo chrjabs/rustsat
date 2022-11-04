@@ -82,7 +82,7 @@ fn open_compressed_uncompressed(path: &Path) -> Result<Box<dyn Read>, io::Error>
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct CNF {
     clauses: Vec<Clause>,
 }
@@ -90,7 +90,7 @@ pub struct CNF {
 impl CNF {
     /// Creates a new CNF
     pub fn new() -> CNF {
-        CNF { clauses: vec![] }
+        CNF::default()
     }
 
     /// Creates a CNF from a vector of clauses
@@ -216,7 +216,7 @@ impl IntoIterator for CNF {
 
 /// Type representing a satisfiability instance. Supported constraints are
 /// clauses, cardinality constraints and pseudo-boolean constraints.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SatInstance<VM: ManageVars = BasicVarManager> {
     cnf: CNF,
     cards: Vec<CardConstraint>,
@@ -227,12 +227,7 @@ pub struct SatInstance<VM: ManageVars = BasicVarManager> {
 impl<VM: ManageVars> SatInstance<VM> {
     /// Creates a new satisfiability instance
     pub fn new() -> SatInstance<VM> {
-        SatInstance {
-            cnf: CNF::new(),
-            cards: vec![],
-            pbs: vec![],
-            var_manager: VM::new(),
-        }
+        SatInstance::default()
     }
 
     /// Creates a new satisfiability instance with a specific var manager
@@ -495,11 +490,21 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 }
 
-#[cfg(feature = "optimization")]
+impl<VM: ManageVars> Default for SatInstance<VM> {
+    fn default() -> Self {
+        Self {
+            cnf: Default::default(),
+            cards: Default::default(),
+            pbs: Default::default(),
+            var_manager: VM::new(),
+        }
+    }
+}
+
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
 /// All objectives are considered minimization objectives.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Objective {
     soft_lits: HashMap<Lit, usize>,
     soft_clauses: HashMap<Clause, usize>,
@@ -592,7 +597,7 @@ impl Objective {
 #[cfg(feature = "optimization")]
 /// Type representing an optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct OptInstance<VM: ManageVars = BasicVarManager> {
     constr: SatInstance<VM>,
     obj: Objective,
@@ -757,7 +762,7 @@ impl<VM: ManageVars> OptInstance<VM> {
 #[cfg(feature = "multiopt")]
 /// Type representing a bi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct BiOptInstance<VM: ManageVars = BasicVarManager> {
     constr: SatInstance<VM>,
     obj_1: Objective,
@@ -851,7 +856,7 @@ impl<VM: ManageVars> BiOptInstance<VM> {
 #[cfg(feature = "multiopt")]
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
     constr: SatInstance<VM>,
     objs: Vec<Objective>,
@@ -1058,7 +1063,7 @@ pub trait ManageVars {
 }
 
 /// Simple counter variable manager
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BasicVarManager {
     next_var: Var,
 }
@@ -1072,9 +1077,7 @@ impl BasicVarManager {
 
 impl ManageVars for BasicVarManager {
     fn new() -> Self {
-        BasicVarManager {
-            next_var: Var::new(0),
-        }
+        Self::default()
     }
 
     fn next_free(&mut self) -> Var {
@@ -1102,8 +1105,16 @@ impl ManageVars for BasicVarManager {
     }
 }
 
+impl Default for BasicVarManager {
+    fn default() -> Self {
+        Self {
+            next_var: Var::new(0),
+        }
+    }
+}
+
 /// Manager keeping track of used variables and variables associated with objects
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub struct ObjectVarManager {
     next_var: Var,
     object_map: HashMap<Box<dyn VarKey>, Var>,
@@ -1136,12 +1147,18 @@ impl ObjectVarManager {
     }
 }
 
-impl ManageVars for ObjectVarManager {
-    fn new() -> Self {
+impl Default for ObjectVarManager {
+    fn default() -> Self {
         Self {
             next_var: Var::new(0),
-            object_map: HashMap::new(),
+            object_map: Default::default(),
         }
+    }
+}
+
+impl ManageVars for ObjectVarManager {
+    fn new() -> Self {
+        Self::default()
     }
 
     fn next_free(&mut self) -> Var {

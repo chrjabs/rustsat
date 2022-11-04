@@ -6,7 +6,7 @@ pub mod card;
 pub mod pb;
 
 /// Errors from encodings
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum EncodingError {
     /// Encode was not called before using the encoding
     NotEncoded,
