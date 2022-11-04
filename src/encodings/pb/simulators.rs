@@ -25,7 +25,7 @@ where
     PBE: EncodePB<'a>,
 {
     pb_enc: PBE,
-    total_weight: usize,
+    weight_sum: usize,
     phantom: PhantomData<&'a PBE>,
 }
 
@@ -41,7 +41,7 @@ where
     {
         InvertedPB {
             pb_enc: PBE::new(),
-            total_weight: 0,
+            weight_sum: 0,
             phantom: PhantomData,
         }
     }
@@ -49,7 +49,7 @@ where
     fn add(&mut self, lits: RsHashMap<Lit, usize>) {
         let mut neg_lits = RsHashMap::default();
         lits.iter().for_each(|(&l, &w)| {
-            self.total_weight += w;
+            self.weight_sum += w;
             neg_lits.insert(!l, w);
         });
         self.pb_enc.add(neg_lits)
@@ -57,6 +57,10 @@ where
 
     fn iter(&'a self) -> Self::Iter {
         self.pb_enc.iter().map(negate_weighted)
+    }
+
+    fn weight_sum(&self) -> usize {
+        self.weight_sum
     }
 }
 
@@ -70,7 +74,7 @@ where
     {
         InvertedPB {
             pb_enc: PBE::new_reserving(),
-            total_weight: 0,
+            weight_sum: 0,
             phantom: PhantomData,
         }
     }
@@ -86,13 +90,13 @@ where
         max_ub: usize,
         var_manager: &mut dyn ManageVars,
     ) -> Result<CNF, EncodingError> {
-        let min_lb = if self.total_weight > max_ub {
-            self.total_weight - max_ub
+        let min_lb = if self.weight_sum > max_ub {
+            self.weight_sum - max_ub
         } else {
             0
         };
-        let max_lb = if self.total_weight > min_ub {
-            self.total_weight - min_ub
+        let max_lb = if self.weight_sum > min_ub {
+            self.weight_sum - min_ub
         } else {
             0
         };
@@ -100,8 +104,8 @@ where
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
-        let lb = if self.total_weight > ub {
-            self.total_weight - ub
+        let lb = if self.weight_sum > ub {
+            self.weight_sum - ub
         } else {
             return Ok(vec![]);
         };
@@ -119,13 +123,13 @@ where
         max_lb: usize,
         var_manager: &mut dyn ManageVars,
     ) -> Result<CNF, EncodingError> {
-        let min_ub = if self.total_weight > max_lb {
-            self.total_weight - max_lb
+        let min_ub = if self.weight_sum > max_lb {
+            self.weight_sum - max_lb
         } else {
             0
         };
-        let max_ub = if self.total_weight > min_lb {
-            self.total_weight - min_lb
+        let max_ub = if self.weight_sum > min_lb {
+            self.weight_sum - min_lb
         } else {
             0
         };
@@ -133,8 +137,8 @@ where
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
-        let ub = if self.total_weight > lb {
-            self.total_weight - lb
+        let ub = if self.weight_sum > lb {
+            self.weight_sum - lb
         } else {
             return Err(EncodingError::Unsat);
         };
@@ -152,13 +156,13 @@ where
         max_ub: usize,
         var_manager: &mut dyn ManageVars,
     ) -> Result<CNF, EncodingError> {
-        let min_lb = if self.total_weight > max_ub {
-            self.total_weight - max_ub
+        let min_lb = if self.weight_sum > max_ub {
+            self.weight_sum - max_ub
         } else {
             0
         };
-        let max_lb = if self.total_weight > min_ub {
-            self.total_weight - min_ub
+        let max_lb = if self.weight_sum > min_ub {
+            self.weight_sum - min_ub
         } else {
             0
         };
@@ -176,13 +180,13 @@ where
         max_lb: usize,
         var_manager: &mut dyn ManageVars,
     ) -> Result<CNF, EncodingError> {
-        let min_ub = if self.total_weight > max_lb {
-            self.total_weight - max_lb
+        let min_ub = if self.weight_sum > max_lb {
+            self.weight_sum - max_lb
         } else {
             0
         };
-        let max_ub = if self.total_weight > min_lb {
-            self.total_weight - min_lb
+        let max_ub = if self.weight_sum > min_lb {
+            self.weight_sum - min_lb
         } else {
             0
         };
@@ -247,6 +251,10 @@ where
 
     fn iter(&'a self) -> Self::Iter {
         self.ub_enc.iter()
+    }
+
+    fn weight_sum(&self) -> usize {
+        self.ub_enc.weight_sum()
     }
 }
 
@@ -387,6 +395,10 @@ where
 
     fn iter(&'a self) -> Self::Iter {
         self.card_enc.iter().map(add_unit_weight)
+    }
+
+    fn weight_sum(&self) -> usize {
+        self.card_enc.n_lits()
     }
 }
 

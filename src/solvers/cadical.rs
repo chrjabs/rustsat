@@ -498,7 +498,7 @@ impl Solve for CaDiCaL<'_> {
         }
     }
 
-    fn lit_val(&self, lit: &Lit) -> Result<TernaryVal, SolverError> {
+    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError> {
         match &self.state {
             InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();

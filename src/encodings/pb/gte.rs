@@ -38,7 +38,7 @@ pub struct GeneralizedTotalizer {
     /// Maximum weight of a leaf, needed for computing how much more than `max_rhs` to encode
     max_leaf_weight: usize,
     /// Sum of all input weight
-    total_weight: usize,
+    weight_sum: usize,
     /// The number of variables in the GTE
     n_vars: usize,
     /// The number of clauses in the GTE
@@ -49,7 +49,7 @@ impl GeneralizedTotalizer {
     /// Recursively builds the tree data structure. Uses weights out of
     /// `lit_buffer` to initialize leafs.
     fn build_tree(lits: &[(Lit, usize)]) -> Node {
-        assert_ne!(lits.len(), 0);
+        debug_assert_ne!(lits.len(), 0);
 
         if lits.len() == 1 {
             return Node::new_leaf(lits[0].0, lits[0].1);
@@ -124,7 +124,7 @@ impl<'a> EncodePB<'a> for GeneralizedTotalizer {
             root: None,
             reserve_vars: false,
             max_leaf_weight: 0,
-            total_weight: 0,
+            weight_sum: 0,
             n_vars: 0,
             n_clauses: 0,
         }
@@ -132,7 +132,7 @@ impl<'a> EncodePB<'a> for GeneralizedTotalizer {
 
     fn add(&mut self, lits: RsHashMap<Lit, usize>) {
         lits.iter().for_each(|(l, w)| {
-            self.total_weight += w;
+            self.weight_sum += w;
             // Insert into buffer to be added to tree
             match self.lit_buffer.get_mut(l) {
                 Some(old_w) => *old_w += *w,
@@ -153,6 +153,10 @@ impl<'a> EncodePB<'a> for GeneralizedTotalizer {
     fn iter(&'a self) -> Self::Iter {
         self.in_lits.iter().map(copy_key_val)
     }
+
+    fn weight_sum(&self) -> usize {
+        self.weight_sum
+    }
 }
 
 impl IncEncodePB<'_> for GeneralizedTotalizer {
@@ -166,7 +170,7 @@ impl IncEncodePB<'_> for GeneralizedTotalizer {
             root: None,
             reserve_vars: true,
             max_leaf_weight: 0,
-            total_weight: 0,
+            weight_sum: 0,
             n_vars: 0,
             n_clauses: 0,
         }
@@ -214,7 +218,7 @@ impl UBPB<'_> for GeneralizedTotalizer {
         // Enforce bound on internal tree
         assumps.extend(match &self.root {
             None => {
-                assert!(self.in_lits.is_empty());
+                debug_assert!(self.in_lits.is_empty());
                 vec![]
             }
             Some(root_node) => match &**root_node {
@@ -599,14 +603,14 @@ impl Node {
                 {
                     out_lits
                         .entry(left_val)
-                        .or_insert_with(|| var_manager.next_free().pos_lit());
+                        .or_insert_with(|| var_manager.new_var().pos_lit());
                 }
                 for (&right_val, _) in
                     right_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
                 {
                     out_lits
                         .entry(right_val)
-                        .or_insert_with(|| var_manager.next_free().pos_lit());
+                        .or_insert_with(|| var_manager.new_var().pos_lit());
                 }
                 for (&left_val, _) in
                     left_lits.range((Bound::Excluded(0), Bound::Excluded(max_enc)))
@@ -625,7 +629,7 @@ impl Node {
                         }
                         out_lits
                             .entry(left_val + right_val)
-                            .or_insert_with(|| var_manager.next_free().pos_lit());
+                            .or_insert_with(|| var_manager.new_var().pos_lit());
                     }
                 }
             }
@@ -942,7 +946,7 @@ mod tests {
         let tot_cnf = tot.encode_ub(3, 7, &mut var_manager_tot).unwrap();
         println!("{:?}", gte_cnf);
         println!("{:?}", tot_cnf);
-        assert_eq!(var_manager_gte.next_free(), var_manager_tot.next_free());
+        assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());
         assert_eq!(gte_cnf.n_clauses(), tot_cnf.n_clauses());
         assert_eq!(gte_cnf.n_clauses(), gte.n_clauses());
         assert_eq!(tot_cnf.n_clauses(), tot.n_clauses());

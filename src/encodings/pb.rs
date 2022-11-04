@@ -81,6 +81,8 @@ pub trait EncodePB<'a> {
     fn add(&mut self, lits: RsHashMap<Lit, usize>);
     /// Gets an iterator over copies of the input literals
     fn iter(&'a self) -> Self::Iter;
+    /// Get the sum of weights in the encoding
+    fn weight_sum(&self) -> usize;
 }
 
 /// An iterator over the weighted input literals in a cardinality encoding. The

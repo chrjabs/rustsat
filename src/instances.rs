@@ -22,6 +22,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Clause, Lit, RsHashMap, RsHasher, Var,
     },
+    var,
 };
 
 #[cfg(feature = "compression")]
@@ -273,7 +274,7 @@ impl<VM: ManageVars> SatInstance<VM> {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.next_free();
+                    let nfv = vm.new_var();
                     let mut vm2 = VM::new();
                     vm2.increase_next_free(nfv);
                     vm2
@@ -305,7 +306,7 @@ impl<VM: ManageVars> SatInstance<VM> {
             Err(opb_error) => Err(ParsingError::Opb(opb_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.next_free();
+                    let nfv = vm.new_var();
                     let mut vm2 = VM::new();
                     vm2.increase_next_free(nfv);
                     vm2
@@ -532,8 +533,8 @@ impl<VM: ManageVars> SatInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
         PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
     {
-        let (cnf, mut vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
-        dimacs::write_cnf(writer, cnf, vm.next_free() - 1)
+        let (cnf, vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
+        dimacs::write_cnf(writer, cnf, vm.max_var())
     }
 
     /// Writes the instance to an OPB file
@@ -890,7 +891,7 @@ impl Objective {
                 soft_lits.reserve(soft_clauses.len());
                 for (mut cl, w) in soft_clauses {
                     if cl.len() > 1 {
-                        let relax_lit = var_manager.next_free().pos_lit();
+                        let relax_lit = var_manager.new_var().pos_lit();
                         cl.add(relax_lit);
                         cnf.add_clause(cl);
                         soft_lits.insert(relax_lit, w);
@@ -933,7 +934,7 @@ impl Objective {
                     soft_lits.reserve(soft_clauses.len());
                     for mut cl in soft_clauses {
                         if cl.len() > 1 {
-                            let relax_lit = var_manager.next_free().pos_lit();
+                            let relax_lit = var_manager.new_var().pos_lit();
                             cl.add(relax_lit);
                             cnf.add_clause(cl);
                             soft_lits.push(relax_lit);
@@ -1018,7 +1019,7 @@ impl<VM: ManageVars> OptInstance<VM> {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.next_free();
+                    let nfv = vm.new_var();
                     let mut vm2 = VM::new();
                     vm2.increase_next_free(nfv);
                     vm2
@@ -1073,7 +1074,7 @@ impl<VM: ManageVars> OptInstance<VM> {
             Err(opb_error) => Err(ParsingError::Opb(opb_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.next_free();
+                    let nfv = vm.new_var();
                     let mut vm2 = VM::new();
                     vm2.increase_next_free(nfv);
                     vm2
@@ -1168,9 +1169,9 @@ impl<VM: ManageVars> OptInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
         PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
     {
-        let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
+        let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.obj.as_soft_cls();
-        dimacs::write_wcnf(writer, cnf, soft_cls, Some(vm.next_free() - 1))
+        dimacs::write_wcnf(writer, cnf, soft_cls, vm.max_var())
     }
 
     /// Writes the instance to an OPB file
@@ -1349,7 +1350,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.next_free();
+                    let nfv = vm.new_var();
                     let mut vm2 = VM::new();
                     vm2.increase_next_free(nfv);
                     vm2
@@ -1381,7 +1382,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             Err(opb_error) => Err(ParsingError::Opb(opb_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.next_free();
+                    let nfv = vm.new_var();
                     let mut vm2 = VM::new();
                     vm2.increase_next_free(nfv);
                     vm2
@@ -1471,7 +1472,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     {
         let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
-        dimacs::write_mcnf(writer, cnf, soft_cls, Some(vm.next_free() - 1))
+        dimacs::write_mcnf(writer, cnf, soft_cls, vm.max_var())
     }
 
     /// Writes the instance to an OPB file
@@ -1486,27 +1487,24 @@ pub trait ManageVars {
     fn new() -> Self
     where
         Self: Sized;
-
     /// Uses up the next free variable
-    fn next_free(&mut self) -> Var;
-
+    fn new_var(&mut self) -> Var;
+    /// Gets the used variable with the highest index
+    fn max_var(&self) -> Option<Var>;
     /// Increases the next free variable index if the provided variable has a
     /// higher index than the next variable in the manager.
     /// Returns true if the next free index has been increased and false otherwise.
     fn increase_next_free(&mut self, v: Var) -> bool;
-
     /// Marks variables up to the given one as used. Returns true if the next
     /// free index has been increased and false otherwise.
     fn mark_used(&mut self, v: Var) -> bool {
         self.increase_next_free(v + 1)
     }
-
     /// Combines two variable managers.
     /// In case an object is in both object maps, the one of `other` has precedence.
     fn combine(&mut self, other: Self)
     where
         Self: Sized;
-
     /// Gets the number of used variables. Typically this is just the index of
     /// the next free variable.
     fn n_used(&self) -> usize;
@@ -1530,10 +1528,18 @@ impl ManageVars for BasicVarManager {
         Self::default()
     }
 
-    fn next_free(&mut self) -> Var {
+    fn new_var(&mut self) -> Var {
         let v = self.next_var;
         self.next_var = Var::new(v.idx() + 1);
         v
+    }
+
+    fn max_var(&self) -> Option<Var> {
+        if self.next_var == var![0] {
+            None
+        } else {
+            Some(self.next_var - 1)
+        }
     }
 
     fn increase_next_free(&mut self, v: Var) -> bool {
@@ -1589,7 +1595,7 @@ impl ObjectVarManager {
         match self.object_map.get(&key) {
             Some(v) => *v,
             None => {
-                let v = self.next_free();
+                let v = self.new_var();
                 self.object_map.insert(key, v);
                 v
             }
@@ -1611,10 +1617,18 @@ impl ManageVars for ObjectVarManager {
         Self::default()
     }
 
-    fn next_free(&mut self) -> Var {
+    fn new_var(&mut self) -> Var {
         let v = self.next_var;
         self.next_var = Var::new(v.idx() + 1);
         v
+    }
+
+    fn max_var(&self) -> Option<Var> {
+        if self.next_var == var![0] {
+            None
+        } else {
+            Some(self.next_var - 1)
+        }
     }
 
     fn increase_next_free(&mut self, v: Var) -> bool {
@@ -1688,10 +1702,10 @@ mod tests {
     #[test]
     fn var_manager_sequence() {
         let mut man = ObjectVarManager::new();
-        let v1 = man.next_free();
-        let v2 = man.next_free();
-        let v3 = man.next_free();
-        let v4 = man.next_free();
+        let v1 = man.new_var();
+        let v2 = man.new_var();
+        let v3 = man.new_var();
+        let v4 = man.new_var();
         assert_eq!(v1.idx(), 0);
         assert_eq!(v2.idx(), 1);
         assert_eq!(v3.idx(), 2);

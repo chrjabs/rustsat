@@ -529,12 +529,20 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str, DimacsError> {
 }
 
 /// Writes a CNF to a DIMACS CNF file
-pub fn write_cnf<W: Write>(writer: &mut W, cnf: CNF, max_var: Var) -> Result<(), io::Error> {
+pub fn write_cnf<W: Write>(
+    writer: &mut W,
+    cnf: CNF,
+    max_var: Option<Var>,
+) -> Result<(), io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
     writeln!(
         writer,
         "p cnf {} {}",
-        max_var.pos_lit().to_ipasir(),
+        if let Some(max_var) = max_var {
+            max_var.pos_lit().to_ipasir()
+        } else {
+            0
+        },
         cnf.n_clauses()
     )?;
     cnf.into_iter()
@@ -1089,7 +1097,7 @@ mod tests {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_cnf(&mut cursor, true_cnf.clone(), var![1]).unwrap();
+        write_cnf(&mut cursor, true_cnf.clone(), Some(var![1])).unwrap();
 
         cursor.rewind().unwrap();
 

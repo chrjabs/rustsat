@@ -491,6 +491,7 @@ impl fmt::Debug for TernaryVal {
 
 /// Type representing a solution to a formula.
 #[derive(Clone, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct Solution {
     assignment: Vec<TernaryVal>,
 }
@@ -505,24 +506,24 @@ impl Solution {
     /// Get the value that the solution assigns to a variable.
     /// If the variable is not included in the solution, will return `None`.
     /// (Note that this is different from an explicit "don't care" for the variable.)
-    pub fn var_value(&self, var: &Var) -> Option<&TernaryVal> {
+    pub fn var_value(&self, var: Var) -> Option<TernaryVal> {
         if var.idx >= self.assignment.len() {
             None
         } else {
-            Some(&self.assignment[var.idx])
+            Some(self.assignment[var.idx])
         }
     }
 
     /// Same as [`Solution::var_value`], but for literals.
-    pub fn lit_value(&self, lit: &Lit) -> Option<&TernaryVal> {
+    pub fn lit_value(&self, lit: Lit) -> Option<TernaryVal> {
         if lit.is_neg() {
-            match self.var_value(&lit.var())? {
-                TernaryVal::DontCare => Some(&TernaryVal::DontCare),
-                TernaryVal::True => Some(&TernaryVal::False),
-                TernaryVal::False => Some(&TernaryVal::True),
+            match self.var_value(lit.var())? {
+                TernaryVal::DontCare => Some(TernaryVal::DontCare),
+                TernaryVal::True => Some(TernaryVal::False),
+                TernaryVal::False => Some(TernaryVal::True),
             }
         } else {
-            self.var_value(&lit.var())
+            self.var_value(lit.var())
         }
     }
 
@@ -552,6 +553,27 @@ impl fmt::Display for Solution {
         self.assignment
             .iter()
             .try_for_each(|tv| write!(f, "{}", tv))
+    }
+}
+
+/// Turns the solution into an iterator over all true literals
+impl IntoIterator for Solution {
+    type Item = Lit;
+
+    type IntoIter = std::iter::FilterMap<
+        std::iter::Enumerate<std::vec::IntoIter<TernaryVal>>,
+        fn((usize, TernaryVal)) -> Option<Lit>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.assignment
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, tv)| match tv {
+                TernaryVal::True => Some(Var::new(idx).pos_lit()),
+                TernaryVal::False => Some(Var::new(idx).neg_lit()),
+                TernaryVal::DontCare => None,
+            })
     }
 }
 
@@ -676,11 +698,11 @@ mod tests {
             TernaryVal::False,
             TernaryVal::DontCare,
         ]);
-        let val = *sol.var_value(&Var::new(0)).unwrap();
+        let val = sol.var_value(Var::new(0)).unwrap();
         assert_eq!(val, TernaryVal::True);
-        let val = *sol.var_value(&Var::new(1)).unwrap();
+        let val = sol.var_value(Var::new(1)).unwrap();
         assert_eq!(val, TernaryVal::False);
-        let val = *sol.var_value(&Var::new(2)).unwrap();
+        let val = sol.var_value(Var::new(2)).unwrap();
         assert_eq!(val, TernaryVal::DontCare);
     }
 
@@ -691,17 +713,17 @@ mod tests {
             TernaryVal::False,
             TernaryVal::DontCare,
         ]);
-        let val = *sol.lit_value(&Lit::negative(0)).unwrap();
+        let val = sol.lit_value(Lit::negative(0)).unwrap();
         assert_eq!(val, TernaryVal::False);
-        let val = *sol.lit_value(&Lit::positive(0)).unwrap();
+        let val = sol.lit_value(Lit::positive(0)).unwrap();
         assert_eq!(val, TernaryVal::True);
-        let val = *sol.lit_value(&Lit::negative(1)).unwrap();
+        let val = sol.lit_value(Lit::negative(1)).unwrap();
         assert_eq!(val, TernaryVal::True);
-        let val = *sol.lit_value(&Lit::positive(1)).unwrap();
+        let val = sol.lit_value(Lit::positive(1)).unwrap();
         assert_eq!(val, TernaryVal::False);
-        let val = *sol.lit_value(&Lit::negative(2)).unwrap();
+        let val = sol.lit_value(Lit::negative(2)).unwrap();
         assert_eq!(val, TernaryVal::DontCare);
-        let val = *sol.lit_value(&Lit::positive(2)).unwrap();
+        let val = sol.lit_value(Lit::positive(2)).unwrap();
         assert_eq!(val, TernaryVal::DontCare);
     }
 
@@ -713,11 +735,11 @@ mod tests {
             TernaryVal::DontCare,
         ]);
         sol.replace_dont_care(true);
-        let val = *sol.var_value(&Var::new(0)).unwrap();
+        let val = sol.var_value(Var::new(0)).unwrap();
         assert_eq!(val, TernaryVal::True);
-        let val = *sol.var_value(&Var::new(1)).unwrap();
+        let val = sol.var_value(Var::new(1)).unwrap();
         assert_eq!(val, TernaryVal::False);
-        let val = *sol.var_value(&Var::new(2)).unwrap();
+        let val = sol.var_value(Var::new(2)).unwrap();
         assert_eq!(val, TernaryVal::True);
     }
 

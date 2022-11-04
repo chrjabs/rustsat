@@ -73,6 +73,8 @@ pub trait EncodeCard<'a> {
     fn add(&mut self, lits: Vec<Lit>);
     /// Gets an iterator over copies of the input literals
     fn iter(&'a self) -> Self::Iter;
+    /// Gets the number of literals in the encoding
+    fn n_lits(&self) -> usize;
 }
 
 /// An iterator over the input literals in a cardinality encoding. The iterator
