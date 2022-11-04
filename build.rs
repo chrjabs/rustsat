@@ -187,14 +187,15 @@ fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
     let repo = match git2::Repository::open(path) {
         Ok(repo) => {
             // Fetch repo
-            let mut remote = repo.find_remote("origin").expect(&format!(
-                "Expected remote \"origin\" in git repo {:?}",
-                path
-            ));
-            remote.fetch(&[branch], None, None).expect(&format!(
-                "Could not fetch \"origin/{}\" for git repo {:?}",
-                branch, path
-            ));
+            let mut remote = repo
+                .find_remote("origin")
+                .unwrap_or_else(|_| panic!("Expected remote \"origin\" in git repo {:?}", path));
+            remote.fetch(&[branch], None, None).unwrap_or_else(|_| {
+                panic!(
+                    "Could not fetch \"origin/{}\" for git repo {:?}",
+                    branch, path
+                )
+            });
             drop(remote);
             repo
         }
