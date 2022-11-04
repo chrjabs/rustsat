@@ -13,7 +13,7 @@ use rustsat::{
     var,
 };
 
-fn test_inc_both_card<'a, CE: IncBothBCard<'a>>(mut enc: CE) {
+fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -88,7 +88,7 @@ fn test_inc_both_card<'a, CE: IncBothBCard<'a>>(mut enc: CE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-fn test_both_card<'a, CE: BothBCard<'a>>(mut enc: CE) {
+fn test_both_card<CE: BothBCard>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -123,7 +123,7 @@ fn test_both_card<'a, CE: BothBCard<'a>>(mut enc: CE) {
 }
 
 /// Requires a cardinality encoding with upper and lower bounding functionality
-fn test_both_card_min_enc<'a, CE: BothBCard<'a>>(mut enc: CE) {
+fn test_both_card_min_enc<CE: BothBCard>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();

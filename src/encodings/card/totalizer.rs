@@ -9,10 +9,7 @@
 //! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
-use super::{
-    EncodeCard, EncodingError, IncEncodeCard, IncLBCard, IncUBCard, IterCardEncoding, LBCard,
-    UBCard,
-};
+use super::{EncodeCard, EncodingError, IncEncodeCard, IncLBCard, IncUBCard, LBCard, UBCard};
 use crate::{
     encodings::EncodeStats,
     instances::{ManageVars, CNF},
@@ -89,8 +86,8 @@ impl Totalizer {
     }
 }
 
-impl<'a> EncodeCard<'a> for Totalizer {
-    type Iter = TotIter<'a>;
+impl EncodeCard for Totalizer {
+    type Iter<'a> = TotIter<'a>;
 
     fn new() -> Self {
         Totalizer {
@@ -107,7 +104,7 @@ impl<'a> EncodeCard<'a> for Totalizer {
         self.in_lits.extend(lits);
     }
 
-    fn iter(&'a self) -> Self::Iter {
+    fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.in_lits.iter().copied()
     }
 
@@ -116,7 +113,7 @@ impl<'a> EncodeCard<'a> for Totalizer {
     }
 }
 
-impl IncEncodeCard<'_> for Totalizer {
+impl IncEncodeCard for Totalizer {
     fn new_reserving() -> Self {
         Totalizer {
             in_lits: vec![],
@@ -129,7 +126,7 @@ impl IncEncodeCard<'_> for Totalizer {
     }
 }
 
-impl UBCard<'_> for Totalizer {
+impl UBCard for Totalizer {
     fn encode_ub(
         &mut self,
         min_ub: usize,
@@ -183,7 +180,7 @@ impl UBCard<'_> for Totalizer {
     }
 }
 
-impl LBCard<'_> for Totalizer {
+impl LBCard for Totalizer {
     fn encode_lb(
         &mut self,
         min_lb: usize,
@@ -239,7 +236,7 @@ impl LBCard<'_> for Totalizer {
     }
 }
 
-impl IncUBCard<'_> for Totalizer {
+impl IncUBCard for Totalizer {
     fn encode_ub_change(
         &mut self,
         min_ub: usize,
@@ -263,7 +260,7 @@ impl IncUBCard<'_> for Totalizer {
     }
 }
 
-impl IncLBCard<'_> for Totalizer {
+impl IncLBCard for Totalizer {
     fn encode_lb_change(
         &mut self,
         min_lb: usize,
@@ -298,7 +295,6 @@ impl EncodeStats for Totalizer {
 }
 
 type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
-impl<'a> IterCardEncoding<'a> for TotIter<'a> {}
 
 enum Node {
     Leaf {
