@@ -21,6 +21,4 @@ jobs:
     - name: Format
       uses: actions-rust-lang/rustfmt@v1.0.1
     - name: Lint
-      uses: qernal/github-actions-rust-clippy@v2.0.0
-      with:
-        args: "--features=all-non-conflicting"
+      run: cargo clippy --verbose --features=all-non-conflicting
