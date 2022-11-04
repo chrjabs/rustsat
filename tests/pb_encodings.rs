@@ -16,7 +16,7 @@ use rustsat::{
     var,
 };
 
-fn test_inc_pb_ub<'a, PBE: IncUBPB<'a>>(mut enc: PBE) {
+fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -108,7 +108,7 @@ fn test_inc_pb_ub<'a, PBE: IncUBPB<'a>>(mut enc: PBE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-fn test_pb_eq<'a, PBE: IncBothBPB<'a>>(mut enc: PBE) {
+fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
@@ -165,7 +165,7 @@ fn test_pb_eq<'a, PBE: IncBothBPB<'a>>(mut enc: PBE) {
     assert_eq!(res, SolverResult::UNSAT);
 }
 
-fn test_pb_lb<'a, PBE: LBPB<'a>>(mut enc: PBE) {
+fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver
@@ -196,7 +196,7 @@ fn test_pb_lb<'a, PBE: LBPB<'a>>(mut enc: PBE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-fn test_pb_ub_min_enc<'a, PBE: UBPB<'a>>(mut enc: PBE) {
+fn test_pb_ub_min_enc<PBE: UBPB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();

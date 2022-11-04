@@ -8,7 +8,7 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{EncodePB, EncodingError, IncEncodePB, IncUBPB, IterPBEncoding, UBPB};
+use super::{EncodePB, EncodingError, IncEncodePB, IncUBPB, UBPB};
 use crate::{
     encodings::EncodeStats,
     instances::{ManageVars, CNF},
@@ -111,8 +111,8 @@ impl GeneralizedTotalizer {
     }
 }
 
-impl<'a> EncodePB<'a> for GeneralizedTotalizer {
-    type Iter = GTEIter<'a>;
+impl EncodePB for GeneralizedTotalizer {
+    type Iter<'a> = GTEIter<'a>;
 
     fn new() -> Self
     where
@@ -150,7 +150,7 @@ impl<'a> EncodePB<'a> for GeneralizedTotalizer {
         });
     }
 
-    fn iter(&'a self) -> Self::Iter {
+    fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.in_lits.iter().map(copy_key_val)
     }
 
@@ -159,7 +159,7 @@ impl<'a> EncodePB<'a> for GeneralizedTotalizer {
     }
 }
 
-impl IncEncodePB<'_> for GeneralizedTotalizer {
+impl IncEncodePB for GeneralizedTotalizer {
     fn new_reserving() -> Self
     where
         Self: Sized,
@@ -177,7 +177,7 @@ impl IncEncodePB<'_> for GeneralizedTotalizer {
     }
 }
 
-impl UBPB<'_> for GeneralizedTotalizer {
+impl UBPB for GeneralizedTotalizer {
     fn encode_ub(
         &mut self,
         min_ub: usize,
@@ -256,7 +256,7 @@ impl UBPB<'_> for GeneralizedTotalizer {
     }
 }
 
-impl IncUBPB<'_> for GeneralizedTotalizer {
+impl IncUBPB for GeneralizedTotalizer {
     fn encode_ub_change(
         &mut self,
         min_ub: usize,
@@ -297,7 +297,6 @@ type GTEIter<'a> = std::iter::Map<
     std::collections::hash_map::Iter<'a, Lit, usize>,
     fn((&Lit, &usize)) -> (Lit, usize),
 >;
-impl<'a> IterPBEncoding<'a> for GTEIter<'a> {}
 
 /// The Totalzier nodes are _only_ for upper bounding. Lower bounding in the GTE
 /// is possible by negating input literals. This conversion entirely happens in
