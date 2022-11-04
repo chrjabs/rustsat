@@ -438,7 +438,10 @@ impl<'a> CaDiCaL<'a> {
 
 impl Solve for CaDiCaL<'_> {
     fn new() -> Self {
-        Self::default()
+        let solver = Self::default();
+        let quiet = CString::new("quiet").unwrap();
+        unsafe { ffi::ccadical_set_option_ret(solver.handle, quiet.as_ptr(), 1) };
+        solver
     }
 
     fn signature(&self) -> &'static str {
