@@ -466,8 +466,10 @@ impl Solve for CaDiCaL<'_> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::SAT);
-        } else if let InternalSolverState::Unsat(_) = self.state {
-            return Ok(SolverResult::UNSAT);
+        } else if let InternalSolverState::Unsat(core) = &self.state {
+            if core.is_empty() {
+                return Ok(SolverResult::UNSAT);
+            }
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
                 SolverState::Error(desc.clone()),
