@@ -28,7 +28,7 @@
 //! lits.insert(lit![1], 2);
 //! lits.insert(lit![2], 2);
 //! lits.insert(lit![3], 6);
-//! enc.add(lits);
+//! enc.extend(lits);
 //! solver.add_cnf(enc.encode_both(4, 4, &mut var_manager).unwrap());
 //!
 //! let mut assumps = enc.enforce_eq(4).unwrap();
@@ -63,28 +63,12 @@ pub type DoubleGeneralizedTotalizer =
     simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
-pub trait Encode {
+pub trait Encode:
+    Default + From<RsHashMap<Lit, usize>> + FromIterator<(Lit, usize)> + Extend<(Lit, usize)>
+{
     type Iter<'a>: Iterator<Item = (Lit, usize)>
     where
         Self: 'a;
-    /// Constructs a new cardinality encoding
-    fn new() -> Self
-    where
-        Self: Sized;
-    /// Constructs a new cardinality encoding from input
-    /// literals.
-    fn new_from_lits<I>(lits: I) -> Self
-    where
-        Self: Sized,
-        I: Iterator<Item = (Lit, usize)>,
-    {
-        let lits = lits.collect();
-        let mut ce = Self::new();
-        ce.add(lits);
-        ce
-    }
-    /// Adds new literals to the cardinality encoding
-    fn add(&mut self, lits: RsHashMap<Lit, usize>);
     /// Gets an iterator over copies of the input literals
     fn iter<'a>(&'a self) -> Self::Iter<'a>;
     /// Get the sum of weights in the encoding
@@ -118,14 +102,14 @@ pub trait UB: Encode {
     where
         Self: Sized,
     {
-        let mut enc = Self::new();
+        let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
         let ub = if ub < 0 {
             return Err(EncodingError::Unsat);
         } else {
             ub as usize
         };
-        enc.add(lits);
+        enc.extend(lits);
         let mut cnf = enc.encode_ub(ub, ub, var_manager)?;
         enc.enforce_ub(ub)
             .unwrap()
@@ -164,14 +148,14 @@ pub trait LB: Encode {
     where
         Self: Sized,
     {
-        let mut enc = Self::new();
+        let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
         let lb = if lb < 0 {
             return Ok(CNF::new()); // tautology
         } else {
             lb as usize
         };
-        enc.add(lits);
+        enc.extend(lits);
         let mut cnf = enc.encode_lb(lb, lb, var_manager)?;
         enc.enforce_lb(lb)
             .unwrap()
@@ -218,14 +202,14 @@ pub trait BothB: UB + LB {
     where
         Self: Sized,
     {
-        let mut enc = Self::new();
+        let mut enc = Self::default();
         let (lits, b) = constr.decompose();
         let b = if b < 0 {
             return Err(EncodingError::Unsat);
         } else {
             b as usize
         };
-        enc.add(lits);
+        enc.extend(lits);
         let mut cnf = enc.encode_both(b, b, var_manager)?;
         enc.enforce_eq(b)
             .unwrap()
@@ -255,23 +239,8 @@ impl<PBE> BothB for PBE where PBE: UB + LB {}
 
 /// Trait for all pseudo-boolean encodings of form `sum of lits <> rhs`
 pub trait IncEncode: Encode {
-    /// Constructs a new pseudo-boolean encoding that reserves all variables on the
-    /// first call to an encode method
-    fn new_reserving() -> Self
-    where
-        Self: Sized;
-    /// Constructs a new pseudo-boolean encoding that reserves all variables on the
-    /// first call to an encode method from input literals.
-    fn new_reserving_from_lits<I>(lits: I) -> Self
-    where
-        Self: Sized,
-        I: Iterator<Item = (Lit, usize)>,
-    {
-        let lits = lits.collect();
-        let mut ce = Self::new_reserving();
-        ce.add(lits);
-        ce
-    }
+    /// Reserves all variables this encoding might need
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars);
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
@@ -345,32 +314,32 @@ pub type DefIncBothB = DoubleGeneralizedTotalizer;
 
 /// Constructs a default upper bounding pseudo-boolean encoding.
 pub fn new_default_ub() -> impl UB {
-    DefUB::new()
+    DefUB::default()
 }
 
 /// Constructs a default lower bounding pseudo-boolean encoding.
 pub fn new_default_lb() -> impl LB {
-    DefLB::new()
+    DefLB::default()
 }
 
 /// Constructs a default double bounding pseudo-boolean encoding.
 pub fn new_default_both() -> impl BothB {
-    DefBothB::new()
+    DefBothB::default()
 }
 
 /// Constructs a default incremental upper bounding pseudo-boolean encoding.
 pub fn new_default_inc_ub() -> impl IncUB {
-    DefIncUB::new()
+    DefIncUB::default()
 }
 
 /// Constructs a default incremental lower bounding pseudo-boolean encoding.
 pub fn new_default_inc_lb() -> impl LB {
-    DefIncLB::new()
+    DefIncLB::default()
 }
 
 /// Constructs a default incremental double bounding pseudo-boolean encoding.
 pub fn new_default_inc_both() -> impl BothB {
-    DefIncBothB::new()
+    DefIncBothB::default()
 }
 
 /// A default encoder for any pseudo-boolean constraint. This uses a

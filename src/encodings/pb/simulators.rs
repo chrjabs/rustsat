@@ -16,6 +16,7 @@ use crate::{
 
 /// Simulator type that builds a pseudo-boolean encoding of type `PBE` over the
 /// negated input literals in order to simulate the other bound type
+#[derive(Default)]
 pub struct Inverted<PBE>
 where
     PBE: Encode + 'static,
@@ -24,30 +25,47 @@ where
     weight_sum: usize,
 }
 
+impl<PBE> From<RsHashMap<Lit, usize>> for Inverted<PBE>
+where
+    PBE: Encode + 'static,
+{
+    fn from(lits: RsHashMap<Lit, usize>) -> Self {
+        let ws = lits.iter().fold(0, |ws, (_, w)| ws + w);
+        let lits: RsHashMap<Lit, usize> = lits.into_iter().map(|(l, w)| (!l, w)).collect();
+        Self {
+            pb_enc: PBE::from(lits),
+            weight_sum: ws,
+        }
+    }
+}
+
+impl<PBE> FromIterator<(Lit, usize)> for Inverted<PBE>
+where
+    PBE: Encode + 'static,
+{
+    fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
+        let lits: RsHashMap<Lit, usize> = iter.into_iter().collect();
+        Self::from(lits)
+    }
+}
+
+impl<PBE> Extend<(Lit, usize)> for Inverted<PBE>
+where
+    PBE: Encode + 'static,
+{
+    fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
+        let lits: RsHashMap<Lit, usize> = iter.into_iter().map(|(l, w)| (!l, w)).collect();
+        let ws = lits.iter().fold(0, |ws, (_, w)| ws + w);
+        self.pb_enc.extend(lits);
+        self.weight_sum += ws;
+    }
+}
+
 impl<PBE> Encode for Inverted<PBE>
 where
     PBE: Encode,
 {
     type Iter<'a> = InvertedIter<PBE::Iter<'a>>;
-
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Inverted {
-            pb_enc: PBE::new(),
-            weight_sum: 0,
-        }
-    }
-
-    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
-        let mut neg_lits = RsHashMap::default();
-        lits.iter().for_each(|(&l, &w)| {
-            self.weight_sum += w;
-            neg_lits.insert(!l, w);
-        });
-        self.pb_enc.add(neg_lits)
-    }
 
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.pb_enc.iter().map(negate_weighted)
@@ -62,14 +80,8 @@ impl<PBE> IncEncode for Inverted<PBE>
 where
     PBE: IncEncode,
 {
-    fn new_reserving() -> Self
-    where
-        Self: Sized,
-    {
-        Inverted {
-            pb_enc: PBE::new_reserving(),
-            weight_sum: 0,
-        }
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.pb_enc.reserve(var_manager)
     }
 }
 
@@ -208,6 +220,7 @@ type InvertedIter<IPBE> = std::iter::Map<IPBE, fn((Lit, usize)) -> (Lit, usize)>
 /// Simulator type that builds a combined pseudo-boolean encoding supporting
 /// both bounds from two individual pseudo-boolean encodings supporting each
 /// bound separately
+#[derive(Default)]
 pub struct Double<UBE, LBE>
 where
     UBE: UB + 'static,
@@ -217,27 +230,48 @@ where
     lb_enc: LBE,
 }
 
+impl<UBE, LBE> From<RsHashMap<Lit, usize>> for Double<UBE, LBE>
+where
+    UBE: UB + 'static,
+    LBE: LB + 'static,
+{
+    fn from(lits: RsHashMap<Lit, usize>) -> Self {
+        Self {
+            ub_enc: UBE::from(lits.clone()),
+            lb_enc: LBE::from(lits),
+        }
+    }
+}
+
+impl<UBE, LBE> FromIterator<(Lit, usize)> for Double<UBE, LBE>
+where
+    UBE: UB + 'static,
+    LBE: LB + 'static,
+{
+    fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
+        let lits: RsHashMap<Lit, usize> = iter.into_iter().collect();
+        Self::from(lits)
+    }
+}
+
+impl<UBE, LBE> Extend<(Lit, usize)> for Double<UBE, LBE>
+where
+    UBE: UB + 'static,
+    LBE: LB + 'static,
+{
+    fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
+        let lits: RsHashMap<Lit, usize> = iter.into_iter().collect();
+        self.ub_enc.extend(lits.clone());
+        self.lb_enc.extend(lits);
+    }
+}
+
 impl<UBE, LBE> Encode for Double<UBE, LBE>
 where
     UBE: UB,
     LBE: LB,
 {
     type Iter<'a> = UBE::Iter<'a>;
-
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Double {
-            ub_enc: UBE::new(),
-            lb_enc: LBE::new(),
-        }
-    }
-
-    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
-        self.ub_enc.add(lits.clone());
-        self.lb_enc.add(lits);
-    }
 
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.ub_enc.iter()
@@ -253,14 +287,9 @@ where
     UBE: IncUB,
     LBE: IncLB,
 {
-    fn new_reserving() -> Self
-    where
-        Self: Sized,
-    {
-        Double {
-            ub_enc: UBE::new_reserving(),
-            lb_enc: LBE::new_reserving(),
-        }
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.ub_enc.reserve(var_manager);
+        self.lb_enc.reserve(var_manager)
     }
 }
 
@@ -348,6 +377,7 @@ where
 
 /// Simulator type that mimics a pseudo-boolean encoding based on a cardinality
 /// encoding that literals are added to multiple times
+#[derive(Default)]
 pub struct Card<CE>
 where
     CE: card::Encode + 'static,
@@ -355,30 +385,48 @@ where
     card_enc: CE,
 }
 
+impl<CE> From<RsHashMap<Lit, usize>> for Card<CE>
+where
+    CE: card::Encode + 'static,
+{
+    fn from(lits: RsHashMap<Lit, usize>) -> Self {
+        Self::from_iter(lits)
+    }
+}
+
+impl<CE> FromIterator<(Lit, usize)> for Card<CE>
+where
+    CE: card::Encode + 'static,
+{
+    fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
+        let mut mult_lits = vec![];
+        iter.into_iter().for_each(|(l, w)| {
+            mult_lits.resize(mult_lits.len() + w, l);
+        });
+        Self {
+            card_enc: CE::from(mult_lits),
+        }
+    }
+}
+
+impl<CE> Extend<(Lit, usize)> for Card<CE>
+where
+    CE: card::Encode + 'static,
+{
+    fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
+        let mut mult_lits = vec![];
+        iter.into_iter().for_each(|(l, w)| {
+            mult_lits.resize(mult_lits.len() + w, l);
+        });
+        self.card_enc.extend(mult_lits)
+    }
+}
+
 impl<CE> Encode for Card<CE>
 where
     CE: card::Encode,
 {
     type Iter<'a> = CardIter<CE::Iter<'a>>;
-
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Card {
-            card_enc: CE::new(),
-        }
-    }
-
-    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
-        let mut lit_vec = vec![];
-        lits.iter().for_each(|(&l, &w)| {
-            for _ in 0..w {
-                lit_vec.push(l)
-            }
-        });
-        self.card_enc.add(lit_vec)
-    }
 
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.card_enc.iter().map(add_unit_weight)
@@ -393,13 +441,8 @@ impl<CE> IncEncode for Card<CE>
 where
     CE: card::IncEncode,
 {
-    fn new_reserving() -> Self
-    where
-        Self: Sized,
-    {
-        Card {
-            card_enc: CE::new_reserving(),
-        }
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.card_enc.reserve(var_manager)
     }
 }
 
