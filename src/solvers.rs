@@ -150,10 +150,13 @@ pub trait Solve {
     }
     /// Adds all clauses from a [`CNF`] instance.
     fn add_cnf(&mut self, cnf: CNF) -> SolveMightFail {
-        for cl in cnf {
-            self.add_clause(cl)?;
-        }
-        Ok(())
+        cnf.into_iter().fold(Ok(()), |res, cl| {
+            if res.is_ok() {
+                self.add_clause(cl)
+            } else {
+                res
+            }
+        })
     }
 }
 

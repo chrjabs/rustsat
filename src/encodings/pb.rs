@@ -264,7 +264,7 @@ pub trait IncEncodePB: EncodePB {
         I: Iterator<Item = (Lit, usize)>,
     {
         let lits = lits.collect();
-        let mut ce = Self::new();
+        let mut ce = Self::new_reserving();
         ce.add(lits);
         ce
     }

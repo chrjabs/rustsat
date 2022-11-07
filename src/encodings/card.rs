@@ -239,7 +239,7 @@ pub trait IncEncodeCard: EncodeCard {
         I: Iterator<Item = Lit>,
     {
         let lits = lits.collect();
-        let mut ce = Self::new();
+        let mut ce = Self::new_reserving();
         ce.add(lits);
         ce
     }
