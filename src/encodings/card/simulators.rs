@@ -7,7 +7,7 @@
 
 use std::ops::Not;
 
-use super::{EncodeCard, IncEncodeCard, IncLBCard, IncUBCard, LBCard, UBCard};
+use super::{Encode, IncEncode, IncLB, IncUB, LB, UB};
 use crate::{
     encodings::{EncodeStats, EncodingError},
     instances::{ManageVars, CNF},
@@ -16,17 +16,17 @@ use crate::{
 
 /// Simulator type that builds a cardinality encoding of type `CE` over the
 /// negated input literals in order to simulate the other bound type
-pub struct InvertedCard<CE>
+pub struct Inverted<CE>
 where
-    CE: EncodeCard + 'static,
+    CE: Encode + 'static,
 {
     card_enc: CE,
     n_lits: usize,
 }
 
-impl<CE> EncodeCard for InvertedCard<CE>
+impl<CE> Encode for Inverted<CE>
 where
-    CE: EncodeCard,
+    CE: Encode,
 {
     type Iter<'a> = InvertedIter<CE::Iter<'a>>;
 
@@ -34,7 +34,7 @@ where
     where
         Self: Sized,
     {
-        InvertedCard {
+        Inverted {
             card_enc: CE::new(),
             n_lits: 0,
         }
@@ -55,24 +55,24 @@ where
     }
 }
 
-impl<CE> IncEncodeCard for InvertedCard<CE>
+impl<CE> IncEncode for Inverted<CE>
 where
-    CE: IncEncodeCard,
+    CE: IncEncode,
 {
     fn new_reserving() -> Self
     where
         Self: Sized,
     {
-        InvertedCard {
+        Inverted {
             card_enc: CE::new_reserving(),
             n_lits: 0,
         }
     }
 }
 
-impl<CE> UBCard for InvertedCard<CE>
+impl<CE> UB for Inverted<CE>
 where
-    CE: LBCard,
+    CE: LB,
 {
     fn encode_ub(
         &mut self,
@@ -103,9 +103,9 @@ where
     }
 }
 
-impl<CE> LBCard for InvertedCard<CE>
+impl<CE> LB for Inverted<CE>
 where
-    CE: UBCard,
+    CE: UB,
 {
     fn encode_lb(
         &mut self,
@@ -136,9 +136,9 @@ where
     }
 }
 
-impl<CE> IncUBCard for InvertedCard<CE>
+impl<CE> IncUB for Inverted<CE>
 where
-    CE: IncLBCard,
+    CE: IncLB,
 {
     fn encode_ub_change(
         &mut self,
@@ -160,9 +160,9 @@ where
     }
 }
 
-impl<CE> IncLBCard for InvertedCard<CE>
+impl<CE> IncLB for Inverted<CE>
 where
-    CE: IncUBCard,
+    CE: IncUB,
 {
     fn encode_lb_change(
         &mut self,
@@ -184,9 +184,9 @@ where
     }
 }
 
-impl<CE> EncodeStats for InvertedCard<CE>
+impl<CE> EncodeStats for Inverted<CE>
 where
-    CE: EncodeCard + EncodeStats,
+    CE: Encode + EncodeStats,
 {
     fn n_clauses(&self) -> usize {
         self.card_enc.n_clauses()
@@ -202,29 +202,29 @@ type InvertedIter<ICE> = std::iter::Map<ICE, fn(Lit) -> Lit>;
 /// Simulator type that builds a combined cardinality encoding supporting both
 /// bounds from two individual cardinality encodings supporting each bound
 /// separately
-pub struct DoubleCard<UB, LB>
+pub struct Double<UBE, LBE>
 where
-    UB: UBCard + 'static,
-    LB: LBCard + 'static,
+    UBE: UB + 'static,
+    LBE: LB + 'static,
 {
-    ub_enc: UB,
-    lb_enc: LB,
+    ub_enc: UBE,
+    lb_enc: LBE,
 }
 
-impl<UB, LB> EncodeCard for DoubleCard<UB, LB>
+impl<UBE, LBE> Encode for Double<UBE, LBE>
 where
-    UB: UBCard,
-    LB: LBCard,
+    UBE: UB,
+    LBE: LB,
 {
-    type Iter<'a> = UB::Iter<'a>;
+    type Iter<'a> = UBE::Iter<'a>;
 
     fn new() -> Self
     where
         Self: Sized,
     {
-        DoubleCard {
-            ub_enc: UB::new(),
-            lb_enc: LB::new(),
+        Double {
+            ub_enc: UBE::new(),
+            lb_enc: LBE::new(),
         }
     }
 
@@ -242,26 +242,26 @@ where
     }
 }
 
-impl<UB, LB> IncEncodeCard for DoubleCard<UB, LB>
+impl<UBE, LBE> IncEncode for Double<UBE, LBE>
 where
-    UB: IncUBCard,
-    LB: IncLBCard,
+    UBE: IncUB,
+    LBE: IncLB,
 {
     fn new_reserving() -> Self
     where
         Self: Sized,
     {
-        DoubleCard {
-            ub_enc: UB::new_reserving(),
-            lb_enc: LB::new_reserving(),
+        Double {
+            ub_enc: UBE::new_reserving(),
+            lb_enc: LBE::new_reserving(),
         }
     }
 }
 
-impl<UB, LB> UBCard for DoubleCard<UB, LB>
+impl<UBE, LBE> UB for Double<UBE, LBE>
 where
-    UB: UBCard,
-    LB: LBCard,
+    UBE: UB,
+    LBE: LB,
 {
     fn encode_ub(
         &mut self,
@@ -277,10 +277,10 @@ where
     }
 }
 
-impl<UB, LB> LBCard for DoubleCard<UB, LB>
+impl<UBE, LBE> LB for Double<UBE, LBE>
 where
-    UB: UBCard,
-    LB: LBCard,
+    UBE: UB,
+    LBE: LB,
 {
     fn encode_lb(
         &mut self,
@@ -296,10 +296,10 @@ where
     }
 }
 
-impl<UB, LB> IncUBCard for DoubleCard<UB, LB>
+impl<UBE, LBE> IncUB for Double<UBE, LBE>
 where
-    UB: IncUBCard,
-    LB: IncLBCard,
+    UBE: IncUB,
+    LBE: IncLB,
 {
     fn encode_ub_change(
         &mut self,
@@ -311,10 +311,10 @@ where
     }
 }
 
-impl<UB, LB> IncLBCard for DoubleCard<UB, LB>
+impl<UBE, LBE> IncLB for Double<UBE, LBE>
 where
-    UB: IncUBCard,
-    LB: IncLBCard,
+    UBE: IncUB,
+    LBE: IncLB,
 {
     fn encode_lb_change(
         &mut self,
@@ -326,10 +326,10 @@ where
     }
 }
 
-impl<UB, LB> EncodeStats for DoubleCard<UB, LB>
+impl<UBE, LBE> EncodeStats for Double<UBE, LBE>
 where
-    UB: EncodeStats + UBCard,
-    LB: EncodeStats + LBCard,
+    UBE: EncodeStats + UB,
+    LBE: EncodeStats + LB,
 {
     fn n_clauses(&self) -> usize {
         self.ub_enc.n_clauses() + self.lb_enc.n_clauses()

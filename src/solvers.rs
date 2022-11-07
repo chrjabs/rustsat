@@ -322,23 +322,35 @@ type OptTermCallbackStore<'a> = Option<Box<TermCallback<'a>>>;
 #[allow(dead_code)]
 type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 
+/// The default solver, depending on the library configuration.
+/// Solvers are ordered by the following priority:
+/// 
+/// 1. [`Kissat`]
+/// 2. [`CaDiCaL`]
+/// 3. [`IpasirSolver`]
+#[cfg(feature = "kissat")]
+pub type DefSolver<'a> = Kissat<'a>;
+#[cfg(all(not(feature = "kissat"), feature = "cadical"))]
+pub type DefSolver<'a> = CaDiCaL<'a>;
+#[cfg(all(not(feature = "kissat"), not(feature = "cadical"), feature = "ipasir"))]
+pub type DefSolver<'a> = IpasirSolver<'a>;
+
+/// The default incremental solver, depending on the library configuration.
+/// Solvers are ordered by the following priority:
+/// 
+/// 1. [`CaDiCaL`]
+/// 2. [`IpasirSolver`]
+#[cfg(feature = "cadical")]
+pub type DefIncSolver<'a> = CaDiCaL<'a>;
+#[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
+pub type DefIncSolver<'a> = IpasirSolver<'a>;
+
 #[cfg(solver)]
 /// Constructs a default non-incremental solver. Since the return value cannot
 /// be upcast, it might be necessary to directly instantiate a solver. For now
 /// the default is an instance of CaDiCaL.
 pub fn new_default_solver() -> impl Solve {
-    #[cfg(feature = "kissat")]
-    {
-        Kissat::default()
-    }
-    #[cfg(all(not(feature = "kissat"), feature = "cadical"))]
-    {
-        CaDiCaL::default()
-    }
-    #[cfg(all(not(feature = "kissat"), not(feature = "cadical"), feature = "ipasir"))]
-    {
-        IpasirSolver::default()
-    }
+    DefSolver::default()
 }
 
 #[cfg(incsolver)]
@@ -346,12 +358,5 @@ pub fn new_default_solver() -> impl Solve {
 /// upcast, it might be necessary to directly instantiate a solver. For now the
 /// default is an instance of CaDiCaL.
 pub fn new_default_inc_solver() -> impl IncrementalSolve {
-    #[cfg(feature = "cadical")]
-    {
-        CaDiCaL::default()
-    }
-    #[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
-    {
-        IpasirSolver::default()
-    }
+    DefIncSolver::default()
 }

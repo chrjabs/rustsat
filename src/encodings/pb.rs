@@ -9,7 +9,7 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::{pb, pb::{BothBPB, EncodePB}},
+//!     encodings::{pb, pb::{BothB, Encode}},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
 //!     solvers::{SolverResult, Solve, IncrementalSolve},
@@ -41,6 +41,10 @@
 //! let res = solver.solve_assumps(assumps).unwrap();
 //! assert_eq!(res, SolverResult::UNSAT);
 //! ```
+//!
+//! When using cardinality and pseudo-boolean encodings at the same time, it is
+//! recommended to import only the modules or rename the traits, e.g., `use
+//! card::Encode as EncodePB`.
 
 use super::{card, EncodingError};
 use crate::{
@@ -54,12 +58,12 @@ use crate::{
 mod gte;
 pub use gte::GeneralizedTotalizer;
 pub mod simulators;
-pub type InvertedGeneralizedTotalizer = simulators::InvertedPB<GeneralizedTotalizer>;
+pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
 pub type DoubleGeneralizedTotalizer =
-    simulators::DoublePB<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
+    simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
-pub trait EncodePB {
+pub trait Encode {
     type Iter<'a>: Iterator<Item = (Lit, usize)>
     where
         Self: 'a;
@@ -89,7 +93,7 @@ pub trait EncodePB {
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait UBPB: EncodePB {
+pub trait UB: Encode {
     /// Lazily builds the pseudo-boolean encoding to enable upper bounds from
     /// `min_ub` to `max_ub`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_ub` or
@@ -133,7 +137,7 @@ pub trait UBPB: EncodePB {
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait LBPB: EncodePB {
+pub trait LB: Encode {
     /// Lazily builds the pseudo-boolean encoding to enable lower bounds from
     /// `min_lb` to `max_lb`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_lb` or
@@ -178,7 +182,7 @@ pub trait LBPB: EncodePB {
 }
 
 /// Trait for pseudo-boolean encodings that allow upper and lower bounding
-pub trait BothBPB: UBPB + LBPB {
+pub trait BothB: UB + LB {
     /// Lazily builds the pseudo-boolean encoding to enable both bounds from
     /// `min_b` to `max_b`. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_lb` or
@@ -247,10 +251,10 @@ pub trait BothBPB: UBPB + LBPB {
 
 /// Default implementation of [`BothBPB`] for every encoding that does upper
 /// and lower bounding
-impl<PBE> BothBPB for PBE where PBE: UBPB + LBPB {}
+impl<PBE> BothB for PBE where PBE: UB + LB {}
 
 /// Trait for all pseudo-boolean encodings of form `sum of lits <> rhs`
-pub trait IncEncodePB: EncodePB {
+pub trait IncEncode: Encode {
     /// Constructs a new pseudo-boolean encoding that reserves all variables on the
     /// first call to an encode method
     fn new_reserving() -> Self
@@ -272,7 +276,7 @@ pub trait IncEncodePB: EncodePB {
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncUBPB: UBPB + IncEncodePB {
+pub trait IncUB: UB + IncEncode {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable upper
     /// bounds from `min_ub` to `max_ub`. A change might be added literals or
     /// changed bounds. `var_manager` is the variable manager to use for
@@ -289,7 +293,7 @@ pub trait IncUBPB: UBPB + IncEncodePB {
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncLBPB: LBPB + IncEncodePB {
+pub trait IncLB: LB + IncEncode {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable lower
     /// bounds from `min_lb` to `max_lb`. `var_manager` is the variable manager
     /// to use for tracking new variables. A specific encoding might ignore
@@ -304,7 +308,7 @@ pub trait IncLBPB: LBPB + IncEncodePB {
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
-pub trait IncBothBPB: IncUBPB + IncLBPB {
+pub trait IncBothB: IncUB + IncLB {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable both bounds
     /// from `min_b` to `max_b`. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore `min_lb` or
@@ -324,46 +328,53 @@ pub trait IncBothBPB: IncUBPB + IncLBPB {
 
 /// Default implementation of [`IncBothBPB`] for every encoding that does
 /// incremental upper and lower bounding
-impl<PBE> IncBothBPB for PBE where PBE: IncUBPB + IncLBPB {}
+impl<PBE> IncBothB for PBE where PBE: IncUB + IncLB {}
 
-/// Constructs a default upper bounding pseudo-boolean encoding. For now this is
-/// a [`GeneralizedTotalizer`]
-pub fn new_default_ub() -> impl UBPB {
-    GeneralizedTotalizer::new()
+/// The default upper bound encoding. For now this is a [`GeneralizedTotalizer`].
+pub type DefUB = GeneralizedTotalizer;
+/// The default lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
+pub type DefLB = InvertedGeneralizedTotalizer;
+/// The default encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
+pub type DefBothB = DoubleGeneralizedTotalizer;
+/// The default incremental upper bound encoding. For now this is a [`GeneralizedTotalizer`].
+pub type DefIncUB = GeneralizedTotalizer;
+/// The default incremental lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
+pub type DefIncLB = InvertedGeneralizedTotalizer;
+/// The default incremental encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
+pub type DefIncBothB = DoubleGeneralizedTotalizer;
+
+/// Constructs a default upper bounding pseudo-boolean encoding.
+pub fn new_default_ub() -> impl UB {
+    DefUB::new()
 }
 
-/// Constructs a default lower bounding pseudo-boolean encoding. For now this is
-/// a [`InvertedGeneralizedTotalizer`]
-pub fn new_default_lb() -> impl LBPB {
-    InvertedGeneralizedTotalizer::new()
+/// Constructs a default lower bounding pseudo-boolean encoding.
+pub fn new_default_lb() -> impl LB {
+    DefLB::new()
 }
 
-/// Constructs a default double bounding pseudo-boolean encoding. For now this
-/// is a [`DoubleGeneralizedTotalizer`]
-pub fn new_default_both() -> impl BothBPB {
-    DoubleGeneralizedTotalizer::new()
+/// Constructs a default double bounding pseudo-boolean encoding.
+pub fn new_default_both() -> impl BothB {
+    DefBothB::new()
 }
 
-/// Constructs a default incremental upper bounding pseudo-boolean encoding. For
-/// now this is a [`GeneralizedTotalizer`]
-pub fn new_default_inc_ub() -> impl IncUBPB {
-    GeneralizedTotalizer::new()
+/// Constructs a default incremental upper bounding pseudo-boolean encoding.
+pub fn new_default_inc_ub() -> impl IncUB {
+    DefIncUB::new()
 }
 
-/// Constructs a default incremental lower bounding pseudo-boolean encoding. For
-/// now this is a [`InvertedGeneralizedTotalizer`]
-pub fn new_default_inc_lb() -> impl LBPB {
-    InvertedGeneralizedTotalizer::new()
+/// Constructs a default incremental lower bounding pseudo-boolean encoding.
+pub fn new_default_inc_lb() -> impl LB {
+    DefIncLB::new()
 }
 
 /// Constructs a default incremental double bounding pseudo-boolean encoding.
-/// For now this is a [`DoubleGeneralizedTotalizer`]
-pub fn new_default_inc_both() -> impl BothBPB {
-    DoubleGeneralizedTotalizer::new()
+pub fn new_default_inc_both() -> impl BothB {
+    DefIncBothB::new()
 }
 
 /// A default encoder for any pseudo-boolean constraint. This uses a
-/// [`DoubleGeneralizedTotalizer`] to encode true pseudo-boolean constraints and
+/// [`DefBothB`] to encode true pseudo-boolean constraints and
 /// [`card::default_encode_cardinality_constraint`] for cardinality constraints.
 pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> CNF {
     if constr.is_tautology() {
@@ -384,5 +395,5 @@ pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn 
         let card = constr.as_card_constr().unwrap();
         return card::default_encode_cardinality_constraint(card, var_manager);
     }
-    DoubleGeneralizedTotalizer::encode_constr(constr, var_manager).unwrap()
+    DefBothB::encode_constr(constr, var_manager).unwrap()
 }
