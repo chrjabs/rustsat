@@ -25,6 +25,7 @@ use std::{cmp, slice};
 ///
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+#[derive(Default)]
 pub struct Totalizer {
     /// Input literals to the totalizer
     in_lits: Vec<Lit>,
@@ -32,8 +33,6 @@ pub struct Totalizer {
     not_enc_idx: usize,
     /// The root of the tree, if constructed
     root: Option<Box<Node>>,
-    /// Whether or not to reserve all variables when constructing the tree
-    reserve_vars: bool,
     /// The number of variables in the totalizer
     n_vars: usize,
     /// The number of clauses in the totalizer
@@ -57,19 +56,13 @@ impl Totalizer {
     }
 
     /// Extends the tree at the root node with added literals
-    fn extend_tree(&mut self, var_manager: &mut dyn ManageVars) {
+    fn extend_tree(&mut self) {
         if self.not_enc_idx != self.in_lits.len() {
-            let mut subtree = Totalizer::build_tree(&self.in_lits[self.not_enc_idx..]);
-            if self.reserve_vars {
-                subtree.reserve_all_vars_rec(var_manager);
-            }
+            let subtree = Totalizer::build_tree(&self.in_lits[self.not_enc_idx..]);
             self.root = match self.root.take() {
                 None => Some(Box::new(subtree)),
                 Some(old_root) => {
-                    let mut new_root = Node::new_internal(*old_root, subtree);
-                    if self.reserve_vars {
-                        new_root.reserve_all_vars(var_manager)
-                    };
+                    let new_root = Node::new_internal(*old_root, subtree);
                     Some(Box::new(new_root))
                 }
             };
@@ -89,21 +82,6 @@ impl Totalizer {
 impl Encode for Totalizer {
     type Iter<'a> = TotIter<'a>;
 
-    fn new() -> Self {
-        Totalizer {
-            in_lits: vec![],
-            not_enc_idx: 0,
-            root: None,
-            reserve_vars: false,
-            n_vars: 0,
-            n_clauses: 0,
-        }
-    }
-
-    fn add(&mut self, lits: Vec<Lit>) {
-        self.in_lits.extend(lits);
-    }
-
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.in_lits.iter().copied()
     }
@@ -114,14 +92,9 @@ impl Encode for Totalizer {
 }
 
 impl IncEncode for Totalizer {
-    fn new_reserving() -> Self {
-        Totalizer {
-            in_lits: vec![],
-            not_enc_idx: 0,
-            root: None,
-            reserve_vars: true,
-            n_vars: 0,
-            n_clauses: 0,
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        if let Some(root) = &mut self.root {
+            root.reserve_all_vars_rec(var_manager);
         }
     }
 }
@@ -136,7 +109,7 @@ impl UB for Totalizer {
         if min_ub > max_ub {
             return Err(EncodingError::InvalidLimits);
         };
-        self.extend_tree(var_manager);
+        self.extend_tree();
         Ok(match &mut self.root {
             None => CNF::new(),
             Some(root) => {
@@ -190,7 +163,7 @@ impl LB for Totalizer {
         if min_lb > max_lb {
             return Err(EncodingError::InvalidLimits);
         };
-        self.extend_tree(var_manager);
+        self.extend_tree();
         Ok(match &mut self.root {
             None => CNF::new(),
             Some(root) => {
@@ -246,7 +219,7 @@ impl IncUB for Totalizer {
         if min_ub > max_ub {
             return Err(EncodingError::InvalidLimits);
         };
-        self.extend_tree(var_manager);
+        self.extend_tree();
         Ok(match &mut self.root {
             None => CNF::new(),
             Some(root) => {
@@ -270,7 +243,7 @@ impl IncLB for Totalizer {
         if min_lb > max_lb {
             return Err(EncodingError::InvalidLimits);
         };
-        self.extend_tree(var_manager);
+        self.extend_tree();
         Ok(match &mut self.root {
             None => CNF::new(),
             Some(root) => {
@@ -291,6 +264,36 @@ impl EncodeStats for Totalizer {
 
     fn n_vars(&self) -> usize {
         self.n_vars
+    }
+}
+
+impl From<Vec<Lit>> for Totalizer {
+    fn from(lits: Vec<Lit>) -> Self {
+        Self {
+            in_lits: lits,
+            not_enc_idx: Default::default(),
+            root: Default::default(),
+            n_vars: Default::default(),
+            n_clauses: Default::default(),
+        }
+    }
+}
+
+impl FromIterator<Lit> for Totalizer {
+    fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
+        Self {
+            in_lits: Vec::from_iter(iter),
+            not_enc_idx: Default::default(),
+            root: Default::default(),
+            n_vars: Default::default(),
+            n_clauses: Default::default(),
+        }
+    }
+}
+
+impl Extend<Lit> for Totalizer {
+    fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
+        self.in_lits.extend(iter)
     }
 }
 
@@ -824,7 +827,7 @@ mod tests {
     use super::{Node, Totalizer};
     use crate::{
         encodings::{
-            card::{BothB, Encode, IncLB, IncUB, LB, UB},
+            card::{BothB, IncLB, IncUB, LB, UB},
             EncodeStats, EncodingError,
         },
         instances::{BasicVarManager, ManageVars},
@@ -1005,8 +1008,8 @@ mod tests {
 
     #[test]
     fn tot_functions() {
-        let mut tot = Totalizer::new();
-        tot.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut tot = Totalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::new();
@@ -1022,8 +1025,8 @@ mod tests {
 
     #[test]
     fn tot_functions_min_rhs() {
-        let mut tot = Totalizer::new();
-        tot.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut tot = Totalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
         let cnf = tot.encode_both(3, 3, &mut var_manager).unwrap();
         assert_eq!(tot.get_depth(), 3);
@@ -1033,12 +1036,12 @@ mod tests {
 
     #[test]
     fn tot_incremental_building_ub() {
-        let mut tot1 = Totalizer::new();
-        tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut tot1 = Totalizer::default();
+        tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
         let cnf1 = tot1.encode_ub(0, 4, &mut var_manager).unwrap();
-        let mut tot2 = Totalizer::new();
-        tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut tot2 = Totalizer::default();
+        tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
         let mut cnf2 = tot2.encode_ub(0, 2, &mut var_manager).unwrap();
         cnf2.extend(tot2.encode_ub_change(0, 4, &mut var_manager).unwrap());
@@ -1049,12 +1052,12 @@ mod tests {
 
     #[test]
     fn tot_incremental_building_lb() {
-        let mut tot1 = Totalizer::new();
-        tot1.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut tot1 = Totalizer::default();
+        tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
         let cnf1 = tot1.encode_lb(0, 4, &mut var_manager).unwrap();
-        let mut tot2 = Totalizer::new();
-        tot2.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut tot2 = Totalizer::default();
+        tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::new();
         let mut cnf2 = tot2.encode_lb(0, 2, &mut var_manager).unwrap();
         cnf2.extend(tot2.encode_lb_change(0, 4, &mut var_manager).unwrap());
@@ -1065,7 +1068,7 @@ mod tests {
 
     #[test]
     fn invalid_useage() {
-        let mut tot = Totalizer::new();
+        let mut tot = Totalizer::default();
         let mut var_manager = BasicVarManager::new();
         assert_eq!(
             tot.encode_ub(5, 4, &mut var_manager),

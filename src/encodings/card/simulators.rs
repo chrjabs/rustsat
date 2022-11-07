@@ -16,6 +16,7 @@ use crate::{
 
 /// Simulator type that builds a cardinality encoding of type `CE` over the
 /// negated input literals in order to simulate the other bound type
+#[derive(Default)]
 pub struct Inverted<CE>
 where
     CE: Encode + 'static,
@@ -24,27 +25,46 @@ where
     n_lits: usize,
 }
 
+impl<CE> From<Vec<Lit>> for Inverted<CE>
+where
+    CE: Encode + 'static,
+{
+    fn from(lits: Vec<Lit>) -> Self {
+        let n = lits.len();
+        let lits: Vec<Lit> = lits.into_iter().map(Lit::not).collect();
+        Self {
+            card_enc: CE::from(lits),
+            n_lits: n,
+        }
+    }
+}
+
+impl<CE> FromIterator<Lit> for Inverted<CE>
+where
+    CE: Encode + 'static,
+{
+    fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
+        let lits: Vec<Lit> = iter.into_iter().collect();
+        Self::from(lits)
+    }
+}
+
+impl<CE> Extend<Lit> for Inverted<CE>
+where
+    CE: Encode + 'static,
+{
+    fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
+        let lits: Vec<Lit> = iter.into_iter().map(Lit::not).collect();
+        self.n_lits += lits.len();
+        self.card_enc.extend(lits)
+    }
+}
+
 impl<CE> Encode for Inverted<CE>
 where
     CE: Encode,
 {
     type Iter<'a> = InvertedIter<CE::Iter<'a>>;
-
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Inverted {
-            card_enc: CE::new(),
-            n_lits: 0,
-        }
-    }
-
-    fn add(&mut self, mut lits: Vec<Lit>) {
-        self.n_lits += lits.len();
-        lits.iter_mut().for_each(|l| *l = !*l);
-        self.card_enc.add(lits)
-    }
 
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.card_enc.iter().map(Lit::not)
@@ -59,14 +79,8 @@ impl<CE> IncEncode for Inverted<CE>
 where
     CE: IncEncode,
 {
-    fn new_reserving() -> Self
-    where
-        Self: Sized,
-    {
-        Inverted {
-            card_enc: CE::new_reserving(),
-            n_lits: 0,
-        }
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.card_enc.reserve(var_manager)
     }
 }
 
@@ -202,6 +216,7 @@ type InvertedIter<ICE> = std::iter::Map<ICE, fn(Lit) -> Lit>;
 /// Simulator type that builds a combined cardinality encoding supporting both
 /// bounds from two individual cardinality encodings supporting each bound
 /// separately
+#[derive(Default)]
 pub struct Double<UBE, LBE>
 where
     UBE: UB + 'static,
@@ -211,27 +226,48 @@ where
     lb_enc: LBE,
 }
 
+impl<UBE, LBE> From<Vec<Lit>> for Double<UBE, LBE>
+where
+    UBE: UB + 'static,
+    LBE: LB + 'static,
+{
+    fn from(lits: Vec<Lit>) -> Self {
+        Self {
+            ub_enc: UBE::from(lits.clone()),
+            lb_enc: LBE::from(lits),
+        }
+    }
+}
+
+impl<UBE, LBE> FromIterator<Lit> for Double<UBE, LBE>
+where
+    UBE: UB + 'static,
+    LBE: LB + 'static,
+{
+    fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
+        let lits: Vec<Lit> = iter.into_iter().collect();
+        Self::from(lits)
+    }
+}
+
+impl<UBE, LBE> Extend<Lit> for Double<UBE, LBE>
+where
+    UBE: UB + 'static,
+    LBE: LB + 'static,
+{
+    fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
+        let lits: Vec<Lit> = iter.into_iter().collect();
+        self.ub_enc.extend(lits.clone());
+        self.lb_enc.extend(lits)
+    }
+}
+
 impl<UBE, LBE> Encode for Double<UBE, LBE>
 where
     UBE: UB,
     LBE: LB,
 {
     type Iter<'a> = UBE::Iter<'a>;
-
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        Double {
-            ub_enc: UBE::new(),
-            lb_enc: LBE::new(),
-        }
-    }
-
-    fn add(&mut self, lits: Vec<Lit>) {
-        self.ub_enc.add(lits.clone());
-        self.lb_enc.add(lits);
-    }
 
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.ub_enc.iter()
@@ -247,14 +283,9 @@ where
     UBE: IncUB,
     LBE: IncLB,
 {
-    fn new_reserving() -> Self
-    where
-        Self: Sized,
-    {
-        Double {
-            ub_enc: UBE::new_reserving(),
-            lb_enc: LBE::new_reserving(),
-        }
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.ub_enc.reserve(var_manager);
+        self.lb_enc.reserve(var_manager)
     }
 }
 

@@ -4,7 +4,7 @@ use rustsat::{
     clause,
     encodings::card::{
         simulators::{Double, Inverted},
-        BothB, Encode, IncBothB, Totalizer,
+        BothB, IncBothB, Totalizer,
     },
     instances::{BasicVarManager, ManageVars},
     lit,
@@ -35,7 +35,7 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    enc.add(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
+    enc.extend(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
     solver
         .add_cnf(enc.encode_both(2, 2, &mut var_manager).unwrap())
@@ -55,7 +55,7 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    enc.add(vec![lit![5]]);
+    enc.extend(vec![lit![5]]);
 
     solver
         .add_cnf(enc.encode_both_change(0, 3, &mut var_manager).unwrap())
@@ -71,7 +71,7 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    enc.add(vec![lit![6], lit![7], lit![8], lit![9], lit![10]]);
+    enc.extend(vec![lit![6], lit![7], lit![8], lit![9], lit![10]]);
 
     solver
         .add_cnf(enc.encode_both_change(0, 4, &mut var_manager).unwrap())
@@ -104,7 +104,7 @@ fn test_both_card<CE: BothB>(mut enc: CE) {
     assert_eq!(res, SolverResult::SAT);
 
     // Set up totalizer
-    enc.add(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
+    enc.extend(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
 
     solver
         .add_cnf(enc.encode_both(2, 3, &mut var_manager).unwrap())
@@ -129,7 +129,7 @@ fn test_both_card_min_enc<CE: BothB>(mut enc: CE) {
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![4]);
 
-    enc.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+    enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
 
     solver
         .add_cnf(enc.encode_both(3, 3, &mut var_manager).unwrap())
@@ -187,25 +187,30 @@ fn test_both_card_min_enc<CE: BothB>(mut enc: CE) {
 
 #[test]
 fn tot_positive_lits() {
-    let tot = Totalizer::new();
+    let tot = Totalizer::default();
     test_inc_both_card(tot);
 }
 
 #[test]
 fn tot_negative_lits() {
-    let tot = Totalizer::new();
+    let tot = Totalizer::default();
     test_both_card(tot);
 }
 
 #[test]
 fn tot_min_enc() {
-    let tot = Totalizer::new();
+    let tot = Totalizer::default();
     test_both_card_min_enc(tot);
 }
 
 #[test]
+fn invertet_tot() {
+    let inv_tot: Inverted<Totalizer> = Inverted::default();
+    test_inc_both_card(inv_tot)
+}
+
+#[test]
 fn double_invertet_tot() {
-    let double_inv_tot: Double<Inverted<Totalizer>, Inverted<Totalizer>> =
-        Double::new();
+    let double_inv_tot: Double<Inverted<Totalizer>, Inverted<Totalizer>> = Double::default();
     test_inc_both_card(double_inv_tot)
 }

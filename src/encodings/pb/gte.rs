@@ -26,6 +26,7 @@ use std::{cmp, collections::BTreeMap, ops::Bound};
 ///
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+#[derive(Default)]
 pub struct GeneralizedTotalizer {
     /// Input literals and weights for the encoding
     in_lits: RsHashMap<Lit, usize>,
@@ -33,8 +34,6 @@ pub struct GeneralizedTotalizer {
     lit_buffer: RsHashMap<Lit, usize>,
     /// The root of the tree, if constructed
     root: Option<Box<Node>>,
-    /// Whether or not to reserve all variables when constructing the tree
-    reserve_vars: bool,
     /// Maximum weight of a leaf, needed for computing how much more than `max_rhs` to encode
     max_leaf_weight: usize,
     /// Sum of all input weight
@@ -63,7 +62,7 @@ impl GeneralizedTotalizer {
     }
 
     /// Extends the tree at the root node with added literals of maximum weight `max_weight`
-    fn extend_tree(&mut self, max_weight: usize, var_manager: &mut dyn ManageVars) {
+    fn extend_tree(&mut self, max_weight: usize) {
         if !self.lit_buffer.is_empty() {
             let mut new_lits: Vec<(Lit, usize)> = self
                 .lit_buffer
@@ -83,17 +82,11 @@ impl GeneralizedTotalizer {
             if !new_lits.is_empty() {
                 // Add nodes in sorted fashion to minimize clauses
                 new_lits[..].sort_by(|(_, w1), (_, w2)| w1.cmp(w2));
-                let mut subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
-                if self.reserve_vars {
-                    subtree.reserve_all_vars_rec(var_manager);
-                }
+                let subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
                 self.root = match self.root.take() {
                     None => Some(Box::new(subtree)),
                     Some(old_root) => {
-                        let mut new_root = Node::new_internal(*old_root, subtree);
-                        if self.reserve_vars {
-                            new_root.reserve_all_vars(var_manager)
-                        };
+                        let new_root = Node::new_internal(*old_root, subtree);
                         Some(Box::new(new_root))
                     }
                 };
@@ -114,42 +107,6 @@ impl GeneralizedTotalizer {
 impl Encode for GeneralizedTotalizer {
     type Iter<'a> = GTEIter<'a>;
 
-    fn new() -> Self
-    where
-        Self: Sized,
-    {
-        GeneralizedTotalizer {
-            in_lits: RsHashMap::default(),
-            lit_buffer: RsHashMap::default(),
-            root: None,
-            reserve_vars: false,
-            max_leaf_weight: 0,
-            weight_sum: 0,
-            n_vars: 0,
-            n_clauses: 0,
-        }
-    }
-
-    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
-        lits.iter().for_each(|(l, w)| {
-            self.weight_sum += w;
-            // Insert into buffer to be added to tree
-            match self.lit_buffer.get_mut(l) {
-                Some(old_w) => *old_w += *w,
-                None => {
-                    self.lit_buffer.insert(*l, *w);
-                }
-            };
-            // Insert into map of input literals
-            match self.in_lits.get_mut(l) {
-                Some(old_w) => *old_w += *w,
-                None => {
-                    self.lit_buffer.insert(*l, *w);
-                }
-            };
-        });
-    }
-
     fn iter<'a>(&'a self) -> Self::Iter<'a> {
         self.in_lits.iter().map(copy_key_val)
     }
@@ -160,19 +117,9 @@ impl Encode for GeneralizedTotalizer {
 }
 
 impl IncEncode for GeneralizedTotalizer {
-    fn new_reserving() -> Self
-    where
-        Self: Sized,
-    {
-        GeneralizedTotalizer {
-            in_lits: RsHashMap::default(),
-            lit_buffer: RsHashMap::default(),
-            root: None,
-            reserve_vars: true,
-            max_leaf_weight: 0,
-            weight_sum: 0,
-            n_vars: 0,
-            n_clauses: 0,
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        if let Some(root) = &mut self.root {
+            root.reserve_all_vars_rec(var_manager);
         }
     }
 }
@@ -188,7 +135,7 @@ impl UB for GeneralizedTotalizer {
             return Err(EncodingError::InvalidLimits);
         };
         let n_vars_before = var_manager.n_used();
-        self.extend_tree(max_ub, var_manager);
+        self.extend_tree(max_ub);
         let cnf = match &mut self.root {
             None => CNF::new(),
             Some(root) => root.encode_rec(min_ub + 1, max_ub + self.max_leaf_weight, var_manager),
@@ -267,7 +214,7 @@ impl IncUB for GeneralizedTotalizer {
             return Err(EncodingError::InvalidLimits);
         };
         let n_vars_before = var_manager.n_used();
-        self.extend_tree(max_ub, var_manager);
+        self.extend_tree(max_ub);
         let cnf = match &mut self.root {
             None => CNF::new(),
             Some(root) => {
@@ -297,6 +244,49 @@ type GTEIter<'a> = std::iter::Map<
     std::collections::hash_map::Iter<'a, Lit, usize>,
     fn((&Lit, &usize)) -> (Lit, usize),
 >;
+
+impl From<RsHashMap<Lit, usize>> for GeneralizedTotalizer {
+    fn from(lits: RsHashMap<Lit, usize>) -> Self {
+        Self {
+            in_lits: lits.clone(),
+            lit_buffer: lits,
+            root: Default::default(),
+            max_leaf_weight: Default::default(),
+            weight_sum: Default::default(),
+            n_vars: Default::default(),
+            n_clauses: Default::default(),
+        }
+    }
+}
+
+impl FromIterator<(Lit, usize)> for GeneralizedTotalizer {
+    fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
+        let lits: RsHashMap<Lit, usize> = RsHashMap::from_iter(iter);
+        Self::from(lits)
+    }
+}
+
+impl Extend<(Lit, usize)> for GeneralizedTotalizer {
+    fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|(l, w)| {
+            self.weight_sum += w;
+            // Insert into buffer to be added to tree
+            match self.lit_buffer.get_mut(&l) {
+                Some(old_w) => *old_w += w,
+                None => {
+                    self.lit_buffer.insert(l, w);
+                }
+            };
+            // Insert into map of input literals
+            match self.in_lits.get_mut(&l) {
+                Some(old_w) => *old_w += w,
+                None => {
+                    self.lit_buffer.insert(l, w);
+                }
+            };
+        });
+    }
+}
 
 /// The Totalzier nodes are _only_ for upper bounding. Lower bounding in the GTE
 /// is possible by negating input literals. This conversion entirely happens in
@@ -699,7 +689,7 @@ mod tests {
     use crate::{
         encodings::{
             card,
-            pb::{Encode, IncUB, UB},
+            pb::{IncUB, UB},
             EncodeStats, EncodingError,
         },
         instances::{BasicVarManager, ManageVars},
@@ -844,13 +834,13 @@ mod tests {
 
     #[test]
     fn ub_gte_functions() {
-        let mut gte = GeneralizedTotalizer::new();
+        let mut gte = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
-        gte.add(lits);
+        gte.extend(lits);
         assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::new();
         gte.encode_ub(0, 6, &mut var_manager).unwrap();
@@ -860,17 +850,17 @@ mod tests {
 
     #[test]
     fn ub_gte_incremental_building() {
-        let mut gte1 = GeneralizedTotalizer::new();
+        let mut gte1 = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
-        gte1.add(lits.clone());
+        gte1.extend(lits.clone());
         let mut var_manager = BasicVarManager::new();
         let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
-        let mut gte2 = GeneralizedTotalizer::new();
-        gte2.add(lits);
+        let mut gte2 = GeneralizedTotalizer::default();
+        gte2.extend(lits);
         let mut var_manager = BasicVarManager::new();
         let mut cnf2 = gte2.encode_ub(0, 2, &mut var_manager).unwrap();
         cnf2.extend(gte2.encode_ub_change(0, 4, &mut var_manager).unwrap());
@@ -881,22 +871,22 @@ mod tests {
 
     #[test]
     fn ub_gte_multiplication() {
-        let mut gte1 = GeneralizedTotalizer::new();
+        let mut gte1 = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
-        gte1.add(lits);
+        gte1.extend(lits);
         let mut var_manager = BasicVarManager::new();
         let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
-        let mut gte2 = GeneralizedTotalizer::new();
+        let mut gte2 = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 10);
         lits.insert(lit![1], 10);
         lits.insert(lit![2], 6);
         lits.insert(lit![3], 6);
-        gte2.add(lits);
+        gte2.extend(lits);
         let mut var_manager = BasicVarManager::new();
         let cnf2 = gte2.encode_ub(0, 8, &mut var_manager).unwrap();
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
@@ -906,7 +896,7 @@ mod tests {
 
     #[test]
     fn ub_gte_invalid_useage() {
-        let mut gte = GeneralizedTotalizer::new();
+        let mut gte = GeneralizedTotalizer::default();
         let mut var_manager = BasicVarManager::new();
         assert_eq!(
             gte.encode_ub(5, 4, &mut var_manager),
@@ -916,11 +906,11 @@ mod tests {
 
     #[test]
     fn ub_gte_equals_tot() {
-        let mut var_manager_gte = BasicVarManager::new();
+        let mut var_manager_gte = BasicVarManager::default();
         var_manager_gte.increase_next_free(var![7]);
         let mut var_manager_tot = var_manager_gte.clone();
         // Set up GTE
-        let mut gte = GeneralizedTotalizer::new();
+        let mut gte = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 1);
         lits.insert(lit![1], 1);
@@ -929,22 +919,19 @@ mod tests {
         lits.insert(lit![4], 1);
         lits.insert(lit![5], 1);
         lits.insert(lit![6], 1);
-        gte.add(lits);
+        gte.extend(lits);
         let gte_cnf = gte.encode_ub(3, 7, &mut var_manager_gte).unwrap();
         // Set up Tot
-        let mut tot = <card::Totalizer as card::Encode>::new();
-        card::Encode::add(
-            &mut tot,
-            vec![
-                lit![0],
-                lit![1],
-                lit![2],
-                lit![3],
-                lit![4],
-                lit![5],
-                lit![6],
-            ],
-        );
+        let mut tot = card::Totalizer::default();
+        tot.extend(vec![
+            lit![0],
+            lit![1],
+            lit![2],
+            lit![3],
+            lit![4],
+            lit![5],
+            lit![6],
+        ]);
         let tot_cnf = card::UB::encode_ub(&mut tot, 3, 7, &mut var_manager_tot).unwrap();
         println!("{:?}", gte_cnf);
         println!("{:?}", tot_cnf);

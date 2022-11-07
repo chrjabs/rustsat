@@ -5,8 +5,8 @@ use rustsat::{
     encodings::{
         card::Totalizer,
         pb::{
-            simulators::Card, BothB, DoubleGeneralizedTotalizer, Encode,
-            GeneralizedTotalizer, IncBothB, IncUB, InvertedGeneralizedTotalizer, LB, UB,
+            simulators::Card, BothB, DoubleGeneralizedTotalizer, GeneralizedTotalizer, IncBothB,
+            IncUB, InvertedGeneralizedTotalizer, LB, UB,
         },
     },
     instances::{BasicVarManager, ManageVars},
@@ -44,7 +44,7 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     lits.insert(lit![2], 1);
     lits.insert(lit![3], 3);
     lits.insert(lit![4], 2);
-    enc.add(lits);
+    enc.extend(lits);
 
     solver
         .add_cnf(enc.encode_ub(0, 2, &mut var_manager).unwrap())
@@ -69,7 +69,7 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
 
     let mut lits = RsHashMap::default();
     lits.insert(lit![5], 4);
-    enc.add(lits);
+    enc.extend(lits);
 
     solver
         .add_cnf(enc.encode_ub_change(0, 5, &mut var_manager).unwrap())
@@ -91,7 +91,7 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     lits.insert(lit![8], 1);
     lits.insert(lit![9], 3);
     lits.insert(lit![10], 2);
-    enc.add(lits);
+    enc.extend(lits);
 
     solver
         .add_cnf(enc.encode_ub_change(0, 9, &mut var_manager).unwrap())
@@ -118,7 +118,7 @@ fn test_pb_eq<PBE: IncBothB>(mut enc: PBE) {
     lits.insert(lit![0], 4);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 2);
-    enc.add(lits);
+    enc.extend(lits);
 
     solver
         .add_cnf(enc.encode_both(4, 4, &mut var_manager).unwrap())
@@ -181,7 +181,7 @@ fn test_pb_lb<PBE: LB>(mut enc: PBE) {
     lits.insert(lit![0], 3);
     lits.insert(lit![1], 6);
     lits.insert(lit![2], 3);
-    enc.add(lits);
+    enc.extend(lits);
 
     solver
         .add_cnf(enc.encode_lb(0, 10, &mut var_manager).unwrap())
@@ -206,7 +206,7 @@ fn test_pb_ub_min_enc<PBE: UB>(mut enc: PBE) {
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 1);
-    enc.add(lits);
+    enc.extend(lits);
 
     solver
         .add_cnf(enc.encode_ub(2, 2, &mut var_manager).unwrap())
@@ -254,30 +254,30 @@ fn test_pb_ub_min_enc<PBE: UB>(mut enc: PBE) {
 
 #[test]
 fn gte_ub() {
-    let gte = GeneralizedTotalizer::new();
+    let gte = GeneralizedTotalizer::default();
     test_inc_pb_ub(gte);
 }
 
 #[test]
 fn gte_lb() {
-    let gte = InvertedGeneralizedTotalizer::new();
+    let gte = InvertedGeneralizedTotalizer::default();
     test_pb_lb(gte);
 }
 
 #[test]
 fn gte_min_enc() {
-    let gte = GeneralizedTotalizer::new();
+    let gte = GeneralizedTotalizer::default();
     test_pb_ub_min_enc(gte);
 }
 
 #[test]
 fn gte_eq() {
-    let gte = DoubleGeneralizedTotalizer::new();
+    let gte = DoubleGeneralizedTotalizer::default();
     test_pb_eq(gte);
 }
 
 #[test]
 fn tot_pb_sim_eq() {
-    let sim: Card<Totalizer> = Card::new();
+    let sim: Card<Totalizer> = Card::default();
     test_pb_eq(sim);
 }

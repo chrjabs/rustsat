@@ -23,7 +23,7 @@
 //! var_manager.increase_next_free(var![4]);
 //!
 //! let mut enc = card::new_default_inc_both();
-//! enc.add(vec![lit![0], lit![1], lit![2], lit![3]]);
+//! enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
 //! solver.add_cnf(enc.encode_both(3, 3, &mut var_manager).unwrap());
 //!
 //! let mut assumps = enc.enforce_eq(3).unwrap();
@@ -36,7 +36,7 @@
 //! let res = solver.solve_assumps(assumps).unwrap();
 //! assert_eq!(res, SolverResult::UNSAT);
 //! ```
-//! 
+//!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodeCard`.
@@ -55,28 +55,10 @@ pub use totalizer::Totalizer;
 pub mod simulators;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
-pub trait Encode {
+pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
     type Iter<'a>: Iterator<Item = Lit>
     where
         Self: 'a;
-    /// Constructs a new cardinality encoding
-    fn new() -> Self
-    where
-        Self: Sized;
-    /// Constructs a new cardinality encoding from input
-    /// literals.
-    fn new_from_lits<I>(lits: I) -> Self
-    where
-        Self: Sized,
-        I: Iterator<Item = Lit>,
-    {
-        let lits = lits.collect();
-        let mut ce = Self::new();
-        ce.add(lits);
-        ce
-    }
-    /// Adds new literals to the cardinality encoding
-    fn add(&mut self, lits: Vec<Lit>);
     /// Gets an iterator over copies of the input literals
     fn iter<'a>(&'a self) -> Self::Iter<'a>;
     /// Gets the number of literals in the encoding
@@ -110,9 +92,9 @@ pub trait UB: Encode {
     where
         Self: Sized,
     {
-        let mut enc = Self::new();
+        let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
-        enc.add(lits);
+        enc.extend(lits);
         let mut cnf = enc.encode_ub(ub, ub, var_manager)?;
         enc.enforce_ub(ub)
             .unwrap()
@@ -151,9 +133,9 @@ pub trait LB: Encode {
     where
         Self: Sized,
     {
-        let mut enc = Self::new();
+        let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
-        enc.add(lits);
+        enc.extend(lits);
         let mut cnf = enc.encode_lb(lb, lb, var_manager)?;
         enc.enforce_lb(lb)
             .unwrap()
@@ -200,9 +182,9 @@ pub trait BothB: UB + LB {
     where
         Self: Sized,
     {
-        let mut enc = Self::new();
+        let mut enc = Self::default();
         let (lits, b) = constr.decompose();
-        enc.add(lits);
+        enc.extend(lits);
         let mut cnf = enc.encode_both(b, b, var_manager)?;
         enc.enforce_eq(b)
             .unwrap()
@@ -232,23 +214,8 @@ impl<CE> BothB for CE where CE: UB + LB {}
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait IncEncode: Encode {
-    /// Constructs a new cardinality encoding that reserves all variables on the
-    /// first call to an encode method
-    fn new_reserving() -> Self
-    where
-        Self: Sized;
-    /// Constructs a new cardinality encoding that reserves all variables on the
-    /// first call to an encode method from input literals.
-    fn new_reserving_from_lits<I>(lits: I) -> Self
-    where
-        Self: Sized,
-        I: Iterator<Item = Lit>,
-    {
-        let lits = lits.collect();
-        let mut ce = Self::new_reserving();
-        ce.add(lits);
-        ce
-    }
+    /// Reserves all variables this encoding might need
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars);
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
@@ -322,32 +289,32 @@ pub type DefIncBothB = Totalizer;
 
 /// Constructs a default upper bounding cardinality encoding.
 pub fn new_default_ub() -> impl UB {
-    DefUB::new()
+    DefUB::default()
 }
 
 /// Constructs a default lower bounding cardinality encoding.
 pub fn new_default_lb() -> impl LB {
-    DefLB::new()
+    DefLB::default()
 }
 
 /// Constructs a default double bounding cardinality encoding.
 pub fn new_default_both() -> impl BothB {
-    DefBothB::new()
+    DefBothB::default()
 }
 
 /// Constructs a default incremental upper bounding cardinality encoding.
 pub fn new_default_inc_ub() -> impl IncUB {
-    DefIncUB::new()
+    DefIncUB::default()
 }
 
 /// Constructs a default incremental lower bounding cardinality encoding.
 pub fn new_default_inc_lb() -> impl LB {
-    DefIncLB::new()
+    DefIncLB::default()
 }
 
 /// Constructs a default incremental double bounding cardinality encoding.
 pub fn new_default_inc_both() -> impl BothB {
-    DefIncBothB::new()
+    DefIncBothB::default()
 }
 
 /// A default encoder for any cardinality constraint.
