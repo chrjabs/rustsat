@@ -8,7 +8,7 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{EncodePB, EncodingError, IncEncodePB, IncUBPB, UBPB};
+use super::{Encode, EncodingError, IncEncode, IncUB, UB};
 use crate::{
     encodings::EncodeStats,
     instances::{ManageVars, CNF},
@@ -111,7 +111,7 @@ impl GeneralizedTotalizer {
     }
 }
 
-impl EncodePB for GeneralizedTotalizer {
+impl Encode for GeneralizedTotalizer {
     type Iter<'a> = GTEIter<'a>;
 
     fn new() -> Self
@@ -159,7 +159,7 @@ impl EncodePB for GeneralizedTotalizer {
     }
 }
 
-impl IncEncodePB for GeneralizedTotalizer {
+impl IncEncode for GeneralizedTotalizer {
     fn new_reserving() -> Self
     where
         Self: Sized,
@@ -177,7 +177,7 @@ impl IncEncodePB for GeneralizedTotalizer {
     }
 }
 
-impl UBPB for GeneralizedTotalizer {
+impl UB for GeneralizedTotalizer {
     fn encode_ub(
         &mut self,
         min_ub: usize,
@@ -256,7 +256,7 @@ impl UBPB for GeneralizedTotalizer {
     }
 }
 
-impl IncUBPB for GeneralizedTotalizer {
+impl IncUB for GeneralizedTotalizer {
     fn encode_ub_change(
         &mut self,
         min_ub: usize,
@@ -698,8 +698,8 @@ mod tests {
     use super::{GeneralizedTotalizer, Node};
     use crate::{
         encodings::{
-            card::{EncodeCard, Totalizer, UBCard},
-            pb::{EncodePB, IncUBPB, UBPB},
+            card,
+            pb::{Encode, IncUB, UB},
             EncodeStats, EncodingError,
         },
         instances::{BasicVarManager, ManageVars},
@@ -932,17 +932,20 @@ mod tests {
         gte.add(lits);
         let gte_cnf = gte.encode_ub(3, 7, &mut var_manager_gte).unwrap();
         // Set up Tot
-        let mut tot = Totalizer::new();
-        tot.add(vec![
-            lit![0],
-            lit![1],
-            lit![2],
-            lit![3],
-            lit![4],
-            lit![5],
-            lit![6],
-        ]);
-        let tot_cnf = tot.encode_ub(3, 7, &mut var_manager_tot).unwrap();
+        let mut tot = <card::Totalizer as card::Encode>::new();
+        card::Encode::add(
+            &mut tot,
+            vec![
+                lit![0],
+                lit![1],
+                lit![2],
+                lit![3],
+                lit![4],
+                lit![5],
+                lit![6],
+            ],
+        );
+        let tot_cnf = card::UB::encode_ub(&mut tot, 3, 7, &mut var_manager_tot).unwrap();
         println!("{:?}", gte_cnf);
         println!("{:?}", tot_cnf);
         assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());

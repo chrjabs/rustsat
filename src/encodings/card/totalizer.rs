@@ -9,7 +9,7 @@
 //! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
-use super::{EncodeCard, EncodingError, IncEncodeCard, IncLBCard, IncUBCard, LBCard, UBCard};
+use super::{Encode, EncodingError, IncEncode, IncLB, IncUB, LB, UB};
 use crate::{
     encodings::EncodeStats,
     instances::{ManageVars, CNF},
@@ -86,7 +86,7 @@ impl Totalizer {
     }
 }
 
-impl EncodeCard for Totalizer {
+impl Encode for Totalizer {
     type Iter<'a> = TotIter<'a>;
 
     fn new() -> Self {
@@ -113,7 +113,7 @@ impl EncodeCard for Totalizer {
     }
 }
 
-impl IncEncodeCard for Totalizer {
+impl IncEncode for Totalizer {
     fn new_reserving() -> Self {
         Totalizer {
             in_lits: vec![],
@@ -126,7 +126,7 @@ impl IncEncodeCard for Totalizer {
     }
 }
 
-impl UBCard for Totalizer {
+impl UB for Totalizer {
     fn encode_ub(
         &mut self,
         min_ub: usize,
@@ -180,7 +180,7 @@ impl UBCard for Totalizer {
     }
 }
 
-impl LBCard for Totalizer {
+impl LB for Totalizer {
     fn encode_lb(
         &mut self,
         min_lb: usize,
@@ -236,7 +236,7 @@ impl LBCard for Totalizer {
     }
 }
 
-impl IncUBCard for Totalizer {
+impl IncUB for Totalizer {
     fn encode_ub_change(
         &mut self,
         min_ub: usize,
@@ -260,7 +260,7 @@ impl IncUBCard for Totalizer {
     }
 }
 
-impl IncLBCard for Totalizer {
+impl IncLB for Totalizer {
     fn encode_lb_change(
         &mut self,
         min_lb: usize,
@@ -824,7 +824,7 @@ mod tests {
     use super::{Node, Totalizer};
     use crate::{
         encodings::{
-            card::{BothBCard, EncodeCard, IncLBCard, IncUBCard, LBCard, UBCard},
+            card::{BothB, Encode, IncLB, IncUB, LB, UB},
             EncodeStats, EncodingError,
         },
         instances::{BasicVarManager, ManageVars},

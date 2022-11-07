@@ -7,29 +7,26 @@
 //! pseudo-boolean encoding can also be simulated by a cardinality encoding
 //! where literals are added multiple times.
 
-use super::{EncodePB, IncEncodePB, IncLBPB, IncUBPB, LBPB, UBPB};
+use super::{Encode, IncEncode, IncLB, IncUB, LB, UB};
 use crate::{
-    encodings::{
-        card::{EncodeCard, IncEncodeCard, IncLBCard, IncUBCard, LBCard, UBCard},
-        EncodeStats, EncodingError,
-    },
+    encodings::{card, EncodeStats, EncodingError},
     instances::{ManageVars, CNF},
     types::{Lit, RsHashMap},
 };
 
 /// Simulator type that builds a pseudo-boolean encoding of type `PBE` over the
 /// negated input literals in order to simulate the other bound type
-pub struct InvertedPB<PBE>
+pub struct Inverted<PBE>
 where
-    PBE: EncodePB + 'static,
+    PBE: Encode + 'static,
 {
     pb_enc: PBE,
     weight_sum: usize,
 }
 
-impl<PBE> EncodePB for InvertedPB<PBE>
+impl<PBE> Encode for Inverted<PBE>
 where
-    PBE: EncodePB,
+    PBE: Encode,
 {
     type Iter<'a> = InvertedIter<PBE::Iter<'a>>;
 
@@ -37,7 +34,7 @@ where
     where
         Self: Sized,
     {
-        InvertedPB {
+        Inverted {
             pb_enc: PBE::new(),
             weight_sum: 0,
         }
@@ -61,24 +58,24 @@ where
     }
 }
 
-impl<PBE> IncEncodePB for InvertedPB<PBE>
+impl<PBE> IncEncode for Inverted<PBE>
 where
-    PBE: IncEncodePB,
+    PBE: IncEncode,
 {
     fn new_reserving() -> Self
     where
         Self: Sized,
     {
-        InvertedPB {
+        Inverted {
             pb_enc: PBE::new_reserving(),
             weight_sum: 0,
         }
     }
 }
 
-impl<PBE> UBPB for InvertedPB<PBE>
+impl<PBE> UB for Inverted<PBE>
 where
-    PBE: LBPB,
+    PBE: LB,
 {
     fn encode_ub(
         &mut self,
@@ -109,9 +106,9 @@ where
     }
 }
 
-impl<PBE> LBPB for InvertedPB<PBE>
+impl<PBE> LB for Inverted<PBE>
 where
-    PBE: UBPB,
+    PBE: UB,
 {
     fn encode_lb(
         &mut self,
@@ -142,9 +139,9 @@ where
     }
 }
 
-impl<PBE> IncUBPB for InvertedPB<PBE>
+impl<PBE> IncUB for Inverted<PBE>
 where
-    PBE: IncLBPB,
+    PBE: IncLB,
 {
     fn encode_ub_change(
         &mut self,
@@ -166,9 +163,9 @@ where
     }
 }
 
-impl<PBE> IncLBPB for InvertedPB<PBE>
+impl<PBE> IncLB for Inverted<PBE>
 where
-    PBE: IncUBPB,
+    PBE: IncUB,
 {
     fn encode_lb_change(
         &mut self,
@@ -190,9 +187,9 @@ where
     }
 }
 
-impl<PBE> EncodeStats for InvertedPB<PBE>
+impl<PBE> EncodeStats for Inverted<PBE>
 where
-    PBE: EncodePB + EncodeStats,
+    PBE: Encode + EncodeStats,
 {
     fn n_clauses(&self) -> usize {
         self.pb_enc.n_clauses()
@@ -211,29 +208,29 @@ type InvertedIter<IPBE> = std::iter::Map<IPBE, fn((Lit, usize)) -> (Lit, usize)>
 /// Simulator type that builds a combined pseudo-boolean encoding supporting
 /// both bounds from two individual pseudo-boolean encodings supporting each
 /// bound separately
-pub struct DoublePB<UB, LB>
+pub struct Double<UBE, LBE>
 where
-    UB: UBPB + 'static,
-    LB: LBPB + 'static,
+    UBE: UB + 'static,
+    LBE: LB + 'static,
 {
-    ub_enc: UB,
-    lb_enc: LB,
+    ub_enc: UBE,
+    lb_enc: LBE,
 }
 
-impl<UB, LB> EncodePB for DoublePB<UB, LB>
+impl<UBE, LBE> Encode for Double<UBE, LBE>
 where
-    UB: UBPB,
-    LB: LBPB,
+    UBE: UB,
+    LBE: LB,
 {
-    type Iter<'a> = UB::Iter<'a>;
+    type Iter<'a> = UBE::Iter<'a>;
 
     fn new() -> Self
     where
         Self: Sized,
     {
-        DoublePB {
-            ub_enc: UB::new(),
-            lb_enc: LB::new(),
+        Double {
+            ub_enc: UBE::new(),
+            lb_enc: LBE::new(),
         }
     }
 
@@ -251,26 +248,26 @@ where
     }
 }
 
-impl<UB, LB> IncEncodePB for DoublePB<UB, LB>
+impl<UBE, LBE> IncEncode for Double<UBE, LBE>
 where
-    UB: IncUBPB,
-    LB: IncLBPB,
+    UBE: IncUB,
+    LBE: IncLB,
 {
     fn new_reserving() -> Self
     where
         Self: Sized,
     {
-        DoublePB {
-            ub_enc: UB::new_reserving(),
-            lb_enc: LB::new_reserving(),
+        Double {
+            ub_enc: UBE::new_reserving(),
+            lb_enc: LBE::new_reserving(),
         }
     }
 }
 
-impl<UB, LB> UBPB for DoublePB<UB, LB>
+impl<UBE, LBE> UB for Double<UBE, LBE>
 where
-    UB: UBPB,
-    LB: LBPB,
+    UBE: UB,
+    LBE: LB,
 {
     fn encode_ub(
         &mut self,
@@ -286,10 +283,10 @@ where
     }
 }
 
-impl<UB, LB> LBPB for DoublePB<UB, LB>
+impl<UBE, LBE> LB for Double<UBE, LBE>
 where
-    UB: UBPB,
-    LB: LBPB,
+    UBE: UB,
+    LBE: LB,
 {
     fn encode_lb(
         &mut self,
@@ -305,10 +302,10 @@ where
     }
 }
 
-impl<UB, LB> IncUBPB for DoublePB<UB, LB>
+impl<UBE, LBE> IncUB for Double<UBE, LBE>
 where
-    UB: IncUBPB,
-    LB: IncLBPB,
+    UBE: IncUB,
+    LBE: IncLB,
 {
     fn encode_ub_change(
         &mut self,
@@ -320,10 +317,10 @@ where
     }
 }
 
-impl<UB, LB> IncLBPB for DoublePB<UB, LB>
+impl<UBE, LBE> IncLB for Double<UBE, LBE>
 where
-    UB: IncUBPB,
-    LB: IncLBPB,
+    UBE: IncUB,
+    LBE: IncLB,
 {
     fn encode_lb_change(
         &mut self,
@@ -335,10 +332,10 @@ where
     }
 }
 
-impl<UB, LB> EncodeStats for DoublePB<UB, LB>
+impl<UBE, LBE> EncodeStats for Double<UBE, LBE>
 where
-    UB: EncodeStats + UBPB,
-    LB: EncodeStats + LBPB,
+    UBE: EncodeStats + UB,
+    LBE: EncodeStats + LB,
 {
     fn n_clauses(&self) -> usize {
         self.ub_enc.n_clauses() + self.lb_enc.n_clauses()
@@ -351,16 +348,16 @@ where
 
 /// Simulator type that mimics a pseudo-boolean encoding based on a cardinality
 /// encoding that literals are added to multiple times
-pub struct CardPB<CE>
+pub struct Card<CE>
 where
-    CE: EncodeCard + 'static,
+    CE: card::Encode + 'static,
 {
     card_enc: CE,
 }
 
-impl<CE> EncodePB for CardPB<CE>
+impl<CE> Encode for Card<CE>
 where
-    CE: EncodeCard,
+    CE: card::Encode,
 {
     type Iter<'a> = CardIter<CE::Iter<'a>>;
 
@@ -368,7 +365,7 @@ where
     where
         Self: Sized,
     {
-        CardPB {
+        Card {
             card_enc: CE::new(),
         }
     }
@@ -392,23 +389,23 @@ where
     }
 }
 
-impl<CE> IncEncodePB for CardPB<CE>
+impl<CE> IncEncode for Card<CE>
 where
-    CE: IncEncodeCard,
+    CE: card::IncEncode,
 {
     fn new_reserving() -> Self
     where
         Self: Sized,
     {
-        CardPB {
+        Card {
             card_enc: CE::new_reserving(),
         }
     }
 }
 
-impl<CE> UBPB for CardPB<CE>
+impl<CE> UB for Card<CE>
 where
-    CE: UBCard,
+    CE: card::UB,
 {
     fn encode_ub(
         &mut self,
@@ -424,9 +421,9 @@ where
     }
 }
 
-impl<CE> LBPB for CardPB<CE>
+impl<CE> LB for Card<CE>
 where
-    CE: LBCard,
+    CE: card::LB,
 {
     fn encode_lb(
         &mut self,
@@ -442,9 +439,9 @@ where
     }
 }
 
-impl<CE> IncUBPB for CardPB<CE>
+impl<CE> IncUB for Card<CE>
 where
-    CE: IncUBCard,
+    CE: card::IncUB,
 {
     fn encode_ub_change(
         &mut self,
@@ -456,9 +453,9 @@ where
     }
 }
 
-impl<CE> IncLBPB for CardPB<CE>
+impl<CE> IncLB for Card<CE>
 where
-    CE: IncLBCard,
+    CE: card::IncLB,
 {
     fn encode_lb_change(
         &mut self,

@@ -5,8 +5,8 @@ use rustsat::{
     encodings::{
         card::Totalizer,
         pb::{
-            simulators::CardPB, BothBPB, DoubleGeneralizedTotalizer, EncodePB,
-            GeneralizedTotalizer, IncBothBPB, IncUBPB, InvertedGeneralizedTotalizer, LBPB, UBPB,
+            simulators::Card, BothB, DoubleGeneralizedTotalizer, Encode,
+            GeneralizedTotalizer, IncBothB, IncUB, InvertedGeneralizedTotalizer, LB, UB,
         },
     },
     instances::{BasicVarManager, ManageVars},
@@ -16,7 +16,7 @@ use rustsat::{
     var,
 };
 
-fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
+fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -108,7 +108,7 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
+fn test_pb_eq<PBE: IncBothB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
@@ -165,7 +165,7 @@ fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
     assert_eq!(res, SolverResult::UNSAT);
 }
 
-fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
+fn test_pb_lb<PBE: LB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver
@@ -196,7 +196,7 @@ fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-fn test_pb_ub_min_enc<PBE: UBPB>(mut enc: PBE) {
+fn test_pb_ub_min_enc<PBE: UB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
@@ -278,6 +278,6 @@ fn gte_eq() {
 
 #[test]
 fn tot_pb_sim_eq() {
-    let sim: CardPB<Totalizer> = CardPB::new();
+    let sim: Card<Totalizer> = Card::new();
     test_pb_eq(sim);
 }

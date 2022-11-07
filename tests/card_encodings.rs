@@ -3,8 +3,8 @@
 use rustsat::{
     clause,
     encodings::card::{
-        simulators::{DoubleCard, InvertedCard},
-        BothBCard, EncodeCard, IncBothBCard, Totalizer,
+        simulators::{Double, Inverted},
+        BothB, Encode, IncBothB, Totalizer,
     },
     instances::{BasicVarManager, ManageVars},
     lit,
@@ -13,7 +13,7 @@ use rustsat::{
     var,
 };
 
-fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
+fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -88,7 +88,7 @@ fn test_inc_both_card<CE: IncBothBCard>(mut enc: CE) {
     assert_eq!(res, SolverResult::SAT);
 }
 
-fn test_both_card<CE: BothBCard>(mut enc: CE) {
+fn test_both_card<CE: BothB>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -123,7 +123,7 @@ fn test_both_card<CE: BothBCard>(mut enc: CE) {
 }
 
 /// Requires a cardinality encoding with upper and lower bounding functionality
-fn test_both_card_min_enc<CE: BothBCard>(mut enc: CE) {
+fn test_both_card_min_enc<CE: BothB>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::new();
@@ -205,7 +205,7 @@ fn tot_min_enc() {
 
 #[test]
 fn double_invertet_tot() {
-    let double_inv_tot: DoubleCard<InvertedCard<Totalizer>, InvertedCard<Totalizer>> =
-        DoubleCard::new();
+    let double_inv_tot: Double<Inverted<Totalizer>, Inverted<Totalizer>> =
+        Double::new();
     test_inc_both_card(double_inv_tot)
 }
