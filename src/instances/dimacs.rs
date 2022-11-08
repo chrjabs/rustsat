@@ -397,7 +397,7 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>, DimacsError> {
             // Line is not a comment
             let (input, clause) =
                 terminated(separated_list0(multispace1, parse_lit), parse_clause_ending)(input)?;
-            Ok((input, Some(Clause::from(clause.into_iter()))))
+            Ok((input, Some(Clause::from_iter(clause))))
         }
     }
 }

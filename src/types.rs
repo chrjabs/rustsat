@@ -489,18 +489,18 @@ impl fmt::Debug for TernaryVal {
     }
 }
 
-/// Type representing a solution to a formula.
+/// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct Solution {
+pub struct Assignment {
     assignment: Vec<TernaryVal>,
 }
 
-impl Solution {
+impl Assignment {
     /// Create a solution from a vector of `LitVal`s where every entry represents
     /// the assignment for the variable with the index of the entry.
-    pub fn from_vec(assignment: Vec<TernaryVal>) -> Solution {
-        Solution { assignment }
+    pub fn from_vec(assignment: Vec<TernaryVal>) -> Assignment {
+        Assignment { assignment }
     }
 
     /// Get the value that the solution assigns to a variable.
@@ -538,9 +538,22 @@ impl Solution {
             }
         })
     }
+
+    pub fn assign_var(&mut self, var: Var, val: TernaryVal) {
+        self.assignment[var.idx] = val;
+    }
+
+    pub fn assign_lit(&mut self, lit: Lit) {
+        let val = if lit.is_pos() {
+            TernaryVal::True
+        } else {
+            TernaryVal::False
+        };
+        self.assign_var(lit.var(), val)
+    }
 }
 
-impl fmt::Debug for Solution {
+impl fmt::Debug for Assignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.assignment
             .iter()
@@ -548,7 +561,7 @@ impl fmt::Debug for Solution {
     }
 }
 
-impl fmt::Display for Solution {
+impl fmt::Display for Assignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.assignment
             .iter()
@@ -557,7 +570,7 @@ impl fmt::Display for Solution {
 }
 
 /// Turns the solution into an iterator over all true literals
-impl IntoIterator for Solution {
+impl IntoIterator for Assignment {
     type Item = Lit;
 
     type IntoIter = std::iter::FilterMap<
@@ -591,7 +604,7 @@ pub enum TypeError {
 mod tests {
     use std::mem::size_of;
 
-    use super::{Lit, Solution, TernaryVal, Var};
+    use super::{Assignment, Lit, TernaryVal, Var};
 
     #[test]
     fn var_index() {
@@ -693,7 +706,7 @@ mod tests {
 
     #[test]
     fn sol_var_val() {
-        let sol = Solution::from_vec(vec![
+        let sol = Assignment::from_vec(vec![
             TernaryVal::True,
             TernaryVal::False,
             TernaryVal::DontCare,
@@ -708,7 +721,7 @@ mod tests {
 
     #[test]
     fn sol_lit_val() {
-        let sol = Solution::from_vec(vec![
+        let sol = Assignment::from_vec(vec![
             TernaryVal::True,
             TernaryVal::False,
             TernaryVal::DontCare,
@@ -729,7 +742,7 @@ mod tests {
 
     #[test]
     fn sol_repl_dont_care() {
-        let mut sol = Solution::from_vec(vec![
+        let mut sol = Assignment::from_vec(vec![
             TernaryVal::True,
             TernaryVal::False,
             TernaryVal::DontCare,

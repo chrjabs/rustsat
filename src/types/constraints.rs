@@ -25,16 +25,6 @@ impl Clause {
         Self::default()
     }
 
-    /// Create a new clause from an iterator
-    pub fn from<I>(lits: I) -> Clause
-    where
-        I: Iterator<Item = Lit>,
-    {
-        Clause {
-            lits: lits.collect(),
-        }
-    }
-
     /// Gets the length of the clause
     #[inline]
     pub fn len(&self) -> usize {
@@ -169,6 +159,14 @@ impl IntoIterator for Clause {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.lits.into_iter()
+    }
+}
+
+impl FromIterator<Lit> for Clause {
+    fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
+        Self {
+            lits: Vec::from_iter(iter),
+        }
     }
 }
 
@@ -309,8 +307,8 @@ impl CardConstraint {
             return None;
         }
         match self {
-            CardConstraint::UB(constr) => Some(Clause::from(constr.lits.into_iter().map(Lit::not))),
-            CardConstraint::LB(constr) => Some(Clause::from(constr.lits.into_iter())),
+            CardConstraint::UB(constr) => Some(Clause::from_iter(constr.lits.into_iter().map(Lit::not))),
+            CardConstraint::LB(constr) => Some(Clause::from_iter(constr.lits)),
             CardConstraint::EQ(_) => panic!(),
         }
     }

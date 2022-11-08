@@ -73,7 +73,7 @@
 use crate::{
     clause,
     instances::CNF,
-    types::{Clause, Lit, Solution, TernaryVal, Var},
+    types::{Clause, Lit, Assignment, TernaryVal, Var},
 };
 use std::fmt;
 
@@ -111,7 +111,7 @@ pub trait Solve {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn solution(&self, high_var: Var) -> Result<Solution, SolverError> {
+    fn solution(&self, high_var: Var) -> Result<Assignment, SolverError> {
         let mut assignment = Vec::new();
         let len = high_var.idx() + 1;
         assignment.reserve(len);
@@ -119,7 +119,7 @@ pub trait Solve {
             let lit = Lit::positive(idx);
             assignment.push(self.lit_val(lit)?);
         }
-        Ok(Solution::from_vec(assignment))
+        Ok(Assignment::from_vec(assignment))
     }
     /// Same as [`Solve::lit_val`], but for variables.
     fn var_val(&self, var: Var) -> Result<TernaryVal, SolverError> {
@@ -259,7 +259,7 @@ impl fmt::Display for SolverState {
 }
 
 /// Return value for solving queries.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SolverResult {
     /// The query was found satisfiable.
     SAT,
@@ -267,15 +267,6 @@ pub enum SolverResult {
     UNSAT,
     /// The query was prematurely interrupted.
     Interrupted,
-}
-
-/// Return type for solver terminator callbacks
-#[derive(Debug, PartialEq, Eq)]
-pub enum ControlSignal {
-    /// Variant for the solver to continue
-    Continue,
-    /// Variant for the solver to terminate
-    Terminate,
 }
 
 impl fmt::Display for SolverResult {
@@ -286,6 +277,15 @@ impl fmt::Display for SolverResult {
             SolverResult::Interrupted => write!(f, "Interrupted"),
         }
     }
+}
+
+/// Return type for solver terminator callbacks
+#[derive(Debug, PartialEq, Eq)]
+pub enum ControlSignal {
+    /// Variant for the solver to continue
+    Continue,
+    /// Variant for the solver to terminate
+    Terminate,
 }
 
 /// Type representing solver errors
@@ -324,7 +324,7 @@ type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 
 /// The default solver, depending on the library configuration.
 /// Solvers are ordered by the following priority:
-/// 
+///
 /// 1. [`Kissat`]
 /// 2. [`CaDiCaL`]
 /// 3. [`IpasirSolver`]
@@ -337,7 +337,7 @@ pub type DefSolver<'a> = IpasirSolver<'a>;
 
 /// The default incremental solver, depending on the library configuration.
 /// Solvers are ordered by the following priority:
-/// 
+///
 /// 1. [`CaDiCaL`]
 /// 2. [`IpasirSolver`]
 #[cfg(feature = "cadical")]
