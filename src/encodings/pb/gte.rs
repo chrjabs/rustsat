@@ -107,7 +107,7 @@ impl GeneralizedTotalizer {
 impl Encode for GeneralizedTotalizer {
     type Iter<'a> = GTEIter<'a>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.in_lits.iter().map(copy_key_val)
     }
 

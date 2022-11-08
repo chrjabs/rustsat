@@ -66,7 +66,7 @@ where
 {
     type Iter<'a> = InvertedIter<CE::Iter<'a>>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.card_enc.iter().map(Lit::not)
     }
 
@@ -269,7 +269,7 @@ where
 {
     type Iter<'a> = UBE::Iter<'a>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.ub_enc.iter()
     }
 

@@ -60,7 +60,7 @@ pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
     where
         Self: 'a;
     /// Gets an iterator over copies of the input literals
-    fn iter<'a>(&'a self) -> Self::Iter<'a>;
+    fn iter(&self) -> Self::Iter<'_>;
     /// Gets the number of literals in the encoding
     fn n_lits(&self) -> usize;
 }

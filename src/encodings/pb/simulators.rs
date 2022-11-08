@@ -67,7 +67,7 @@ where
 {
     type Iter<'a> = InvertedIter<PBE::Iter<'a>>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.pb_enc.iter().map(negate_weighted)
     }
 
@@ -273,7 +273,7 @@ where
 {
     type Iter<'a> = UBE::Iter<'a>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.ub_enc.iter()
     }
 
@@ -428,7 +428,7 @@ where
 {
     type Iter<'a> = CardIter<CE::Iter<'a>>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.card_enc.iter().map(add_unit_weight)
     }
 

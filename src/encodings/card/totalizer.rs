@@ -82,7 +82,7 @@ impl Totalizer {
 impl Encode for Totalizer {
     type Iter<'a> = TotIter<'a>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
         self.in_lits.iter().copied()
     }
 
