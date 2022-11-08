@@ -654,9 +654,9 @@ impl Objective {
                 if let Some(unit_weight) = unit_weight {
                     *self = Objective::Weighted {
                         offset: *offset,
-                        soft_lits: soft_lits.into_iter().map(|l| (*l, *unit_weight)).collect(),
+                        soft_lits: soft_lits.iter_mut().map(|l| (*l, *unit_weight)).collect(),
                         soft_clauses: soft_clauses
-                            .into_iter()
+                            .iter_mut()
                             .map(|cl| (cl.clone(), *unit_weight))
                             .collect(),
                     }
@@ -682,10 +682,10 @@ impl Objective {
             } => {
                 let mut soft_unit_lits = vec![];
                 soft_lits
-                    .into_iter()
+                    .iter_mut()
                     .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + *w, *l));
                 let mut soft_unit_clauses = vec![];
-                soft_clauses.into_iter().for_each(|(cl, w)| {
+                soft_clauses.iter_mut().for_each(|(cl, w)| {
                     soft_unit_clauses.resize(soft_unit_clauses.len() + *w, cl.clone())
                 });
                 *self = Objective::Unweighted {

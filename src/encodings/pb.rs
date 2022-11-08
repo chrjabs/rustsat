@@ -70,7 +70,7 @@ pub trait Encode:
     where
         Self: 'a;
     /// Gets an iterator over copies of the input literals
-    fn iter<'a>(&'a self) -> Self::Iter<'a>;
+    fn iter(&self) -> Self::Iter<'_>;
     /// Get the sum of weights in the encoding
     fn weight_sum(&self) -> usize;
 }
