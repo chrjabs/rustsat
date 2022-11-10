@@ -196,19 +196,14 @@ impl UBPB for GeneralizedTotalizer {
         let mut assumps = vec![];
         // Assume literals that have higher weight than `ub`
         assumps.reserve(self.lit_buffer.len());
-        self.lit_buffer
-            .iter()
-            .fold(Ok(()), |res, (&l, &w)| match res {
-                Err(err) => Err(err),
-                Ok(_) => {
-                    if w <= ub {
-                        Err(EncodingError::NotEncoded)
-                    } else {
-                        assumps.push(!l);
-                        Ok(())
-                    }
-                }
-            })?;
+        self.lit_buffer.iter().try_for_each(|(&l, &w)| {
+            if w <= ub {
+                Err(EncodingError::NotEncoded)
+            } else {
+                assumps.push(!l);
+                Ok(())
+            }
+        })?;
         self.in_lits.iter().for_each(|(&l, &w)| {
             if w > ub {
                 assumps.push(!l);
