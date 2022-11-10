@@ -244,6 +244,9 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// The file format expected by this parser is the DIMACS CNF format used in
     /// the SAT competition since 2011. For details on the file format see
     /// [here](http://www.satcompetition.org/2011/format-benchmarks2011.html).
+    /// 
+    /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
+    /// are ignored and only the constraints returned.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_cnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
@@ -519,6 +522,11 @@ impl Objective {
         }
     }
 
+    /// Checks if the objective is empty
+    pub fn is_empty(&self) -> bool {
+        self.soft_lits.is_empty() && self.soft_clauses.is_empty() && self.offset == 0
+    }
+
     /// Sets the value offset
     pub fn set_offset(&mut self, offset: isize) {
         self.offset = offset
@@ -640,6 +648,9 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// used in the MaxSAT evaluation before 2022 or the [new
     /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) used
     /// since 2022.
+    /// 
+    /// If a DIMACS MCNF file is passed to this function, all objectives but the
+    /// first are ignored.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_wcnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
@@ -910,19 +921,17 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// ```text
     /// c <comment>
-    /// p mcnf
     /// h 1 2 3 0
-    /// 1 5 1 0
-    /// 2 7 2 3 0
+    /// o1 5 1 0
+    /// o2 7 2 3 0
     /// ```
     ///
-    /// Comments start with `c`, as in other DIMACS formats. The first line that
-    /// is not a comment needs to be a `p`-line indicating that this a MCNF
-    /// file. After that, hard clauses start with an `h`, as in WCNF files. Soft
-    /// clauses are of the following form `<obj idx> <weight> <lit 1> ... <lit
-    /// n> 0`. The first token must be a positive number indicating what
-    /// objective this soft clause belongs to. After that, the format is
-    /// identical to a soft clause in a WCNF file.
+    /// Comments start with `c`, as in other DIMACS formats. Hard clauses start
+    /// with an `h`, as in WCNF files. Soft clauses are of the following form
+    /// `o<obj idx> <weight> <lit 1> ... <lit n> 0`. The first token must be a
+    /// positive number preceded by an 'o', indicating what objective this soft
+    /// clause belongs to. After that, the format is identical to a soft clause
+    /// in a WCNF file.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
         match dimacs::parse_mcnf(reader) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
