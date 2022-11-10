@@ -9,8 +9,8 @@ use std::{
     fmt,
     fs::File,
     hash::{Hash, Hasher},
-    io,
     io::Read,
+    io::{self, Write},
     path::Path,
     slice::{Iter, IterMut},
     vec::IntoIter,
@@ -489,6 +489,32 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.cnf.extend(other.cnf);
         self.var_manager.combine(other.var_manager);
     }
+
+    /// Writes the instance to DIMACS CNF
+    pub fn to_dimacs<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        self.to_dimacs_with_encoders(
+            card::default_encode_cardinality_constraint,
+            pb::default_encode_pb_constraint,
+            writer,
+        )
+    }
+
+    /// Writes the instance to DIMACS CNF converting non-clausal constraints
+    /// with specific encoders.
+    pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
+        self,
+        card_encoder: CardEnc,
+        pb_encoder: PBEnc,
+        writer: &mut W,
+    ) -> Result<(), io::Error>
+    where
+        W: Write,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+    {
+        let (cnf, mut vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
+        dimacs::write_cnf(writer, cnf, vm.next_free() - 1)
+    }
 }
 
 impl<VM: ManageVars> Default for SatInstance<VM> {
@@ -625,7 +651,7 @@ impl Objective {
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct OptInstance<VM: ManageVars = BasicVarManager> {
-    constr: SatInstance<VM>,
+    constrs: SatInstance<VM>,
     obj: Objective,
 }
 
@@ -634,7 +660,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Creates a new optimization instance
     pub fn new() -> Self {
         OptInstance {
-            constr: SatInstance::new(),
+            constrs: SatInstance::new(),
             obj: Objective::new(),
         }
     }
@@ -642,7 +668,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Creates a new optimization instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
         OptInstance {
-            constr: SatInstance::new_with_manager(var_manager),
+            constrs: SatInstance::new_with_manager(var_manager),
             obj: Objective::new(),
         }
     }
@@ -650,14 +676,14 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Creates a new optimization instance from constraints and an objective
     pub fn compose(constraints: SatInstance<VM>, objective: Objective) -> Self {
         OptInstance {
-            constr: constraints,
+            constrs: constraints,
             obj: objective,
         }
     }
 
     /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
     pub fn decompose(self) -> (SatInstance<VM>, Objective) {
-        (self.constr, self.obj)
+        (self.constrs, self.obj)
     }
 
     /// Parses a DIMACS instance from a reader object.
@@ -779,7 +805,7 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
-        &mut self.constr
+        &mut self.constrs
     }
 
     /// Gets a mutable reference to the objective for modifying it
@@ -789,13 +815,13 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Converts the instance to a set of hard and soft clauses
     pub fn as_hard_cls_soft_cls(self) -> (CNF, HashMap<Clause, usize>, VM) {
-        let (cnf, vm) = self.constr.as_cnf();
+        let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
     pub fn as_hard_cls_soft_lits(self) -> (CNF, HashMap<Lit, usize>, VM) {
-        let (mut cnf, mut vm) = self.constr.as_cnf();
+        let (mut cnf, mut vm) = self.constrs.as_cnf();
         let (hard_softs, soft_lits) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
         (cnf, soft_lits, vm)
@@ -808,9 +834,36 @@ impl<VM: ManageVars> OptInstance<VM> {
         VMC: Fn(VM) -> VM2,
     {
         OptInstance {
-            constr: self.constr.change_var_manager(vm_converter),
+            constrs: self.constrs.change_var_manager(vm_converter),
             obj: self.obj,
         }
+    }
+
+    /// Write to DIMACS WCNF (post 22)
+    pub fn to_dimacs<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        self.to_dimacs_with_encoders(
+            card::default_encode_cardinality_constraint,
+            pb::default_encode_pb_constraint,
+            writer,
+        )
+    }
+
+    /// Writes the instance to DIMACS WCNF (post 22) converting non-clausal
+    /// constraints with specific encoders.
+    pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
+        self,
+        card_encoder: CardEnc,
+        pb_encoder: PBEnc,
+        writer: &mut W,
+    ) -> Result<(), io::Error>
+    where
+        W: Write,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+    {
+        let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
+        let soft_cls = self.obj.as_soft_cls();
+        dimacs::write_wcnf(writer, cnf, soft_cls, Some(vm.next_free() - 1))
     }
 }
 
@@ -913,7 +966,7 @@ impl<VM: ManageVars> BiOptInstance<VM> {
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
-    constr: SatInstance<VM>,
+    constrs: SatInstance<VM>,
     objs: Vec<Objective>,
 }
 
@@ -922,7 +975,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Creates a new optimization instance
     pub fn new(n_objs: usize) -> Self {
         MultiOptInstance {
-            constr: SatInstance::new(),
+            constrs: SatInstance::new(),
             objs: {
                 let mut tmp = Vec::with_capacity(n_objs);
                 tmp.resize(n_objs, Objective::new());
@@ -934,7 +987,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Creates a new optimization instance with a specific var manager
     pub fn new_with_manager(n_objs: usize, var_manager: VM) -> Self {
         MultiOptInstance {
-            constr: SatInstance::new_with_manager(var_manager),
+            constrs: SatInstance::new_with_manager(var_manager),
             objs: {
                 let mut tmp = Vec::with_capacity(n_objs);
                 tmp.resize(n_objs, Objective::new());
@@ -946,14 +999,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Creates a new optimization instance from constraints and objectives
     pub fn compose(constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
         MultiOptInstance {
-            constr: constraints,
+            constrs: constraints,
             objs: objectives,
         }
     }
 
     /// Decomposes the optimization instance to a [`SatInstance`] and [`Objective`]s
     pub fn decompose(self) -> (SatInstance<VM>, Vec<Objective>) {
-        (self.constr, self.objs)
+        (self.constrs, self.objs)
     }
 
     /// Parse a DIMACS instance from a reader object.
@@ -1038,7 +1091,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
-        &mut self.constr
+        &mut self.constrs
     }
 
     /// Gets a mutable reference to the first objective for modifying it.
@@ -1050,14 +1103,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Converts the instance to a set of hard and soft clauses
     pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<HashMap<Clause, usize>>, VM) {
-        let (cnf, vm) = self.constr.as_cnf();
+        let (cnf, vm) = self.constrs.as_cnf();
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
     pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<HashMap<Lit, usize>>, VM) {
-        let (mut cnf, mut vm) = self.constr.as_cnf();
+        let (mut cnf, mut vm) = self.constrs.as_cnf();
         let soft_lits = self
             .objs
             .into_iter()
@@ -1077,9 +1130,36 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         VMC: Fn(VM) -> VM2,
     {
         MultiOptInstance {
-            constr: self.constr.change_var_manager(vm_converter),
+            constrs: self.constrs.change_var_manager(vm_converter),
             objs: self.objs,
         }
+    }
+
+    /// Write to DIMACS MCNF
+    pub fn to_dimacs<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        self.to_dimacs_with_encoders(
+            card::default_encode_cardinality_constraint,
+            pb::default_encode_pb_constraint,
+            writer,
+        )
+    }
+
+    /// Writes the instance to DIMACS MCNF converting non-clausal constraints
+    /// with specific encoders.
+    pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
+        self,
+        card_encoder: CardEnc,
+        pb_encoder: PBEnc,
+        writer: &mut W,
+    ) -> Result<(), io::Error>
+    where
+        W: Write,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+    {
+        let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
+        let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
+        dimacs::write_mcnf(writer, cnf, soft_cls, Some(vm.next_free() - 1))
     }
 }
 
