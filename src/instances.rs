@@ -63,7 +63,8 @@ impl fmt::Display for ParsingError {
 
 /// Opens a buffered reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
-fn open_compressed_uncompressed(path: &Path) -> Result<Box<dyn Read>, io::Error> {
+fn open_compressed_uncompressed<P: AsRef<Path>>(path: P) -> Result<Box<dyn Read>, io::Error> {
+    let path = path.as_ref();
     let raw_reader = File::open(path)?;
     #[cfg(feature = "compression")]
     if let Some(ext) = path.extension() {
@@ -265,7 +266,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Parses a DIMACS instance from a file path. For more details see
     /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
@@ -297,7 +298,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Parses an OPB instance from a file path. For more details see
     /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_opb_reader(reader),
@@ -672,7 +673,17 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// If a DIMACS MCNF file is passed to this function, all objectives but the
     /// first are ignored.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        match dimacs::parse_wcnf(reader) {
+        Self::from_dimacs_reader_with_idx(reader, 0)
+    }
+
+    /// Parses a DIMACS instance from a reader object, selecting the objective
+    /// with index `obj_idx` if multiple are available. The index starts at 0.
+    /// For more details see [`OptInstance::from_dimacs_reader`].
+    pub fn from_dimacs_reader_with_idx<R: Read>(
+        reader: R,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        match dimacs::parse_wcnf_with_idx(reader, obj_idx) {
             Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
             Ok(inst) => {
                 let inst = inst.change_var_manager(|mut vm| {
@@ -689,10 +700,23 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader_with_idx`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_dimacs_path_with_idx<P: AsRef<Path>>(
+        path: P,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_dimacs_reader_with_idx(reader, obj_idx),
         }
     }
 
@@ -708,7 +732,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Parses an OPB instance from a reader object, selecting the objective
-    /// with index `obj_idx` if multiple are available. The index starts from 0.
+    /// with index `obj_idx` if multiple are available. The index starts at 0.
     /// For more details see [`OptInstance::from_opb_reader`].
     pub fn from_opb_reader_with_idx<R: Read>(
         reader: R,
@@ -731,7 +755,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Parses an OPB instance from a file path. For more details see
     /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_opb_reader(reader),
@@ -739,11 +763,14 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Parses an OPB instance from a file path, selecting the objective with
-    /// index `obj_idx` if multiple are available. The index starts from 0. For
+    /// index `obj_idx` if multiple are available. The index starts at 0. For
     /// more details see [`OptInstance::from_opb_reader`]. With feature
     /// `compression` supports bzip2 and gzip compression, detected by the file
     /// extension.
-    pub fn from_opb_path_with_idx(path: &Path, obj_idx: usize) -> Result<Self, ParsingError> {
+    pub fn from_opb_path_with_idx<P: AsRef<Path>>(
+        path: P,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx),
@@ -969,7 +996,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs_reader`].
-    pub fn from_dimacs_path(path: &Path) -> Result<Self, ParsingError> {
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => MultiOptInstance::from_dimacs_reader(reader),
@@ -1002,7 +1029,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Parses an OPB instance from a file path. For more details see
     /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path(path: &Path) -> Result<Self, ParsingError> {
+    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
         match open_compressed_uncompressed(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => MultiOptInstance::from_opb_reader(reader),

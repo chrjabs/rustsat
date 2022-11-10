@@ -1,4 +1,4 @@
-//! # Parsing DIMACS Files
+//! # Parsing and Writing DIMACS Files
 //!
 //! Internal module containing functions for parsing DIMACS files.
 //! The approach is to accept input instances, even if they are not technically
@@ -57,16 +57,19 @@ pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
 }
 
 #[cfg(feature = "optimization")]
-/// Parses a WCNF instance (old or new format) from a reader (typically a (compressed) file)
-pub fn parse_wcnf<R: Read>(reader: R) -> Result<OptInstance, DimacsError> {
+/// Parses a WCNF instance (old or new format) from a reader (typically a
+/// (compressed) file). The objective with the index obj_idx is used.
+pub fn parse_wcnf_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInstance, DimacsError> {
     let reader = BufReader::new(reader);
     let (constrs, objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
         return Err(DimacsError::InvalidInstanceType);
+    } else if objs.len() >= obj_idx {
+        return Err(DimacsError::ObjNoExist(objs.len()));
     }
     Ok(OptInstance::compose(
         constrs,
-        objs.into_iter().next().unwrap(),
+        objs.into_iter().skip(obj_idx).next().unwrap(),
     ))
 }
 
@@ -102,6 +105,8 @@ pub enum DimacsError {
     PValTooLarge(u64),
     /// Invalid p line
     PLine(String),
+    /// The requested objective does not exist
+    ObjNoExist(usize),
     /// IO error reading file
     IOError(io::Error),
     /// Base error from nom parsing
@@ -118,6 +123,7 @@ impl PartialEq for DimacsError {
             (Self::ObjIdx(l0), Self::ObjIdx(r0)) => l0 == r0,
             (Self::Weight(l0), Self::Weight(r0)) => l0 == r0,
             (Self::CommentInClause(l0), Self::CommentInClause(r0)) => l0 == r0,
+            (Self::ObjNoExist(l0), Self::ObjNoExist(r0)) => l0 == r0,
             (Self::IOError(_), Self::IOError(_)) => true,
             (Self::NomError(l0, l1), Self::NomError(r0, r1)) => l0 == r0 && l1 == r1,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
@@ -141,6 +147,7 @@ impl fmt::Display for DimacsError {
                 val
             ),
             DimacsError::PLine(line) => write!(f, "Invalid p line: {}", line),
+            DimacsError::ObjNoExist(n_obj) => write!(f, "The file only has {} objectives", n_obj),
             DimacsError::IOError(ioe) => write!(f, "{}", ioe),
             DimacsError::NomError(str, kind) => write!(f, "Nom error: {}, {:?}", str, kind),
             DimacsError::NomIncomplete => write!(f, "Nom parser requested more data"),
@@ -979,7 +986,7 @@ mod tests {
     #[cfg(feature = "multiopt")]
     #[test]
     fn parse_mcnf() {
-        let data = "c test\np mcnf\nh 1 2 0\n2 10 -3 4 5 0\n1 3 -1 0\n";
+        let data = "c test\nh 1 2 0\no2 10 -3 4 5 0\no1 3 -1 0\n";
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
