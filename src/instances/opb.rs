@@ -268,7 +268,7 @@ fn objective(input: &str) -> IResult<&str, Objective> {
         |(_, _, wsl, _)| {
             let mut obj = Objective::new();
             wsl.into_iter()
-                .for_each(|(l, w)| obj.add_soft_lit_int(w, l));
+                .for_each(|(l, w)| obj.increase_soft_lit_int(w, l));
             Ok::<_, ()>(obj)
         },
     )(input)
@@ -412,8 +412,8 @@ mod test {
             Ok((rest, obj)) => {
                 assert_eq!(rest, "");
                 let mut should_be_obj = Objective::new();
-                should_be_obj.add_soft_lit_int(3, lit![1]);
-                should_be_obj.add_soft_lit_int(-2, !lit![2]);
+                should_be_obj.increase_soft_lit_int(3, lit![1]);
+                should_be_obj.increase_soft_lit_int(-2, !lit![2]);
                 assert_eq!(obj, should_be_obj);
             }
             Err(_) => panic!(),
@@ -445,8 +445,8 @@ mod test {
             Ok(("", OpbData::Constr(should_be_constr)))
         );
         let mut obj = Objective::new();
-        obj.add_soft_lit_int(-3, lit![0]);
-        obj.add_soft_lit_int(4, lit![1]);
+        obj.increase_soft_lit_int(-3, lit![0]);
+        obj.increase_soft_lit_int(4, lit![1]);
         assert_eq!(opb_data("min: -3 x0 4 x1;"), Ok(("", OpbData::Obj(obj))));
         assert_eq!(
             opb_data("min: x0;"),

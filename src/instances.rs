@@ -244,7 +244,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// The file format expected by this parser is the DIMACS CNF format used in
     /// the SAT competition since 2011. For details on the file format see
     /// [here](http://www.satcompetition.org/2011/format-benchmarks2011.html).
-    /// 
+    ///
     /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
     /// are ignored and only the constraints returned.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
@@ -542,29 +542,49 @@ impl Objective {
         self.offset += offset_incr
     }
 
-    /// Adds a soft literal or updates its weight
-    pub fn add_soft_lit(&mut self, w: usize, l: Lit) {
-        self.soft_lits.insert(l, w);
+    /// Adds a soft literal or updates its weight. Returns the old weight, if
+    /// the literal was already in the objective.
+    pub fn add_soft_lit(&mut self, w: usize, l: Lit) -> Option<usize> {
+        if w == 0 {
+            return self.soft_lits.remove(&l);
+        }
+        self.soft_lits.insert(l, w)
     }
 
-    /// Add a soft literal with negative weight. Internally all weights are
-    /// positive, negative weights are represented by a global value offset and
-    /// negated literals.
-    pub fn add_soft_lit_int(&mut self, w: isize, l: Lit) {
-        if w < 0 {
-            self.increase_offset(w);
-            self.add_soft_lit(-w as usize, !l);
-        } else {
-            self.add_soft_lit(w as usize, l);
+    /// Increases the weight of a soft literal. Returns the old weight, if the
+    /// literal was already in the objective.
+    pub fn increase_soft_lit(&mut self, add_w: usize, l: Lit) -> Option<usize> {
+        match self.soft_lits.get_mut(&l) {
+            Some(old_w) => {
+                *old_w += add_w;
+                Some(*old_w - add_w)
+            }
+            None => self.soft_lits.insert(l, add_w),
         }
     }
 
-    /// Adds a soft clause or updates its weight
-    pub fn add_soft_clause(&mut self, w: usize, cl: Clause) {
+    /// Increases a soft literal with possibly negative weight. Internally all
+    /// weights are positive, negative weights are represented by a global value
+    /// offset and negated literals.
+    /// This does _not_ update weights but increases them, since otherwise,
+    /// adding literal l with a positive weight and afterwards -l with a
+    /// negative weight would mess up the state.
+    pub fn increase_soft_lit_int(&mut self, add_w: isize, l: Lit) {
+        if add_w < 0 {
+            self.increase_offset(add_w);
+            self.increase_soft_lit(-add_w as usize, !l);
+        } else {
+            self.increase_soft_lit(add_w as usize, l);
+        }
+    }
+
+    /// Adds a soft clause or updates its weight. Resturns the old weight, if
+    /// the clause was already in the objective.
+    pub fn add_soft_clause(&mut self, w: usize, cl: Clause) -> Option<usize> {
         if cl.len() == 1 {
             return self.add_soft_lit(w, !cl[0]);
         }
-        self.soft_clauses.insert(cl, w);
+        self.soft_clauses.insert(cl, w)
     }
 
     /// Converts the objective to a set of soft clauses
@@ -648,7 +668,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// used in the MaxSAT evaluation before 2022 or the [new
     /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) used
     /// since 2022.
-    /// 
+    ///
     /// If a DIMACS MCNF file is passed to this function, all objectives but the
     /// first are ignored.
     pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {

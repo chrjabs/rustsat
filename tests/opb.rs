@@ -49,8 +49,8 @@ fn opb_opt() {
     lits.insert(!lit![3], 5);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 4));
     let mut true_obj = Objective::new();
-    true_obj.add_soft_lit_int(1, lit![0]);
-    true_obj.add_soft_lit_int(2, lit![1]);
+    true_obj.increase_soft_lit_int(1, lit![0]);
+    true_obj.increase_soft_lit_int(2, lit![1]);
     assert_eq!(inst, OptInstance::compose(true_constr, true_obj));
 }
 
@@ -72,11 +72,11 @@ fn opb_multi_opt() {
     lits.insert(!lit![3], 5);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 4));
     let mut true_obj_1 = Objective::new();
-    true_obj_1.add_soft_lit_int(1, lit![0]);
-    true_obj_1.add_soft_lit_int(2, lit![1]);
+    true_obj_1.increase_soft_lit_int(1, lit![0]);
+    true_obj_1.increase_soft_lit_int(2, lit![1]);
     let mut true_obj_2 = Objective::new();
-    true_obj_2.add_soft_lit_int(2, lit![2]);
-    true_obj_2.add_soft_lit_int(-3, !lit![3]);
+    true_obj_2.increase_soft_lit_int(2, lit![2]);
+    true_obj_2.increase_soft_lit_int(-3, !lit![3]);
     assert_eq!(
         inst,
         MultiOptInstance::compose(true_constr, vec![true_obj_1, true_obj_2])
