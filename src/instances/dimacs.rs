@@ -10,8 +10,8 @@
 //! - [DIMACS WCNF pre22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
-use super::SatInstance;
-use crate::types::{Clause, Lit};
+use super::{SatInstance, CNF};
+use crate::types::{Clause, Lit, Var};
 use nom::error::Error as NomError;
 use nom::{
     branch::alt,
@@ -23,11 +23,11 @@ use nom::{
     sequence::{pair, terminated, tuple},
     IResult,
 };
-use std::io;
 use std::{
+    collections::HashMap,
     convert::TryFrom,
     fmt,
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read, Write},
 };
 
 #[cfg(feature = "multiopt")]
@@ -64,7 +64,7 @@ pub fn parse_wcnf_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInst
     let (constrs, objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
         return Err(DimacsError::InvalidInstanceType);
-    } else if objs.len() >= obj_idx {
+    } else if obj_idx >= objs.len() {
         return Err(DimacsError::ObjNoExist(objs.len()));
     }
     Ok(OptInstance::compose(
@@ -531,29 +531,115 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str, DimacsError> {
     .map_err(|e| e.map(|e: NomError<&str>| DimacsError::ClauseEnding(String::from(e.input))))
 }
 
+/// Writes a CNF to a DIMACS CNF file
+pub fn write_cnf<W: Write>(writer: &mut W, cnf: CNF, max_var: Var) -> Result<(), io::Error> {
+    writeln!(writer, "c CNF file written with RustSAT")?;
+    writeln!(
+        writer,
+        "p cnf {} {}",
+        max_var.pos_lit().to_ipasir(),
+        cnf.clauses.len()
+    )?;
+    cnf.into_iter()
+        .try_for_each(|cl| write_clause(writer, cl))?;
+    writer.flush()
+}
+
+#[cfg(feature = "optimization")]
+/// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
+pub fn write_wcnf<W: Write>(
+    writer: &mut W,
+    cnf: CNF,
+    soft_cls: HashMap<Clause, usize>,
+    max_var: Option<Var>,
+) -> Result<(), io::Error> {
+    writeln!(writer, "c WCNF file written with RustSAT")?;
+    if let Some(mv) = max_var {
+        writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
+    }
+    writeln!(writer, "c {} hard clauses", cnf.clauses.len())?;
+    writeln!(writer, "c {} soft clauses", soft_cls.len())?;
+    cnf.into_iter().try_for_each(|cl| {
+        write!(writer, "h ")?;
+        write_clause(writer, cl)
+    })?;
+    soft_cls.into_iter().try_for_each(|(cl, w)| {
+        write!(writer, "{} ", w)?;
+        write_clause(writer, cl)
+    })?;
+    writer.flush()
+}
+
+#[cfg(feature = "multiopt")]
+/// Writes a CNF and multiple objectives as sets of soft clauses to a DIMACS MCNF file
+pub fn write_mcnf<W: Write>(
+    writer: &mut W,
+    cnf: CNF,
+    soft_cls: Vec<HashMap<Clause, usize>>,
+    max_var: Option<Var>,
+) -> Result<(), io::Error> {
+    writeln!(writer, "c MCNF file written with RustSAT")?;
+    if let Some(mv) = max_var {
+        writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
+    }
+    writeln!(writer, "c {} hard clauses", cnf.clauses.len())?;
+    writeln!(writer, "c {} objectives", soft_cls.len())?;
+    write!(writer, "c ( ")?;
+    soft_cls
+        .iter()
+        .try_for_each(|sc| write!(writer, "{} ", sc.len()))?;
+    writeln!(writer, ") soft clauses")?;
+    cnf.into_iter().try_for_each(|cl| {
+        write!(writer, "h ")?;
+        write_clause(writer, cl)
+    })?;
+    soft_cls
+        .into_iter()
+        .enumerate()
+        .try_for_each(|(idx, sft_cls)| {
+            sft_cls.into_iter().try_for_each(|(cl, w)| {
+                write!(writer, "o{} {} ", idx + 1, w)?;
+                write_clause(writer, cl)
+            })
+        })?;
+    writer.flush()
+}
+
+fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Error> {
+    clause
+        .into_iter()
+        .try_for_each(|l| write!(writer, "{} ", l.to_ipasir()))?;
+    writeln!(writer, "0")
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_clause_ending, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line, Preamble,
+        parse_clause_ending, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line, write_cnf,
+        Preamble,
     };
     use crate::{
         clause,
         instances::{
             dimacs::{parse_cnf_body, parse_preamble},
-            DimacsError, SatInstance,
+            DimacsError, SatInstance, CNF,
         },
         ipasir_lit,
-        types::{Clause, Lit},
+        types::{Clause, Lit, Var},
+        var,
     };
-    use std::io::{BufReader, Cursor};
+    use std::io::{Cursor, Seek};
 
-    #[cfg(feature = "optimization")]
-    use super::Objective;
     #[cfg(feature = "optimization")]
     use super::{
         parse_idx, parse_mcnf_line, parse_no_pline_body, parse_wcnf_pre22_body,
-        parse_wcnf_pre22_line, parse_weight,
+        parse_wcnf_pre22_line, parse_weight, write_wcnf,
     };
+    #[cfg(feature = "optimization")]
+    use super::{Objective, OptInstance};
+
+    #[cfg(feature = "multiopt")]
+    use super::{write_mcnf, MultiOptInstance};
 
     #[cfg(feature = "optimization")]
     #[test]
@@ -793,7 +879,6 @@ mod tests {
     fn parse_cnf_preamble() {
         let data = "c test\np cnf 5 2\n1 2 0";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let (_, preamble) = parse_preamble(reader).unwrap();
 
@@ -811,7 +896,6 @@ mod tests {
     fn parse_wcnf_pre22_preamble() {
         let data = "c test\np wcnf 5 2 10\n1 2 0";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let (_, preamble) = parse_preamble(reader).unwrap();
 
@@ -830,7 +914,6 @@ mod tests {
     fn parse_wcnf_post22_preamble() {
         let data = "c test\nh 5 2 0\n1 2 0";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let (_, preamble) = parse_preamble(reader).unwrap();
 
@@ -847,7 +930,6 @@ mod tests {
     fn parse_mcnf_preamble() {
         let data = "c test\no1 2 0\nh 5 2 0";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let (_, preamble) = parse_preamble(reader).unwrap();
 
@@ -863,7 +945,6 @@ mod tests {
     fn parse_cnf_body_pass() {
         let data = "1 2 0\n-3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_cnf_body(reader).unwrap();
 
@@ -882,7 +963,6 @@ mod tests {
     fn parse_wcnf_pre22_body_pass() {
         let data = "42 1 2 0\n10 -3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_wcnf_pre22_body(reader, 42).unwrap();
 
@@ -899,7 +979,6 @@ mod tests {
     fn parse_wcnf_post22_body_pass() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_no_pline_body(reader, "c test").unwrap();
 
@@ -916,7 +995,6 @@ mod tests {
     fn parse_mcnf_body_pass() {
         let data = "h 1 2 0\no2 10 -3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_no_pline_body(reader, "c test\n").unwrap();
 
@@ -935,7 +1013,6 @@ mod tests {
     fn parse_cnf() {
         let data = "p cnf 5 2\n1 2 0\n-3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
@@ -954,7 +1031,6 @@ mod tests {
     fn parse_wcnf_pre22() {
         let data = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
@@ -971,7 +1047,6 @@ mod tests {
     fn parse_wcnf_post22() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
@@ -988,7 +1063,6 @@ mod tests {
     fn parse_mcnf() {
         let data = "c test\nh 1 2 0\no2 10 -3 4 5 0\no1 3 -1 0\n";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
@@ -1000,5 +1074,81 @@ mod tests {
         true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         assert_eq!(parsed_inst, (true_constrs, vec![true_obj0, true_obj1]));
+    }
+
+    #[test]
+    fn write_parse_cnf() {
+        let mut true_cnf = CNF::new();
+        true_cnf.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_cnf.add_clause(clause![ipasir_lit![2], ipasir_lit![1]]);
+
+        let mut cursor = Cursor::new(vec![]);
+
+        write_cnf(&mut cursor, true_cnf.clone(), var![1]).unwrap();
+
+        cursor.rewind().unwrap();
+
+        let parsed_inst = super::parse_cnf(cursor).unwrap();
+        let (parsed_cnf, _) = parsed_inst.as_cnf();
+
+        assert_eq!(parsed_cnf, true_cnf);
+    }
+
+    #[cfg(feature = "optimization")]
+    #[test]
+    fn write_parse_wcnf() {
+        let mut true_constrs: SatInstance = SatInstance::new();
+        let mut true_obj = Objective::new();
+        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+        let mut cursor = Cursor::new(vec![]);
+
+        write_wcnf(
+            &mut cursor,
+            true_constrs.clone().as_cnf().0,
+            true_obj.clone().as_soft_cls(),
+            Some(var![1]),
+        )
+        .unwrap();
+
+        cursor.rewind().unwrap();
+
+        let parsed_inst = super::parse_wcnf_with_idx(cursor, 0).unwrap();
+
+        assert_eq!(parsed_inst, OptInstance::compose(true_constrs, true_obj));
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn write_parse_mcnf() {
+        let mut true_constrs = SatInstance::new();
+        let mut true_obj0 = Objective::new();
+        let mut true_obj1 = Objective::new();
+        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
+        true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+        let mut cursor = Cursor::new(vec![]);
+
+        write_mcnf(
+            &mut cursor,
+            true_constrs.clone().as_cnf().0,
+            vec![
+                true_obj0.clone().as_soft_cls(),
+                true_obj1.clone().as_soft_cls(),
+            ],
+            Some(var![4]),
+        )
+        .unwrap();
+
+        cursor.rewind().unwrap();
+
+        let parsed_inst = super::parse_mcnf(cursor).unwrap();
+
+        assert_eq!(
+            parsed_inst,
+            MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
+        );
     }
 }
