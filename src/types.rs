@@ -514,17 +514,17 @@ impl Solution {
 
 impl fmt::Debug for Solution {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.assignment.iter().fold(Ok(()), |result, tv| {
-            result.and_then(|_| write!(f, "{}", tv))
-        })
+        self.assignment
+            .iter()
+            .try_for_each(|tv| write!(f, "{}", tv))
     }
 }
 
 impl fmt::Display for Solution {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.assignment.iter().fold(Ok(()), |result, tv| {
-            result.and_then(|_| write!(f, "{}", tv))
-        })
+        self.assignment
+            .iter()
+            .try_for_each(|tv| write!(f, "{}", tv))
     }
 }
 
