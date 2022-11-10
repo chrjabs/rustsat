@@ -12,16 +12,18 @@
 
 use super::SatInstance;
 use crate::types::{Clause, Lit};
+use nom::error::Error as NomError;
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{i32, line_ending, multispace0, multispace1, u64},
     combinator::{all_consuming, map_res, recognize, success},
-    error::{Error, ErrorKind},
+    error::{Error, ErrorKind, ParseError},
     multi::separated_list0,
     sequence::{pair, terminated, tuple},
     IResult,
 };
+use std::io;
 use std::{
     convert::TryFrom,
     fmt,
@@ -82,30 +84,79 @@ pub fn parse_mcnf<R: Read>(reader: R) -> Result<MultiOptInstance, DimacsError> {
 /// Errors occuring within the DIMACS parsing module
 #[derive(Debug)]
 pub enum DimacsError {
-    /// Encountered invalid preamble
-    InvalidPreamble,
-    /// Encountered invalid CNF
-    InvalidCNF,
-    #[cfg(feature = "optimization")]
-    /// Encountered invalid WCNF
-    InvalidWCNF,
-    /// Encountered invalid MCNF
-    InvalidMCNF,
     /// Expected different instance type
     InvalidInstanceType,
+    /// Invalid literal in the file
+    Lit(String),
+    /// Invalid ending of a clause
+    ClauseEnding(String),
+    /// Invalid objective index
+    ObjIdx(String),
+    /// Invalid weight
+    Weight(String),
+    /// A comment appeared in a clause
+    CommentInClause(String),
+    /// The preamble never ended
+    PreambleNoEnd,
+    /// P line value is too large to fit in a [`usize`]
+    PValTooLarge(u64),
+    /// Invalid p line
+    PLine(String),
+    /// IO error reading file
+    IOError(io::Error),
+    /// Base error from nom parsing
+    NomError(String, ErrorKind),
+    /// Incomplete nom error
+    NomIncomplete,
+}
+
+impl PartialEq for DimacsError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Lit(l0), Self::Lit(r0)) => l0 == r0,
+            (Self::ClauseEnding(l0), Self::ClauseEnding(r0)) => l0 == r0,
+            (Self::ObjIdx(l0), Self::ObjIdx(r0)) => l0 == r0,
+            (Self::Weight(l0), Self::Weight(r0)) => l0 == r0,
+            (Self::CommentInClause(l0), Self::CommentInClause(r0)) => l0 == r0,
+            (Self::IOError(_), Self::IOError(_)) => true,
+            (Self::NomError(l0, l1), Self::NomError(r0, r1)) => l0 == r0 && l1 == r1,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }
 
 impl fmt::Display for DimacsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DimacsError::InvalidPreamble => write!(f, "Encountered invalid preamble"),
-            DimacsError::InvalidCNF => write!(f, "Encountered invalid CNF"),
-            #[cfg(feature = "optimization")]
-            DimacsError::InvalidWCNF => write!(f, "Encountered invalid WCNF"),
-            #[cfg(feature = "optimization")]
-            DimacsError::InvalidMCNF => write!(f, "Encountered invalid MCNF"),
             DimacsError::InvalidInstanceType => write!(f, "Expected different instance type"),
+            DimacsError::Lit(str) => write!(f, "Invalid literal: {}", str),
+            DimacsError::ClauseEnding(str) => write!(f, "Invalid clause ending: {}", str),
+            DimacsError::ObjIdx(str) => write!(f, "Invalid objective index: {}", str),
+            DimacsError::Weight(str) => write!(f, "Invalid weight: {}", str),
+            DimacsError::CommentInClause(str) => write!(f, "Found comment in clause: {}", str),
+            DimacsError::PreambleNoEnd => write!(f, "Preamble never ends"),
+            DimacsError::PValTooLarge(val) => write!(
+                f,
+                "Value in p line is too large to fit in a `usize`: {}",
+                val
+            ),
+            DimacsError::PLine(line) => write!(f, "Invalid p line: {}", line),
+            DimacsError::IOError(ioe) => write!(f, "{}", ioe),
+            DimacsError::NomError(str, kind) => write!(f, "Nom error: {}, {:?}", str, kind),
+            DimacsError::NomIncomplete => write!(f, "Nom parser requested more data"),
         }
+    }
+}
+
+impl ParseError<&str> for DimacsError {
+    fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
+        Self::NomError(String::from(input), kind)
+    }
+
+    fn append(_: &str, _: ErrorKind, other: Self) -> Self {
+        // Other error always has precedence. This should prefer more meaningful
+        // errors than [`DimacsError::NomError`]
+        other
     }
 }
 
@@ -133,57 +184,50 @@ fn parse_dimacs<R>(reader: R) -> Result<BodyContent, DimacsError>
 where
     R: BufRead,
 {
-    let (_, content) = match parse_preamble(reader) {
-        Err(_) => Err(DimacsError::InvalidPreamble),
-        Ok((reader, preamble)) => match preamble {
-            Preamble::Cnf {
-                n_vars: _,    // Intentionally ignored (lean acceptance)
-                n_clauses: _, // Intentionally ignored (lean acceptance)
-            } => parse_cnf_body(reader).map_err(|_| DimacsError::InvalidCNF),
-            #[cfg(feature = "optimization")]
-            Preamble::WcnfPre22 {
-                n_vars: _,    // Intentionally ignored (lean acceptance)
-                n_clauses: _, // Intentionally ignored (lean acceptance)
-                top,
-            } => parse_wcnf_pre22_body(reader, top).map_err(|_| DimacsError::InvalidWCNF),
-            #[cfg(feature = "optimization")]
-            Preamble::NoPLine { first_line } => {
-                parse_no_pline_body(reader, &first_line).map_err(|_| DimacsError::InvalidMCNF)
-            }
-        },
+    let (reader, preamble) = parse_preamble(reader)?;
+    let content = match preamble {
+        Preamble::Cnf {
+            n_vars: _,    // Intentionally ignored (lean acceptance)
+            n_clauses: _, // Intentionally ignored (lean acceptance)
+        } => parse_cnf_body(reader),
+        #[cfg(feature = "optimization")]
+        Preamble::WcnfPre22 {
+            n_vars: _,    // Intentionally ignored (lean acceptance)
+            n_clauses: _, // Intentionally ignored (lean acceptance)
+            top,
+        } => parse_wcnf_pre22_body(reader, top),
+        #[cfg(feature = "optimization")]
+        Preamble::NoPLine { first_line } => parse_no_pline_body(reader, &first_line),
     }?;
     Ok(content)
 }
 
-/// Casts a nom error with string input to a nom error with reader input
-fn cast_str_error_reader<R: BufRead>(err: nom::Err<Error<&str>>, reader: R) -> nom::Err<Error<R>> {
+fn unwrap_dimacs_error(err: nom::Err<DimacsError>) -> DimacsError {
     match err {
-        nom::Err::Incomplete(_) => nom::Err::Failure(Error::new(reader, ErrorKind::Fail)),
-        nom::Err::Error(e) => nom::Err::Error(Error::new(reader, e.code)),
-        nom::Err::Failure(e) => nom::Err::Failure(Error::new(reader, e.code)),
+        nom::Err::Incomplete(_) => DimacsError::NomIncomplete,
+        nom::Err::Error(e) => e,
+        nom::Err::Failure(e) => e,
     }
 }
 
 /// Parses preamble and determines type of instance/file format
-fn parse_preamble<R: BufRead>(mut reader: R) -> IResult<R, Preamble> {
+fn parse_preamble<R: BufRead>(mut reader: R) -> Result<(R, Preamble), DimacsError> {
     loop {
         let mut buf = String::new();
         match reader.read_line(&mut buf) {
             Ok(len) => {
                 if len == 0 {
-                    return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail)));
+                    return Err(DimacsError::PreambleNoEnd);
                 }
             }
-            Err(_) => return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail))),
+            Err(ioe) => return Err(DimacsError::IOError(ioe)),
         };
         if buf.starts_with('c') {
             continue;
         }
         if buf.starts_with('p') {
-            return match parse_p_line(&buf) {
-                Ok((_, preamb)) => Ok((reader, preamb)),
-                Err(err) => Err(cast_str_error_reader(err, reader)),
-            };
+            let (_, preamble) = parse_p_line(&buf).map_err(unwrap_dimacs_error)?;
+            return Ok((reader, preamble));
         }
         #[cfg(feature = "optimization")]
         return Ok((reader, Preamble::NoPLine { first_line: buf }));
@@ -193,7 +237,7 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> IResult<R, Preamble> {
 }
 
 /// Main parser for CNF file
-fn parse_cnf_body<R>(mut reader: R) -> IResult<R, BodyContent>
+fn parse_cnf_body<R>(mut reader: R) -> Result<BodyContent, DimacsError>
 where
     R: BufRead,
 {
@@ -204,26 +248,24 @@ where
             Ok(len) => {
                 if len == 0 {
                     #[cfg(feature = "optimization")]
-                    return Ok((reader, (inst, vec![])));
+                    return Ok((inst, vec![]));
                     #[cfg(not(feature = "optimization"))]
-                    return Ok((reader, inst));
+                    return Ok(inst);
                 }
             }
-            Err(_) => return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail))),
+            Err(ioe) => return Err(DimacsError::IOError(ioe)),
         };
-        match parse_cnf_line(&buf) {
-            Ok((_, opt_clause)) => match opt_clause {
-                None => (),
-                Some(clause) => inst.add_clause(clause),
-            },
-            Err(err) => return Err(cast_str_error_reader(err, reader)),
-        };
+        let (_, opt_clause) = parse_cnf_line(&buf).map_err(unwrap_dimacs_error)?;
+        match opt_clause {
+            Some(clause) => inst.add_clause(clause),
+            None => (),
+        }
     }
 }
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF pre 22 (with p line)
-fn parse_wcnf_pre22_body<R>(mut reader: R, top: usize) -> IResult<R, BodyContent>
+fn parse_wcnf_pre22_body<R>(mut reader: R, top: usize) -> Result<BodyContent, DimacsError>
 where
     R: BufRead,
 {
@@ -234,33 +276,28 @@ where
         match reader.read_line(&mut buf) {
             Ok(len) => {
                 if len == 0 {
-                    return Ok((
-                        reader,
-                        (constrs, if obj.is_empty() { vec![] } else { vec![obj] }),
-                    ));
+                    return Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }));
                 }
             }
-            Err(_) => return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail))),
+            Err(ioe) => return Err(DimacsError::IOError(ioe)),
         };
-        match parse_wcnf_pre22_line(&buf) {
-            Ok((_, opt_wclause)) => match opt_wclause {
-                None => (),
-                Some((w, clause)) => {
-                    if w >= top {
-                        constrs.add_clause(clause)
-                    } else {
-                        obj.add_soft_clause(w, clause)
-                    }
+        let (_, opt_wclause) = parse_wcnf_pre22_line(&buf).map_err(unwrap_dimacs_error)?;
+        match opt_wclause {
+            None => (),
+            Some((w, clause)) => {
+                if w >= top {
+                    constrs.add_clause(clause);
+                } else {
+                    obj.add_soft_clause(w, clause);
                 }
-            },
-            Err(err) => return Err(cast_str_error_reader(err, reader)),
+            }
         };
     }
 }
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF post 22 (without p line) and MCNF
-fn parse_no_pline_body<R>(mut reader: R, first_line: &str) -> IResult<R, BodyContent>
+fn parse_no_pline_body<R>(mut reader: R, first_line: &str) -> Result<BodyContent, DimacsError>
 where
     R: BufRead,
 {
@@ -268,52 +305,55 @@ where
     let mut objs = Vec::new();
     let mut buf = first_line.to_string();
     loop {
-        match parse_mcnf_line(&buf) {
-            Ok((_, opt_wclause)) => match opt_wclause {
-                None => (),
-                Some((opt_weight, clause)) => match opt_weight {
-                    None => constrs.add_clause(clause),
-                    Some((idx, w)) => {
-                        if idx > objs.len() {
-                            objs.resize(idx, Objective::new());
-                        }
-                        objs[idx - 1].add_soft_clause(w, clause)
+        let (_, opt_wclause) = parse_mcnf_line(&buf).map_err(unwrap_dimacs_error)?;
+        match opt_wclause {
+            Some((opt_iw, clause)) => match opt_iw {
+                Some((idx, w)) => {
+                    if idx > objs.len() {
+                        objs.resize(idx, Objective::new());
                     }
-                },
+                    objs[idx - 1].add_soft_clause(w, clause);
+                }
+                None => constrs.add_clause(clause),
             },
-            Err(err) => return Err(cast_str_error_reader(err, reader)),
+            None => (),
         };
         buf.clear();
         match reader.read_line(&mut buf) {
             Ok(len) => {
                 if len == 0 {
-                    return Ok((reader, (constrs, objs)));
+                    return Ok((constrs, objs));
                 }
             }
-            Err(_) => return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Fail))),
+            Err(ioe) => return Err(DimacsError::IOError(ioe)),
         };
     }
 }
 
 /// Parses p line and determine file format
-fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
-    let (input, _) = terminated(tag("p"), multispace1)(input)?;
+fn parse_p_line(input: &str) -> IResult<&str, Preamble, DimacsError> {
+    let full_p_line = String::from(input);
+    let (input, _) = terminated::<_, _, _, NomError<_>, _, _>(tag("p"), multispace1)(input)
+        .map_err(|e| e.map(|_| DimacsError::PLine(full_p_line.clone())))?;
     let (input, id_token) = alt((
-        terminated(tag("cnf"), multispace1),
+        terminated::<_, _, _, NomError<_>, _, _>(tag("cnf"), multispace1),
         #[cfg(feature = "optimization")]
         terminated(tag("wcnf"), multispace1),
-    ))(input)?;
+    ))(input)
+    .map_err(|e| e.map(|_| DimacsError::PLine(full_p_line.clone())))?;
     if id_token == "cnf" {
         // Is CNF file
-        let (input, (n_vars, _, n_clauses)) = tuple((u64, multispace1, u64))(input)?;
+        let (input, (n_vars, _, n_clauses)) =
+            tuple::<_, _, NomError<_>, _>((u64, multispace1, u64))(input)
+                .map_err(|e| e.map(|_| DimacsError::PLine(full_p_line)))?;
         // Safe cast to usize
         let n_vars = match usize::try_from(n_vars) {
             Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+            Err(_) => return Err(nom::Err::Error(DimacsError::PValTooLarge(n_vars))),
         };
         let n_clauses = match usize::try_from(n_clauses) {
             Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+            Err(_) => return Err(nom::Err::Error(DimacsError::PValTooLarge(n_clauses))),
         };
         return Ok((input, Preamble::Cnf { n_vars, n_clauses }));
     }
@@ -321,15 +361,16 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
     if id_token == "wcnf" {
         // Is WCNF file
         let (input, (n_vars, _, n_clauses, _, top)) =
-            tuple((u64, multispace1, u64, multispace1, u64))(input)?;
+            tuple::<_, _, NomError<_>, _>((u64, multispace1, u64, multispace1, u64))(input)
+                .map_err(|e| e.map(|_| DimacsError::PLine(full_p_line)))?;
         // Safe cast to usize
         let n_vars = match usize::try_from(n_vars) {
             Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+            Err(_) => return Err(nom::Err::Error(DimacsError::PValTooLarge(n_vars))),
         };
         let n_clauses = match usize::try_from(n_clauses) {
             Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge))),
+            Err(_) => return Err(nom::Err::Error(DimacsError::PValTooLarge(n_clauses))),
         };
         return Ok((
             input,
@@ -340,11 +381,11 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
             },
         ));
     }
-    Err(nom::Err::Error(Error::new(input, ErrorKind::Tag)))
+    Err(nom::Err::Error(DimacsError::PLine(full_p_line)))
 }
 
 /// Parses a CNF line, either a comment or a clause
-fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
+fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>, DimacsError> {
     let (input, _) = multispace0(input)?;
     match tag::<&str, &str, Error<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
@@ -359,7 +400,7 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
 
 #[cfg(feature = "optimization")]
 /// Parses a WCNF pre 22 line, either a comment or a clause
-fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> {
+fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>, DimacsError> {
     let (input, _) = multispace0(input)?;
     match tag::<&str, &str, Error<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
@@ -369,7 +410,9 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> 
                 separated_pair(parse_weight, multispace1, parse_cnf_line)(input)?;
             match opt_clause {
                 Some(clause) => Ok((input, Some((weight, clause)))),
-                None => Err(nom::Err::Error(Error::new(input, ErrorKind::Digit))),
+                None => Err(nom::Err::Error(DimacsError::CommentInClause(String::from(
+                    input,
+                )))),
             }
         }
     }
@@ -382,7 +425,7 @@ type McnfLine = Option<(Option<(usize, usize)>, Clause)>;
 /// Parses a MCNF or WCNF post 22 line, either a comment or a clause with
 /// objective index. If a line does not explicitly specify an objective index,
 /// it is assumed to be 1. This enables for also parsing mcnf lines.
-fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine> {
+fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine, DimacsError> {
     let (input, _) = multispace0(input)?;
     match tag::<&str, &str, Error<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
@@ -395,7 +438,9 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine> {
                     let (input, opt_clause) = parse_cnf_line(input)?;
                     match opt_clause {
                         Some(clause) => Ok((input, Some((None, clause)))),
-                        None => Err(nom::Err::Error(Error::new(input, ErrorKind::Digit))),
+                        None => Err(nom::Err::Error(DimacsError::CommentInClause(String::from(
+                            input,
+                        )))),
                     }
                 }
                 Err(_) => {
@@ -413,7 +458,9 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine> {
                                 ))(input)?;
                             match opt_clause {
                                 Some(clause) => Ok((input, Some((Some((idx, weight)), clause)))),
-                                None => Err(nom::Err::Error(Error::new(input, ErrorKind::Digit))),
+                                None => Err(nom::Err::Error(DimacsError::CommentInClause(
+                                    String::from(input),
+                                ))),
                             }
                         }
                         Err(_) => {
@@ -422,7 +469,9 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine> {
                                 separated_pair(parse_weight, multispace1, parse_cnf_line)(input)?;
                             match opt_clause {
                                 Some(clause) => Ok((input, Some((Some((1, weight)), clause)))),
-                                None => Err(nom::Err::Error(Error::new(input, ErrorKind::Digit))),
+                                None => Err(nom::Err::Error(DimacsError::CommentInClause(
+                                    String::from(input),
+                                ))),
                             }
                         }
                     }
@@ -434,36 +483,34 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine> {
 
 #[cfg(feature = "optimization")]
 /// Nuclear parser for weight value
-fn parse_weight(input: &str) -> IResult<&str, usize> {
-    let (input, w) = map_res(u64, |w| w.try_into())(input)?;
-    if w == 0 {
-        Err(nom::Err::Error(Error::new(input, ErrorKind::Satisfy)))
-    } else {
-        Ok((input, w))
-    }
+fn parse_weight(input: &str) -> IResult<&str, usize, DimacsError> {
+    map_res(u64, |w| w.try_into())(input)
+        .map_err(|e| e.map(|e: NomError<&str>| DimacsError::Weight(String::from(e.input))))
 }
 
 #[cfg(feature = "optimization")]
 /// Nuclear parser for objective index
-fn parse_idx(input: &str) -> IResult<&str, usize> {
-    let (input, idx) = map_res(u64, |idx| idx.try_into())(input)?;
-    if idx == 0 {
-        Err(nom::Err::Error(Error::new(input, ErrorKind::Satisfy)))
-    } else {
-        Ok((input, idx))
-    }
+fn parse_idx(input: &str) -> IResult<&str, usize, DimacsError> {
+    map_res(u64, |w| {
+        if w == 0 {
+            return Err(());
+        }
+        w.try_into().map_err(|_| ())
+    })(input)
+    .map_err(|e| e.map(|e: NomError<&str>| DimacsError::ObjIdx(String::from(e.input))))
 }
 
 /// Nuclear parser for literal
-fn parse_lit(input: &str) -> IResult<&str, Lit> {
+fn parse_lit(input: &str) -> IResult<&str, Lit, DimacsError> {
     map_res(i32, Lit::from_ipasir)(input)
+        .map_err(|e| e.map(|e: NomError<&str>| DimacsError::Lit(String::from(e.input))))
 }
 
 /// Parses the end of a clause
 /// A '0' followed by a linebreak, as well as a '0' followed by
 /// whitespace or only a linebreak are treated as valid clause endings.
 /// This is more lean than the file format spec.
-fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
+fn parse_clause_ending(input: &str) -> IResult<&str, &str, DimacsError> {
     recognize(pair(
         multispace0,
         alt((
@@ -474,6 +521,7 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
             recognize(line_ending),
         )),
     ))(input)
+    .map_err(|e| e.map(|e: NomError<&str>| DimacsError::ClauseEnding(String::from(e.input))))
 }
 
 #[cfg(test)]
@@ -485,20 +533,19 @@ mod tests {
         clause,
         instances::{
             dimacs::{parse_cnf_body, parse_preamble},
-            SatInstance,
+            DimacsError, SatInstance,
         },
         ipasir_lit,
         types::{Clause, Lit},
     };
-    use nom::error::{Error, ErrorKind};
     use std::io::{BufReader, Cursor};
 
     #[cfg(feature = "optimization")]
     use super::Objective;
     #[cfg(feature = "optimization")]
     use super::{
-        parse_mcnf_line, parse_no_pline_body, parse_wcnf_pre22_body, parse_wcnf_pre22_line,
-        parse_weight, parse_idx
+        parse_idx, parse_mcnf_line, parse_no_pline_body, parse_wcnf_pre22_body,
+        parse_wcnf_pre22_line, parse_weight,
     };
 
     #[cfg(feature = "optimization")]
@@ -513,19 +560,19 @@ mod tests {
     fn parse_idx_fail() {
         assert_eq!(
             parse_idx("0 "),
-            Err(nom::Err::Error(Error::new(" ", ErrorKind::Satisfy)))
+            Err(nom::Err::Error(DimacsError::ObjIdx(String::from("0 "))))
         );
         assert_eq!(
             parse_idx("-15 "),
-            Err(nom::Err::Error(Error::new("-15 ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::ObjIdx(String::from("-15 "))))
         );
         assert_eq!(
             parse_idx("abc "),
-            Err(nom::Err::Error(Error::new("abc ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::ObjIdx(String::from("abc "))))
         );
         assert_eq!(
             parse_idx(" abc "),
-            Err(nom::Err::Error(Error::new(" abc ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::ObjIdx(String::from(" abc "))))
         );
     }
 
@@ -534,26 +581,23 @@ mod tests {
     fn parse_weight_pass() {
         assert_eq!(parse_weight("15 "), Ok((" ", 15)));
         assert_eq!(parse_weight("42 63"), Ok((" 63", 42)));
+        assert_eq!(parse_weight("0 "), Ok((" ", 0)));
     }
 
     #[cfg(feature = "optimization")]
     #[test]
     fn parse_weight_fail() {
         assert_eq!(
-            parse_weight("0 "),
-            Err(nom::Err::Error(Error::new(" ", ErrorKind::Satisfy)))
-        );
-        assert_eq!(
             parse_weight("-2 "),
-            Err(nom::Err::Error(Error::new("-2 ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::Weight(String::from("-2 "))))
         );
         assert_eq!(
             parse_weight("abc "),
-            Err(nom::Err::Error(Error::new("abc ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::Weight(String::from("abc "))))
         );
         assert_eq!(
             parse_weight(" abc "),
-            Err(nom::Err::Error(Error::new(" abc ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::Weight(String::from(" abc "))))
         );
     }
 
@@ -569,11 +613,11 @@ mod tests {
     fn parse_lit_fail() {
         assert_eq!(
             parse_lit("abc "),
-            Err(nom::Err::Error(Error::new("abc ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::Lit(String::from("abc "))))
         );
         assert_eq!(
             parse_lit(" abc "),
-            Err(nom::Err::Error(Error::new(" abc ", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::Lit(String::from(" abc "))))
         );
     }
 
@@ -607,25 +651,27 @@ mod tests {
     fn parse_p_line_fail() {
         assert_eq!(
             parse_p_line("a cnf 23 42"),
-            Err(nom::Err::Error(Error::new("a cnf 23 42", ErrorKind::Tag)))
+            Err(nom::Err::Error(DimacsError::PLine(String::from(
+                "a cnf 23 42"
+            ))))
         );
         assert_eq!(
             parse_p_line("p abc 23 42 52"),
-            Err(nom::Err::Error(Error::new("abc 23 42 52", ErrorKind::Tag)))
+            Err(nom::Err::Error(DimacsError::PLine(String::from(
+                "p abc 23 42 52"
+            ))))
         );
         assert_eq!(
             parse_p_line("p cnf ab"),
-            Err(nom::Err::Error(Error::new("ab", ErrorKind::Digit)))
+            Err(nom::Err::Error(DimacsError::PLine(String::from(
+                "p cnf ab"
+            ))))
         );
-        #[cfg(feature = "optimization")]
         assert_eq!(
             parse_p_line("p wcnf ab"),
-            Err(nom::Err::Error(Error::new("ab", ErrorKind::Digit)))
-        );
-        #[cfg(not(feature = "optimization"))]
-        assert_eq!(
-            parse_p_line("p wcnf ab"),
-            Err(nom::Err::Error(Error::new("wcnf ab", ErrorKind::Tag)))
+            Err(nom::Err::Error(DimacsError::PLine(String::from(
+                "p wcnf ab"
+            ))))
         );
     }
 
@@ -641,11 +687,15 @@ mod tests {
     fn parse_clause_ending_fail() {
         assert_eq!(
             parse_clause_ending("test"),
-            Err(nom::Err::Error(Error::new("test", ErrorKind::CrLf)))
+            Err(nom::Err::Error(DimacsError::ClauseEnding(String::from(
+                "test"
+            ))))
         );
         assert_eq!(
             parse_clause_ending("0test"),
-            Err(nom::Err::Error(Error::new("0test", ErrorKind::CrLf)))
+            Err(nom::Err::Error(DimacsError::ClauseEnding(String::from(
+                "0test"
+            ))))
         );
     }
 
@@ -673,7 +723,9 @@ mod tests {
     fn parse_cnf_line_fail() {
         assert_eq!(
             parse_cnf_line("42 34 a -16 0"),
-            Err(nom::Err::Error(Error::new("a -16 0", ErrorKind::CrLf)))
+            Err(nom::Err::Error(DimacsError::ClauseEnding(String::from(
+                "a -16 0"
+            ))))
         );
     }
 
@@ -806,7 +858,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst) = parse_cnf_body(reader).unwrap();
+        let parsed_inst = parse_cnf_body(reader).unwrap();
 
         let mut true_inst = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -825,7 +877,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst) = parse_wcnf_pre22_body(reader, 42).unwrap();
+        let parsed_inst = parse_wcnf_pre22_body(reader, 42).unwrap();
 
         let mut true_constrs = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -842,7 +894,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst) = parse_no_pline_body(reader, "c test").unwrap();
+        let parsed_inst = parse_no_pline_body(reader, "c test").unwrap();
 
         let mut true_constrs = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -859,7 +911,7 @@ mod tests {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
 
-        let (_, parsed_inst) = parse_no_pline_body(reader, "c test\n").unwrap();
+        let parsed_inst = parse_no_pline_body(reader, "c test\n").unwrap();
 
         let mut true_constrs = SatInstance::new();
         let mut true_obj = Objective::new();
