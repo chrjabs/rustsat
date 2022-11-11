@@ -56,8 +56,7 @@ fn opb_opt() {
 #[cfg(feature = "multiopt")]
 #[test]
 fn opb_multi_opt() {
-    let inst: MultiOptInstance =
-        MultiOptInstance::from_opb_path("./data/tiny-opt.opb").unwrap();
+    let inst: MultiOptInstance = MultiOptInstance::from_opb_path("./data/tiny-opt.opb").unwrap();
     let mut true_constr = SatInstance::new();
     let mut lits = RsHashMap::default();
     lits.insert(lit![0], 5);

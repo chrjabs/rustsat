@@ -32,7 +32,7 @@ use std::{
 #[cfg(feature = "multiopt")]
 use super::MultiOptInstance;
 #[cfg(feature = "optimization")]
-use super::{Objective, OptInstance};
+use super::{Objective, OptInstance, SoftLitsOffset};
 
 /// Errors occuring within the OPB parsing module
 #[derive(Debug, PartialEq, Eq)]
@@ -333,7 +333,7 @@ pub fn write_opt<W: Write, VM: ManageVars>(
     let cards = constrs.cards;
     let pbs = constrs.pbs;
     let mut vm = constrs.var_manager;
-    let (hardened, (soft_lits, offset)) = obj.as_soft_lits(&mut vm);
+    let (hardened, softs) = obj.as_soft_lits(&mut vm);
     writeln!(writer, "* OPB file written by RustSAT")?;
     writeln!(writer, "* maximum variable: {}", vm.next_free() - 1)?;
     writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
@@ -344,7 +344,7 @@ pub fn write_opt<W: Write, VM: ManageVars>(
         "* {} relaxed and hardened soft clauses",
         hardened.n_clauses()
     )?;
-    write_objective(writer, soft_lits, offset)?;
+    write_objective(writer, softs)?;
     hardened
         .into_iter()
         .try_for_each(|cl| write_clause(writer, cl))?;
@@ -383,7 +383,7 @@ pub fn write_multi_opt<W: Write, VM: ManageVars>(
         .try_for_each(|h| write!(writer, "{} ", h.n_clauses()))?;
     writeln!(writer, ") relaxed and hardened soft clauses",)?;
     objs.into_iter()
-        .try_for_each(|(softs, o)| write_objective(writer, softs, o))?;
+        .try_for_each(|softs| write_objective(writer, softs))?;
     hardened
         .into_iter()
         .try_for_each(|h| h.into_iter().try_for_each(|cl| write_clause(writer, cl)))?;
@@ -475,11 +475,8 @@ fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint) -> Result<(), io::Error>
 }
 
 #[cfg(feature = "optimization")]
-fn write_objective<W: Write>(
-    writer: &mut W,
-    soft_lits: RsHashMap<Lit, usize>,
-    mut offset: isize,
-) -> Result<(), io::Error> {
+fn write_objective<W: Write>(writer: &mut W, softs: SoftLitsOffset) -> Result<(), io::Error> {
+    let (soft_lits, mut offset) = softs;
     write!(writer, "min:")?;
     soft_lits
         .into_iter()

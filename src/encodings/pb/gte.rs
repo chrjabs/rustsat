@@ -14,11 +14,7 @@ use crate::{
     instances::{ManageVars, CNF},
     types::{Lit, RsHashMap},
 };
-use std::{
-    cmp,
-    collections::{BTreeMap},
-    ops::Bound,
-};
+use std::{cmp, collections::BTreeMap, ops::Bound};
 
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
@@ -679,7 +675,7 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap};
+    use std::collections::BTreeMap;
 
     use super::{GeneralizedTotalizer, Node};
     use crate::{
@@ -690,7 +686,7 @@ mod tests {
         },
         instances::{BasicVarManager, ManageVars},
         lit,
-        types::{Lit, Var, RsHashMap},
+        types::{Lit, RsHashMap, Var},
         var,
     };
 
