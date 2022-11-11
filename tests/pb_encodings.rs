@@ -10,10 +10,9 @@ use rustsat::{
     instances::{BasicVarManager, ManageVars},
     lit,
     solvers::{new_default_inc_solver, SolverResult},
-    types::{Clause, Lit, Var},
+    types::{Clause, Lit, RsHashMap, Var},
     var,
 };
-use std::collections::HashMap;
 
 fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     // Set up instance
@@ -37,7 +36,7 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 1);
@@ -60,7 +59,7 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![5], 4);
     enc.add(lits);
 
@@ -74,7 +73,7 @@ fn test_inc_pb_ub<PBE: IncUBPB>(mut enc: PBE) {
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![6], 1);
     lits.insert(lit![7], 2);
     lits.insert(lit![8], 1);
@@ -99,7 +98,7 @@ fn test_pb_eq<PBE: IncBothBPB>(mut enc: PBE) {
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![3]);
 
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 4);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 2);
@@ -158,7 +157,7 @@ fn test_pb_lb<PBE: LBPB>(mut enc: PBE) {
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::SAT);
 
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 3);
     lits.insert(lit![1], 6);
     lits.insert(lit![2], 3);
@@ -181,7 +180,7 @@ fn test_pb_ub_min_enc<PBE: UBPB>(mut enc: PBE) {
     let mut var_manager = BasicVarManager::new();
     var_manager.increase_next_free(var![4]);
 
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 1);

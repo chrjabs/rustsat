@@ -8,6 +8,24 @@ use std::{fmt, ops};
 pub mod constraints;
 pub use constraints::Clause;
 
+/// The hash map to use throughout the library
+#[cfg(feature = "fxhash")]
+pub type RsHashMap<K, V> = rustc_hash::FxHashMap<K, V>;
+#[cfg(not(feature = "fxhash"))]
+pub type RsHashMap<K, V> = HashMap<K, V>;
+
+/// The hash set to use throughout the library
+#[cfg(feature = "fxhash")]
+pub type RsHashSet<V> = rustc_hash::FxHashSet<V>;
+#[cfg(not(feature = "fxhash"))]
+pub type RsHashSet<V> = HashSet<V>;
+
+/// The hasher to use throught the library
+#[cfg(feature = "fxhash")]
+pub type RsHasher = rustc_hash::FxHasher;
+#[cfg(not(feature = "fxhash"))]
+pub type RsHasher = std::collections::hash_map::DefaultHasher;
+
 /// Type representing boolean variables in a SAT problem. Variables indexing in
 /// RustSAT starts from 0 and the maximum index is `(usize::MAX - 1) / 2`. This is
 /// because literals are represented as a single `usize` as well. The memory

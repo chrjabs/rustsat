@@ -7,15 +7,13 @@
 //! ## Example Useage
 //!
 //! ```
-//! use std::collections::HashMap;
-//!
 //! use rustsat::{
 //!     clause,
 //!     encodings::pb,
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
 //!     solvers::SolverResult,
-//!     types::{Clause, Lit, Var},
+//!     types::{Clause, Lit, Var, RsHashMap},
 //!     var,
 //! };
 //!
@@ -25,7 +23,7 @@
 //! var_manager.increase_next_free(var![4]);
 //!
 //! let mut enc = pb::new_default_inc_both();
-//! let mut lits = HashMap::new();
+//! let mut lits = RsHashMap::default();
 //! lits.insert(lit![0], 4);
 //! lits.insert(lit![1], 2);
 //! lits.insert(lit![2], 2);
@@ -49,10 +47,9 @@ use crate::{
     instances::{ManageVars, CNF},
     types::{
         constraints::{PBConstraint, PBEQConstr, PBLBConstr, PBUBConstr},
-        Clause, Lit,
+        Clause, Lit, RsHashMap,
     },
 };
-use std::collections::HashMap;
 
 mod gte;
 pub use gte::GeneralizedTotalizer;
@@ -80,7 +77,7 @@ pub trait EncodePB {
         ce
     }
     /// Adds new literals to the cardinality encoding
-    fn add(&mut self, lits: HashMap<Lit, usize>);
+    fn add(&mut self, lits: RsHashMap<Lit, usize>);
 }
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum

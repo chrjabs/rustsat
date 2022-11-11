@@ -17,9 +17,8 @@ use crate::{
         EncodeStats, EncodingError,
     },
     instances::{ManageVars, CNF},
-    types::Lit,
+    types::{Lit, RsHashMap},
 };
-use std::collections::HashMap;
 
 /// Simulator type that builds a pseudo-boolean encoding of type `PBE` over the
 /// negated input literals in order to simulate the other bound type
@@ -45,8 +44,8 @@ where
         }
     }
 
-    fn add(&mut self, lits: HashMap<Lit, usize>) {
-        let mut neg_lits = HashMap::new();
+    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
+        let mut neg_lits = RsHashMap::default();
         lits.iter().for_each(|(&l, &w)| {
             self.total_weight += w;
             neg_lits.insert(!l, w);
@@ -224,7 +223,7 @@ where
         }
     }
 
-    fn add(&mut self, lits: HashMap<Lit, usize>) {
+    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
         self.ub_enc.add(lits.clone());
         self.lb_enc.add(lits);
     }
@@ -364,7 +363,7 @@ where
         }
     }
 
-    fn add(&mut self, lits: HashMap<Lit, usize>) {
+    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
         let mut lit_vec = vec![];
         lits.iter().for_each(|(&l, &w)| {
             for _ in 0..w {

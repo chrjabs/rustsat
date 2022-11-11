@@ -2,9 +2,9 @@ use rustsat::{
     instances::SatInstance,
     lit, solvers,
     solvers::SolverResult,
-    types::{constraints::PBConstraint, Lit},
+    types::{constraints::PBConstraint, Lit, RsHashMap},
 };
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 #[cfg(feature = "multiopt")]
 use rustsat::instances::MultiOptInstance;
@@ -37,15 +37,15 @@ fn opb_tiny_unsat() {
 fn opb_opt() {
     let inst: OptInstance = OptInstance::from_opb_path(Path::new("./data/tiny-opt.opb")).unwrap();
     let mut true_constr = SatInstance::new();
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 5);
     lits.insert(lit![1], -3);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 4));
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![2], 5);
     lits.insert(lit![3], -3);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 2));
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(!lit![3], 5);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 4));
     let mut true_obj = Objective::new();
@@ -60,15 +60,15 @@ fn opb_multi_opt() {
     let inst: MultiOptInstance =
         MultiOptInstance::from_opb_path(Path::new("./data/tiny-opt.opb")).unwrap();
     let mut true_constr = SatInstance::new();
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 5);
     lits.insert(lit![1], -3);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 4));
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![2], 5);
     lits.insert(lit![3], -3);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 2));
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(!lit![3], 5);
     true_constr.add_pb_constr(PBConstraint::new_lb(lits, 4));
     let mut true_obj_1 = Objective::new();

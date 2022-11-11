@@ -12,11 +12,11 @@ use super::{EncodePB, EncodingError, IncEncodePB, IncUBPB, UBPB};
 use crate::{
     encodings::EncodeStats,
     instances::{ManageVars, CNF},
-    types::Lit,
+    types::{Lit, RsHashMap},
 };
 use std::{
     cmp,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap},
     ops::Bound,
 };
 
@@ -32,9 +32,9 @@ use std::{
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 pub struct GeneralizedTotalizer {
     /// Input literals and weights already in the tree
-    in_lits: HashMap<Lit, usize>,
+    in_lits: RsHashMap<Lit, usize>,
     /// Input literals and weights not yet in the tree
-    lit_buffer: HashMap<Lit, usize>,
+    lit_buffer: RsHashMap<Lit, usize>,
     /// The root of the tree, if constructed
     root: Option<Box<Node>>,
     /// Whether or not to reserve all variables when constructing the tree
@@ -131,8 +131,8 @@ impl EncodePB for GeneralizedTotalizer {
         Self: Sized,
     {
         GeneralizedTotalizer {
-            in_lits: HashMap::new(),
-            lit_buffer: HashMap::new(),
+            in_lits: RsHashMap::default(),
+            lit_buffer: RsHashMap::default(),
             root: None,
             reserve_vars: false,
             max_leaf_weight: 0,
@@ -142,7 +142,7 @@ impl EncodePB for GeneralizedTotalizer {
         }
     }
 
-    fn add(&mut self, lits: HashMap<Lit, usize>) {
+    fn add(&mut self, lits: RsHashMap<Lit, usize>) {
         lits.iter().for_each(|(l, w)| {
             self.total_weight += w;
             match self.lit_buffer.get(l) {
@@ -159,8 +159,8 @@ impl IncEncodePB for GeneralizedTotalizer {
         Self: Sized,
     {
         GeneralizedTotalizer {
-            in_lits: HashMap::new(),
-            lit_buffer: HashMap::new(),
+            in_lits: RsHashMap::default(),
+            lit_buffer: RsHashMap::default(),
             root: None,
             reserve_vars: true,
             max_leaf_weight: 0,
@@ -679,7 +679,7 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::{BTreeMap};
 
     use super::{GeneralizedTotalizer, Node};
     use crate::{
@@ -690,7 +690,7 @@ mod tests {
         },
         instances::{BasicVarManager, ManageVars},
         lit,
-        types::{Lit, Var},
+        types::{Lit, Var, RsHashMap},
         var,
     };
 
@@ -831,7 +831,7 @@ mod tests {
     #[test]
     fn ub_gte_functions() {
         let mut gte = GeneralizedTotalizer::new();
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
@@ -847,7 +847,7 @@ mod tests {
     #[test]
     fn ub_gte_incremental_building() {
         let mut gte1 = GeneralizedTotalizer::new();
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
@@ -868,7 +868,7 @@ mod tests {
     #[test]
     fn ub_gte_multiplication() {
         let mut gte1 = GeneralizedTotalizer::new();
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 5);
         lits.insert(lit![1], 5);
         lits.insert(lit![2], 3);
@@ -877,7 +877,7 @@ mod tests {
         let mut var_manager = BasicVarManager::new();
         let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::new();
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 10);
         lits.insert(lit![1], 10);
         lits.insert(lit![2], 6);
@@ -907,7 +907,7 @@ mod tests {
         let mut var_manager_tot = var_manager_gte.clone();
         // Set up GTE
         let mut gte = GeneralizedTotalizer::new();
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 1);
         lits.insert(lit![1], 1);
         lits.insert(lit![2], 1);

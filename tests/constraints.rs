@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
 use rustsat::{
     instances::SatInstance,
     lit, solvers,
     solvers::SolverResult,
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Lit,
+        Lit, RsHashMap,
     },
 };
 
@@ -105,7 +103,7 @@ fn card_eq() {
 
 #[test]
 fn pb_ub() {
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 3);
@@ -128,7 +126,7 @@ fn pb_ub() {
 
 #[test]
 fn pb_lb() {
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 3);
@@ -151,7 +149,7 @@ fn pb_lb() {
 
 #[test]
 fn pb_eq() {
-    let mut lits = HashMap::new();
+    let mut lits = RsHashMap::default();
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 3);
