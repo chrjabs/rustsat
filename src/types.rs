@@ -12,13 +12,13 @@ pub use constraints::Clause;
 #[cfg(feature = "fxhash")]
 pub type RsHashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 #[cfg(not(feature = "fxhash"))]
-pub type RsHashMap<K, V> = HashMap<K, V>;
+pub type RsHashMap<K, V> = std::collections::HashMap<K, V>;
 
 /// The hash set to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHashSet<V> = rustc_hash::FxHashSet<V>;
 #[cfg(not(feature = "fxhash"))]
-pub type RsHashSet<V> = HashSet<V>;
+pub type RsHashSet<V> = std::collections::HashSet<V>;
 
 /// The hasher to use throught the library
 #[cfg(feature = "fxhash")]

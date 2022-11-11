@@ -238,7 +238,7 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> Result<(R, Preamble), DimacsErro
         #[cfg(feature = "optimization")]
         return Ok((reader, Preamble::NoPLine { first_line: buf }));
         #[cfg(not(feature = "optimization"))]
-        return Err(nom::Err::Failure(Error::new(reader, ErrorKind::Tag)));
+        return Err(DimacsError::PLine(buf));
     }
 }
 

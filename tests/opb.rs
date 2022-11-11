@@ -1,14 +1,13 @@
-use rustsat::{
-    instances::SatInstance,
-    lit, solvers,
-    solvers::SolverResult,
-    types::{constraints::PBConstraint, Lit, RsHashMap},
-};
+use rustsat::{instances::SatInstance, solvers, solvers::SolverResult};
 
 #[cfg(feature = "multiopt")]
 use rustsat::instances::MultiOptInstance;
 #[cfg(feature = "optimization")]
-use rustsat::instances::{Objective, OptInstance};
+use rustsat::{
+    instances::{Objective, OptInstance},
+    lit,
+    types::{constraints::PBConstraint, Lit, RsHashMap},
+};
 
 macro_rules! opb_test {
     ($path:expr, $expect:expr) => {{
