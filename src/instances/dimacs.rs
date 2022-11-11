@@ -11,7 +11,7 @@
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
 use super::{SatInstance, CNF};
-use crate::types::{Clause, Lit, RsHashMap, Var};
+use crate::types::{Clause, Lit, Var};
 use nom::error::Error as NomError;
 use nom::{
     branch::alt,
@@ -32,7 +32,7 @@ use std::{
 #[cfg(feature = "multiopt")]
 use super::MultiOptInstance;
 #[cfg(feature = "optimization")]
-use super::{Objective, OptInstance};
+use super::{Objective, OptInstance, SoftClsOffset};
 #[cfg(feature = "optimization")]
 use nom::sequence::separated_pair;
 
@@ -68,7 +68,7 @@ pub fn parse_wcnf_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInst
     }
     Ok(OptInstance::compose(
         constrs,
-        objs.into_iter().skip(obj_idx).next().unwrap(),
+        objs.into_iter().nth(obj_idx).unwrap(),
     ))
 }
 
@@ -262,9 +262,8 @@ where
             Err(ioe) => return Err(DimacsError::IOError(ioe)),
         };
         let (_, opt_clause) = parse_cnf_line(&buf).map_err(unwrap_dimacs_error)?;
-        match opt_clause {
-            Some(clause) => inst.add_clause(clause),
-            None => (),
+        if let Some(clause) = opt_clause {
+            inst.add_clause(clause)
         }
     }
 }
@@ -312,8 +311,8 @@ where
     let mut buf = first_line.to_string();
     loop {
         let (_, opt_wclause) = parse_mcnf_line(&buf).map_err(unwrap_dimacs_error)?;
-        match opt_wclause {
-            Some((opt_iw, clause)) => match opt_iw {
+        if let Some((opt_iw, clause)) = opt_wclause {
+            match opt_iw {
                 Some((idx, w)) => {
                     if idx > objs.len() {
                         objs.resize(idx, Objective::new());
@@ -321,8 +320,7 @@ where
                     objs[idx - 1].add_soft_clause(w, clause);
                 }
                 None => constrs.add_clause(clause),
-            },
-            None => (),
+            }
         };
         buf.clear();
         match reader.read_line(&mut buf) {
@@ -549,7 +547,7 @@ pub fn write_cnf<W: Write>(writer: &mut W, cnf: CNF, max_var: Var) -> Result<(),
 pub fn write_wcnf<W: Write>(
     writer: &mut W,
     cnf: CNF,
-    softs: (RsHashMap<Clause, usize>, isize),
+    softs: SoftClsOffset,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     let (soft_cls, offset) = softs;
@@ -576,7 +574,7 @@ pub fn write_wcnf<W: Write>(
 pub fn write_mcnf<W: Write>(
     writer: &mut W,
     cnf: CNF,
-    softs: Vec<(RsHashMap<Clause, usize>, isize)>,
+    softs: Vec<SoftClsOffset>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     let (soft_cls, offsets) = softs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();

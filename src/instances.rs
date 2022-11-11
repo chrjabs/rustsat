@@ -39,6 +39,13 @@ pub use dimacs::DimacsError;
 mod opb;
 pub use opb::OpbError;
 
+#[cfg(feature = "optimization")]
+/// An objective expressed as soft literals with an offset
+pub type SoftLitsOffset = (RsHashMap<Lit, usize>, isize);
+#[cfg(feature = "optimization")]
+/// An objective expressed as soft clauses with an offset
+pub type SoftClsOffset = (RsHashMap<Clause, usize>, isize);
+
 /// Combined Parsing Errors
 #[derive(Debug)]
 pub enum ParsingError {
@@ -633,7 +640,7 @@ impl Objective {
     }
 
     /// Converts the objective to a set of soft clauses
-    pub fn as_soft_cls(mut self) -> (RsHashMap<Clause, usize>, isize) {
+    pub fn as_soft_cls(mut self) -> SoftClsOffset {
         self.soft_clauses.reserve(self.soft_lits.len());
         for (l, w) in self.soft_lits {
             self.soft_clauses.insert(clause![!l], w);
@@ -642,7 +649,7 @@ impl Objective {
     }
 
     /// Converts the objective to a set of hard clauses and soft literals
-    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, (RsHashMap<Lit, usize>, isize))
+    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, SoftLitsOffset)
     where
         VM: ManageVars,
     {
@@ -832,13 +839,13 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses with an offset
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, (RsHashMap<Clause, usize>, isize), VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, SoftClsOffset, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, (RsHashMap<Lit, usize>, isize), VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, SoftLitsOffset, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let (hard_softs, soft_lits) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -955,27 +962,13 @@ impl<VM: ManageVars> BiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(
-        self,
-    ) -> (
-        CNF,
-        (RsHashMap<Clause, usize>, isize),
-        (RsHashMap<Clause, usize>, isize),
-        VM,
-    ) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, SoftClsOffset, SoftClsOffset, VM) {
         let (cnf, vm) = self.constr.as_cnf();
         (cnf, self.obj_1.as_soft_cls(), self.obj_2.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(
-        self,
-    ) -> (
-        CNF,
-        (RsHashMap<Lit, usize>, isize),
-        (RsHashMap<Lit, usize>, isize),
-        VM,
-    ) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, SoftLitsOffset, SoftLitsOffset, VM) {
         let (mut cnf, mut vm) = self.constr.as_cnf();
         let (hard_softs, soft_lits_1) = self.obj_1.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -1139,14 +1132,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<(RsHashMap<Clause, usize>, isize)>, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<SoftClsOffset>, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<(RsHashMap<Lit, usize>, isize)>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<SoftLitsOffset>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let soft_lits = self
             .objs
