@@ -512,7 +512,7 @@ mod test {
     };
     use crate::{
         clause,
-        instances::{opb::write_sat, Objective, SatInstance},
+        instances::{opb::write_sat, SatInstance},
         lit,
         types::{
             constraints::{CardConstraint, PBConstraint},
@@ -521,6 +521,9 @@ mod test {
         var,
     };
     use nom::error::{Error, ErrorKind};
+
+    #[cfg(feature = "optimization")]
+    use crate::instances::Objective;
 
     #[test]
     fn match_comment() {
@@ -636,7 +639,10 @@ mod test {
     #[cfg(not(feature = "optimization"))]
     #[test]
     fn parse_objective() {
-        assert_eq!(objective("min: 3 x1 -2 ~x2;"), Ok(("", "min: 3 x1 -2 ~x2")));
+        assert_eq!(
+            objective("min: 3 x1 -2 ~x2;"),
+            Ok(("", "min: 3 x1 -2 ~x2;"))
+        );
     }
 
     #[test]
@@ -653,14 +659,17 @@ mod test {
             opb_data("3 x1 -2 ~x2 <= 4;\n"),
             Ok(("", OpbData::Constr(should_be_constr)))
         );
-        let mut obj = Objective::new();
-        obj.increase_soft_lit_int(-3, lit![0]);
-        obj.increase_soft_lit_int(4, lit![1]);
-        assert_eq!(opb_data("min: -3 x0 4 x1;"), Ok(("", OpbData::Obj(obj))));
-        assert_eq!(
-            opb_data("min: x0;"),
-            Err(nom::Err::Error(Error::new("x0;", ErrorKind::Digit)))
-        );
+        #[cfg(feature = "optimization")]
+        {
+            let mut obj = Objective::new();
+            obj.increase_soft_lit_int(-3, lit![0]);
+            obj.increase_soft_lit_int(4, lit![1]);
+            assert_eq!(opb_data("min: -3 x0 4 x1;"), Ok(("", OpbData::Obj(obj))));
+            assert_eq!(
+                opb_data("min: x0;"),
+                Err(nom::Err::Error(Error::new("x0;", ErrorKind::Digit)))
+            );
+        }
     }
 
     #[test]
