@@ -4,14 +4,18 @@
 //! Rust SAT supports more complex constraints like [`PBConstraint`] or
 //! [`CardConstraint`].
 
-use std::{collections::HashMap, fmt, ops};
+use std::{
+    collections::HashMap,
+    fmt,
+    ops::{self, Not},
+};
 
 use super::Lit;
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
-#[derive(Hash, Eq, PartialEq, Clone, Default)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
 }
@@ -90,6 +94,33 @@ impl Clause {
     #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
         self.lits.iter()
+    }
+
+    /// Normalizes the clause. This includes sorting the literals, removing
+    /// duplicates and removing the entire clause if it is a tautology.
+    /// Comparing two normalized clauses checks their logical equivalence.
+    pub fn normalize(mut self) -> Option<Self> {
+        if self.len() <= 1 {
+            return Some(self);
+        }
+        // Sort and filter duplicates
+        self.lits.sort_unstable();
+        self.lits.dedup();
+        // Check for tautology
+        let mut neg_last = None;
+        if let Err(()) = self.iter().try_for_each(|l| {
+            if let Some(neg_last) = neg_last {
+                if l == &neg_last {
+                    // Positive lits always come first
+                    return Err(());
+                }
+            }
+            neg_last = Some(!*l);
+            Ok(())
+        }) {
+            return None;
+        }
+        Some(self)
     }
 }
 
@@ -258,7 +289,7 @@ impl CardConstraint {
     /// Checks if the constraint is a clause
     pub fn is_clause(&self) -> bool {
         match self {
-            CardConstraint::UB(_) => false,
+            CardConstraint::UB(constr) => constr.is_clause(),
             CardConstraint::LB(constr) => constr.is_clause(),
             CardConstraint::EQ(_) => false,
         }
@@ -270,6 +301,18 @@ impl CardConstraint {
             CardConstraint::UB(constr) => constr.lits,
             CardConstraint::LB(constr) => constr.lits,
             CardConstraint::EQ(constr) => constr.lits,
+        }
+    }
+
+    /// Converts the constraint into a clause, if possible
+    pub fn into_clause(self) -> Option<Clause> {
+        if !self.is_clause() {
+            return None;
+        }
+        match self {
+            CardConstraint::UB(constr) => Some(Clause::from(constr.lits.into_iter().map(Lit::not))),
+            CardConstraint::LB(constr) => Some(Clause::from(constr.lits.into_iter())),
+            CardConstraint::EQ(_) => panic!(),
         }
     }
 
@@ -300,6 +343,11 @@ impl CardUBConstr {
     /// Checks if the constraint is always satisfied
     pub fn is_tautology(&self) -> bool {
         self.b >= self.lits.len()
+    }
+
+    /// Checks if the constraint is a clause
+    pub fn is_clause(&self) -> bool {
+        self.b + 1 == self.lits.len()
     }
 }
 
@@ -405,6 +453,7 @@ impl PBConstraint {
             .collect();
         (lits, weight_sum, b_add)
     }
+
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
     pub fn new_ub(lits: HashMap<Lit, isize>, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
@@ -519,7 +568,15 @@ impl PBConstraint {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
-                        CardConstraint::new_lb(lits, constr.b as usize / unit_weight + 1)
+                        CardConstraint::new_lb(
+                            lits,
+                            constr.b as usize / unit_weight
+                                + if constr.b as usize % unit_weight == 0 {
+                                    0
+                                } else {
+                                    1
+                                },
+                        )
                     }
                 }
             }
@@ -532,7 +589,7 @@ impl PBConstraint {
                             return Err(PBToCardError::Unsat);
                         }
                         let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
-                        CardConstraint::new_ub(lits, constr.b as usize / unit_weight)
+                        CardConstraint::new_eq(lits, constr.b as usize / unit_weight)
                     }
                 }
             }
@@ -724,6 +781,32 @@ mod tests {
         assert!(!cl.remove_thorough(&lit![3]));
         assert!(cl.remove_thorough(&lit![1]));
         assert_eq!(cl.len(), 2);
+    }
+
+    #[test]
+    fn clause_normalize() {
+        let taut = clause![lit![0], lit![1], lit![2], lit![3], !lit![2]];
+        assert_eq!(taut.normalize(), None);
+        let cl = clause![
+            lit![5],
+            !lit![2],
+            !lit![3],
+            lit![17],
+            lit![0],
+            lit![1],
+            !lit![2]
+        ];
+        assert_eq!(
+            cl.normalize(),
+            Some(clause![
+                lit![0],
+                lit![1],
+                !lit![2],
+                !lit![3],
+                lit![5],
+                lit![17]
+            ])
+        );
     }
 
     #[test]
