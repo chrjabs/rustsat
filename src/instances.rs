@@ -141,6 +141,16 @@ impl CNF {
         self.add_clause(clause![lit1, lit2, lit3])
     }
 
+    /// Checks if the CNF is empty
+    pub fn is_empty(&self) -> bool {
+        self.clauses.is_empty()
+    }
+
+    /// Returns the number of clauses in the instance
+    pub fn len(&self) -> usize {
+        self.clauses.len()
+    }
+
     /// Returns the number of clauses in the instance
     pub fn n_clauses(&self) -> usize {
         self.clauses.len()
