@@ -8,7 +8,7 @@ use rustsat::instances::MultiOptInstance;
 
 macro_rules! print_usage {
     () => {{
-        eprintln!("Useage: mcnf2opb [dimacs mcnf file] [opb output path]");
+        eprintln!("Usage: mcnf2opb [dimacs mcnf file] [opb output path]");
         panic!()
     }};
 }

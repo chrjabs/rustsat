@@ -12,7 +12,7 @@ use rustsat::{
 
 macro_rules! print_usage {
     () => {{
-        eprintln!("Useage: enumerator [dimacs cnf file]");
+        eprintln!("Usage: enumerator [dimacs cnf file]");
         panic!()
     }};
 }

@@ -8,7 +8,7 @@ use rustsat::instances::SatInstance;
 
 macro_rules! print_usage {
     () => {{
-        eprintln!("Useage: cnf2opb [dimacs cnf file] [opb output path]");
+        eprintln!("Usage: cnf2opb [dimacs cnf file] [opb output path]");
         panic!()
     }};
 }
