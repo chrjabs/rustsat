@@ -11,7 +11,7 @@
 use super::{ManageVars, SatInstance};
 use crate::types::{
     constraints::{CardConstraint, PBConstraint},
-    Clause, Lit, Var,
+    Clause, Lit, Var, RsHashMap,
 };
 use nom::{
     branch::alt,
@@ -24,7 +24,6 @@ use nom::{
     IResult,
 };
 use std::{
-    collections::HashMap,
     fmt,
     io::{self, BufRead, BufReader, Read, Write},
     num::TryFromIntError,
@@ -251,7 +250,7 @@ fn constraint(input: &str) -> IResult<&str, PBConstraint> {
     map_res(
         tuple((weighted_lit_sum, operator, space0, weight, opb_ending)),
         |(wls, op, _, b, _)| {
-            let lits = HashMap::from_iter(wls.into_iter());
+            let lits = RsHashMap::from_iter(wls.into_iter());
             Ok::<_, ()>(match op {
                 OpbOperator::LE => PBConstraint::new_ub(lits, b),
                 OpbOperator::GE => PBConstraint::new_lb(lits, b),
@@ -401,7 +400,6 @@ fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint) -> Result<(), io::Error>
 #[cfg(test)]
 mod test {
     use std::{
-        collections::HashMap,
         io::{BufReader, Cursor, Seek},
     };
 
@@ -416,7 +414,7 @@ mod test {
         lit,
         types::{
             constraints::{CardConstraint, PBConstraint},
-            Clause, Lit, Var,
+            Clause, Lit, Var, RsHashMap,
         },
         var,
     };
@@ -501,7 +499,7 @@ mod test {
                 PBConstraint::UB(constr) => {
                     assert_eq!(rest, "");
                     let (lits, b) = constr.decompose();
-                    let mut should_be_lits = HashMap::new();
+                    let mut should_be_lits = RsHashMap::default();
                     should_be_lits.insert(lit![1], 3);
                     should_be_lits.insert(lit![2], 2);
                     assert_eq!(lits, should_be_lits);
@@ -545,7 +543,7 @@ mod test {
             opb_data("* test\n"),
             Ok(("", OpbData::Cmt(String::from("* test\n"))))
         );
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![1], 3);
         lits.insert(!lit![2], -2);
         let should_be_constr = PBConstraint::new_ub(lits, 4);
@@ -629,7 +627,7 @@ mod test {
     #[test]
     fn write_parse_card() {
         // Because hash maps are non-deterministic, make sure the true instance goes through a HashMap as well.
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(!lit![3], 1);
         lits.insert(lit![4], 1);
         lits.insert(!lit![5], 1);
@@ -655,7 +653,7 @@ mod test {
 
     #[test]
     fn write_parse_pb() {
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(!lit![6], 3);
         lits.insert(!lit![7], -5);
         lits.insert(lit![8], 2);

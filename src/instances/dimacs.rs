@@ -11,7 +11,7 @@
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
 use super::{SatInstance, CNF};
-use crate::types::{Clause, Lit, Var};
+use crate::types::{Clause, Lit, RsHashMap, Var};
 use nom::error::Error as NomError;
 use nom::{
     branch::alt,
@@ -24,7 +24,6 @@ use nom::{
     IResult,
 };
 use std::{
-    collections::HashMap,
     convert::TryFrom,
     fmt,
     io::{self, BufRead, BufReader, Read, Write},
@@ -550,7 +549,7 @@ pub fn write_cnf<W: Write>(writer: &mut W, cnf: CNF, max_var: Var) -> Result<(),
 pub fn write_wcnf<W: Write>(
     writer: &mut W,
     cnf: CNF,
-    soft_cls: HashMap<Clause, usize>,
+    soft_cls: RsHashMap<Clause, usize>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c WCNF file written by RustSAT")?;
@@ -575,7 +574,7 @@ pub fn write_wcnf<W: Write>(
 pub fn write_mcnf<W: Write>(
     writer: &mut W,
     cnf: CNF,
-    soft_cls: Vec<HashMap<Clause, usize>>,
+    soft_cls: Vec<RsHashMap<Clause, usize>>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c MCNF file written by RustSAT")?;

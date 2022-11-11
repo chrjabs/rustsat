@@ -5,7 +5,6 @@
 
 use std::{
     any::{Any, TypeId},
-    collections::{hash_map::DefaultHasher, HashMap},
     fmt,
     fs::File,
     hash::{Hash, Hasher},
@@ -21,7 +20,7 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Clause, Lit, Var,
+        Clause, Lit, RsHashMap, RsHasher, Var,
     },
 };
 
@@ -547,8 +546,8 @@ impl<VM: ManageVars> Default for SatInstance<VM> {
 /// All objectives are considered minimization objectives.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Objective {
-    soft_lits: HashMap<Lit, usize>,
-    soft_clauses: HashMap<Clause, usize>,
+    soft_lits: RsHashMap<Lit, usize>,
+    soft_clauses: RsHashMap<Clause, usize>,
     offset: isize,
 }
 
@@ -557,8 +556,8 @@ impl Objective {
     /// Creates a new empty objective
     pub fn new() -> Self {
         Objective {
-            soft_lits: HashMap::new(),
-            soft_clauses: HashMap::new(),
+            soft_lits: RsHashMap::default(),
+            soft_clauses: RsHashMap::default(),
             offset: 0,
         }
     }
@@ -629,7 +628,7 @@ impl Objective {
     }
 
     /// Converts the objective to a set of soft clauses
-    pub fn as_soft_cls(mut self) -> HashMap<Clause, usize> {
+    pub fn as_soft_cls(mut self) -> RsHashMap<Clause, usize> {
         self.soft_clauses.reserve(self.soft_lits.len());
         for (l, w) in self.soft_lits {
             self.soft_clauses.insert(clause![!l], w);
@@ -638,7 +637,7 @@ impl Objective {
     }
 
     /// Converts the objective to a set of hard clauses and soft literals
-    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, HashMap<Lit, usize>)
+    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, RsHashMap<Lit, usize>)
     where
         VM: ManageVars,
     {
@@ -828,13 +827,13 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, HashMap<Clause, usize>, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, RsHashMap<Clause, usize>, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, HashMap<Lit, usize>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, RsHashMap<Lit, usize>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let (hard_softs, soft_lits) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -946,13 +945,15 @@ impl<VM: ManageVars> BiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, HashMap<Clause, usize>, HashMap<Clause, usize>, VM) {
+    pub fn as_hard_cls_soft_cls(
+        self,
+    ) -> (CNF, RsHashMap<Clause, usize>, RsHashMap<Clause, usize>, VM) {
         let (cnf, vm) = self.constr.as_cnf();
         (cnf, self.obj_1.as_soft_cls(), self.obj_2.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, HashMap<Lit, usize>, HashMap<Lit, usize>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, RsHashMap<Lit, usize>, RsHashMap<Lit, usize>, VM) {
         let (mut cnf, mut vm) = self.constr.as_cnf();
         let (hard_softs, soft_lits_1) = self.obj_1.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -1116,14 +1117,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<HashMap<Clause, usize>>, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<RsHashMap<Clause, usize>>, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<HashMap<Lit, usize>>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<RsHashMap<Lit, usize>>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let soft_lits = self
             .objs
@@ -1264,7 +1265,7 @@ impl Default for BasicVarManager {
 #[derive(PartialEq, Eq)]
 pub struct ObjectVarManager {
     next_var: Var,
-    object_map: HashMap<Box<dyn VarKey>, Var>,
+    object_map: RsHashMap<Box<dyn VarKey>, Var>,
 }
 
 impl ObjectVarManager {
@@ -1272,7 +1273,7 @@ impl ObjectVarManager {
     pub fn from_next_free(next_var: Var) -> Self {
         Self {
             next_var,
-            object_map: HashMap::new(),
+            object_map: RsHashMap::default(),
         }
     }
 
@@ -1351,7 +1352,7 @@ impl<T: Eq + Hash + 'static> VarKey for T {
     }
 
     fn hash(&self) -> u64 {
-        let mut h = DefaultHasher::new();
+        let mut h = RsHasher::default();
         // mix the typeid of T into the hash to make distinct types
         // provide distinct hashes
         Hash::hash(&(TypeId::of::<T>(), self), &mut h);

@@ -5,12 +5,11 @@
 //! [`CardConstraint`].
 
 use std::{
-    collections::HashMap,
     fmt,
     ops::{self, Not},
 };
 
-use super::Lit;
+use super::{Lit, RsHashMap};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -435,7 +434,7 @@ pub enum PBConstraint {
 
 impl PBConstraint {
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
-    fn convert_input_lits(lits: HashMap<Lit, isize>) -> (HashMap<Lit, usize>, usize, isize) {
+    fn convert_input_lits(lits: RsHashMap<Lit, isize>) -> (RsHashMap<Lit, usize>, usize, isize) {
         let mut b_add = 0;
         let mut weight_sum = 0;
         let lits = lits
@@ -455,7 +454,7 @@ impl PBConstraint {
     }
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
-    pub fn new_ub(lits: HashMap<Lit, isize>, b: isize) -> Self {
+    pub fn new_ub(lits: RsHashMap<Lit, isize>, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         PBConstraint::UB(PBUBConstr {
             lits,
@@ -465,7 +464,7 @@ impl PBConstraint {
     }
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
-    pub fn new_lb(lits: HashMap<Lit, isize>, b: isize) -> Self {
+    pub fn new_lb(lits: RsHashMap<Lit, isize>, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         PBConstraint::LB(PBLBConstr {
             lits,
@@ -475,7 +474,7 @@ impl PBConstraint {
     }
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
-    pub fn new_eq(lits: HashMap<Lit, isize>, b: isize) -> Self {
+    pub fn new_eq(lits: RsHashMap<Lit, isize>, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         PBConstraint::EQ(PBEQConstr {
             lits,
@@ -485,7 +484,7 @@ impl PBConstraint {
     }
 
     /// Gets mutable references to the underlying data
-    fn get_data(&mut self) -> (&mut HashMap<Lit, usize>, &mut usize, &mut isize) {
+    fn get_data(&mut self) -> (&mut RsHashMap<Lit, usize>, &mut usize, &mut isize) {
         match self {
             PBConstraint::UB(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
             PBConstraint::LB(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
@@ -494,7 +493,7 @@ impl PBConstraint {
     }
 
     /// Adds literals to the cardinality constraint
-    pub fn add(&mut self, lits: HashMap<Lit, isize>) {
+    pub fn add(&mut self, lits: RsHashMap<Lit, isize>) {
         let (lits, add_weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         let (data_lits, weight_sum, b) = self.get_data();
         lits.iter().for_each(|(l, w)| {
@@ -597,7 +596,7 @@ impl PBConstraint {
     }
 
     /// Gets the (positively) weighted literals that are in the constraint
-    pub fn into_lits(self) -> HashMap<Lit, usize> {
+    pub fn into_lits(self) -> RsHashMap<Lit, usize> {
         match self {
             PBConstraint::UB(constr) => constr.lits,
             PBConstraint::LB(constr) => constr.lits,
@@ -619,14 +618,14 @@ impl PBConstraint {
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBUBConstr {
-    lits: HashMap<Lit, usize>,
+    lits: RsHashMap<Lit, usize>,
     weight_sum: usize,
     b: isize,
 }
 
 impl PBUBConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
-    pub fn decompose(self) -> (HashMap<Lit, usize>, isize) {
+    pub fn decompose(self) -> (RsHashMap<Lit, usize>, isize) {
         (self.lits, self.b)
     }
 
@@ -663,14 +662,14 @@ impl PBUBConstr {
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBLBConstr {
-    lits: HashMap<Lit, usize>,
+    lits: RsHashMap<Lit, usize>,
     weight_sum: usize,
     b: isize,
 }
 
 impl PBLBConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
-    pub fn decompose(self) -> (HashMap<Lit, usize>, isize) {
+    pub fn decompose(self) -> (RsHashMap<Lit, usize>, isize) {
         (self.lits, self.b)
     }
 
@@ -716,14 +715,14 @@ impl PBLBConstr {
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBEQConstr {
-    lits: HashMap<Lit, usize>,
+    lits: RsHashMap<Lit, usize>,
     weight_sum: usize,
     b: isize,
 }
 
 impl PBEQConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
-    pub fn decompose(self) -> (HashMap<Lit, usize>, isize) {
+    pub fn decompose(self) -> (RsHashMap<Lit, usize>, isize) {
         (self.lits, self.b)
     }
 
@@ -764,8 +763,10 @@ impl PBEQConstr {
 #[cfg(test)]
 mod tests {
     use super::{CardConstraint, Clause, PBConstraint};
-    use crate::{lit, types::Lit};
-    use std::collections::HashMap;
+    use crate::{
+        lit,
+        types::{Lit, RsHashMap},
+    };
 
     #[test]
     fn clause_remove() {
@@ -850,7 +851,7 @@ mod tests {
 
     #[test]
     fn pb_is_tautology() {
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 1);
         lits.insert(lit![1], 2);
         lits.insert(lit![2], 3);
@@ -863,7 +864,7 @@ mod tests {
 
     #[test]
     fn pb_is_unsat() {
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 1);
         lits.insert(lit![1], 2);
         lits.insert(lit![2], 3);
@@ -876,7 +877,7 @@ mod tests {
 
     #[test]
     fn pb_is_assignment() {
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 1);
         lits.insert(lit![1], 2);
         lits.insert(lit![2], 3);
@@ -889,14 +890,14 @@ mod tests {
 
     #[test]
     fn pb_is_card() {
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 2);
         lits.insert(lit![1], 2);
         lits.insert(lit![2], 2);
         assert!(PBConstraint::new_ub(lits.clone(), 1).is_card());
         assert!(PBConstraint::new_lb(lits.clone(), 3).is_card());
         assert!(PBConstraint::new_eq(lits.clone(), 2).is_card());
-        let mut lits = HashMap::new();
+        let mut lits = RsHashMap::default();
         lits.insert(lit![0], 2);
         lits.insert(lit![1], 1);
         lits.insert(lit![2], 2);
