@@ -25,13 +25,6 @@ use crate::{
     var,
 };
 
-#[cfg(feature = "compression")]
-use bzip2::read::BzDecoder;
-#[cfg(feature = "compression")]
-use flate2::read::GzDecoder;
-#[cfg(feature = "compression")]
-use std::ffi::OsStr;
-
 /// DIMACS parsing module
 mod dimacs;
 pub use dimacs::DimacsError;
@@ -68,18 +61,43 @@ impl fmt::Display for ParsingError {
     }
 }
 
-/// Opens a buffered reader for the file at Path.
+/// Opens a reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
-fn open_compressed_uncompressed<P: AsRef<Path>>(path: P) -> Result<Box<dyn Read>, io::Error> {
+fn open_compressed_uncompressed_read<P: AsRef<Path>>(path: P) -> Result<Box<dyn Read>, io::Error> {
     let path = path.as_ref();
     let raw_reader = File::open(path)?;
     #[cfg(feature = "compression")]
     if let Some(ext) = path.extension() {
-        if ext.eq_ignore_ascii_case(OsStr::new("bz2")) {
-            return Ok(Box::new(BzDecoder::new(raw_reader)));
+        if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("bz2")) {
+            return Ok(Box::new(bzip2::read::BzDecoder::new(raw_reader)));
         }
-        if ext.eq_ignore_ascii_case(OsStr::new("gz")) {
-            return Ok(Box::new(GzDecoder::new(raw_reader)));
+        if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("gz")) {
+            return Ok(Box::new(flate2::read::GzDecoder::new(raw_reader)));
+        }
+    }
+    Ok(Box::new(raw_reader))
+}
+
+/// Opens a writer for the file at Path.
+/// With feature `compression` supports bzip2 and gzip compression.
+fn open_compressed_uncompressed_write<P: AsRef<Path>>(
+    path: P,
+) -> Result<Box<dyn Write>, io::Error> {
+    let path = path.as_ref();
+    let raw_reader = File::create(path)?;
+    #[cfg(feature = "compression")]
+    if let Some(ext) = path.extension() {
+        if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("bz2")) {
+            return Ok(Box::new(bzip2::write::BzEncoder::new(
+                raw_reader,
+                bzip2::Compression::fast(),
+            )));
+        }
+        if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("gz")) {
+            return Ok(Box::new(flate2::write::GzEncoder::new(
+                raw_reader,
+                flate2::Compression::fast(),
+            )));
         }
     }
     Ok(Box::new(raw_reader))
@@ -288,7 +306,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_dimacs_reader(reader),
         }
@@ -320,7 +338,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => SatInstance::from_opb_reader(reader),
         }
@@ -511,6 +529,12 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.var_manager.combine(other.var_manager);
     }
 
+    /// Writes the instance to a DIMACS CNF file at a path
+    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+        let mut writer = open_compressed_uncompressed_write(path)?;
+        self.to_dimacs(&mut writer)
+    }
+
     /// Writes the instance to DIMACS CNF
     pub fn to_dimacs<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
         self.to_dimacs_with_encoders(
@@ -535,6 +559,12 @@ impl<VM: ManageVars> SatInstance<VM> {
     {
         let (cnf, vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
         dimacs::write_cnf(writer, cnf, vm.max_var())
+    }
+
+    /// Writes the instance to an OPB file at a path
+    pub fn to_opb_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+        let mut writer = open_compressed_uncompressed_write(path)?;
+        self.to_opb(&mut writer)
     }
 
     /// Writes the instance to an OPB file
@@ -1033,7 +1063,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader(reader),
         }
@@ -1046,7 +1076,7 @@ impl<VM: ManageVars> OptInstance<VM> {
         path: P,
         obj_idx: usize,
     ) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_dimacs_reader_with_idx(reader, obj_idx),
         }
@@ -1088,7 +1118,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_opb_reader(reader),
         }
@@ -1103,7 +1133,7 @@ impl<VM: ManageVars> OptInstance<VM> {
         path: P,
         obj_idx: usize,
     ) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx),
         }
@@ -1147,6 +1177,12 @@ impl<VM: ManageVars> OptInstance<VM> {
         }
     }
 
+    /// Writes the instance to a DIMACS WCNF file at a path
+    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+        let mut writer = open_compressed_uncompressed_write(path)?;
+        self.to_dimacs(&mut writer)
+    }
+
     /// Write to DIMACS WCNF (post 22)
     pub fn to_dimacs<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
         self.to_dimacs_with_encoders(
@@ -1172,6 +1208,12 @@ impl<VM: ManageVars> OptInstance<VM> {
         let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.obj.as_soft_cls();
         dimacs::write_wcnf(writer, cnf, soft_cls, vm.max_var())
+    }
+
+    /// Writes the instance to an OPB file at a path
+    pub fn to_opb_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+        let mut writer = open_compressed_uncompressed_write(path)?;
+        self.to_opb(&mut writer)
     }
 
     /// Writes the instance to an OPB file
@@ -1363,7 +1405,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs_reader`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => MultiOptInstance::from_dimacs_reader(reader),
         }
@@ -1396,7 +1438,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed(path) {
+        match open_compressed_uncompressed_read(path) {
             Err(why) => Err(ParsingError::IO(why)),
             Ok(reader) => MultiOptInstance::from_opb_reader(reader),
         }
@@ -1448,6 +1490,12 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         }
     }
 
+    /// Writes the instance to a DIMACS MCNF file at a path
+    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+        let mut writer = open_compressed_uncompressed_write(path)?;
+        self.to_dimacs(&mut writer)
+    }
+
     /// Write to DIMACS MCNF
     pub fn to_dimacs<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
         self.to_dimacs_with_encoders(
@@ -1473,6 +1521,12 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         dimacs::write_mcnf(writer, cnf, soft_cls, vm.max_var())
+    }
+
+    /// Writes the instance to an OPB file at a path
+    pub fn to_opb_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+        let mut writer = open_compressed_uncompressed_write(path)?;
+        self.to_opb(&mut writer)
     }
 
     /// Writes the instance to an OPB file

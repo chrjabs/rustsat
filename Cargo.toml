@@ -30,3 +30,31 @@ optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2"]
 all-non-conflicting = ["cadical", "optimization", "multiopt", "compression"]
+
+[[example]]
+name = "enumerator"
+required-features = ["compression"]
+
+[[example]]
+name = "cnf2opb"
+required-features = ["compression"]
+
+[[example]]
+name = "opb2cnf"
+required-features = ["compression"]
+
+[[example]]
+name = "wcnf2opb"
+required-features = ["compression", "optimization"]
+
+[[example]]
+name = "opb2wcnf"
+required-features = ["compression", "optimization"]
+
+[[example]]
+name = "mcnf2opb"
+required-features = ["compression", "multiopt"]
+
+[[example]]
+name = "opb2mcnf"
+required-features = ["compression", "multiopt"]

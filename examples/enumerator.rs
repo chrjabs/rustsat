@@ -10,6 +10,13 @@ use rustsat::{
     types::{Assignment, Var},
 };
 
+macro_rules! print_usage {
+    () => {{
+        eprintln!("Useage: enumerator [dimacs cnf file]");
+        panic!()
+    }};
+}
+
 struct Enumerator<S: IncrementalSolve> {
     solver: S,
     max_var: Var,
@@ -39,7 +46,7 @@ impl<S: IncrementalSolve> Iterator for Enumerator<S> {
 }
 
 fn main() {
-    let in_path = std::env::args().nth(1).expect("no input file given");
+    let in_path = std::env::args().nth(1).unwrap_or_else(|| print_usage!());
 
     let inst: SatInstance =
         SatInstance::from_dimacs_path(in_path).expect("error parsing the input file");
