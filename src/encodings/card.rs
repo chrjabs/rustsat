@@ -345,9 +345,8 @@ pub fn default_encode_cardinality_constraint(
         return cnf;
     }
     if constr.is_clause() {
-        let lits = constr.into_lits();
         let mut cnf = CNF::new();
-        cnf.add_clause(Clause::from(lits.into_iter()));
+        cnf.add_clause(constr.into_clause().unwrap());
         return cnf;
     }
     Totalizer::encode_constr(constr, var_manager).unwrap()

@@ -533,12 +533,12 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str, DimacsError> {
 
 /// Writes a CNF to a DIMACS CNF file
 pub fn write_cnf<W: Write>(writer: &mut W, cnf: CNF, max_var: Var) -> Result<(), io::Error> {
-    writeln!(writer, "c CNF file written with RustSAT")?;
+    writeln!(writer, "c CNF file written by RustSAT")?;
     writeln!(
         writer,
         "p cnf {} {}",
         max_var.pos_lit().to_ipasir(),
-        cnf.clauses.len()
+        cnf.n_clauses()
     )?;
     cnf.into_iter()
         .try_for_each(|cl| write_clause(writer, cl))?;
@@ -553,11 +553,11 @@ pub fn write_wcnf<W: Write>(
     soft_cls: HashMap<Clause, usize>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
-    writeln!(writer, "c WCNF file written with RustSAT")?;
+    writeln!(writer, "c WCNF file written by RustSAT")?;
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
     }
-    writeln!(writer, "c {} hard clauses", cnf.clauses.len())?;
+    writeln!(writer, "c {} hard clauses", cnf.n_clauses())?;
     writeln!(writer, "c {} soft clauses", soft_cls.len())?;
     cnf.into_iter().try_for_each(|cl| {
         write!(writer, "h ")?;
@@ -578,11 +578,11 @@ pub fn write_mcnf<W: Write>(
     soft_cls: Vec<HashMap<Clause, usize>>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
-    writeln!(writer, "c MCNF file written with RustSAT")?;
+    writeln!(writer, "c MCNF file written by RustSAT")?;
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
     }
-    writeln!(writer, "c {} hard clauses", cnf.clauses.len())?;
+    writeln!(writer, "c {} hard clauses", cnf.n_clauses())?;
     writeln!(writer, "c {} objectives", soft_cls.len())?;
     write!(writer, "c ( ")?;
     soft_cls

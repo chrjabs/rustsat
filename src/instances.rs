@@ -200,6 +200,20 @@ impl CNF {
     pub fn iter_mut(&mut self) -> IterMut<'_, Clause> {
         self.clauses.iter_mut()
     }
+
+    /// Normalizes the CNF. This includes normalizing and sorting the clauses,
+    /// removing duplicates and tautologies. Comparing two normalized CNFs
+    /// is equal to comparing sets of sets of literals.
+    pub fn normalize(self) -> Self {
+        let mut norm_clauses: Vec<Clause> =
+            self.into_iter().filter_map(|cl| cl.normalize()).collect();
+        // Sort and filter duplicates
+        norm_clauses.sort_unstable();
+        norm_clauses.dedup();
+        Self {
+            clauses: norm_clauses,
+        }
+    }
 }
 
 impl IntoIterator for CNF {

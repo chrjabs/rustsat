@@ -8,8 +8,11 @@
 //!
 //! - [OPB](https://www.cril.univ-artois.fr/PB12/format.pdf)
 
-use super::SatInstance;
-use crate::types::{constraints::PBConstraint, Lit, Var};
+use super::{ManageVars, SatInstance};
+use crate::types::{
+    constraints::{CardConstraint, PBConstraint},
+    Clause, Lit, Var,
+};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -23,7 +26,7 @@ use nom::{
 use std::{
     collections::HashMap,
     fmt,
-    io::{BufRead, BufReader, Read},
+    io::{self, BufRead, BufReader, Read, Write},
     num::TryFromIntError,
 };
 
@@ -294,21 +297,127 @@ fn opb_data(input: &str) -> IResult<&str, OpbData> {
     ))(input)
 }
 
+/// Writes a [`SatInstance`] to an OPB file
+pub fn write_sat<W: Write>(writer: &mut W, mut inst: SatInstance) -> Result<(), io::Error> {
+    writeln!(writer, "* OPB file written by RustSAT")?;
+    writeln!(
+        writer,
+        "* maximum variable: {}",
+        inst.var_manager.next_free() - 1
+    )?;
+    writeln!(writer, "* {} clauses", inst.n_clauses())?;
+    writeln!(writer, "* {} cardinality constraints", inst.cards.len())?;
+    writeln!(writer, "* {} pseudo-boolean constraints", inst.pbs.len())?;
+    inst.cnf
+        .into_iter()
+        .try_for_each(|cl| write_clause(writer, cl))?;
+    inst.cards
+        .into_iter()
+        .try_for_each(|card| write_card(writer, card))?;
+    inst.pbs
+        .into_iter()
+        .try_for_each(|pb| write_pb(writer, pb))?;
+    writer.flush()
+}
+
+/// Writes a clause to an OPB file
+fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Error> {
+    let mut rhs: isize = 1;
+    clause.into_iter().try_for_each(|l| {
+        if l.is_pos() {
+            write!(writer, "1 x{} ", l.vidx())
+        } else {
+            rhs -= 1;
+            write!(writer, "-1 x{} ", l.vidx())
+        }
+    })?;
+    writeln!(writer, ">= {};", rhs)
+}
+
+/// Writes a cardinality constraint to an OPB file
+fn write_card<W: Write>(writer: &mut W, card: CardConstraint) -> Result<(), io::Error> {
+    let (lits, bound, op) = match card {
+        CardConstraint::UB(constr) => {
+            let (lits, bound) = constr.decompose();
+            let bound = lits.len() as isize - bound as isize;
+            // Flip operator by negating literals
+            let lits: Vec<Lit> = lits.into_iter().map(|l| !l).collect();
+            (lits, bound, ">=")
+        }
+        CardConstraint::LB(constr) => {
+            let (lits, bound) = constr.decompose();
+            (lits, bound as isize, ">=")
+        }
+        CardConstraint::EQ(constr) => {
+            let (lits, bound) = constr.decompose();
+            (lits, bound as isize, "=")
+        }
+    };
+    let mut offset = 0;
+    lits.into_iter().try_for_each(|l| {
+        if l.is_pos() {
+            write!(writer, "1 x{} ", l.vidx())
+        } else {
+            offset += 1;
+            write!(writer, "-1 x{} ", l.vidx())
+        }
+    })?;
+    writeln!(writer, "{} {};", op, bound as isize - offset)
+}
+
+/// Writes a pseudo-boolean constraint to an OPB file
+fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint) -> Result<(), io::Error> {
+    let (lits, bound, op) = match pb {
+        PBConstraint::UB(constr) => {
+            let (lits, bound) = constr.decompose();
+            let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+            // Flip operator by negating literals
+            let lits = lits.into_iter().map(|(l, w)| (!l, w)).collect();
+            (lits, weight_sum as isize - bound, ">=")
+        }
+        PBConstraint::LB(constr) => {
+            let (lits, bound) = constr.decompose();
+            (lits, bound, ">=")
+        }
+        PBConstraint::EQ(constr) => {
+            let (lits, bound) = constr.decompose();
+            (lits, bound, "=")
+        }
+    };
+    let mut offset: isize = 0;
+    lits.into_iter().try_for_each(|(l, w)| {
+        if l.is_pos() {
+            write!(writer, "{} x{} ", w, l.vidx())
+        } else {
+            // TODO: consider returning error for usize -> isize cast
+            let w = w as isize;
+            offset += w;
+            write!(writer, "{} x{} ", -w, l.vidx())
+        }
+    })?;
+    writeln!(writer, "{} {};", op, bound - offset)
+}
+
 #[cfg(test)]
 mod test {
     use std::{
         collections::HashMap,
-        io::{BufReader, Cursor},
+        io::{BufReader, Cursor, Seek},
     };
 
     use super::{
         comment, constraint, literal, objective, opb_data, opb_ending, operator, parse_opb_data,
-        variable, weight, weighted_lit_sum, weighted_literal, OpbData, OpbError, OpbOperator,
+        variable, weight, weighted_lit_sum, weighted_literal, write_clause, OpbData, OpbError,
+        OpbOperator,
     };
     use crate::{
-        instances::Objective,
+        clause,
+        instances::{opb::write_sat, Objective, SatInstance},
         lit,
-        types::{constraints::PBConstraint, Lit, Var},
+        types::{
+            constraints::{CardConstraint, PBConstraint},
+            Clause, Lit, Var,
+        },
         var,
     };
     use nom::error::{Error, ErrorKind};
@@ -483,5 +592,85 @@ mod test {
             parse_opb_data(reader),
             Err(OpbError::InvalidLine(String::from("min: x0;")))
         );
+    }
+
+    #[test]
+    fn write_parse_clause() {
+        let cl = clause![!lit![0], lit![1], !lit![2]];
+
+        let mut cursor = Cursor::new(vec![]);
+
+        write_clause(&mut cursor, cl.clone()).unwrap();
+
+        cursor.rewind().unwrap();
+
+        let (cnf, _) = super::parse_sat(cursor).unwrap().as_cnf();
+
+        assert_eq!(cnf.n_clauses(), 1);
+        assert_eq!(cnf.into_iter().next().unwrap().normalize(), cl.normalize());
+    }
+
+    fn write_parse_inst_test(in_inst: SatInstance, true_inst: SatInstance) {
+        let mut cursor = Cursor::new(vec![]);
+
+        write_sat(&mut cursor, in_inst).unwrap();
+
+        cursor.rewind().unwrap();
+
+        let parsed_inst = super::parse_sat(cursor).unwrap();
+
+        let (parsed_cnf, parsed_vm) = parsed_inst.as_cnf();
+        let (true_cnf, true_vm) = true_inst.as_cnf();
+
+        assert_eq!(parsed_vm, true_vm);
+        assert_eq!(parsed_cnf.normalize(), true_cnf.normalize());
+    }
+
+    #[test]
+    fn write_parse_card() {
+        // Because hash maps are non-deterministic, make sure the true instance goes through a HashMap as well.
+        let mut lits = HashMap::new();
+        lits.insert(!lit![3], 1);
+        lits.insert(lit![4], 1);
+        lits.insert(!lit![5], 1);
+
+        let mut in_inst: SatInstance = SatInstance::new();
+        in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        write_parse_inst_test(in_inst, true_inst);
+
+        let mut in_inst: SatInstance = SatInstance::new();
+        in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        write_parse_inst_test(in_inst, true_inst);
+
+        let mut in_inst: SatInstance = SatInstance::new();
+        in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        write_parse_inst_test(in_inst, true_inst);
+    }
+
+    #[test]
+    fn write_parse_pb() {
+        let mut lits = HashMap::new();
+        lits.insert(!lit![6], 3);
+        lits.insert(!lit![7], -5);
+        lits.insert(lit![8], 2);
+        lits.insert(lit![9], -4);
+
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        write_parse_inst_test(true_inst.clone(), true_inst);
+
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        write_parse_inst_test(true_inst.clone(), true_inst);
+
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        write_parse_inst_test(true_inst.clone(), true_inst);
     }
 }
