@@ -5,12 +5,11 @@ use rustsat::{
     solvers,
     solvers::SolverResult,
 };
-use std::path::Path;
 
 #[test]
 fn small_sat_instance_gzip() {
     let inst: SatInstance<BasicVarManager> =
-        SatInstance::from_dimacs_path(Path::new("./data/AProVE11-12.cnf.gz")).unwrap();
+        SatInstance::from_dimacs_path("./data/AProVE11-12.cnf.gz").unwrap();
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
@@ -19,9 +18,9 @@ fn small_sat_instance_gzip() {
 
 #[test]
 fn small_unsat_instance_gzip() {
-    let inst: SatInstance<BasicVarManager> = SatInstance::from_dimacs_path(Path::new(
+    let inst: SatInstance<BasicVarManager> = SatInstance::from_dimacs_path(
         "./data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf.gz",
-    ))
+    )
     .unwrap();
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0);
@@ -32,7 +31,7 @@ fn small_unsat_instance_gzip() {
 #[test]
 fn small_sat_instance_bz2() {
     let inst: SatInstance<BasicVarManager> =
-        SatInstance::from_dimacs_path(Path::new("./data/AProVE11-12.cnf.bz2")).unwrap();
+        SatInstance::from_dimacs_path("./data/AProVE11-12.cnf.bz2").unwrap();
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
@@ -41,9 +40,9 @@ fn small_sat_instance_bz2() {
 
 #[test]
 fn small_unsat_instance_bz2() {
-    let inst: SatInstance<BasicVarManager> = SatInstance::from_dimacs_path(Path::new(
+    let inst: SatInstance<BasicVarManager> = SatInstance::from_dimacs_path(
         "./data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf.bz2",
-    ))
+    )
     .unwrap();
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0);
