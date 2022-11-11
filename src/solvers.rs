@@ -310,9 +310,13 @@ impl fmt::Display for SolverError {
 /// Return type of solver calls that don't return but might fail
 pub type SolveMightFail = Result<(), SolverError>;
 
+#[allow(dead_code)]
 type TermCallback<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+#[allow(dead_code)]
 type LearnCallback<'a> = Box<dyn FnMut(Vec<Lit>) + 'a>;
+#[allow(dead_code)]
 type OptTermCallbackStore<'a> = Option<Box<TermCallback<'a>>>;
+#[allow(dead_code)]
 type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 
 #[cfg(solver)]
