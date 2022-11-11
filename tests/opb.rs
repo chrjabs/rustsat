@@ -4,7 +4,6 @@ use rustsat::{
     solvers::SolverResult,
     types::{constraints::PBConstraint, Lit, RsHashMap},
 };
-use std::path::Path;
 
 #[cfg(feature = "multiopt")]
 use rustsat::instances::MultiOptInstance;
@@ -13,7 +12,7 @@ use rustsat::instances::{Objective, OptInstance};
 
 macro_rules! opb_test {
     ($path:expr, $expect:expr) => {{
-        let inst: SatInstance = SatInstance::from_opb_path(Path::new($path)).unwrap();
+        let inst: SatInstance = SatInstance::from_opb_path($path).unwrap();
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
         let mut solver = solvers::new_default_solver();
@@ -35,7 +34,7 @@ fn opb_tiny_unsat() {
 #[cfg(feature = "optimization")]
 #[test]
 fn opb_opt() {
-    let inst: OptInstance = OptInstance::from_opb_path(Path::new("./data/tiny-opt.opb")).unwrap();
+    let inst: OptInstance = OptInstance::from_opb_path("./data/tiny-opt.opb").unwrap();
     let mut true_constr = SatInstance::new();
     let mut lits = RsHashMap::default();
     lits.insert(lit![0], 5);
@@ -58,7 +57,7 @@ fn opb_opt() {
 #[test]
 fn opb_multi_opt() {
     let inst: MultiOptInstance =
-        MultiOptInstance::from_opb_path(Path::new("./data/tiny-opt.opb")).unwrap();
+        MultiOptInstance::from_opb_path("./data/tiny-opt.opb").unwrap();
     let mut true_constr = SatInstance::new();
     let mut lits = RsHashMap::default();
     lits.insert(lit![0], 5);
