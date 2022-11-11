@@ -8,7 +8,7 @@ use rustsat::instances::OptInstance;
 
 macro_rules! print_usage {
     () => {{
-        eprintln!("Useage: wcnf2opb [dimacs wcnf file] [opb output path]");
+        eprintln!("Usage: wcnf2opb [dimacs wcnf file] [opb output path]");
         panic!()
     }};
 }
