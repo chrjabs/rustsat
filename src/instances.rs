@@ -528,6 +528,11 @@ impl<VM: ManageVars> SatInstance<VM> {
         let (cnf, mut vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
         dimacs::write_cnf(writer, cnf, vm.next_free() - 1)
     }
+
+    /// Writes the instance to an OPB file
+    pub fn to_opb<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        opb::write_sat(writer, self)
+    }
 }
 
 impl<VM: ManageVars> Default for SatInstance<VM> {
@@ -628,16 +633,16 @@ impl Objective {
     }
 
     /// Converts the objective to a set of soft clauses
-    pub fn as_soft_cls(mut self) -> RsHashMap<Clause, usize> {
+    pub fn as_soft_cls(mut self) -> (RsHashMap<Clause, usize>, isize) {
         self.soft_clauses.reserve(self.soft_lits.len());
         for (l, w) in self.soft_lits {
             self.soft_clauses.insert(clause![!l], w);
         }
-        self.soft_clauses
+        (self.soft_clauses, self.offset)
     }
 
     /// Converts the objective to a set of hard clauses and soft literals
-    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, RsHashMap<Lit, usize>)
+    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, (RsHashMap<Lit, usize>, isize))
     where
         VM: ManageVars,
     {
@@ -655,7 +660,7 @@ impl Objective {
                 self.soft_lits.insert(!cl[0], w);
             }
         }
-        (cnf, self.soft_lits)
+        (cnf, (self.soft_lits, self.offset))
     }
 }
 
@@ -826,14 +831,14 @@ impl<VM: ManageVars> OptInstance<VM> {
         &mut self.obj
     }
 
-    /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, RsHashMap<Clause, usize>, VM) {
+    /// Converts the instance to a set of hard and soft clauses with an offset
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, (RsHashMap<Clause, usize>, isize), VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, RsHashMap<Lit, usize>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, (RsHashMap<Lit, usize>, isize), VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let (hard_softs, soft_lits) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -877,6 +882,11 @@ impl<VM: ManageVars> OptInstance<VM> {
         let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.obj.as_soft_cls();
         dimacs::write_wcnf(writer, cnf, soft_cls, Some(vm.next_free() - 1))
+    }
+
+    /// Writes the instance to an OPB file
+    pub fn to_opb<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        opb::write_opt(writer, self)
     }
 }
 
@@ -947,13 +957,25 @@ impl<VM: ManageVars> BiOptInstance<VM> {
     /// Converts the instance to a set of hard and soft clauses
     pub fn as_hard_cls_soft_cls(
         self,
-    ) -> (CNF, RsHashMap<Clause, usize>, RsHashMap<Clause, usize>, VM) {
+    ) -> (
+        CNF,
+        (RsHashMap<Clause, usize>, isize),
+        (RsHashMap<Clause, usize>, isize),
+        VM,
+    ) {
         let (cnf, vm) = self.constr.as_cnf();
         (cnf, self.obj_1.as_soft_cls(), self.obj_2.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, RsHashMap<Lit, usize>, RsHashMap<Lit, usize>, VM) {
+    pub fn as_hard_cls_soft_lits(
+        self,
+    ) -> (
+        CNF,
+        (RsHashMap<Lit, usize>, isize),
+        (RsHashMap<Lit, usize>, isize),
+        VM,
+    ) {
         let (mut cnf, mut vm) = self.constr.as_cnf();
         let (hard_softs, soft_lits_1) = self.obj_1.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -1117,14 +1139,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<RsHashMap<Clause, usize>>, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<(RsHashMap<Clause, usize>, isize)>, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<RsHashMap<Lit, usize>>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<(RsHashMap<Lit, usize>, isize)>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let soft_lits = self
             .objs
@@ -1175,6 +1197,11 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         let (cnf, mut vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         dimacs::write_mcnf(writer, cnf, soft_cls, Some(vm.next_free() - 1))
+    }
+
+    /// Writes the instance to an OPB file
+    pub fn to_opb<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        opb::write_multi_opt(writer, self)
     }
 }
 

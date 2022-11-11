@@ -11,7 +11,7 @@
 use super::{ManageVars, SatInstance};
 use crate::types::{
     constraints::{CardConstraint, PBConstraint},
-    Clause, Lit, Var, RsHashMap,
+    Clause, Lit, RsHashMap, Var,
 };
 use nom::{
     branch::alt,
@@ -297,7 +297,10 @@ fn opb_data(input: &str) -> IResult<&str, OpbData> {
 }
 
 /// Writes a [`SatInstance`] to an OPB file
-pub fn write_sat<W: Write>(writer: &mut W, mut inst: SatInstance) -> Result<(), io::Error> {
+pub fn write_sat<W: Write, VM: ManageVars>(
+    writer: &mut W,
+    mut inst: SatInstance<VM>,
+) -> Result<(), io::Error> {
     writeln!(writer, "* OPB file written by RustSAT")?;
     writeln!(
         writer,
@@ -316,6 +319,80 @@ pub fn write_sat<W: Write>(writer: &mut W, mut inst: SatInstance) -> Result<(), 
     inst.pbs
         .into_iter()
         .try_for_each(|pb| write_pb(writer, pb))?;
+    writer.flush()
+}
+
+#[cfg(feature = "optimization")]
+/// Writes an [`OptInstance`] to an OPB file
+pub fn write_opt<W: Write, VM: ManageVars>(
+    writer: &mut W,
+    inst: OptInstance<VM>,
+) -> Result<(), io::Error> {
+    let (constrs, obj) = inst.decompose();
+    let cnf = constrs.cnf;
+    let cards = constrs.cards;
+    let pbs = constrs.pbs;
+    let mut vm = constrs.var_manager;
+    let (hardened, (soft_lits, offset)) = obj.as_soft_lits(&mut vm);
+    writeln!(writer, "* OPB file written by RustSAT")?;
+    writeln!(writer, "* maximum variable: {}", vm.next_free() - 1)?;
+    writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
+    writeln!(writer, "* {} cardinality constraints", cards.len())?;
+    writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
+    writeln!(
+        writer,
+        "* {} relaxed and hardened soft clauses",
+        hardened.n_clauses()
+    )?;
+    write_objective(writer, soft_lits, offset)?;
+    hardened
+        .into_iter()
+        .try_for_each(|cl| write_clause(writer, cl))?;
+    cnf.into_iter()
+        .try_for_each(|cl| write_clause(writer, cl))?;
+    cards
+        .into_iter()
+        .try_for_each(|card| write_card(writer, card))?;
+    pbs.into_iter().try_for_each(|pb| write_pb(writer, pb))?;
+    writer.flush()
+}
+
+#[cfg(feature = "multiopt")]
+/// Writes a [`MultiOptInstance`] to an OPB file
+pub fn write_multi_opt<W: Write, VM: ManageVars>(
+    writer: &mut W,
+    inst: MultiOptInstance<VM>,
+) -> Result<(), io::Error> {
+    let (constrs, objs) = inst.decompose();
+    let cnf = constrs.cnf;
+    let cards = constrs.cards;
+    let pbs = constrs.pbs;
+    let mut vm = constrs.var_manager;
+    let (hardened, objs) = objs
+        .into_iter()
+        .map(|o| o.as_soft_lits(&mut vm))
+        .unzip::<_, _, Vec<_>, Vec<_>>();
+    writeln!(writer, "* OPB file written by RustSAT")?;
+    writeln!(writer, "* maximum variable: {}", vm.next_free() - 1)?;
+    writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
+    writeln!(writer, "* {} cardinality constraints", cards.len())?;
+    writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
+    write!(writer, "* ( ")?;
+    hardened
+        .iter()
+        .try_for_each(|h| write!(writer, "{} ", h.n_clauses()))?;
+    writeln!(writer, ") relaxed and hardened soft clauses",)?;
+    objs.into_iter()
+        .try_for_each(|(softs, o)| write_objective(writer, softs, o))?;
+    hardened
+        .into_iter()
+        .try_for_each(|h| h.into_iter().try_for_each(|cl| write_clause(writer, cl)))?;
+    cnf.into_iter()
+        .try_for_each(|cl| write_clause(writer, cl))?;
+    cards
+        .into_iter()
+        .try_for_each(|card| write_card(writer, card))?;
+    pbs.into_iter().try_for_each(|pb| write_pb(writer, pb))?;
     writer.flush()
 }
 
@@ -397,11 +474,39 @@ fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint) -> Result<(), io::Error>
     writeln!(writer, "{} {};", op, bound - offset)
 }
 
+#[cfg(feature = "optimization")]
+fn write_objective<W: Write>(
+    writer: &mut W,
+    soft_lits: RsHashMap<Lit, usize>,
+    mut offset: isize,
+) -> Result<(), io::Error> {
+    write!(writer, "min:")?;
+    soft_lits
+        .into_iter()
+        .map(|(l, w)| {
+            if l.is_neg() {
+                offset += w as isize;
+                (l.var(), -(w as isize))
+            } else {
+                (l.var(), w as isize)
+            }
+        })
+        .try_for_each(|(v, w)| write!(writer, " {} {}", v.idx(), w))?;
+    writeln!(writer, ";")?;
+    if offset != 0 {
+        // OPB does not support offsets in objectives, so we have to add it as a comment
+        writeln!(
+            writer,
+            "* objective offset for previous objective: {}",
+            offset
+        )?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
-    use std::{
-        io::{BufReader, Cursor, Seek},
-    };
+    use std::io::{BufReader, Cursor, Seek};
 
     use super::{
         comment, constraint, literal, objective, opb_data, opb_ending, operator, parse_opb_data,
@@ -414,7 +519,7 @@ mod test {
         lit,
         types::{
             constraints::{CardConstraint, PBConstraint},
-            Clause, Lit, Var, RsHashMap,
+            Clause, Lit, RsHashMap, Var,
         },
         var,
     };
@@ -626,7 +731,12 @@ mod test {
 
     #[test]
     fn write_parse_card() {
-        // Because hash maps are non-deterministic, make sure the true instance goes through a HashMap as well.
+        // Note: this test is known to fail _sometimes_ without feature "fxhash".
+        // This is due to the non-deterministic default hash function.
+
+        // Since the hash map of going through a pb constraint at parsing
+        // reorders the literals, the true instance has to go through a pb
+        // constraint as well.
         let mut lits = RsHashMap::default();
         lits.insert(!lit![3], 1);
         lits.insert(lit![4], 1);
