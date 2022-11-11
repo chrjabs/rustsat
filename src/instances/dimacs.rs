@@ -549,15 +549,17 @@ pub fn write_cnf<W: Write>(writer: &mut W, cnf: CNF, max_var: Var) -> Result<(),
 pub fn write_wcnf<W: Write>(
     writer: &mut W,
     cnf: CNF,
-    soft_cls: RsHashMap<Clause, usize>,
+    softs: (RsHashMap<Clause, usize>, isize),
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
+    let (soft_cls, offset) = softs;
     writeln!(writer, "c WCNF file written by RustSAT")?;
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
     }
     writeln!(writer, "c {} hard clauses", cnf.n_clauses())?;
     writeln!(writer, "c {} soft clauses", soft_cls.len())?;
+    writeln!(writer, "c objective offset: {}", offset)?;
     cnf.into_iter().try_for_each(|cl| {
         write!(writer, "h ")?;
         write_clause(writer, cl)
@@ -574,9 +576,10 @@ pub fn write_wcnf<W: Write>(
 pub fn write_mcnf<W: Write>(
     writer: &mut W,
     cnf: CNF,
-    soft_cls: Vec<RsHashMap<Clause, usize>>,
+    softs: Vec<(RsHashMap<Clause, usize>, isize)>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
+    let (soft_cls, offsets) = softs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
     writeln!(writer, "c MCNF file written by RustSAT")?;
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
@@ -588,6 +591,11 @@ pub fn write_mcnf<W: Write>(
         .iter()
         .try_for_each(|sc| write!(writer, "{} ", sc.len()))?;
     writeln!(writer, ") soft clauses")?;
+    write!(writer, "c objective offsets: ( ")?;
+    offsets
+        .into_iter()
+        .try_for_each(|o| write!(writer, "{} ", o))?;
+    writeln!(writer, ")")?;
     cnf.into_iter().try_for_each(|cl| {
         write!(writer, "h ")?;
         write_clause(writer, cl)
