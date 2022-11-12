@@ -60,7 +60,7 @@ impl CaDiCaL<'_, '_> {
     /// Adds a clause that only exists for the next solver call. Only one such
     /// clause can exist, a new new clause replaces the old one.
     ///
-    /// _Note_: If this is used, in addition to [`IncrementalSolve::get_core`],
+    /// _Note_: If this is used, in addition to [`IncrementalSolve::core`],
     /// [`CaDiCaL::tmp_clause_in_core`] needs to be checked to determine if the
     /// temporary clause is part of the core.
     pub fn add_tmp_clause(&mut self, clause: Clause) {
@@ -83,7 +83,7 @@ impl CaDiCaL<'_, '_> {
 
     /// Checks whether the temporary clause is part of the core if in
     /// unsatisfiable state. This needs to always be checked in addition to
-    /// [`IncrementalSolve::get_core`] if a [`CaDiCaL::add_tmp_clause`] is used.
+    /// [`IncrementalSolve::core`] if a [`CaDiCaL::add_tmp_clause`] is used.
     pub fn tmp_clause_in_core(&mut self) -> Result<bool, SolverError> {
         match &self.state {
             InternalSolverState::Unsat(_) => unsafe {

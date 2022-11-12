@@ -56,7 +56,7 @@
 //! solvers. Then enable the `ipasir` feature and modify the following lines in
 //! the build script `build.rs` accordingly.
 //!
-//! ```
+//! ```text
 //! // Link to custom IPASIR solver
 //! // Modify this for linking to your static library
 //! // Uncomment and modify this for linking to your static library
