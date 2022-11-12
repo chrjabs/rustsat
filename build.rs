@@ -40,11 +40,17 @@ fn main() {
         "master",
         "97917ddf2b12adc6f63c7b2a5a403a1ee7d81836",
     );
+    build_glucose4(
+        "https://github.com/chrjabs/glucose4",
+        "main",
+        "359974cecd675ff7eab6a7572f5b847ccc28cc26",
+    );
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
     // All built solvers are there
     println!("cargo:rustc-link-search={}", out_dir);
+    println!("cargo:rustc-link-search={}/lib", out_dir);
 
     // Configuration has a solver
     #[cfg(any(feature = "kissat", feature = "cadical", feature = "ipasir"))]
@@ -198,6 +204,28 @@ fn build_kissat(repo: &str, branch: &str, commit: &str) -> bool {
         };
 
         println!("cargo:rustc-link-lib=static=kissat");
+
+        return true;
+    }
+    false
+}
+
+fn build_glucose4(repo: &str, branch: &str, commit: &str) -> bool {
+    #[cfg(feature = "glucose4")]
+    {
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let mut glucose4_dir_str = out_dir.clone();
+        glucose4_dir_str.push_str("/glucose4");
+        let glucose4_dir = Path::new(&glucose4_dir_str);
+        if update_repo(glucose4_dir, repo, branch, commit)
+            || !Path::new(&out_dir).join("libglucose4.a").exists()
+        {
+            // Repo changed, rebuild
+            cmake::build(glucose4_dir);
+        };
+
+        #[cfg(not(feature = "glucose4-parallel"))]
+        println!("cargo:rustc-link-lib=static=glucose4");
 
         return true;
     }

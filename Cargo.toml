@@ -21,6 +21,7 @@ cc = { version = "1.0", features = ["parallel"] }
 git2 = "0.15"
 glob = "0.3"
 chrono = "0.4"
+cmake = "0.1"
 
 [features]
 default = ["cadical", "kissat", "optimization", "fxhash"]
@@ -28,6 +29,7 @@ fxhash = ["dep:rustc-hash"]
 ipasir = []
 cadical = []
 kissat = []
+glucose4 = []
 optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2"]
