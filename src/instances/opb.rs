@@ -488,7 +488,7 @@ fn write_objective<W: Write>(writer: &mut W, softs: SoftLitsOffset) -> Result<()
                 (l.var(), w as isize)
             }
         })
-        .try_for_each(|(v, w)| write!(writer, " {} {}", v.idx(), w))?;
+        .try_for_each(|(v, w)| write!(writer, " {} x{}", w, v.idx()))?;
     writeln!(writer, ";")?;
     if offset != 0 {
         // OPB does not support offsets in objectives, so we have to add it as a comment
