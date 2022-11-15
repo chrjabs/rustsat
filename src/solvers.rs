@@ -119,7 +119,7 @@ pub trait Solve {
             let lit = Lit::positive(idx);
             assignment.push(self.lit_val(lit)?);
         }
-        Ok(Assignment::from_vec(assignment))
+        Ok(Assignment::from(assignment))
     }
     /// Same as [`Solve::lit_val`], but for variables.
     fn var_val(&self, var: Var) -> Result<TernaryVal, SolverError> {
