@@ -490,19 +490,13 @@ impl fmt::Debug for TernaryVal {
 }
 
 /// Type representing an assignment of variables.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct Assignment {
     assignment: Vec<TernaryVal>,
 }
 
 impl Assignment {
-    /// Create a solution from a vector of `LitVal`s where every entry represents
-    /// the assignment for the variable with the index of the entry.
-    pub fn from_vec(assignment: Vec<TernaryVal>) -> Assignment {
-        Assignment { assignment }
-    }
-
     /// Get the value that the solution assigns to a variable.
     /// If the variable is not included in the solution, will return `None`.
     /// (Note that this is different from an explicit "don't care" for the variable.)
@@ -539,10 +533,15 @@ impl Assignment {
         })
     }
 
+    /// Assigns a variable in the assignment
     pub fn assign_var(&mut self, var: Var, val: TernaryVal) {
+        if self.assignment.len() < var.idx + 1 {
+            self.assignment.resize(var.idx + 1, TernaryVal::DontCare);
+        }
         self.assignment[var.idx] = val;
     }
 
+    /// Assigns a literal to true
     pub fn assign_lit(&mut self, lit: Lit) {
         let val = if lit.is_pos() {
             TernaryVal::True
@@ -587,6 +586,20 @@ impl IntoIterator for Assignment {
                 TernaryVal::False => Some(Var::new(idx).neg_lit()),
                 TernaryVal::DontCare => None,
             })
+    }
+}
+
+impl FromIterator<Lit> for Assignment {
+    fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
+        let mut assignment = Assignment::default();
+        iter.into_iter().for_each(|l| assignment.assign_lit(l));
+        assignment
+    }
+}
+
+impl From<Vec<TernaryVal>> for Assignment {
+    fn from(assignment: Vec<TernaryVal>) -> Self {
+        Self { assignment }
     }
 }
 
@@ -706,7 +719,7 @@ mod tests {
 
     #[test]
     fn sol_var_val() {
-        let sol = Assignment::from_vec(vec![
+        let sol = Assignment::from(vec![
             TernaryVal::True,
             TernaryVal::False,
             TernaryVal::DontCare,
@@ -721,7 +734,7 @@ mod tests {
 
     #[test]
     fn sol_lit_val() {
-        let sol = Assignment::from_vec(vec![
+        let sol = Assignment::from(vec![
             TernaryVal::True,
             TernaryVal::False,
             TernaryVal::DontCare,
@@ -742,7 +755,7 @@ mod tests {
 
     #[test]
     fn sol_repl_dont_care() {
-        let mut sol = Assignment::from_vec(vec![
+        let mut sol = Assignment::from(vec![
             TernaryVal::True,
             TernaryVal::False,
             TernaryVal::DontCare,
@@ -754,6 +767,17 @@ mod tests {
         assert_eq!(val, TernaryVal::False);
         let val = sol.var_value(Var::new(2)).unwrap();
         assert_eq!(val, TernaryVal::True);
+    }
+
+    #[test]
+    fn sol_from_lits() {
+        let true_sol = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::DontCare,
+            TernaryVal::False,
+        ]);
+        let sol = Assignment::from_iter(vec![lit![0], !lit![2]]);
+        assert_eq!(true_sol, sol);
     }
 
     #[test]
