@@ -187,13 +187,13 @@ fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
     let repo = match git2::Repository::open(path) {
         Ok(repo) => {
             // Fetch repo
-            let mut remote = repo
-                .find_remote("origin")
-                .unwrap_or_else(|_| panic!("Expected remote \"origin\" in git repo {:?}", path));
-            remote.fetch(&[branch], None, None).unwrap_or_else(|_| {
+            let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
+                panic!("Expected remote \"origin\" in git repo {:?}: {}", path, e)
+            });
+            remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
                 panic!(
-                    "Could not fetch \"origin/{}\" for git repo {:?}",
-                    branch, path
+                    "Could not fetch \"origin/{}\" for git repo {:?}: {}",
+                    branch, path, e
                 )
             });
             drop(remote);
@@ -201,23 +201,29 @@ fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
         }
         Err(_) => {
             if path.exists() {
-                fs::remove_dir_all(path).unwrap_or_else(|_| {
-                    panic!("Could not delete directory: {}", path.to_str().unwrap())
+                fs::remove_dir_all(path).unwrap_or_else(|e| {
+                    panic!("Could not delete directory {}: e", path.to_str().unwrap())
                 });
             };
             changed = true;
             git2::Repository::clone(url, path)
-                .unwrap_or_else(|_| panic!("Could not clone repository: {}", url))
+                .unwrap_or_else(|e| panic!("Could not clone repository {}: {}", url, e))
         }
     };
-    let target_oid = git2::Oid::from_str(commit).unwrap();
+    let target_oid = git2::Oid::from_str(commit)
+        .unwrap_or_else(|e| panic!("Could not find commit {}: {}", commit, e));
     if let Some(oid) = repo.head().unwrap().target_peel() {
         if oid == target_oid {
             return changed;
         }
     };
+    let target_commit = repo
+        .find_commit(target_oid)
+        .unwrap_or_else(|e| panic!("Could not find commit {}: {}", commit, e));
+    repo.checkout_tree(target_commit.as_object(), None)
+        .unwrap_or_else(|e| panic!("Could not checkout commit {}: {}", commit, e));
     repo.set_head_detached(target_oid)
-        .unwrap_or_else(|_| panic!("Could not checkout commit: {}", commit));
+        .unwrap_or_else(|e| panic!("Could not detach head at {}: {}", commit, e));
     changed
 }
 
