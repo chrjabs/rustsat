@@ -594,6 +594,14 @@ impl<VM: ManageVars> Default for SatInstance<VM> {
     }
 }
 
+impl<VM: ManageVars> FromIterator<Clause> for SatInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        iter.into_iter().for_each(|cl| inst.add_clause(cl));
+        inst
+    }
+}
+
 #[cfg(feature = "optimization")]
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
@@ -868,6 +876,22 @@ impl Objective {
         }
     }
 
+    /// Increases the weight of a soft clause. Returns the old weight, if the
+    /// clause was already in the objective.
+    pub fn increase_soft_clause(&mut self, add_w: usize, cl: Clause) -> Option<usize> {
+        self.unweighted_2_weighted();
+        match self {
+            Objective::Weighted { soft_clauses, .. } => match soft_clauses.get_mut(&cl) {
+                Some(old_w) => {
+                    *old_w += add_w;
+                    Some(*old_w - add_w)
+                }
+                None => soft_clauses.insert(cl, add_w),
+            },
+            Objective::Unweighted { .. } => panic!(),
+        }
+    }
+
     /// Converts the objective to a set of soft clauses and an offset
     pub fn as_soft_cls(mut self) -> SoftClsOffset {
         self.unweighted_2_weighted();
@@ -989,6 +1013,36 @@ impl Objective {
                 }
             }
         }
+    }
+}
+
+impl FromIterator<(Lit, usize)> for Objective {
+    fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
+        let mut obj = Self::default();
+        iter.into_iter().for_each(|(l, w)| {
+            obj.increase_soft_lit(w, l);
+        });
+        obj
+    }
+}
+
+impl FromIterator<(Lit, isize)> for Objective {
+    fn from_iter<T: IntoIterator<Item = (Lit, isize)>>(iter: T) -> Self {
+        let mut obj = Self::default();
+        iter.into_iter().for_each(|(l, w)| {
+            obj.increase_soft_lit_int(w, l);
+        });
+        obj
+    }
+}
+
+impl FromIterator<(Clause, usize)> for Objective {
+    fn from_iter<T: IntoIterator<Item = (Clause, usize)>>(iter: T) -> Self {
+        let mut obj = Self::default();
+        iter.into_iter().for_each(|(cl, w)| {
+            obj.increase_soft_clause(w, cl);
+        });
+        obj
     }
 }
 
