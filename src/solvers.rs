@@ -75,6 +75,7 @@ use crate::{
     instances::CNF,
     types::{Assignment, Clause, Lit, TernaryVal, Var},
 };
+use core::time::Duration;
 use std::fmt;
 
 #[cfg(feature = "ipasir")]
@@ -174,7 +175,6 @@ pub trait IncrementalSolve: Solve {
     fn core(&mut self) -> Result<Vec<Lit>, SolverError>;
 }
 
-
 /// Trait for all solvers that can be terminated by a termination callback.
 pub trait Terminate<'term> {
     /// Attaches a termination callback to the solver. During solving this
@@ -213,24 +213,55 @@ type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
 /// Double boxing is necessary to get thin pointers for casting
 type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
+/// Solver statistics
+#[derive(Clone, PartialEq, Default)]
+pub struct SolverStats {
+    /// The number of satisfiable queries executed
+    pub n_sat: usize,
+    /// The number of unsatisfiable queries executed
+    pub n_unsat: usize,
+    /// The number of terminated queries executed
+    pub n_terminated: usize,
+    /// The number of clauses in the solver
+    pub n_clauses: usize,
+    /// The highest variable in the solver
+    pub max_var: Option<Var>,
+    /// The average length of the clauses added to the solver
+    pub avg_clause_len: f32,
+    /// The total CPU time spent solving
+    pub cpu_solve_time: Duration,
+}
+
 /// Trait for solvers that track certain statistics.
 pub trait SolveStats {
+    /// Gets the available statistics from the solver
+    fn stats(&self) -> SolverStats;
     /// Gets the number of satisfiable queries executed.
-    fn n_sat_solves(&self) -> u32;
+    fn n_sat_solves(&self) -> usize {
+        self.stats().n_sat
+    }
     /// Gets the number of unsatisfiable queries executed.
-    fn n_unsat_solves(&self) -> u32;
+    fn n_unsat_solves(&self) -> usize {
+        self.stats().n_unsat
+    }
     /// Gets the number of queries that were prematurely terminated.
-    fn n_terminated(&self) -> u32;
+    fn n_terminated(&self) -> usize {
+        self.stats().n_terminated
+    }
     /// Gets the total number of queries executed.
-    fn n_solves(&self) -> u32 {
+    fn n_solves(&self) -> usize {
         self.n_sat_solves() + self.n_unsat_solves() + self.n_terminated()
     }
     /// Gets the number of clauses in the solver.
-    fn n_clauses(&self) -> u32;
+    fn n_clauses(&self) -> usize {
+        self.stats().n_clauses
+    }
     /// Gets the variable with the highest index in the solver, if any.
     /// If all variables below have been used, the index of this variable +1 is
     /// the number of variables in the solver.
-    fn max_var(&self) -> Option<Var>;
+    fn max_var(&self) -> Option<Var> {
+        self.stats().max_var
+    }
     /// Get number of variables.
     /// Note: this is only correct if all variables are used in order!
     fn n_vars(&self) -> usize {
@@ -240,9 +271,13 @@ pub trait SolveStats {
         }
     }
     /// Gets the average length of all clauses in the solver.
-    fn avg_clause_len(&self) -> f32;
+    fn avg_clause_len(&self) -> f32 {
+        self.stats().avg_clause_len
+    }
     /// Gets the total CPU time spent solving.
-    fn cpu_solve_time(&self) -> f32;
+    fn cpu_solve_time(&self) -> Duration {
+        self.stats().cpu_solve_time
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Default)]
