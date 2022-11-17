@@ -8,9 +8,10 @@ use core::ffi::{c_int, c_void, CStr};
 use super::{
     ControlSignal, IncrementalSolve, InternalSolverState, Learn, OptLearnCallbackStore,
     OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
-    SolverState, Terminate,
+    SolverState, SolverStats, Terminate,
 };
-use crate::types::{Clause, Lit, TernaryVal, Var};
+use crate::types::{Clause, Lit, TernaryVal};
+use cpu_time::ProcessTime;
 use ffi::IpasirHandle;
 
 /// Type for an IPASIR solver.
@@ -19,13 +20,7 @@ pub struct IpasirSolver<'term, 'learn> {
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     learner_cb: OptLearnCallbackStore<'learn>,
-    n_sat: u32,
-    n_unsat: u32,
-    n_terminated: u32,
-    n_clauses: u32,
-    max_var: Option<Var>,
-    avg_clause_len: f32,
-    cpu_solve_time: f32,
+    stats: SolverStats,
 }
 
 impl Default for IpasirSolver<'_, '_> {
@@ -35,13 +30,7 @@ impl Default for IpasirSolver<'_, '_> {
             state: Default::default(),
             terminate_cb: Default::default(),
             learner_cb: Default::default(),
-            n_sat: Default::default(),
-            n_unsat: Default::default(),
-            n_terminated: Default::default(),
-            n_clauses: Default::default(),
-            max_var: Default::default(),
-            avg_clause_len: Default::default(),
-            cpu_solve_time: Default::default(),
+            stats: Default::default(),
         }
     }
 }
@@ -89,20 +78,23 @@ impl Solve for IpasirSolver<'_, '_> {
                 SolverState::Input,
             ));
         }
+        let start = ProcessTime::now();
         // Solve with IPASIR backend
-        match unsafe { ffi::ipasir_solve(self.handle) } {
+        let res = unsafe { ffi::ipasir_solve(self.handle) };
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
             0 => {
-                self.n_terminated += 1;
+                self.stats.n_terminated += 1;
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.n_sat += 1;
+                self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.n_unsat += 1;
+                self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
@@ -140,18 +132,18 @@ impl Solve for IpasirSolver<'_, '_> {
             ));
         }
         // Update wrapper-internal state
-        self.n_clauses += 1;
-        clause.iter().for_each(|l| match self.max_var {
-            None => self.max_var = Some(l.var()),
+        self.stats.n_clauses += 1;
+        clause.iter().for_each(|l| match self.stats.max_var {
+            None => self.stats.max_var = Some(l.var()),
             Some(var) => {
                 if l.var() > var {
-                    self.max_var = Some(l.var())
+                    self.stats.max_var = Some(l.var())
                 }
             }
         });
-        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
-            + clause.len() as f32)
-            / self.n_clauses as f32;
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call IPASIR backend
         for lit in &clause {
@@ -172,23 +164,26 @@ impl IncrementalSolve for IpasirSolver<'_, '_> {
                 SolverState::Input,
             ));
         }
+        let start = ProcessTime::now();
         // Solve with IPASIR backend
         for a in &assumps {
             unsafe { ffi::ipasir_assume(self.handle, a.to_ipasir()) }
         }
-        match unsafe { ffi::ipasir_solve(self.handle) } {
+        let res = unsafe { ffi::ipasir_solve(self.handle) };
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
             0 => {
-                self.n_terminated += 1;
+                self.stats.n_terminated += 1;
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.n_sat += 1;
+                self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.n_unsat += 1;
+                self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
                 Ok(SolverResult::UNSAT)
             }
@@ -303,32 +298,8 @@ impl<'learn> Learn<'learn> for IpasirSolver<'_, 'learn> {
 }
 
 impl SolveStats for IpasirSolver<'_, '_> {
-    fn n_sat_solves(&self) -> u32 {
-        self.n_sat
-    }
-
-    fn n_unsat_solves(&self) -> u32 {
-        self.n_unsat
-    }
-
-    fn n_terminated(&self) -> u32 {
-        self.n_terminated
-    }
-
-    fn n_clauses(&self) -> u32 {
-        self.n_clauses
-    }
-
-    fn max_var(&self) -> Option<Var> {
-        self.max_var
-    }
-
-    fn avg_clause_len(&self) -> f32 {
-        self.avg_clause_len
-    }
-
-    fn cpu_solve_time(&self) -> f32 {
-        self.cpu_solve_time
+    fn stats(&self) -> SolverStats {
+        self.stats.clone()
     }
 }
 

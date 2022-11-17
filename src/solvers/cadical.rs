@@ -8,9 +8,10 @@ use std::{cmp::Ordering, ffi::CString, fmt};
 use super::{
     ControlSignal, IncrementalSolve, InternalSolverState, Learn, OptLearnCallbackStore,
     OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
-    SolverState, Terminate,
+    SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
+use cpu_time::ProcessTime;
 use ffi::CaDiCaLHandle;
 
 /// The CaDiCaL solver type
@@ -19,12 +20,7 @@ pub struct CaDiCaL<'term, 'learn> {
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     learner_cb: OptLearnCallbackStore<'learn>,
-    n_sat: u32,
-    n_unsat: u32,
-    n_terminated: u32,
-    n_clauses: u32,
-    avg_clause_len: f32,
-    cpu_solve_time: f32,
+    stats: SolverStats,
 }
 
 impl Default for CaDiCaL<'_, '_> {
@@ -34,12 +30,7 @@ impl Default for CaDiCaL<'_, '_> {
             state: Default::default(),
             terminate_cb: Default::default(),
             learner_cb: Default::default(),
-            n_sat: Default::default(),
-            n_unsat: Default::default(),
-            n_terminated: Default::default(),
-            n_clauses: Default::default(),
-            avg_clause_len: Default::default(),
-            cpu_solve_time: Default::default(),
+            stats: Default::default(),
         };
         let quiet = CString::new("quiet").unwrap();
         unsafe { ffi::ccadical_set_option_ret(solver.handle, quiet.as_ptr(), 1) };
@@ -78,10 +69,10 @@ impl CaDiCaL<'_, '_> {
             return;
         }
         // Update wrapper-internal state
-        self.n_clauses += 1;
-        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
-            + clause.len() as f32)
-            / self.n_clauses as f32;
+        self.stats.n_clauses += 1;
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call CaDiCaL backend
         for lit in &clause {
@@ -399,20 +390,23 @@ impl Solve for CaDiCaL<'_, '_> {
                 SolverState::Input,
             ));
         }
+        let start = ProcessTime::now();
         // Solve with CaDiCaL backend
-        match unsafe { ffi::ccadical_solve(self.handle) } {
+        let res = unsafe { ffi::ccadical_solve(self.handle) };
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
             0 => {
-                self.n_terminated += 1;
+                self.stats.n_terminated += 1;
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.n_sat += 1;
+                self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.n_unsat += 1;
+                self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
@@ -450,10 +444,10 @@ impl Solve for CaDiCaL<'_, '_> {
             ));
         }
         // Update wrapper-internal state
-        self.n_clauses += 1;
-        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
-            + clause.len() as f32)
-            / self.n_clauses as f32;
+        self.stats.n_clauses += 1;
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call CaDiCaL backend
         clause
@@ -474,23 +468,26 @@ impl IncrementalSolve for CaDiCaL<'_, '_> {
                 SolverState::Input,
             ));
         }
+        let start = ProcessTime::now();
         // Solve with CaDiCaL backend
         for a in &assumps {
             unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
         }
-        match unsafe { ffi::ccadical_solve(self.handle) } {
+        let res = unsafe { ffi::ccadical_solve(self.handle) };
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
             0 => {
-                self.n_terminated += 1;
+                self.stats.n_terminated += 1;
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.n_sat += 1;
+                self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.n_unsat += 1;
+                self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
                 Ok(SolverResult::UNSAT)
             }
@@ -605,20 +602,16 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
 }
 
 impl SolveStats for CaDiCaL<'_, '_> {
-    fn n_sat_solves(&self) -> u32 {
-        self.n_sat
-    }
-
-    fn n_unsat_solves(&self) -> u32 {
-        self.n_unsat
-    }
-
-    fn n_terminated(&self) -> u32 {
-        self.n_terminated
-    }
-
-    fn n_clauses(&self) -> u32 {
-        self.n_clauses
+    fn stats(&self) -> SolverStats {
+        let max_var_idx = unsafe { ffi::ccadical_vars(self.handle) };
+        let max_var = if max_var_idx > 0 {
+            Some(Var::new((max_var_idx - 1) as usize))
+        } else {
+            None
+        };
+        let mut stats = self.stats.clone();
+        stats.max_var = max_var;
+        stats
     }
 
     fn max_var(&self) -> Option<Var> {
@@ -628,14 +621,6 @@ impl SolveStats for CaDiCaL<'_, '_> {
         } else {
             None
         }
-    }
-
-    fn avg_clause_len(&self) -> f32 {
-        self.avg_clause_len
-    }
-
-    fn cpu_solve_time(&self) -> f32 {
-        self.cpu_solve_time
     }
 }
 

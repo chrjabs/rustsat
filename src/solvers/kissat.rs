@@ -7,9 +7,10 @@ use std::{ffi::CString, fmt};
 
 use super::{
     ControlSignal, InternalSolverState, OptTermCallbackStore, Solve, SolveMightFail, SolveStats,
-    SolverError, SolverResult, SolverState, Terminate,
+    SolverError, SolverResult, SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
+use cpu_time::ProcessTime;
 use ffi::KissatHandle;
 
 /// The Kissat solver type
@@ -17,13 +18,7 @@ pub struct Kissat<'term> {
     handle: *mut KissatHandle,
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
-    n_sat: u8,        // Since kissat is non-incremental, this should never be high
-    n_unsat: u8,      // Since kissat is non-incremental, this should never be high
-    n_terminated: u8, // Since kissat is non-incremental, this should never be high
-    n_clauses: u32,
-    max_var: Option<Var>,
-    avg_clause_len: f32,
-    cpu_solve_time: f32,
+    stats: SolverStats,
 }
 
 impl Default for Kissat<'_> {
@@ -32,13 +27,7 @@ impl Default for Kissat<'_> {
             handle: unsafe { ffi::kissat_init() },
             state: Default::default(),
             terminate_cb: Default::default(),
-            n_sat: Default::default(),
-            n_unsat: Default::default(),
-            n_terminated: Default::default(),
-            n_clauses: Default::default(),
-            max_var: Default::default(),
-            avg_clause_len: Default::default(),
-            cpu_solve_time: Default::default(),
+            stats: Default::default(),
         };
         let quiet = CString::new("quiet").unwrap();
         unsafe { ffi::kissat_set_option(solver.handle, quiet.as_ptr(), 1) };
@@ -186,20 +175,23 @@ impl Solve for Kissat<'_> {
                 SolverState::Input,
             ));
         }
+        let start = ProcessTime::now();
         // Solve with Kissat backend
-        match unsafe { ffi::kissat_solve(self.handle) } {
+        let res = unsafe { ffi::kissat_solve(self.handle) };
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
             0 => {
-                self.n_terminated += 1;
+                self.stats.n_terminated += 1;
                 self.state = InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
-                self.n_sat += 1;
+                self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
                 Ok(SolverResult::SAT)
             }
             20 => {
-                self.n_unsat += 1;
+                self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::UNSAT)
             }
@@ -248,15 +240,15 @@ impl Solve for Kissat<'_> {
             }
         }
         // Update wrapper-internal state
-        self.n_clauses += 1;
-        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses - 1) as f32)
-            + clause.len() as f32)
-            / self.n_clauses as f32;
-        clause.iter().for_each(|l| match self.max_var {
-            None => self.max_var = Some(l.var()),
+        self.stats.n_clauses += 1;
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
+        clause.iter().for_each(|l| match self.stats.max_var {
+            None => self.stats.max_var = Some(l.var()),
             Some(var) => {
                 if l.var() > var {
-                    self.max_var = Some(l.var())
+                    self.stats.max_var = Some(l.var())
                 }
             }
         });
@@ -317,32 +309,8 @@ impl<'term> Terminate<'term> for Kissat<'term> {
 }
 
 impl SolveStats for Kissat<'_> {
-    fn n_sat_solves(&self) -> u32 {
-        self.n_sat as u32
-    }
-
-    fn n_unsat_solves(&self) -> u32 {
-        self.n_unsat as u32
-    }
-
-    fn n_terminated(&self) -> u32 {
-        self.n_terminated as u32
-    }
-
-    fn n_clauses(&self) -> u32 {
-        self.n_clauses
-    }
-
-    fn max_var(&self) -> Option<Var> {
-        self.max_var
-    }
-
-    fn avg_clause_len(&self) -> f32 {
-        self.avg_clause_len
-    }
-
-    fn cpu_solve_time(&self) -> f32 {
-        self.cpu_solve_time
+    fn stats(&self) -> SolverStats {
+        self.stats.clone()
     }
 }
 
