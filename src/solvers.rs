@@ -73,7 +73,7 @@
 use crate::{
     clause,
     instances::CNF,
-    types::{Clause, Lit, Assignment, TernaryVal, Var},
+    types::{Assignment, Clause, Lit, TernaryVal, Var},
 };
 use std::fmt;
 
@@ -173,6 +173,45 @@ pub trait IncrementalSolve: Solve {
     /// literals of the assumptions.
     fn core(&mut self) -> Result<Vec<Lit>, SolverError>;
 }
+
+
+/// Trait for all solvers that can be terminated by a termination callback.
+pub trait Terminate<'term> {
+    /// Attaches a termination callback to the solver. During solving this
+    /// callback is regularly called and the solver terminates if the callback
+    /// returns [`ControlSignal::Terminate`]. Only a single callback can be
+    /// attached at any time, attaching a second callback drops the first one.
+    fn attach_terminator<CB>(&mut self, cb: CB)
+    where
+        CB: FnMut() -> ControlSignal + 'term;
+    /// Detaches the terminator
+    fn detach_terminator(&mut self);
+}
+
+/// Trait for all solvers that can pass out learned clauses via a callback.
+pub trait Learn<'learn> {
+    /// Attaches a learner callback to the solver. This callback is called every
+    /// time a clause of length up to `max_len` is learned.
+    fn attach_learner<CB>(&mut self, cb: CB, max_len: usize)
+    where
+        CB: FnMut(Clause) + 'learn;
+    /// Detaches the learner
+    fn detach_learner(&mut self);
+}
+
+/// Return type of solver calls that don't return but might fail
+pub type SolveMightFail = Result<(), SolverError>;
+
+#[allow(dead_code)]
+type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+#[allow(dead_code)]
+type LearnCallbackPtr<'a> = Box<dyn FnMut(Clause) + 'a>;
+#[allow(dead_code)]
+/// Double boxing is necessary to get thin pointers for casting
+type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
+#[allow(dead_code)]
+/// Double boxing is necessary to get thin pointers for casting
+type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
 /// Trait for solvers that track certain statistics.
 pub trait SolveStats {
@@ -310,18 +349,6 @@ impl fmt::Display for SolverError {
     }
 }
 
-/// Return type of solver calls that don't return but might fail
-pub type SolveMightFail = Result<(), SolverError>;
-
-#[allow(dead_code)]
-type TermCallback<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
-#[allow(dead_code)]
-type LearnCallback<'a> = Box<dyn FnMut(Vec<Lit>) + 'a>;
-#[allow(dead_code)]
-type OptTermCallbackStore<'a> = Option<Box<TermCallback<'a>>>;
-#[allow(dead_code)]
-type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
-
 /// The default solver, depending on the library configuration.
 /// Solvers are ordered by the following priority:
 ///
@@ -329,11 +356,11 @@ type OptLearnCallbackStore<'a> = Option<Box<LearnCallback<'a>>>;
 /// 2. [`CaDiCaL`]
 /// 3. [`IpasirSolver`]
 #[cfg(feature = "kissat")]
-pub type DefSolver<'a> = Kissat<'a>;
+pub type DefSolver<'term, 'learn> = Kissat<'term>;
 #[cfg(all(not(feature = "kissat"), feature = "cadical"))]
-pub type DefSolver<'a> = CaDiCaL<'a>;
+pub type DefSolver<'term, 'learn> = CaDiCaL<'term, 'learn>;
 #[cfg(all(not(feature = "kissat"), not(feature = "cadical"), feature = "ipasir"))]
-pub type DefSolver<'a> = IpasirSolver<'a>;
+pub type DefSolver<'term, 'learn> = IpasirSolver<'term, 'learn>;
 
 /// The default incremental solver, depending on the library configuration.
 /// Solvers are ordered by the following priority:
@@ -341,9 +368,9 @@ pub type DefSolver<'a> = IpasirSolver<'a>;
 /// 1. [`CaDiCaL`]
 /// 2. [`IpasirSolver`]
 #[cfg(feature = "cadical")]
-pub type DefIncSolver<'a> = CaDiCaL<'a>;
+pub type DefIncSolver<'term, 'learn> = CaDiCaL<'term, 'learn>;
 #[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
-pub type DefIncSolver<'a> = IpasirSolver<'a>;
+pub type DefIncSolver<'term, 'learn> = IpasirSolver<'term, 'learn>;
 
 #[cfg(solver)]
 /// Constructs a default non-incremental solver. Since the return value cannot
