@@ -83,7 +83,19 @@ fn build_cadical(repo: &str, branch: &str, commit: &str) -> bool {
                 });
             // Setup build configuration
             let mut cadical_build = cc::Build::new();
-            cadical_build.cpp(true).opt_level(3).define("NDEBUG", None);
+            cadical_build.cpp(true);
+            if env::var("PROFILE").unwrap() == "debug" {
+                cadical_build
+                    .opt_level(0)
+                    .define("DEBUG", None)
+                    .warnings(true)
+                    .debug(true);
+            } else {
+                cadical_build
+                    .opt_level(3)
+                    .define("NDEBUG", None)
+                    .warnings(false);
+            }
             // Generate build header
             let mut build_header = File::create(cadical_dir.join("src").join("build.hpp"))
                 .expect("Could not create kissat CaDiCaL header");
@@ -152,7 +164,18 @@ fn build_kissat(repo: &str, branch: &str, commit: &str) -> bool {
                 });
             // Setup build configuration
             let mut kissat_build = cc::Build::new();
-            kissat_build.opt_level(3).define("NDEBUG", None);
+            if env::var("PROFILE").unwrap() == "debug" {
+                kissat_build
+                    .opt_level(0)
+                    .define("DEBUG", None)
+                    .warnings(true)
+                    .debug(true);
+            } else {
+                kissat_build
+                    .opt_level(3)
+                    .define("NDEBUG", None)
+                    .warnings(false);
+            }
             // Generate build header
             let mut build_header = File::create(kissat_dir.join("src").join("build.h"))
                 .expect("Could not create kissat build header");
@@ -184,8 +207,16 @@ fn build_kissat(repo: &str, branch: &str, commit: &str) -> bool {
 /// Returns true if there were changes, false if not
 fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
     let mut changed = false;
+    let target_oid = git2::Oid::from_str(commit)
+        .unwrap_or_else(|e| panic!("Invalid commit hash {}: {}", commit, e));
     let repo = match git2::Repository::open(path) {
         Ok(repo) => {
+            // Check if already at correct commit
+            if let Some(oid) = repo.head().unwrap().target_peel() {
+                if oid == target_oid {
+                    return changed;
+                }
+            };
             // Fetch repo
             let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
                 panic!("Expected remote \"origin\" in git repo {:?}: {}", path, e)
@@ -208,13 +239,6 @@ fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
             changed = true;
             git2::Repository::clone(url, path)
                 .unwrap_or_else(|e| panic!("Could not clone repository {}: {}", url, e))
-        }
-    };
-    let target_oid = git2::Oid::from_str(commit)
-        .unwrap_or_else(|e| panic!("Could not find commit {}: {}", commit, e));
-    if let Some(oid) = repo.head().unwrap().target_peel() {
-        if oid == target_oid {
-            return changed;
         }
     };
     let target_commit = repo
