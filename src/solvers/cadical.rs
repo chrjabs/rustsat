@@ -6,19 +6,19 @@ use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
-    ControlSignal, IncrementalSolve, InternalSolverState, OptLearnCallbackStore,
+    ControlSignal, IncrementalSolve, InternalSolverState, Learn, OptLearnCallbackStore,
     OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
-    SolverState,
+    SolverState, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::CaDiCaLHandle;
 
 /// The CaDiCaL solver type
-pub struct CaDiCaL<'a> {
+pub struct CaDiCaL<'term, 'learn> {
     handle: *mut CaDiCaLHandle,
     state: InternalSolverState,
-    terminate_cb: OptTermCallbackStore<'a>,
-    learner_cb: OptLearnCallbackStore<'a>,
+    terminate_cb: OptTermCallbackStore<'term>,
+    learner_cb: OptLearnCallbackStore<'learn>,
     n_sat: u32,
     n_unsat: u32,
     n_terminated: u32,
@@ -27,7 +27,7 @@ pub struct CaDiCaL<'a> {
     cpu_solve_time: f32,
 }
 
-impl Default for CaDiCaL<'_> {
+impl Default for CaDiCaL<'_, '_> {
     fn default() -> Self {
         let solver = Self {
             handle: unsafe { ffi::ccadical_init() },
@@ -47,7 +47,7 @@ impl Default for CaDiCaL<'_> {
     }
 }
 
-impl<'a> CaDiCaL<'a> {
+impl CaDiCaL<'_, '_> {
     fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
@@ -64,83 +64,6 @@ impl<'a> CaDiCaL<'a> {
             }
         }
         Ok(core)
-    }
-
-    /// Sets a terminator callback that is regularly called during solving.
-    ///
-    /// # Examples
-    ///
-    /// Terminate solver after 10 callback calls.
-    ///
-    /// ```
-    /// use rustsat::solvers::{CaDiCaL, ControlSignal, Solve, SolverResult};
-    ///
-    /// let mut solver = CaDiCaL::default();
-    ///
-    /// // Load instance
-    ///
-    /// let mut cnt = 1;
-    /// solver.set_terminator(move || {
-    ///     if cnt > 10 {
-    ///         ControlSignal::Terminate
-    ///     } else {
-    ///         cnt += 1;
-    ///         ControlSignal::Continue
-    ///     }
-    /// });
-    ///
-    /// let ret = solver.solve().unwrap();
-    ///
-    /// // Assuming an instance is actually loaded and runs long enough
-    /// // assert_eq!(ret, SolverResult::Interrupted);
-    /// ```
-    pub fn set_terminator<CB>(&mut self, cb: CB)
-    where
-        CB: FnMut() -> ControlSignal + 'a,
-    {
-        self.terminate_cb = Some(Box::new(Box::new(cb)));
-        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
-        unsafe { ffi::ccadical_set_terminate(self.handle, cb_ptr, ffi::ccadical_terminate_cb) }
-    }
-
-    /// Sets a learner callback that gets passed clauses up to a certain length learned by the solver.
-    ///
-    /// The callback goes out of scope with the solver, afterwards captured variables become accessible.
-    ///
-    /// # Examples
-    ///
-    /// Count number of learned clauses up to length 10.
-    ///
-    /// ```
-    /// use rustsat::solvers::{CaDiCaL, Solve, SolverResult};
-    ///
-    /// let mut cnt = 0;
-    ///
-    /// {
-    ///     let mut solver = CaDiCaL::default();
-    ///     // Load instance
-    ///
-    ///     solver.set_learner(|_| cnt += 1, 10);
-    ///
-    ///     solver.solve().unwrap();
-    /// }
-    ///
-    /// // cnt variable can be accessed from here on
-    /// ```
-    pub fn set_learner<CB>(&mut self, cb: CB, max_len: usize)
-    where
-        CB: FnMut(Vec<Lit>) + 'a,
-    {
-        self.learner_cb = Some(Box::new(Box::new(cb)));
-        let cb_ptr = self.learner_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
-        unsafe {
-            ffi::ccadical_set_learn(
-                self.handle,
-                cb_ptr,
-                max_len.try_into().unwrap(),
-                ffi::ccadical_learn_cb,
-            )
-        }
     }
 
     /// Adds a clause that only exists for the next solver call. Only one such
@@ -439,7 +362,7 @@ impl<'a> CaDiCaL<'a> {
     }
 }
 
-impl Solve for CaDiCaL<'_> {
+impl Solve for CaDiCaL<'_, '_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ccadical_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -541,7 +464,7 @@ impl Solve for CaDiCaL<'_> {
     }
 }
 
-impl IncrementalSolve for CaDiCaL<'_> {
+impl IncrementalSolve for CaDiCaL<'_, '_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -586,7 +509,102 @@ impl IncrementalSolve for CaDiCaL<'_> {
     }
 }
 
-impl SolveStats for CaDiCaL<'_> {
+impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
+    /// Sets a terminator callback that is regularly called during solving.
+    ///
+    /// # Examples
+    ///
+    /// Terminate solver after 10 callback calls.
+    ///
+    /// ```
+    /// use rustsat::solvers::{CaDiCaL, ControlSignal, Solve, SolverResult, Terminate};
+    ///
+    /// let mut solver = CaDiCaL::default();
+    ///
+    /// // Load instance
+    ///
+    /// let mut cnt = 1;
+    /// solver.attach_terminator(move || {
+    ///     if cnt > 10 {
+    ///         ControlSignal::Terminate
+    ///     } else {
+    ///         cnt += 1;
+    ///         ControlSignal::Continue
+    ///     }
+    /// });
+    ///
+    /// let ret = solver.solve().unwrap();
+    ///
+    /// // Assuming an instance is actually loaded and runs long enough
+    /// // assert_eq!(ret, SolverResult::Interrupted);
+    /// ```
+    fn attach_terminator<CB>(&mut self, cb: CB)
+    where
+        CB: FnMut() -> ControlSignal + 'term,
+    {
+        self.terminate_cb = Some(Box::new(Box::new(cb)));
+        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        unsafe { ffi::ccadical_set_terminate(self.handle, cb_ptr, ffi::ccadical_terminate_cb) }
+    }
+
+    fn detach_terminator(&mut self) {
+        self.terminate_cb = None;
+        let null_cb: extern "C" fn(*const c_void) -> c_int =
+            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
+        unsafe { ffi::ccadical_set_terminate(self.handle, std::ptr::null(), null_cb) }
+    }
+}
+
+impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
+    /// Sets a learner callback that gets passed clauses up to a certain length learned by the solver.
+    ///
+    /// The callback goes out of scope with the solver, afterwards captured variables become accessible.
+    ///
+    /// # Examples
+    ///
+    /// Count number of learned clauses up to length 10.
+    ///
+    /// ```
+    /// use rustsat::solvers::{CaDiCaL, Solve, SolverResult, Learn};
+    ///
+    /// let mut cnt = 0;
+    ///
+    /// {
+    ///     let mut solver = CaDiCaL::default();
+    ///     // Load instance
+    ///
+    ///     solver.attach_learner(|_| cnt += 1, 10);
+    ///
+    ///     solver.solve().unwrap();
+    /// }
+    ///
+    /// // cnt variable can be accessed from here on
+    /// ```
+    fn attach_learner<CB>(&mut self, cb: CB, max_len: usize)
+    where
+        CB: FnMut(Clause) + 'learn,
+    {
+        self.learner_cb = Some(Box::new(Box::new(cb)));
+        let cb_ptr = self.learner_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        unsafe {
+            ffi::ccadical_set_learn(
+                self.handle,
+                cb_ptr,
+                max_len.try_into().unwrap(),
+                ffi::ccadical_learn_cb,
+            )
+        }
+    }
+
+    fn detach_learner(&mut self) {
+        self.terminate_cb = None;
+        let null_cb: extern "C" fn(*const c_void, *const c_int) =
+            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
+        unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null(), 0, null_cb) }
+    }
+}
+
+impl SolveStats for CaDiCaL<'_, '_> {
     fn n_sat_solves(&self) -> u32 {
         self.n_sat
     }
@@ -621,7 +639,7 @@ impl SolveStats for CaDiCaL<'_> {
     }
 }
 
-impl Drop for CaDiCaL<'_> {
+impl Drop for CaDiCaL<'_, '_> {
     fn drop(&mut self) {
         unsafe { ffi::ccadical_release(self.handle) }
     }
@@ -683,7 +701,7 @@ mod test {
     use super::{CaDiCaL, Config, Limit};
     use crate::{
         lit,
-        solvers::{ControlSignal, Solve, SolverError, SolverResult, SolverState},
+        solvers::{ControlSignal, Learn, Solve, SolverError, SolverResult, SolverState, Terminate},
         types::{Lit, TernaryVal},
     };
 
@@ -723,7 +741,7 @@ mod test {
         solver.add_binary(lit![7], !lit![8]).unwrap();
         solver.add_binary(lit![8], !lit![9]).unwrap();
 
-        solver.set_terminator(|| ControlSignal::Terminate);
+        solver.attach_terminator(|| ControlSignal::Terminate);
 
         let ret = solver.solve();
 
@@ -755,7 +773,7 @@ mod test {
         let mut cl_len = 0;
         let ret;
 
-        solver.set_learner(
+        solver.attach_learner(
             |clause| {
                 cl_len = clause.len();
             },
@@ -842,7 +860,7 @@ mod test {
 }
 
 mod ffi {
-    use crate::solvers::{ControlSignal, LearnCallback, TermCallback};
+    use crate::solvers::{ControlSignal, LearnCallbackPtr, TermCallbackPtr};
     use crate::types::Lit;
     use core::ffi::{c_char, c_int, c_void};
     use std::slice;
@@ -905,7 +923,7 @@ mod ffi {
 
     // Raw callbacks forwarding to user callbacks
     pub extern "C" fn ccadical_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb = unsafe { &mut *(ptr as *mut TermCallback<'_>) };
+        let cb = unsafe { &mut *(ptr as *mut TermCallbackPtr<'_>) };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
@@ -913,7 +931,7 @@ mod ffi {
     }
 
     pub extern "C" fn ccadical_learn_cb(ptr: *const c_void, clause: *const c_int) {
-        let cb = unsafe { &mut *(ptr as *mut LearnCallback<'_>) };
+        let cb = unsafe { &mut *(ptr as *mut LearnCallbackPtr<'_>) };
 
         let mut cnt = 0;
         for n in 0.. {
@@ -922,7 +940,7 @@ mod ffi {
             }
         }
         let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
-        let clause: Vec<Lit> = int_slice
+        let clause = int_slice
             .iter()
             .map(|il| {
                 Lit::from_ipasir(*il).expect("Invalid literal in learned clause from CaDiCaL")

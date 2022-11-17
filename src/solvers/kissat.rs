@@ -7,16 +7,16 @@ use std::{ffi::CString, fmt};
 
 use super::{
     ControlSignal, InternalSolverState, OptTermCallbackStore, Solve, SolveMightFail, SolveStats,
-    SolverError, SolverResult, SolverState,
+    SolverError, SolverResult, SolverState, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use ffi::KissatHandle;
 
 /// The Kissat solver type
-pub struct Kissat<'a> {
+pub struct Kissat<'term> {
     handle: *mut KissatHandle,
     state: InternalSolverState,
-    terminate_cb: OptTermCallbackStore<'a>,
+    terminate_cb: OptTermCallbackStore<'term>,
     n_sat: u8,        // Since kissat is non-incremental, this should never be high
     n_unsat: u8,      // Since kissat is non-incremental, this should never be high
     n_terminated: u8, // Since kissat is non-incremental, this should never be high
@@ -46,7 +46,7 @@ impl Default for Kissat<'_> {
     }
 }
 
-impl<'a> Kissat<'a> {
+impl Kissat<'_> {
     /// Gets the commit ID that Kissat was built from
     pub fn commit_id() -> &'static str {
         let c_chars = unsafe { ffi::kissat_id() };
@@ -70,43 +70,6 @@ impl<'a> Kissat<'a> {
         c_str
             .to_str()
             .expect("Kissat compiler returned invalid UTF-8.")
-    }
-
-    /// Sets a terminator callback that is regularly called during solving.
-    ///
-    /// # Examples
-    ///
-    /// Terminate solver after 10 callback calls.
-    ///
-    /// ```
-    /// use rustsat::solvers::{Kissat, ControlSignal, Solve, SolverResult};
-    ///
-    /// let mut solver = Kissat::default();
-    ///
-    /// // Load instance
-    ///
-    /// let mut cnt = 1;
-    /// solver.set_terminator(move || {
-    ///     if cnt > 10 {
-    ///         ControlSignal::Terminate
-    ///     } else {
-    ///         cnt += 1;
-    ///         ControlSignal::Continue
-    ///     }
-    /// });
-    ///
-    /// let ret = solver.solve().unwrap();
-    ///
-    /// // Assuming an instance is actually loaded and runs long enough
-    /// // assert_eq!(ret, SolverResult::Interrupted);
-    /// ```
-    pub fn set_terminator<CB>(&mut self, cb: CB)
-    where
-        CB: FnMut() -> ControlSignal + 'a,
-    {
-        self.terminate_cb = Some(Box::new(Box::new(cb)));
-        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
-        unsafe { ffi::kissat_set_terminate(self.handle, cb_ptr, ffi::kissat_terminate_cb) }
     }
 
     /// Sets a pre-defined configuration for Kissat's internal options
@@ -307,6 +270,52 @@ impl Solve for Kissat<'_> {
     }
 }
 
+impl<'term> Terminate<'term> for Kissat<'term> {
+    /// Sets a terminator callback that is regularly called during solving.
+    ///
+    /// # Examples
+    ///
+    /// Terminate solver after 10 callback calls.
+    ///
+    /// ```
+    /// use rustsat::solvers::{Kissat, ControlSignal, Solve, SolverResult, Terminate};
+    ///
+    /// let mut solver = Kissat::default();
+    ///
+    /// // Load instance
+    ///
+    /// let mut cnt = 1;
+    /// solver.attach_terminator(move || {
+    ///     if cnt > 10 {
+    ///         ControlSignal::Terminate
+    ///     } else {
+    ///         cnt += 1;
+    ///         ControlSignal::Continue
+    ///     }
+    /// });
+    ///
+    /// let ret = solver.solve().unwrap();
+    ///
+    /// // Assuming an instance is actually loaded and runs long enough
+    /// // assert_eq!(ret, SolverResult::Interrupted);
+    /// ```
+    fn attach_terminator<CB>(&mut self, cb: CB)
+    where
+        CB: FnMut() -> ControlSignal + 'term,
+    {
+        self.terminate_cb = Some(Box::new(Box::new(cb)));
+        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        unsafe { ffi::kissat_set_terminate(self.handle, cb_ptr, ffi::kissat_terminate_cb) }
+    }
+
+    fn detach_terminator(&mut self) {
+        self.terminate_cb = None;
+        let null_cb: extern "C" fn(*const c_void) -> c_int =
+            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
+        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null(), null_cb) }
+    }
+}
+
 impl SolveStats for Kissat<'_> {
     fn n_sat_solves(&self) -> u32 {
         self.n_sat as u32
@@ -454,7 +463,7 @@ mod test {
 }
 
 mod ffi {
-    use crate::solvers::{ControlSignal, TermCallback};
+    use crate::solvers::{ControlSignal, TermCallbackPtr};
     use core::ffi::{c_char, c_int, c_uint, c_void};
 
     #[repr(C)]
@@ -494,7 +503,7 @@ mod ffi {
 
     // Raw callbacks forwarding to user callbacks
     pub extern "C" fn kissat_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb = unsafe { &mut *(ptr as *mut TermCallback<'_>) };
+        let cb = unsafe { &mut *(ptr as *mut TermCallbackPtr) };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
