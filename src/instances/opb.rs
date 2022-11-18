@@ -284,6 +284,8 @@ fn objective(input: &str) -> IResult<&str, &str> {
 
 /// Top level string parser applied to lines
 fn opb_data(input: &str) -> IResult<&str, OpbData> {
+    // remove leading spaces
+    let (input, _) = space0(input)?;
     alt((
         map_res(comment, |cmt| Ok::<_, ()>(OpbData::Cmt(String::from(cmt)))),
         map_res(constraint, |constr| Ok::<_, ()>(OpbData::Constr(constr))),

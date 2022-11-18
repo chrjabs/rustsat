@@ -149,11 +149,10 @@ impl UB for GeneralizedTotalizer {
         let mut assumps = vec![];
         // Assume literals that have higher weight than `ub`
         assumps.reserve(self.lit_buffer.len());
-        self.lit_buffer.iter().try_for_each(|(&l, &w)| {
+        self.lit_buffer.iter().try_for_each(|(_, &w)| {
             if w <= ub {
                 Err(EncodingError::NotEncoded)
             } else {
-                assumps.push(!l);
                 Ok(())
             }
         })?;
@@ -165,7 +164,6 @@ impl UB for GeneralizedTotalizer {
         // Enforce bound on internal tree
         assumps.extend(match &self.root {
             None => {
-                debug_assert!(self.in_lits.is_empty());
                 vec![]
             }
             Some(root_node) => match &**root_node {
@@ -281,7 +279,7 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
             match self.in_lits.get_mut(&l) {
                 Some(old_w) => *old_w += w,
                 None => {
-                    self.lit_buffer.insert(l, w);
+                    self.in_lits.insert(l, w);
                 }
             };
         });
