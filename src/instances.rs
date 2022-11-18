@@ -798,7 +798,10 @@ impl Objective {
     /// literal was already in the objective.
     pub fn increase_soft_lit(&mut self, add_w: usize, l: Lit) -> Option<usize> {
         if add_w == 0 {
-            return self.get_lit_weight(l);
+            return self.lit_weight(l);
+        }
+        if self.lit_weight(l).is_none() {
+            return self.add_soft_lit(add_w, l);
         }
         self.unweighted_2_weighted();
         match self {
@@ -883,7 +886,10 @@ impl Objective {
     /// clause was already in the objective.
     pub fn increase_soft_clause(&mut self, add_w: usize, cl: Clause) -> Option<usize> {
         if add_w == 0 {
-            return self.get_clause_weight(&cl);
+            return self.clause_weight(&cl);
+        }
+        if self.clause_weight(&cl).is_none() {
+            return self.add_soft_clause(add_w, cl);
         }
         self.unweighted_2_weighted();
         match self {
@@ -899,7 +905,7 @@ impl Objective {
     }
 
     /// Gets the weight of a soft literal
-    pub fn get_lit_weight(&self, l: Lit) -> Option<usize> {
+    pub fn lit_weight(&self, l: Lit) -> Option<usize> {
         match self {
             Objective::Weighted { soft_lits, .. } => soft_lits.get(&l).copied(),
             Objective::Unweighted {
@@ -917,7 +923,7 @@ impl Objective {
     }
 
     /// Gets the weight of a soft clause
-    pub fn get_clause_weight(&self, cl: &Clause) -> Option<usize> {
+    pub fn clause_weight(&self, cl: &Clause) -> Option<usize> {
         match self {
             Objective::Weighted { soft_clauses, .. } => soft_clauses.get(cl).copied(),
             Objective::Unweighted {
@@ -1058,25 +1064,31 @@ impl Objective {
     }
 }
 
-/// Note that if a literal appears multiple times in the iterator, the weights
-/// will _not_ be summed up but the last value will be used
 impl FromIterator<(Lit, usize)> for Objective {
     fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
         let mut obj = Self::default();
         iter.into_iter().for_each(|(l, w)| {
-            obj.add_soft_lit(w, l);
+            obj.increase_soft_lit(w, l);
         });
         obj
     }
 }
 
-/// Note that if a clause appears multiple times in the iterator, the weights
-/// will _not_ be summed up but the last value will be used
+impl FromIterator<(Lit, isize)> for Objective {
+    fn from_iter<T: IntoIterator<Item = (Lit, isize)>>(iter: T) -> Self {
+        let mut obj = Self::default();
+        iter.into_iter().for_each(|(l, w)| {
+            obj.increase_soft_lit_int(w, l);
+        });
+        obj
+    }
+}
+
 impl FromIterator<(Clause, usize)> for Objective {
     fn from_iter<T: IntoIterator<Item = (Clause, usize)>>(iter: T) -> Self {
         let mut obj = Self::default();
         iter.into_iter().for_each(|(cl, w)| {
-            obj.add_soft_clause(w, cl);
+            obj.increase_soft_clause(w, cl);
         });
         obj
     }
