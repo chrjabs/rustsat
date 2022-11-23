@@ -10,7 +10,7 @@
 //! - [DIMACS WCNF pre22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
-use super::{SatInstance, CNF};
+use super::{ManageVars, SatInstance, CNF};
 use crate::types::{Clause, Lit, Var};
 use nom::error::Error as NomError;
 use nom::{
@@ -39,12 +39,16 @@ use crate::types::WClsIter;
 use nom::sequence::separated_pair;
 
 #[cfg(feature = "optimization")]
-type BodyContent = (SatInstance, Vec<Objective>);
+type BodyContent<VM> = (SatInstance<VM>, Vec<Objective>);
 #[cfg(not(feature = "optimization"))]
-type BodyContent = SatInstance;
+type BodyContent<VM> = SatInstance<VM>;
 
 /// Parses a CNF instance from a reader (typically a (compressed) file)
-pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
+pub fn parse_cnf<R, VM>(reader: R) -> Result<SatInstance<VM>, DimacsError>
+where
+    R: Read,
+    VM: ManageVars + Default,
+{
     let reader = BufReader::new(reader);
     let content = parse_dimacs(reader)?;
     #[cfg(not(feature = "optimization"))]
@@ -60,7 +64,11 @@ pub fn parse_cnf<R: Read>(reader: R) -> Result<SatInstance, DimacsError> {
 #[cfg(feature = "optimization")]
 /// Parses a WCNF instance (old or new format) from a reader (typically a
 /// (compressed) file). The objective with the index obj_idx is used.
-pub fn parse_wcnf_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInstance, DimacsError> {
+pub fn parse_wcnf_with_idx<R, VM>(reader: R, obj_idx: usize) -> Result<OptInstance<VM>, DimacsError>
+where
+    R: Read,
+    VM: ManageVars + Default,
+{
     let reader = BufReader::new(reader);
     let (constrs, objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
@@ -76,7 +84,11 @@ pub fn parse_wcnf_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInst
 
 #[cfg(feature = "multiopt")]
 /// Parses a MCNF instance (old or new format) from a reader (typically a (compressed) file)
-pub fn parse_mcnf<R: Read>(reader: R) -> Result<MultiOptInstance, DimacsError> {
+pub fn parse_mcnf<R, VM>(reader: R) -> Result<MultiOptInstance<VM>, DimacsError>
+where
+    R: Read,
+    VM: ManageVars + Default,
+{
     let reader = BufReader::new(reader);
     let (constrs, objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
@@ -188,9 +200,10 @@ enum Preamble {
 }
 
 /// Top level parser
-fn parse_dimacs<R>(reader: R) -> Result<BodyContent, DimacsError>
+fn parse_dimacs<R, VM>(reader: R) -> Result<BodyContent<VM>, DimacsError>
 where
     R: BufRead,
+    VM: ManageVars + Default,
 {
     let (reader, preamble) = parse_preamble(reader)?;
     let content = match preamble {
@@ -245,11 +258,12 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> Result<(R, Preamble), DimacsErro
 }
 
 /// Main parser for CNF file
-fn parse_cnf_body<R>(mut reader: R) -> Result<BodyContent, DimacsError>
+fn parse_cnf_body<R, VM>(mut reader: R) -> Result<BodyContent<VM>, DimacsError>
 where
     R: BufRead,
+    VM: ManageVars + Default,
 {
-    let mut inst = SatInstance::new();
+    let mut inst = SatInstance::<VM>::new();
     loop {
         let mut buf = String::new();
         match reader.read_line(&mut buf) {
@@ -272,11 +286,12 @@ where
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF pre 22 (with p line)
-fn parse_wcnf_pre22_body<R>(mut reader: R, top: usize) -> Result<BodyContent, DimacsError>
+fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> Result<BodyContent<VM>, DimacsError>
 where
     R: BufRead,
+    VM: ManageVars + Default,
 {
-    let mut constrs = SatInstance::new();
+    let mut constrs = SatInstance::<VM>::new();
     let mut obj = Objective::new();
     loop {
         let mut buf = String::new();
@@ -304,11 +319,15 @@ where
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF post 22 (without p line) and MCNF
-fn parse_no_pline_body<R>(mut reader: R, first_line: &str) -> Result<BodyContent, DimacsError>
+fn parse_no_pline_body<R, VM>(
+    mut reader: R,
+    first_line: &str,
+) -> Result<BodyContent<VM>, DimacsError>
 where
     R: BufRead,
+    VM: ManageVars + Default,
 {
-    let mut constrs = SatInstance::new();
+    let mut constrs = SatInstance::<VM>::new();
     let mut objs = Vec::new();
     let mut buf = first_line.to_string();
     loop {
@@ -968,7 +987,7 @@ mod tests {
 
         let parsed_inst = parse_cnf_body(reader).unwrap();
 
-        let mut true_inst = SatInstance::new();
+        let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
@@ -986,7 +1005,7 @@ mod tests {
 
         let parsed_inst = parse_wcnf_pre22_body(reader, 42).unwrap();
 
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
@@ -1002,7 +1021,7 @@ mod tests {
 
         let parsed_inst = parse_no_pline_body(reader, "c test").unwrap();
 
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
@@ -1018,7 +1037,7 @@ mod tests {
 
         let parsed_inst = parse_no_pline_body(reader, "c test\n").unwrap();
 
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
@@ -1036,7 +1055,7 @@ mod tests {
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
-        let mut true_inst = SatInstance::new();
+        let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
@@ -1054,7 +1073,7 @@ mod tests {
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
@@ -1070,7 +1089,7 @@ mod tests {
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
@@ -1086,7 +1105,7 @@ mod tests {
 
         let parsed_inst = parse_dimacs(reader).unwrap();
 
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj0 = Objective::new();
         let mut true_obj1 = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -1108,7 +1127,7 @@ mod tests {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst = super::parse_cnf(cursor).unwrap();
+        let parsed_inst: SatInstance = super::parse_cnf(cursor).unwrap();
         let (parsed_cnf, _) = parsed_inst.as_cnf();
 
         assert_eq!(parsed_cnf, true_cnf);
@@ -1142,7 +1161,7 @@ mod tests {
     #[cfg(feature = "multiopt")]
     #[test]
     fn write_parse_mcnf() {
-        let mut true_constrs = SatInstance::new();
+        let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj0 = Objective::new();
         let mut true_obj1 = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);

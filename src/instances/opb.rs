@@ -87,9 +87,13 @@ enum OpbData {
 }
 
 /// Parses the constraints from an OPB file as a [`SatInstance`]
-pub fn parse_sat<R: Read>(reader: R) -> Result<SatInstance, OpbError> {
+pub fn parse_sat<R, VM>(reader: R) -> Result<SatInstance<VM>, OpbError>
+where
+    R: Read,
+    VM: ManageVars + Default,
+{
     let data = parse_opb_data(reader)?;
-    let mut inst = SatInstance::new();
+    let mut inst = SatInstance::<VM>::new();
     data.into_iter().for_each(|d| {
         if let OpbData::Constr(constr) = d {
             inst.add_pb_constr(constr);
@@ -101,9 +105,13 @@ pub fn parse_sat<R: Read>(reader: R) -> Result<SatInstance, OpbError> {
 #[cfg(feature = "optimization")]
 /// Parses an OPB file as an [`OptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_opt_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInstance, OpbError> {
+pub fn parse_opt_with_idx<R, VM>(reader: R, obj_idx: usize) -> Result<OptInstance<VM>, OpbError>
+where
+    R: Read,
+    VM: ManageVars + Default,
+{
     let data = parse_opb_data(reader)?;
-    let mut sat_inst = SatInstance::new();
+    let mut sat_inst = SatInstance::<VM>::new();
     let mut obj_cnt = 0;
     let obj = data.into_iter().fold(Objective::new(), |o, d| match d {
         OpbData::Cmt(_) => o,
@@ -128,11 +136,15 @@ pub fn parse_opt_with_idx<R: Read>(reader: R, obj_idx: usize) -> Result<OptInsta
 }
 
 #[cfg(feature = "multiopt")]
-/// Parses an OPB file as an [`OptInstance`] using the objective with the given
+/// Parses an OPB file as an [`MultiOptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_multi_opt<R: Read>(reader: R) -> Result<MultiOptInstance, OpbError> {
+pub fn parse_multi_opt<R, VM>(reader: R) -> Result<MultiOptInstance<VM>, OpbError>
+where
+    R: Read,
+    VM: ManageVars + Default,
+{
     let data = parse_opb_data(reader)?;
-    let mut sat_inst = SatInstance::new();
+    let mut sat_inst = SatInstance::<VM>::new();
     let mut objs = vec![];
     data.into_iter().for_each(|d| match d {
         OpbData::Cmt(_) => (),
@@ -301,10 +313,11 @@ fn opb_data(input: &str) -> IResult<&str, OpbData> {
 }
 
 /// Writes a [`SatInstance`] to an OPB file
-pub fn write_sat<W: Write, VM: ManageVars>(
-    writer: &mut W,
-    inst: SatInstance<VM>,
-) -> Result<(), io::Error> {
+pub fn write_sat<W, VM>(writer: &mut W, inst: SatInstance<VM>) -> Result<(), io::Error>
+where
+    W: Write,
+    VM: ManageVars,
+{
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = inst.var_manager.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
@@ -326,10 +339,11 @@ pub fn write_sat<W: Write, VM: ManageVars>(
 
 #[cfg(feature = "optimization")]
 /// Writes an [`OptInstance`] to an OPB file
-pub fn write_opt<W: Write, VM: ManageVars>(
-    writer: &mut W,
-    inst: OptInstance<VM>,
-) -> Result<(), io::Error> {
+pub fn write_opt<W, VM>(writer: &mut W, inst: OptInstance<VM>) -> Result<(), io::Error>
+where
+    W: Write,
+    VM: ManageVars,
+{
     let (constrs, obj) = inst.decompose();
     let cnf = constrs.cnf;
     let cards = constrs.cards;
@@ -363,10 +377,11 @@ pub fn write_opt<W: Write, VM: ManageVars>(
 
 #[cfg(feature = "multiopt")]
 /// Writes a [`MultiOptInstance`] to an OPB file
-pub fn write_multi_opt<W: Write, VM: ManageVars>(
-    writer: &mut W,
-    inst: MultiOptInstance<VM>,
-) -> Result<(), io::Error> {
+pub fn write_multi_opt<W, VM>(writer: &mut W, inst: MultiOptInstance<VM>) -> Result<(), io::Error>
+where
+    W: Write,
+    VM: ManageVars,
+{
     let (constrs, objs) = inst.decompose();
     let cnf = constrs.cnf;
     let cards = constrs.cards;
@@ -520,7 +535,7 @@ mod test {
     };
     use crate::{
         clause,
-        instances::{opb::write_sat, SatInstance},
+        instances::{opb::write_sat, BasicVarManager, SatInstance},
         lit,
         types::{
             constraints::{CardConstraint, PBConstraint},
@@ -723,7 +738,9 @@ mod test {
 
         cursor.rewind().unwrap();
 
-        let (cnf, _) = super::parse_sat(cursor).unwrap().as_cnf();
+        let (cnf, _) = super::parse_sat::<_, BasicVarManager>(cursor)
+            .unwrap()
+            .as_cnf();
 
         assert_eq!(cnf.n_clauses(), 1);
         assert_eq!(cnf.into_iter().next().unwrap().normalize(), cl.normalize());
@@ -736,7 +753,7 @@ mod test {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst = super::parse_sat(cursor).unwrap();
+        let parsed_inst: SatInstance = super::parse_sat(cursor).unwrap();
 
         let (parsed_cnf, parsed_vm) = parsed_inst.as_cnf();
         let (true_cnf, true_vm) = true_inst.as_cnf();

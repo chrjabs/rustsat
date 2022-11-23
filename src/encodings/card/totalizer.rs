@@ -830,7 +830,7 @@ mod tests {
             card::{BothB, IncLB, IncUB, LB, UB},
             EncodeStats, EncodingError,
         },
-        instances::{BasicVarManager, ManageVars},
+        instances::BasicVarManager,
         lit,
         types::Lit,
     };
@@ -841,7 +841,7 @@ mod tests {
         let child1 = Node::new_leaf(lit![0]);
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf = node.encode_ub_from_till(0, 2, &mut var_manager);
         cnf.extend(node.encode_lb_from_till(0, 2, &mut var_manager));
         match &node {
@@ -877,7 +877,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf = node.encode_ub_from_till(0, 4, &mut var_manager);
         cnf.extend(node.encode_lb_from_till(0, 4, &mut var_manager));
         match &node {
@@ -893,7 +893,7 @@ mod tests {
         let child1 = Node::new_leaf(lit![0]);
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf = node.encode_lb_from_till(0, 1, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
@@ -928,7 +928,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf = node.encode_ub_from_till(0, 3, &mut var_manager);
         cnf.extend(node.encode_lb_from_till(0, 3, &mut var_manager));
         match &node {
@@ -964,7 +964,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf = node.encode_ub_from_till(3, 2, &mut var_manager);
         cnf.extend(node.encode_lb_from_till(3, 2, &mut var_manager));
         assert_eq!(cnf.n_clauses(), 0);
@@ -996,7 +996,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf = node.encode_ub_from_till(2, 3, &mut var_manager);
         cnf.extend(node.encode_lb_from_till(2, 3, &mut var_manager));
         match &node {
@@ -1012,7 +1012,7 @@ mod tests {
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(EncodingError::NotEncoded));
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf = tot.encode_ub(0, 4, &mut var_manager).unwrap();
         cnf.extend(tot.encode_lb(0, 4, &mut var_manager).unwrap());
         assert_eq!(tot.get_depth(), 3);
@@ -1027,7 +1027,7 @@ mod tests {
     fn tot_functions_min_rhs() {
         let mut tot = Totalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf = tot.encode_both(3, 3, &mut var_manager).unwrap();
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 12);
@@ -1038,11 +1038,11 @@ mod tests {
     fn tot_incremental_building_ub() {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf1 = tot1.encode_ub(0, 4, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf2 = tot2.encode_ub(0, 2, &mut var_manager).unwrap();
         cnf2.extend(tot2.encode_ub_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
@@ -1054,11 +1054,11 @@ mod tests {
     fn tot_incremental_building_lb() {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf1 = tot1.encode_lb(0, 4, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf2 = tot2.encode_lb(0, 2, &mut var_manager).unwrap();
         cnf2.extend(tot2.encode_lb_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
@@ -1069,7 +1069,7 @@ mod tests {
     #[test]
     fn invalid_useage() {
         let mut tot = Totalizer::default();
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         assert_eq!(
             tot.encode_ub(5, 4, &mut var_manager),
             Err(EncodingError::InvalidLimits)
