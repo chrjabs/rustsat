@@ -613,6 +613,23 @@ pub enum TypeError {
     IpasirZero,
 }
 
+/// An iterator over literals
+pub trait LitIter: IntoIterator<Item = Lit> {}
+impl<I: IntoIterator<Item = Lit>> LitIter for I {}
+/// An iterator over clauses
+pub trait ClsIter: IntoIterator<Item = Clause> {}
+impl<I: IntoIterator<Item = Clause>> ClsIter for I {}
+
+/// An iterator over weighted literals
+pub trait WLitIter: IntoIterator<Item = (Lit, usize)> {}
+impl<I: IntoIterator<Item = (Lit, usize)>> WLitIter for I {}
+/// An iterator over weighted clauses
+pub trait WClsIter: IntoIterator<Item = (Clause, usize)> {}
+impl<I: IntoIterator<Item = (Clause, usize)>> WClsIter for I {}
+/// An iterator over integer-weighted literals
+pub trait IWLitIter: IntoIterator<Item = (Lit, isize)> {}
+impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
+
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;

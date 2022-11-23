@@ -32,7 +32,9 @@ use std::{
 #[cfg(feature = "multiopt")]
 use super::MultiOptInstance;
 #[cfg(feature = "optimization")]
-use super::{Objective, OptInstance, SoftClsOffset};
+use super::{Objective, OptInstance};
+#[cfg(feature = "optimization")]
+use crate::types::WClsIter;
 #[cfg(feature = "optimization")]
 use nom::sequence::separated_pair;
 
@@ -552,13 +554,14 @@ pub fn write_cnf<W: Write>(
 
 #[cfg(feature = "optimization")]
 /// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
-pub fn write_wcnf<W: Write>(
+pub fn write_wcnf<W: Write, CI: WClsIter>(
     writer: &mut W,
     cnf: CNF,
-    softs: SoftClsOffset,
+    softs: (CI, isize),
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     let (soft_cls, offset) = softs;
+    let soft_cls: Vec<(Clause, usize)> = soft_cls.into_iter().collect();
     writeln!(writer, "c WCNF file written by RustSAT")?;
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
@@ -579,13 +582,17 @@ pub fn write_wcnf<W: Write>(
 
 #[cfg(feature = "multiopt")]
 /// Writes a CNF and multiple objectives as sets of soft clauses to a DIMACS MCNF file
-pub fn write_mcnf<W: Write>(
+pub fn write_mcnf<W: Write, CI: WClsIter>(
     writer: &mut W,
     cnf: CNF,
-    softs: Vec<SoftClsOffset>,
+    softs: Vec<(CI, isize)>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     let (soft_cls, offsets) = softs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
+    let soft_cls: Vec<Vec<(Clause, usize)>> = soft_cls
+        .into_iter()
+        .map(|ci| ci.into_iter().collect())
+        .collect();
     writeln!(writer, "c MCNF file written by RustSAT")?;
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;

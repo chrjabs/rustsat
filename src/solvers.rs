@@ -73,7 +73,7 @@
 use crate::{
     clause,
     instances::CNF,
-    types::{Assignment, Clause, Lit, TernaryVal, Var},
+    types::{Assignment, Clause, ClsIter, Lit, TernaryVal, Var},
 };
 use core::time::Duration;
 use std::fmt;
@@ -149,15 +149,13 @@ pub trait Solve {
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> SolveMightFail {
         self.add_clause(clause![lit1, lit2, lit3])
     }
+    /// Adds clauses from an iterator to an instance
+    fn add_clauses<CI: ClsIter>(&mut self, cls: CI) -> SolveMightFail {
+        cls.into_iter().try_for_each(|cl| self.add_clause(cl))
+    }
     /// Adds all clauses from a [`CNF`] instance.
     fn add_cnf(&mut self, cnf: CNF) -> SolveMightFail {
-        cnf.into_iter().fold(Ok(()), |res, cl| {
-            if res.is_ok() {
-                self.add_clause(cl)
-            } else {
-                res
-            }
-        })
+        self.add_clauses(cnf)
     }
 }
 
