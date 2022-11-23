@@ -11,7 +11,7 @@
 use super::{ManageVars, SatInstance};
 use crate::types::{
     constraints::{CardConstraint, PBConstraint},
-    Clause, Lit, RsHashMap, Var,
+    Clause, Lit, Var,
 };
 use nom::{
     branch::alt,
@@ -32,7 +32,9 @@ use std::{
 #[cfg(feature = "multiopt")]
 use super::MultiOptInstance;
 #[cfg(feature = "optimization")]
-use super::{Objective, OptInstance, SoftLitsOffset};
+use super::{Objective, OptInstance};
+#[cfg(feature = "optimization")]
+use crate::types::WLitIter;
 
 /// Errors occuring within the OPB parsing module
 #[derive(Debug, PartialEq, Eq)]
@@ -250,7 +252,7 @@ fn constraint(input: &str) -> IResult<&str, PBConstraint> {
     map_res(
         tuple((weighted_lit_sum, operator, space0, weight, opb_ending)),
         |(wls, op, _, b, _)| {
-            let lits = RsHashMap::from_iter(wls.into_iter());
+            let lits = wls.into_iter();
             Ok::<_, ()>(match op {
                 OpbOperator::LE => PBConstraint::new_ub(lits, b),
                 OpbOperator::GE => PBConstraint::new_lb(lits, b),
@@ -479,7 +481,10 @@ fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint) -> Result<(), io::Error>
 }
 
 #[cfg(feature = "optimization")]
-fn write_objective<W: Write>(writer: &mut W, softs: SoftLitsOffset) -> Result<(), io::Error> {
+fn write_objective<W: Write, LI: WLitIter>(
+    writer: &mut W,
+    softs: (LI, isize),
+) -> Result<(), io::Error> {
     let (soft_lits, mut offset) = softs;
     write!(writer, "min:")?;
     soft_lits
@@ -519,7 +524,7 @@ mod test {
         lit,
         types::{
             constraints::{CardConstraint, PBConstraint},
-            Clause, Lit, RsHashMap, Var,
+            Clause, Lit, Var,
         },
         var,
     };
@@ -611,9 +616,7 @@ mod test {
                 PBConstraint::UB(constr) => {
                     assert_eq!(rest, "");
                     let (lits, b) = constr.decompose();
-                    let mut should_be_lits = RsHashMap::default();
-                    should_be_lits.insert(lit![1], 3);
-                    should_be_lits.insert(lit![2], 2);
+                    let should_be_lits = vec![(lit![1], 3), (lit![2], 2)];
                     assert_eq!(lits, should_be_lits);
                     assert_eq!(b, 6);
                 }
@@ -659,9 +662,7 @@ mod test {
             opb_data("* test\n"),
             Ok(("", OpbData::Cmt(String::from("* test\n"))))
         );
-        let mut lits = RsHashMap::default();
-        lits.insert(lit![1], 3);
-        lits.insert(!lit![2], -2);
+        let lits = vec![(lit![1], 3), (!lit![2], -2)];
         let should_be_constr = PBConstraint::new_ub(lits, 4);
         assert_eq!(
             opb_data("3 x1 -2 ~x2 <= 4;\n"),
@@ -752,10 +753,7 @@ mod test {
         // Since the hash map of going through a pb constraint at parsing
         // reorders the literals, the true instance has to go through a pb
         // constraint as well.
-        let mut lits = RsHashMap::default();
-        lits.insert(!lit![3], 1);
-        lits.insert(lit![4], 1);
-        lits.insert(!lit![5], 1);
+        let lits = vec![(!lit![3], 1), (lit![4], 1), (!lit![5], 1)];
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
@@ -778,11 +776,7 @@ mod test {
 
     #[test]
     fn write_parse_pb() {
-        let mut lits = RsHashMap::default();
-        lits.insert(!lit![6], 3);
-        lits.insert(!lit![7], -5);
-        lits.insert(lit![8], 2);
-        lits.insert(lit![9], -4);
+        let lits = vec![(!lit![6], 3), (!lit![7], -5), (lit![8], 2), (lit![9], -4)];
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));

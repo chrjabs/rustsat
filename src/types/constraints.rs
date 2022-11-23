@@ -9,7 +9,7 @@ use std::{
     ops::{self, Not},
 };
 
-use super::{Lit, RsHashMap};
+use super::{IWLitIter, Lit, LitIter, WLitIter};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -224,22 +224,31 @@ pub enum CardConstraint {
 
 impl CardConstraint {
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
-    pub fn new_ub(lits: Vec<Lit>, b: usize) -> Self {
-        CardConstraint::UB(CardUBConstr { lits, b })
+    pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
+        CardConstraint::UB(CardUBConstr {
+            lits: lits.into_iter().collect(),
+            b,
+        })
     }
 
     /// Constructs a new lower bound cardinality constraint (`sum of lits >= b`)
-    pub fn new_lb(lits: Vec<Lit>, b: usize) -> Self {
-        CardConstraint::LB(CardLBConstr { lits, b })
+    pub fn new_lb<LI: LitIter>(lits: LI, b: usize) -> Self {
+        CardConstraint::LB(CardLBConstr {
+            lits: lits.into_iter().collect(),
+            b,
+        })
     }
 
     /// Constructs a new equality cardinality constraint (`sum of lits = b`)
-    pub fn new_eq(lits: Vec<Lit>, b: usize) -> Self {
-        CardConstraint::EQ(CardEQConstr { lits, b })
+    pub fn new_eq<LI: LitIter>(lits: LI, b: usize) -> Self {
+        CardConstraint::EQ(CardEQConstr {
+            lits: lits.into_iter().collect(),
+            b,
+        })
     }
 
     /// Adds literals to the cardinality constraint
-    pub fn add(&mut self, lits: Vec<Lit>) {
+    pub fn add<LI: LitIter>(&mut self, lits: LI) {
         match self {
             CardConstraint::UB(constr) => constr.lits.extend(lits),
             CardConstraint::LB(constr) => constr.lits.extend(lits),
@@ -292,6 +301,23 @@ impl CardConstraint {
         }
     }
 
+    /// Normalizes the constraint. This only consists of sorting the literals.
+    /// Comparing two normalized constraints checks their logical equivalence.
+    pub fn normalize(mut self) -> Self {
+        let norm = |lits: &mut Vec<Lit>| {
+            if lits.len() <= 1 {
+                return;
+            }
+            lits.sort_unstable();
+        };
+        match &mut self {
+            CardConstraint::UB(constr) => norm(&mut constr.lits),
+            CardConstraint::LB(constr) => norm(&mut constr.lits),
+            CardConstraint::EQ(constr) => norm(&mut constr.lits),
+        };
+        self
+    }
+
     /// Gets the literals that are in the constraint
     pub fn into_lits(self) -> Vec<Lit> {
         match self {
@@ -307,7 +333,9 @@ impl CardConstraint {
             return None;
         }
         match self {
-            CardConstraint::UB(constr) => Some(Clause::from_iter(constr.lits.into_iter().map(Lit::not))),
+            CardConstraint::UB(constr) => {
+                Some(Clause::from_iter(constr.lits.into_iter().map(Lit::not)))
+            }
             CardConstraint::LB(constr) => Some(Clause::from_iter(constr.lits)),
             CardConstraint::EQ(_) => panic!(),
         }
@@ -432,10 +460,10 @@ pub enum PBConstraint {
 
 impl PBConstraint {
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
-    fn convert_input_lits(lits: RsHashMap<Lit, isize>) -> (RsHashMap<Lit, usize>, usize, isize) {
+    fn convert_input_lits<LI: IWLitIter>(lits: LI) -> (impl WLitIter, usize, isize) {
         let mut b_add = 0;
         let mut weight_sum = 0;
-        let lits = lits
+        let lits: Vec<(Lit, usize)> = lits
             .into_iter()
             .map(|(l, w)| {
                 if w >= 0 {
@@ -452,37 +480,37 @@ impl PBConstraint {
     }
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
-    pub fn new_ub(lits: RsHashMap<Lit, isize>, b: isize) -> Self {
+    pub fn new_ub<LI: IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         PBConstraint::UB(PBUBConstr {
-            lits,
+            lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
         })
     }
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
-    pub fn new_lb(lits: RsHashMap<Lit, isize>, b: isize) -> Self {
+    pub fn new_lb<LI: IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         PBConstraint::LB(PBLBConstr {
-            lits,
+            lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
         })
     }
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
-    pub fn new_eq(lits: RsHashMap<Lit, isize>, b: isize) -> Self {
+    pub fn new_eq<LI: IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         PBConstraint::EQ(PBEQConstr {
-            lits,
+            lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
         })
     }
 
     /// Gets mutable references to the underlying data
-    fn get_data(&mut self) -> (&mut RsHashMap<Lit, usize>, &mut usize, &mut isize) {
+    fn get_data(&mut self) -> (&mut Vec<(Lit, usize)>, &mut usize, &mut isize) {
         match self {
             PBConstraint::UB(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
             PBConstraint::LB(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
@@ -491,15 +519,10 @@ impl PBConstraint {
     }
 
     /// Adds literals to the cardinality constraint
-    pub fn add(&mut self, lits: RsHashMap<Lit, isize>) {
+    pub fn add<LI: IWLitIter>(&mut self, lits: LI) {
         let (lits, add_weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
         let (data_lits, weight_sum, b) = self.get_data();
-        lits.iter().for_each(|(l, w)| {
-            match data_lits.get(l) {
-                Some(old_w) => data_lits.insert(*l, *old_w + *w),
-                None => data_lits.insert(*l, *w),
-            };
-        });
+        data_lits.extend(lits);
         *weight_sum += add_weight_sum;
         *b += b_add;
     }
@@ -534,9 +557,48 @@ impl PBConstraint {
     /// Checks if the constraint is a cardinality constraint
     pub fn is_card(&self) -> bool {
         match self {
-            PBConstraint::UB(constr) => constr.get_unit_weight().is_some(),
-            PBConstraint::LB(constr) => constr.get_unit_weight().is_some(),
-            PBConstraint::EQ(constr) => constr.get_unit_weight().is_some(),
+            PBConstraint::UB(constr) => constr.find_unit_weight().is_some(),
+            PBConstraint::LB(constr) => constr.find_unit_weight().is_some(),
+            PBConstraint::EQ(constr) => constr.find_unit_weight().is_some(),
+        }
+    }
+
+    /// Normalizes the constraint. This sorts the literal and merges duplicates.
+    /// Comparing two normalized constraints checks their logical equivalence.
+    pub fn normalize(self) -> Self {
+        let norm = |mut lits: Vec<(Lit, usize)>| {
+            if lits.len() <= 1 {
+                return lits;
+            }
+            lits.sort_unstable();
+            let mut merged = Vec::new();
+            for (l, w) in lits {
+                match merged.last_mut() {
+                    Some((l2, w2)) => {
+                        if l == *l2 {
+                            *w2 += w;
+                        } else {
+                            merged.push((l, w));
+                        }
+                    }
+                    None => merged.push((l, w)),
+                }
+            }
+            merged
+        };
+        match self {
+            PBConstraint::UB(constr) => PBConstraint::UB(PBUBConstr {
+                lits: norm(constr.lits),
+                ..constr
+            }),
+            PBConstraint::LB(constr) => PBConstraint::LB(PBLBConstr {
+                lits: norm(constr.lits),
+                ..constr
+            }),
+            PBConstraint::EQ(constr) => PBConstraint::EQ(PBEQConstr {
+                lits: norm(constr.lits),
+                ..constr
+            }),
         }
     }
 
@@ -550,21 +612,21 @@ impl PBConstraint {
         }
         Ok(match self {
             PBConstraint::UB(constr) => {
-                let unit_weight = constr.get_unit_weight();
+                let unit_weight = constr.find_unit_weight();
                 match unit_weight {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
-                        let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
+                        let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_ub(lits, constr.b as usize / unit_weight)
                     }
                 }
             }
             PBConstraint::LB(constr) => {
-                let unit_weight = constr.get_unit_weight();
+                let unit_weight = constr.find_unit_weight();
                 match unit_weight {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
-                        let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
+                        let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_lb(
                             lits,
                             constr.b as usize / unit_weight
@@ -578,14 +640,14 @@ impl PBConstraint {
                 }
             }
             PBConstraint::EQ(constr) => {
-                let unit_weight = constr.get_unit_weight();
+                let unit_weight = constr.find_unit_weight();
                 match unit_weight {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
                         if constr.b as usize % unit_weight != 0 {
                             return Err(PBToCardError::Unsat);
                         }
-                        let lits = constr.lits.into_iter().map(|(l, _)| l).collect();
+                        let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_eq(lits, constr.b as usize / unit_weight)
                     }
                 }
@@ -594,7 +656,7 @@ impl PBConstraint {
     }
 
     /// Gets the (positively) weighted literals that are in the constraint
-    pub fn into_lits(self) -> RsHashMap<Lit, usize> {
+    pub fn into_lits(self) -> impl WLitIter {
         match self {
             PBConstraint::UB(constr) => constr.lits,
             PBConstraint::LB(constr) => constr.lits,
@@ -604,7 +666,7 @@ impl PBConstraint {
 
     /// Gets an iterator over the literals in the constraint
     #[inline]
-    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, Lit, usize> {
+    pub fn iter(&self) -> impl Iterator<Item = &(Lit, usize)> {
         match self {
             PBConstraint::UB(constr) => constr.lits.iter(),
             PBConstraint::LB(constr) => constr.lits.iter(),
@@ -616,14 +678,14 @@ impl PBConstraint {
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBUBConstr {
-    lits: RsHashMap<Lit, usize>,
+    lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
 }
 
 impl PBUBConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
-    pub fn decompose(self) -> (RsHashMap<Lit, usize>, isize) {
+    pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
     }
 
@@ -642,15 +704,15 @@ impl PBUBConstr {
     }
 
     /// Gets the unit weight of the constraint, if it exists
-    pub fn get_unit_weight(&self) -> Option<usize> {
+    pub fn find_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
-        for (_, &w) in self.lits.iter() {
+        for (_, w) in self.lits.iter() {
             if let Some(uw) = unit_weight {
-                if uw != w {
+                if uw != *w {
                     return None;
                 }
             } else {
-                unit_weight = Some(w)
+                unit_weight = Some(*w)
             }
         }
         unit_weight
@@ -660,14 +722,14 @@ impl PBUBConstr {
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBLBConstr {
-    lits: RsHashMap<Lit, usize>,
+    lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
 }
 
 impl PBLBConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
-    pub fn decompose(self) -> (RsHashMap<Lit, usize>, isize) {
+    pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
     }
 
@@ -695,15 +757,15 @@ impl PBLBConstr {
     }
 
     /// Gets the unit weight of the constraint, if it exists
-    pub fn get_unit_weight(&self) -> Option<usize> {
+    pub fn find_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
-        for (_, &w) in self.lits.iter() {
+        for (_, w) in self.lits.iter() {
             if let Some(uw) = unit_weight {
-                if uw != w {
+                if uw != *w {
                     return None;
                 }
             } else {
-                unit_weight = Some(w)
+                unit_weight = Some(*w)
             }
         }
         unit_weight
@@ -713,14 +775,14 @@ impl PBLBConstr {
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBEQConstr {
-    lits: RsHashMap<Lit, usize>,
+    lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
 }
 
 impl PBEQConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
-    pub fn decompose(self) -> (RsHashMap<Lit, usize>, isize) {
+    pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
     }
 
@@ -743,15 +805,15 @@ impl PBEQConstr {
     }
 
     /// Gets the unit weight of the constraint, if it exists
-    pub fn get_unit_weight(&self) -> Option<usize> {
+    pub fn find_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
-        for (_, &w) in self.lits.iter() {
+        for (_, w) in self.lits.iter() {
             if let Some(uw) = unit_weight {
-                if uw != w {
+                if uw != *w {
                     return None;
                 }
             } else {
-                unit_weight = Some(w)
+                unit_weight = Some(*w)
             }
         }
         unit_weight
@@ -761,10 +823,7 @@ impl PBEQConstr {
 #[cfg(test)]
 mod tests {
     use super::{CardConstraint, Clause, PBConstraint};
-    use crate::{
-        lit,
-        types::{Lit, RsHashMap},
-    };
+    use crate::{lit, types::Lit};
 
     #[test]
     fn clause_remove() {
@@ -849,10 +908,7 @@ mod tests {
 
     #[test]
     fn pb_is_tautology() {
-        let mut lits = RsHashMap::default();
-        lits.insert(lit![0], 1);
-        lits.insert(lit![1], 2);
-        lits.insert(lit![2], 3);
+        let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
         assert!(PBConstraint::new_ub(lits.clone(), 6).is_tautology());
         assert!(!PBConstraint::new_ub(lits.clone(), 5).is_tautology());
         assert!(PBConstraint::new_lb(lits.clone(), 0).is_tautology());
@@ -862,10 +918,7 @@ mod tests {
 
     #[test]
     fn pb_is_unsat() {
-        let mut lits = RsHashMap::default();
-        lits.insert(lit![0], 1);
-        lits.insert(lit![1], 2);
-        lits.insert(lit![2], 3);
+        let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
         assert!(!PBConstraint::new_ub(lits.clone(), 1).is_unsat());
         assert!(!PBConstraint::new_lb(lits.clone(), 6).is_unsat());
         assert!(PBConstraint::new_lb(lits.clone(), 7).is_unsat());
@@ -875,10 +928,7 @@ mod tests {
 
     #[test]
     fn pb_is_assignment() {
-        let mut lits = RsHashMap::default();
-        lits.insert(lit![0], 1);
-        lits.insert(lit![1], 2);
-        lits.insert(lit![2], 3);
+        let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
         assert!(!PBConstraint::new_ub(lits.clone(), 1).is_assignment());
         assert!(PBConstraint::new_lb(lits.clone(), 6).is_assignment());
         assert!(!PBConstraint::new_lb(lits.clone(), 2).is_assignment());
@@ -888,17 +938,11 @@ mod tests {
 
     #[test]
     fn pb_is_card() {
-        let mut lits = RsHashMap::default();
-        lits.insert(lit![0], 2);
-        lits.insert(lit![1], 2);
-        lits.insert(lit![2], 2);
+        let lits = vec![(lit![0], 2), (lit![1], 2), (lit![2], 2)];
         assert!(PBConstraint::new_ub(lits.clone(), 1).is_card());
         assert!(PBConstraint::new_lb(lits.clone(), 3).is_card());
         assert!(PBConstraint::new_eq(lits.clone(), 2).is_card());
-        let mut lits = RsHashMap::default();
-        lits.insert(lit![0], 2);
-        lits.insert(lit![1], 1);
-        lits.insert(lit![2], 2);
+        let lits = vec![(lit![0], 2), (lit![1], 1), (lit![2], 2)];
         assert!(!PBConstraint::new_ub(lits.clone(), 1).is_card());
         assert!(!PBConstraint::new_lb(lits.clone(), 3).is_card());
         assert!(!PBConstraint::new_eq(lits.clone(), 2).is_card());

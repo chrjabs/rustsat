@@ -20,10 +20,13 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Clause, Lit, RsHashMap, RsHasher, Var,
+        Clause, ClsIter, Lit, LitIter, RsHashMap, RsHasher, Var,
     },
     var,
 };
+
+#[cfg(feature = "optimization")]
+use crate::types::{WClsIter, WLitIter};
 
 /// DIMACS parsing module
 mod dimacs;
@@ -32,13 +35,6 @@ pub use dimacs::DimacsError;
 /// OPB parsing module
 mod opb;
 pub use opb::OpbError;
-
-#[cfg(feature = "optimization")]
-/// An objective expressed as soft literals with an offset
-pub type SoftLitsOffset = (RsHashMap<Lit, usize>, isize);
-#[cfg(feature = "optimization")]
-/// An objective expressed as soft clauses with an offset
-pub type SoftClsOffset = (RsHashMap<Clause, usize>, isize);
 
 /// Combined Parsing Errors
 #[derive(Debug)]
@@ -114,11 +110,6 @@ impl CNF {
     /// Creates a new CNF
     pub fn new() -> CNF {
         CNF::default()
-    }
-
-    /// Creates a CNF from a vector of clauses
-    pub fn from_clauses(clauses: Vec<Clause>) -> CNF {
-        CNF { clauses }
     }
 
     /// Adds a clause to the CNF
@@ -258,6 +249,14 @@ impl IntoIterator for CNF {
 
     fn into_iter(self) -> Self::IntoIter {
         self.clauses.into_iter()
+    }
+}
+
+impl FromIterator<Clause> for CNF {
+    fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
+        Self {
+            clauses: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -941,10 +940,24 @@ impl Objective {
     }
 
     /// Converts the objective to a set of soft clauses and an offset
-    pub fn as_soft_cls(mut self) -> SoftClsOffset {
-        self.unweighted_2_weighted();
+    pub fn as_soft_cls(self) -> (impl WClsIter, isize) {
         match self {
-            Objective::Unweighted { .. } => panic!(),
+            Objective::Unweighted {
+                mut soft_clauses,
+                soft_lits,
+                offset,
+                unit_weight,
+            } => {
+                soft_clauses.reserve(soft_lits.len());
+                for l in soft_lits {
+                    soft_clauses.push(clause![!l]);
+                }
+                let soft_clauses: Vec<(Clause, usize)> = soft_clauses
+                    .into_iter()
+                    .map(|cl| (cl, unit_weight.unwrap()))
+                    .collect();
+                (soft_clauses, offset)
+            }
             Objective::Weighted {
                 mut soft_clauses,
                 soft_lits,
@@ -954,6 +967,7 @@ impl Objective {
                 for (l, w) in soft_lits {
                     soft_clauses.insert(clause![!l], w);
                 }
+                let soft_clauses: Vec<(Clause, usize)> = Vec::from_iter(soft_clauses);
                 (soft_clauses, offset)
             }
         }
@@ -962,7 +976,7 @@ impl Objective {
     /// Converts the objective to unweighted soft clauses, a unit weight and an offset. If the
     /// objective is weighted, the soft clause will appear as often as its
     /// weight in the output vector.
-    pub fn as_unweighted_soft_cls(mut self) -> (Vec<Clause>, usize, isize) {
+    pub fn as_unweighted_soft_cls(mut self) -> (impl ClsIter, usize, isize) {
         self.weighted_2_unweighted();
         match self {
             Objective::Weighted { .. } => panic!(),
@@ -986,7 +1000,7 @@ impl Objective {
     }
 
     /// Converts the objective to a set of hard clauses, soft literals and an offset
-    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, SoftLitsOffset)
+    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, (impl WLitIter, isize))
     where
         VM: ManageVars,
     {
@@ -1020,7 +1034,10 @@ impl Objective {
     /// Converts the objective to hard clauses, unweighted soft literals, a unit
     /// weight and an offset. If the objective is weighted, the soft literals
     /// will appear as often as its weight in the output vector.
-    pub fn as_unweighted_soft_lits<VM>(self, var_manager: &mut VM) -> (CNF, Vec<Lit>, usize, isize)
+    pub fn as_unweighted_soft_lits<VM>(
+        self,
+        var_manager: &mut VM,
+    ) -> (CNF, impl LitIter, usize, isize)
     where
         VM: ManageVars,
     {
@@ -1308,14 +1325,14 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Converts the instance to a set of hard and soft clauses, an objective
     /// offset and a variable manager
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, SoftClsOffset, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, (impl WClsIter, isize), VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals, an
     /// objective offset and a variable manager
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, SoftLitsOffset, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, (impl WLitIter, isize), VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let (hard_softs, softs) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -1376,106 +1393,6 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Writes the instance to an OPB file
     pub fn to_opb<W: Write>(self, writer: &mut W) -> Result<(), io::Error> {
         opb::write_opt(writer, self)
-    }
-}
-
-#[cfg(feature = "multiopt")]
-/// Type representing a bi-objective optimization instance.
-/// The constraints are represented as a [`SatInstance`] struct.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct BiOptInstance<VM: ManageVars = BasicVarManager> {
-    constr: SatInstance<VM>,
-    obj_1: Objective,
-    obj_2: Objective,
-}
-
-#[cfg(feature = "multiopt")]
-/// Type representing a bi-objective optimization instance.
-impl<VM: ManageVars> BiOptInstance<VM> {
-    /// Creates a new optimization instance
-    pub fn new() -> Self {
-        BiOptInstance {
-            constr: SatInstance::new(),
-            obj_1: Objective::new(),
-            obj_2: Objective::new(),
-        }
-    }
-
-    /// Creates a new optimization instance with a specific var manager
-    pub fn new_with_manager(var_manager: VM) -> Self {
-        BiOptInstance {
-            constr: SatInstance::new_with_manager(var_manager),
-            obj_1: Objective::new(),
-            obj_2: Objective::new(),
-        }
-    }
-
-    /// Creates a new optimization instance from constraints and two objectives
-    pub fn compose(
-        mut constraints: SatInstance<VM>,
-        objective_1: Objective,
-        objective_2: Objective,
-    ) -> Self {
-        if let Some(mv) = objective_1.max_var() {
-            constraints.var_manager().increase_next_free(mv);
-        }
-        if let Some(mv) = objective_2.max_var() {
-            constraints.var_manager().increase_next_free(mv);
-        }
-        BiOptInstance {
-            constr: constraints,
-            obj_1: objective_1,
-            obj_2: objective_2,
-        }
-    }
-
-    /// Decomposes the optimization instance to a [`SatInstance`] and two [`Objective`]s
-    pub fn decompose(self) -> (SatInstance<VM>, Objective, Objective) {
-        (self.constr, self.obj_1, self.obj_2)
-    }
-
-    /// Gets a mutable reference to the hard constraints for modifying them
-    pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
-        &mut self.constr
-    }
-
-    /// Gets a mutable reference to the first objective for modifying it
-    pub fn get_objective_1(&mut self) -> &mut Objective {
-        &mut self.obj_1
-    }
-
-    /// Gets a mutable reference to the second objective for modifying it
-    pub fn get_objective_2(&mut self) -> &mut Objective {
-        &mut self.obj_2
-    }
-
-    /// Converts the instance to a set of hard and soft clauses with objective offsets
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, SoftClsOffset, SoftClsOffset, VM) {
-        let (cnf, vm) = self.constr.as_cnf();
-        (cnf, self.obj_1.as_soft_cls(), self.obj_2.as_soft_cls(), vm)
-    }
-
-    /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, SoftLitsOffset, SoftLitsOffset, VM) {
-        let (mut cnf, mut vm) = self.constr.as_cnf();
-        let (hard_softs, softs_1) = self.obj_1.as_soft_lits(&mut vm);
-        cnf.extend(hard_softs);
-        let (hard_softs, softs_2) = self.obj_2.as_soft_lits(&mut vm);
-        cnf.extend(hard_softs);
-        (cnf, softs_1, softs_2, vm)
-    }
-
-    /// Converts the included variable manager to a different type
-    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> BiOptInstance<VM2>
-    where
-        VM2: ManageVars,
-        VMC: Fn(VM) -> VM2,
-    {
-        BiOptInstance {
-            constr: self.constr.change_var_manager(vm_converter),
-            obj_1: self.obj_1,
-            obj_2: self.obj_2,
-        }
     }
 }
 
@@ -1625,14 +1542,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<SoftClsOffset>, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<(impl WClsIter, isize)>, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<SoftLitsOffset>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<(impl WLitIter, isize)>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let soft_lits = self
             .objs
