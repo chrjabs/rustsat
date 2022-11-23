@@ -19,7 +19,7 @@
 //!
 //! let mut solver = solvers::new_default_inc_solver();
 //! solver.add_clause(clause![lit![0], lit![1], lit![2], lit![3]]);
-//! let mut var_manager = BasicVarManager::new();
+//! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![4]);
 //!
 //! let mut enc = pb::new_default_inc_both();

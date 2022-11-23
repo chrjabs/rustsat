@@ -29,7 +29,7 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
     solver.add_clause(clause![lit![8], lit![9]]).unwrap();
     solver.add_clause(clause![lit![9], lit![10]]).unwrap();
     solver.add_clause(clause![lit![10]]).unwrap();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![11]);
 
     let res = solver.solve().unwrap();
@@ -97,7 +97,7 @@ fn test_both_card<CE: BothB>(mut enc: CE) {
     solver.add_clause(clause![lit![2], lit![3]]).unwrap();
     solver.add_clause(clause![lit![3], lit![4]]).unwrap();
     solver.add_clause(clause![lit![4]]).unwrap();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![5]);
 
     let res = solver.solve().unwrap();
@@ -126,7 +126,7 @@ fn test_both_card<CE: BothB>(mut enc: CE) {
 fn test_both_card_min_enc<CE: BothB>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
     enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);

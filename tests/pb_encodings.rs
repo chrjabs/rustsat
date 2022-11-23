@@ -32,7 +32,7 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     solver.add_clause(clause![lit![8], lit![9]]).unwrap();
     solver.add_clause(clause![lit![9], lit![10]]).unwrap();
     solver.add_clause(clause![lit![10]]).unwrap();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![11]);
 
     let res = solver.solve().unwrap();
@@ -111,7 +111,7 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
 fn test_pb_eq<PBE: IncBothB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![3]);
 
     let mut lits = RsHashMap::default();
@@ -171,7 +171,7 @@ fn test_pb_lb<PBE: LB>(mut enc: PBE) {
     solver
         .add_clause(clause![!lit![0], !lit![1], !lit![2]])
         .unwrap();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![3]);
 
     let res = solver.solve().unwrap();
@@ -199,7 +199,7 @@ fn test_pb_lb<PBE: LB>(mut enc: PBE) {
 fn test_pb_ub_min_enc<PBE: UB>(mut enc: PBE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
-    let mut var_manager = BasicVarManager::new();
+    let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
     let mut lits = RsHashMap::default();

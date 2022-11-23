@@ -702,7 +702,7 @@ mod tests {
         let child1 = Node::new_leaf(lit![0], 5);
         let child2 = Node::new_leaf(lit![1], 3);
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf = node.encode_from_till(0, 8, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
@@ -743,7 +743,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0], 3)),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf = node.encode_from_till(0, 6, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
@@ -784,7 +784,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0], 3)),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf = node.encode_from_till(4, 6, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
@@ -825,7 +825,7 @@ mod tests {
             right: Box::new(Node::new_leaf(lit![0], 3)),
         };
         let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf = node.encode_from_till(6, 4, &mut var_manager);
         assert_eq!(cnf.n_clauses(), 0);
     }
@@ -840,7 +840,7 @@ mod tests {
         lits.insert(lit![3], 3);
         gte.extend(lits);
         assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         gte.encode_ub(0, 6, &mut var_manager).unwrap();
         assert_eq!(gte.get_depth(), 3);
         assert_eq!(gte.n_vars(), 10);
@@ -855,11 +855,11 @@ mod tests {
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
         gte1.extend(lits.clone());
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::default();
         gte2.extend(lits);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let mut cnf2 = gte2.encode_ub(0, 2, &mut var_manager).unwrap();
         cnf2.extend(gte2.encode_ub_change(0, 4, &mut var_manager).unwrap());
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
@@ -876,7 +876,7 @@ mod tests {
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
         gte1.extend(lits);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
@@ -885,7 +885,7 @@ mod tests {
         lits.insert(lit![2], 6);
         lits.insert(lit![3], 6);
         gte2.extend(lits);
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         let cnf2 = gte2.encode_ub(0, 8, &mut var_manager).unwrap();
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
         assert_eq!(cnf1.n_clauses(), gte1.n_clauses());
@@ -895,7 +895,7 @@ mod tests {
     #[test]
     fn ub_gte_invalid_useage() {
         let mut gte = GeneralizedTotalizer::default();
-        let mut var_manager = BasicVarManager::new();
+        let mut var_manager = BasicVarManager::default();
         assert_eq!(
             gte.encode_ub(5, 4, &mut var_manager),
             Err(EncodingError::InvalidLimits)

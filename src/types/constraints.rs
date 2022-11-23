@@ -81,8 +81,14 @@ impl Clause {
 
     /// Gets an iterator over the clause
     #[inline]
-    pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
+    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
         self.lits.iter()
+    }
+
+    /// Gets a mutable iterator over the clause
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
+        self.lits.iter_mut()
     }
 
     /// Normalizes the clause. This includes sorting the literals, removing
@@ -343,11 +349,21 @@ impl CardConstraint {
 
     /// Gets an iterator over the literals in the constraint
     #[inline]
-    pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
+    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
         match self {
             CardConstraint::UB(constr) => constr.lits.iter(),
             CardConstraint::LB(constr) => constr.lits.iter(),
             CardConstraint::EQ(constr) => constr.lits.iter(),
+        }
+    }
+
+    /// Gets a mutable iterator over the literals in the constraint
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
+        match self {
+            CardConstraint::UB(constr) => constr.lits.iter_mut(),
+            CardConstraint::LB(constr) => constr.lits.iter_mut(),
+            CardConstraint::EQ(constr) => constr.lits.iter_mut(),
         }
     }
 }
@@ -671,6 +687,16 @@ impl PBConstraint {
             PBConstraint::UB(constr) => constr.lits.iter(),
             PBConstraint::LB(constr) => constr.lits.iter(),
             PBConstraint::EQ(constr) => constr.lits.iter(),
+        }
+    }
+
+    /// Gets a mutable iterator over the literals in the constraint
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut (Lit, usize)> {
+        match self {
+            PBConstraint::UB(constr) => constr.lits.iter_mut(),
+            PBConstraint::LB(constr) => constr.lits.iter_mut(),
+            PBConstraint::EQ(constr) => constr.lits.iter_mut(),
         }
     }
 }

@@ -47,6 +47,18 @@ pub enum ParsingError {
     Opb(OpbError),
 }
 
+impl From<DimacsError> for ParsingError {
+    fn from(de: DimacsError) -> Self {
+        ParsingError::Dimacs(de)
+    }
+}
+
+impl From<OpbError> for ParsingError {
+    fn from(oe: OpbError) -> Self {
+        ParsingError::Opb(oe)
+    }
+}
+
 impl fmt::Display for ParsingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -271,11 +283,6 @@ pub struct SatInstance<VM: ManageVars = BasicVarManager> {
 }
 
 impl<VM: ManageVars> SatInstance<VM> {
-    /// Creates a new satisfiability instance
-    pub fn new() -> SatInstance<VM> {
-        SatInstance::default()
-    }
-
     /// Creates a new satisfiability instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
         SatInstance {
@@ -283,73 +290,6 @@ impl<VM: ManageVars> SatInstance<VM> {
             cards: vec![],
             pbs: vec![],
             var_manager,
-        }
-    }
-
-    /// Parses a DIMACS instance from a reader object.
-    ///
-    /// # File Format
-    ///
-    /// The file format expected by this parser is the DIMACS CNF format used in
-    /// the SAT competition since 2011. For details on the file format see
-    /// [here](http://www.satcompetition.org/2011/format-benchmarks2011.html).
-    ///
-    /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
-    /// are ignored and only the constraints returned.
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        match dimacs::parse_cnf(reader) {
-            Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
-            Ok(inst) => {
-                let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.new_var();
-                    let mut vm2 = VM::new();
-                    vm2.increase_next_free(nfv);
-                    vm2
-                });
-                Ok(inst)
-            }
-        }
-    }
-
-    /// Parses a DIMACS instance from a file path. For more details see
-    /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => SatInstance::from_dimacs_reader(reader),
-        }
-    }
-
-    /// Parses an OPB instance from a reader object.
-    ///
-    /// # File Format
-    ///
-    /// The file format expected by this parser is the OPB format for
-    /// pseudo-boolean satisfaction instances. For details on the file format
-    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        match opb::parse_sat(reader) {
-            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
-            Ok(inst) => {
-                let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.new_var();
-                    let mut vm2 = VM::new();
-                    vm2.increase_next_free(nfv);
-                    vm2
-                });
-                Ok(inst)
-            }
-        }
-    }
-
-    /// Parses an OPB instance from a file path. For more details see
-    /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => SatInstance::from_opb_reader(reader),
         }
     }
 
@@ -490,17 +430,20 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Converts the included variable manager to a different type
-    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> SatInstance<VM2>
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (SatInstance<VM2>, VM)
     where
         VM2: ManageVars,
-        VMC: Fn(VM) -> VM2,
+        VMC: Fn(&VM) -> VM2,
     {
-        SatInstance {
-            cnf: self.cnf,
-            cards: self.cards,
-            pbs: self.pbs,
-            var_manager: vm_converter(self.var_manager),
-        }
+        (
+            SatInstance {
+                cnf: self.cnf,
+                cards: self.cards,
+                pbs: self.pbs,
+                var_manager: vm_converter(&self.var_manager),
+            },
+            self.var_manager,
+        )
     }
 
     /// Converts the instance to a set of clauses.
@@ -536,6 +479,29 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn extend(&mut self, other: SatInstance<VM>) {
         self.cnf.extend(other.cnf);
         self.var_manager.combine(other.var_manager);
+    }
+
+    /// Reindexes all variables in the instance with a reindexing variable manager
+    pub fn reindex(
+        mut self,
+        mut reindexer: ReindexingVarManager,
+    ) -> SatInstance<ReindexingVarManager> {
+        self.cnf
+            .iter_mut()
+            .for_each(|cl| cl.iter_mut().for_each(|l| *l = reindexer.reindex_lit(*l)));
+        self.cards
+            .iter_mut()
+            .for_each(|card| card.iter_mut().for_each(|l| *l = reindexer.reindex_lit(*l)));
+        self.pbs.iter_mut().for_each(|pb| {
+            pb.iter_mut()
+                .for_each(|(l, _)| *l = reindexer.reindex_lit(*l))
+        });
+        SatInstance {
+            cnf: self.cnf,
+            cards: self.cards,
+            pbs: self.pbs,
+            var_manager: reindexer,
+        }
     }
 
     /// Writes the instance to a DIMACS CNF file at a path
@@ -582,18 +548,70 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars> Default for SatInstance<VM> {
+impl<VM: ManageVars + Default> SatInstance<VM> {
+    /// Creates a new satisfiability instance
+    pub fn new() -> SatInstance<VM> {
+        SatInstance::default()
+    }
+
+    /// Parses a DIMACS instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the DIMACS CNF format used in
+    /// the SAT competition since 2011. For details on the file format see
+    /// [here](http://www.satcompetition.org/2011/format-benchmarks2011.html).
+    ///
+    /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
+    /// are ignored and only the constraints returned.
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        Ok(dimacs::parse_cnf(reader)?)
+    }
+
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => SatInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean satisfaction instances. For details on the file format
+    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        Ok(opb::parse_sat(reader)?)
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => SatInstance::from_opb_reader(reader),
+        }
+    }
+}
+
+impl<VM: ManageVars + Default> Default for SatInstance<VM> {
     fn default() -> Self {
         Self {
             cnf: Default::default(),
             cards: Default::default(),
             pbs: Default::default(),
-            var_manager: VM::new(),
+            var_manager: VM::default(),
         }
     }
 }
 
-impl<VM: ManageVars> FromIterator<Clause> for SatInstance<VM> {
+impl<VM: ManageVars + Default> FromIterator<Clause> for SatInstance<VM> {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
         let mut inst = Self::default();
         iter.into_iter().for_each(|cl| inst.add_clause(cl));
@@ -1118,6 +1136,57 @@ impl Objective {
             }
         }
     }
+
+    /// Reindexes all variables in the instance with a reindexing variable manager
+    pub fn reindex(self, reindexer: &mut ReindexingVarManager) -> Objective {
+        match self {
+            Objective::Weighted {
+                soft_lits,
+                soft_clauses,
+                offset,
+            } => {
+                let soft_lits = soft_lits
+                    .into_iter()
+                    .map(|(l, w)| (reindexer.reindex_lit(l), w))
+                    .collect::<RsHashMap<Lit, usize>>();
+                let soft_clauses = soft_clauses
+                    .into_iter()
+                    .map(|(cl, w)| {
+                        (
+                            cl.into_iter().map(|l| reindexer.reindex_lit(l)).collect(),
+                            w,
+                        )
+                    })
+                    .collect();
+                Objective::Weighted {
+                    soft_lits,
+                    soft_clauses,
+                    offset,
+                }
+            }
+            Objective::Unweighted {
+                soft_lits,
+                soft_clauses,
+                unit_weight,
+                offset,
+            } => {
+                let soft_lits = soft_lits
+                    .into_iter()
+                    .map(|l| reindexer.reindex_lit(l))
+                    .collect();
+                let soft_clauses = soft_clauses
+                    .into_iter()
+                    .map(|cl| cl.into_iter().map(|l| reindexer.reindex_lit(l)).collect())
+                    .collect();
+                Objective::Unweighted {
+                    offset,
+                    unit_weight,
+                    soft_lits,
+                    soft_clauses,
+                }
+            }
+        }
+    }
 }
 
 #[cfg(feature = "optimization")]
@@ -1164,14 +1233,6 @@ pub struct OptInstance<VM: ManageVars = BasicVarManager> {
 
 #[cfg(feature = "optimization")]
 impl<VM: ManageVars> OptInstance<VM> {
-    /// Creates a new optimization instance
-    pub fn new() -> Self {
-        OptInstance {
-            constrs: SatInstance::new(),
-            obj: Objective::new(),
-        }
-    }
-
     /// Creates a new optimization instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
         OptInstance {
@@ -1194,123 +1255,6 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
     pub fn decompose(self) -> (SatInstance<VM>, Objective) {
         (self.constrs, self.obj)
-    }
-
-    /// Parses a DIMACS instance from a reader object.
-    ///
-    /// # File Format
-    ///
-    /// The file format expected by this reader is either the [old DIMACS
-    /// WCNF](https://maxsat-evaluations.github.io/2017/rules.html#input) format
-    /// used in the MaxSAT evaluation before 2022 or the [new
-    /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) used
-    /// since 2022.
-    ///
-    /// If a DIMACS MCNF file is passed to this function, all objectives but the
-    /// first are ignored.
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        Self::from_dimacs_reader_with_idx(reader, 0)
-    }
-
-    /// Parses a DIMACS instance from a reader object, selecting the objective
-    /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`OptInstance::from_dimacs_reader`].
-    pub fn from_dimacs_reader_with_idx<R: Read>(
-        reader: R,
-        obj_idx: usize,
-    ) -> Result<Self, ParsingError> {
-        match dimacs::parse_wcnf_with_idx(reader, obj_idx) {
-            Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
-            Ok(inst) => {
-                let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.new_var();
-                    let mut vm2 = VM::new();
-                    vm2.increase_next_free(nfv);
-                    vm2
-                });
-                Ok(inst)
-            }
-        }
-    }
-
-    /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_dimacs_reader(reader),
-        }
-    }
-
-    /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader_with_idx`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_dimacs_path_with_idx<P: AsRef<Path>>(
-        path: P,
-        obj_idx: usize,
-    ) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_dimacs_reader_with_idx(reader, obj_idx),
-        }
-    }
-
-    /// Parses an OPB instance from a reader object.
-    ///
-    /// # File Format
-    ///
-    /// The file format expected by this parser is the OPB format for
-    /// pseudo-boolean optimization instances. For details on the file format
-    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        OptInstance::from_opb_reader_with_idx(reader, 0)
-    }
-
-    /// Parses an OPB instance from a reader object, selecting the objective
-    /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`OptInstance::from_opb_reader`].
-    pub fn from_opb_reader_with_idx<R: Read>(
-        reader: R,
-        obj_idx: usize,
-    ) -> Result<Self, ParsingError> {
-        match opb::parse_opt_with_idx(reader, obj_idx) {
-            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
-            Ok(inst) => {
-                let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.new_var();
-                    let mut vm2 = VM::new();
-                    vm2.increase_next_free(nfv);
-                    vm2
-                });
-                Ok(inst)
-            }
-        }
-    }
-
-    /// Parses an OPB instance from a file path. For more details see
-    /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_opb_reader(reader),
-        }
-    }
-
-    /// Parses an OPB instance from a file path, selecting the objective with
-    /// index `obj_idx` if multiple are available. The index starts at 0. For
-    /// more details see [`OptInstance::from_opb_reader`]. With feature
-    /// `compression` supports bzip2 and gzip compression, detected by the file
-    /// extension.
-    pub fn from_opb_path_with_idx<P: AsRef<Path>>(
-        path: P,
-        obj_idx: usize,
-    ) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx),
-        }
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
@@ -1340,15 +1284,26 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the included variable manager to a different type
-    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> OptInstance<VM2>
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (OptInstance<VM2>, VM)
     where
         VM2: ManageVars,
-        VMC: Fn(VM) -> VM2,
+        VMC: Fn(&VM) -> VM2,
     {
-        OptInstance {
-            constrs: self.constrs.change_var_manager(vm_converter),
-            obj: self.obj,
-        }
+        let (constrs, vm) = self.constrs.change_var_manager(vm_converter);
+        (
+            OptInstance {
+                constrs,
+                obj: self.obj,
+            },
+            vm,
+        )
+    }
+
+    /// Reindexes all variables in the instance with a reindexing variable manager
+    pub fn reindex(self, mut reindexer: ReindexingVarManager) -> OptInstance<ReindexingVarManager> {
+        let obj = self.obj.reindex(&mut reindexer);
+        let constrs = self.constrs.reindex(reindexer);
+        OptInstance { constrs, obj }
     }
 
     /// Writes the instance to a DIMACS WCNF file at a path
@@ -1396,6 +1351,112 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 }
 
+#[cfg(feature = "optimization")]
+impl<VM: ManageVars + Default> OptInstance<VM> {
+    /// Creates a new optimization instance
+    pub fn new() -> Self {
+        OptInstance {
+            constrs: SatInstance::new(),
+            obj: Objective::new(),
+        }
+    }
+
+    /// Parses a DIMACS instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this reader is either the [old DIMACS
+    /// WCNF](https://maxsat-evaluations.github.io/2017/rules.html#input) format
+    /// used in the MaxSAT evaluation before 2022 or the [new
+    /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) used
+    /// since 2022.
+    ///
+    /// If a DIMACS MCNF file is passed to this function, all objectives but the
+    /// first are ignored.
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        Self::from_dimacs_reader_with_idx(reader, 0)
+    }
+
+    /// Parses a DIMACS instance from a reader object, selecting the objective
+    /// with index `obj_idx` if multiple are available. The index starts at 0.
+    /// For more details see [`OptInstance::from_dimacs_reader`].
+    pub fn from_dimacs_reader_with_idx<R: Read>(
+        reader: R,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        Ok(dimacs::parse_wcnf_with_idx(reader, obj_idx)?)
+    }
+
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader_with_idx`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_dimacs_path_with_idx<P: AsRef<Path>>(
+        path: P,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_dimacs_reader_with_idx(reader, obj_idx),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean optimization instances. For details on the file format
+    /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        OptInstance::from_opb_reader_with_idx(reader, 0)
+    }
+
+    /// Parses an OPB instance from a reader object, selecting the objective
+    /// with index `obj_idx` if multiple are available. The index starts at 0.
+    /// For more details see [`OptInstance::from_opb_reader`].
+    pub fn from_opb_reader_with_idx<R: Read>(
+        reader: R,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        Ok(opb::parse_opt_with_idx(reader, obj_idx)?)
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_opb_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a file path, selecting the objective with
+    /// index `obj_idx` if multiple are available. The index starts at 0. For
+    /// more details see [`OptInstance::from_opb_reader`]. With feature
+    /// `compression` supports bzip2 and gzip compression, detected by the file
+    /// extension.
+    pub fn from_opb_path_with_idx<P: AsRef<Path>>(
+        path: P,
+        obj_idx: usize,
+    ) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx),
+        }
+    }
+}
+
 #[cfg(feature = "multiopt")]
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
@@ -1407,18 +1468,6 @@ pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
 
 #[cfg(feature = "multiopt")]
 impl<VM: ManageVars> MultiOptInstance<VM> {
-    /// Creates a new optimization instance
-    pub fn new(n_objs: usize) -> Self {
-        MultiOptInstance {
-            constrs: SatInstance::new(),
-            objs: {
-                let mut tmp = Vec::with_capacity(n_objs);
-                tmp.resize(n_objs, Objective::new());
-                tmp
-            },
-        }
-    }
-
     /// Creates a new optimization instance with a specific var manager
     pub fn new_with_manager(n_objs: usize, var_manager: VM) -> Self {
         MultiOptInstance {
@@ -1447,86 +1496,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Decomposes the optimization instance to a [`SatInstance`] and [`Objective`]s
     pub fn decompose(self) -> (SatInstance<VM>, Vec<Objective>) {
         (self.constrs, self.objs)
-    }
-
-    /// Parse a DIMACS instance from a reader object.
-    ///
-    /// # File Format
-    ///
-    /// The file format expected by this reader is an extension of the [new
-    /// DIMACS WCNF
-    /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) to
-    /// multiple objectives, which we call DIMACS MCNF. An example of this file
-    /// format is the following:
-    ///
-    /// ```text
-    /// c <comment>
-    /// h 1 2 3 0
-    /// o1 5 1 0
-    /// o2 7 2 3 0
-    /// ```
-    ///
-    /// Comments start with `c`, as in other DIMACS formats. Hard clauses start
-    /// with an `h`, as in WCNF files. Soft clauses are of the following form
-    /// `o<obj idx> <weight> <lit 1> ... <lit n> 0`. The first token must be a
-    /// positive number preceded by an 'o', indicating what objective this soft
-    /// clause belongs to. After that, the format is identical to a soft clause
-    /// in a WCNF file.
-    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        match dimacs::parse_mcnf(reader) {
-            Err(dimacs_error) => Err(ParsingError::Dimacs(dimacs_error)),
-            Ok(inst) => {
-                let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.new_var();
-                    let mut vm2 = VM::new();
-                    vm2.increase_next_free(nfv);
-                    vm2
-                });
-                Ok(inst)
-            }
-        }
-    }
-
-    /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader`].
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => MultiOptInstance::from_dimacs_reader(reader),
-        }
-    }
-
-    /// Parses an OPB instance from a reader object.
-    ///
-    /// # File Format
-    ///
-    /// The file format expected by this parser is the OPB format for
-    /// pseudo-boolean optimization instances with multiple objectives defined.
-    /// For details on the file format see
-    /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
-        match opb::parse_multi_opt(reader) {
-            Err(opb_error) => Err(ParsingError::Opb(opb_error)),
-            Ok(inst) => {
-                let inst = inst.change_var_manager(|mut vm| {
-                    let nfv = vm.new_var();
-                    let mut vm2 = VM::new();
-                    vm2.increase_next_free(nfv);
-                    vm2
-                });
-                Ok(inst)
-            }
-        }
-    }
-
-    /// Parses an OPB instance from a file path. For more details see
-    /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
-        match open_compressed_uncompressed_read(path) {
-            Err(why) => Err(ParsingError::IO(why)),
-            Ok(reader) => MultiOptInstance::from_opb_reader(reader),
-        }
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
@@ -1564,15 +1533,33 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the included variable manager to a different type
-    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> MultiOptInstance<VM2>
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (MultiOptInstance<VM2>, VM)
     where
-        VM2: ManageVars,
-        VMC: Fn(VM) -> VM2,
+        VM2: ManageVars + Default,
+        VMC: Fn(&VM) -> VM2,
     {
-        MultiOptInstance {
-            constrs: self.constrs.change_var_manager(vm_converter),
-            objs: self.objs,
-        }
+        let (constrs, vm) = self.constrs.change_var_manager(vm_converter);
+        (
+            MultiOptInstance {
+                constrs,
+                objs: self.objs,
+            },
+            vm,
+        )
+    }
+
+    /// Reindexes all variables in the instance with a reindexing variable manager
+    pub fn reindex(
+        self,
+        mut reindexer: ReindexingVarManager,
+    ) -> MultiOptInstance<ReindexingVarManager> {
+        let objs = self
+            .objs
+            .into_iter()
+            .map(|o| o.reindex(&mut reindexer))
+            .collect();
+        let constrs = self.constrs.reindex(reindexer);
+        MultiOptInstance { constrs, objs }
     }
 
     /// Writes the instance to a DIMACS MCNF file at a path
@@ -1620,12 +1607,81 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 }
 
+#[cfg(feature = "multiopt")]
+impl<VM: ManageVars + Default> MultiOptInstance<VM> {
+    /// Creates a new optimization instance
+    pub fn new(n_objs: usize) -> Self {
+        MultiOptInstance {
+            constrs: SatInstance::new(),
+            objs: {
+                let mut tmp = Vec::with_capacity(n_objs);
+                tmp.resize(n_objs, Objective::new());
+                tmp
+            },
+        }
+    }
+
+    /// Parse a DIMACS instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this reader is an extension of the [new
+    /// DIMACS WCNF
+    /// format](https://maxsat-evaluations.github.io/2022/rules.html#input) to
+    /// multiple objectives, which we call DIMACS MCNF. An example of this file
+    /// format is the following:
+    ///
+    /// ```text
+    /// c <comment>
+    /// h 1 2 3 0
+    /// o1 5 1 0
+    /// o2 7 2 3 0
+    /// ```
+    ///
+    /// Comments start with `c`, as in other DIMACS formats. Hard clauses start
+    /// with an `h`, as in WCNF files. Soft clauses are of the following form
+    /// `o<obj idx> <weight> <lit 1> ... <lit n> 0`. The first token must be a
+    /// positive number preceded by an 'o', indicating what objective this soft
+    /// clause belongs to. After that, the format is identical to a soft clause
+    /// in a WCNF file.
+    pub fn from_dimacs_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        Ok(dimacs::parse_mcnf(reader)?)
+    }
+
+    /// Parses a DIMACS instance from a file path. For more details see
+    /// [`OptInstance::from_dimacs_reader`].
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => MultiOptInstance::from_dimacs_reader(reader),
+        }
+    }
+
+    /// Parses an OPB instance from a reader object.
+    ///
+    /// # File Format
+    ///
+    /// The file format expected by this parser is the OPB format for
+    /// pseudo-boolean optimization instances with multiple objectives defined.
+    /// For details on the file format see
+    /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    pub fn from_opb_reader<R: Read>(reader: R) -> Result<Self, ParsingError> {
+        Ok(opb::parse_multi_opt(reader)?)
+    }
+
+    /// Parses an OPB instance from a file path. For more details see
+    /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
+    /// bzip2 and gzip compression, detected by the file extension.
+    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, ParsingError> {
+        match open_compressed_uncompressed_read(path) {
+            Err(why) => Err(ParsingError::IO(why)),
+            Ok(reader) => MultiOptInstance::from_opb_reader(reader),
+        }
+    }
+}
+
 /// Trait for variable managers keeping track of used variables
 pub trait ManageVars {
-    /// Creates a new variable manager
-    fn new() -> Self
-    where
-        Self: Sized;
     /// Uses up the next free variable
     fn new_var(&mut self) -> Var;
     /// Gets the used variable with the highest index
@@ -1663,10 +1719,6 @@ impl BasicVarManager {
 }
 
 impl ManageVars for BasicVarManager {
-    fn new() -> Self {
-        Self::default()
-    }
-
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
         self.next_var = Var::new(v.idx() + 1);
@@ -1705,6 +1757,110 @@ impl Default for BasicVarManager {
         Self {
             next_var: Var::new(0),
         }
+    }
+}
+
+/// Manager for reindexing an existing instance
+#[derive(PartialEq, Eq)]
+pub struct ReindexingVarManager {
+    next_var: Var,
+    in_map: RsHashMap<Var, Var>,
+    out_map: RsHashMap<Var, Var>,
+}
+
+impl ReindexingVarManager {
+    /// Creates a new variable manager from a next free variable
+    pub fn from_next_free(next_var: Var) -> Self {
+        Self {
+            next_var,
+            in_map: RsHashMap::default(),
+            out_map: RsHashMap::default(),
+        }
+    }
+
+    /// Gets a remapped variable for an input variable or crates a new mapping
+    pub fn reindex(&mut self, in_var: Var) -> Var {
+        match self.in_map.get(&in_var) {
+            Some(v) => *v,
+            None => {
+                let v = self.new_var();
+                self.in_map.insert(in_var, v);
+                self.out_map.insert(v, in_var);
+                v
+            }
+        }
+    }
+
+    /// Wrapper for mapping literals instead of variables
+    pub fn reindex_lit(&mut self, in_lit: Lit) -> Lit {
+        let v = self.reindex(in_lit.var());
+        if in_lit.is_pos() {
+            v.pos_lit()
+        } else {
+            v.neg_lit()
+        }
+    }
+
+    /// Reverse the reindexing of a variable
+    pub fn reverse(&self, out_var: Var) -> Option<Var> {
+        self.out_map.get(&out_var).copied()
+    }
+
+    /// Reverse the reindexing of a literal
+    pub fn reverse_lit(&self, out_lit: Lit) -> Option<Lit> {
+        match self.reverse(out_lit.var()) {
+            Some(v) => Some(if out_lit.is_pos() {
+                v.pos_lit()
+            } else {
+                v.neg_lit()
+            }),
+            None => None,
+        }
+    }
+}
+
+impl Default for ReindexingVarManager {
+    fn default() -> Self {
+        Self {
+            next_var: Var::new(0),
+            in_map: Default::default(),
+            out_map: Default::default(),
+        }
+    }
+}
+
+impl ManageVars for ReindexingVarManager {
+    fn new_var(&mut self) -> Var {
+        let v = self.next_var;
+        self.next_var = Var::new(v.idx() + 1);
+        v
+    }
+
+    fn max_var(&self) -> Option<Var> {
+        if self.next_var == var![0] {
+            None
+        } else {
+            Some(self.next_var - 1)
+        }
+    }
+
+    fn increase_next_free(&mut self, v: Var) -> bool {
+        if v > self.next_var {
+            self.next_var = v;
+            return true;
+        };
+        false
+    }
+
+    fn combine(&mut self, other: Self) {
+        if other.next_var > self.next_var {
+            self.next_var = other.next_var;
+        };
+        self.in_map.extend(other.in_map);
+    }
+
+    fn n_used(&self) -> usize {
+        self.next_var.idx()
     }
 }
 
@@ -1752,10 +1908,6 @@ impl Default for ObjectVarManager {
 }
 
 impl ManageVars for ObjectVarManager {
-    fn new() -> Self {
-        Self::default()
-    }
-
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
         self.next_var = Var::new(v.idx() + 1);
@@ -1840,7 +1992,7 @@ mod tests {
 
     #[test]
     fn var_manager_sequence() {
-        let mut man = ObjectVarManager::new();
+        let mut man = ObjectVarManager::default();
         let v1 = man.new_var();
         let v2 = man.new_var();
         let v3 = man.new_var();
@@ -1853,7 +2005,7 @@ mod tests {
 
     #[test]
     fn var_manager_objects() {
-        let mut man = ObjectVarManager::new();
+        let mut man = ObjectVarManager::default();
         let obj1 = ("Test", 5);
         let obj2 = vec![3, 1, 6];
         let v1 = man.object_var(obj1);
