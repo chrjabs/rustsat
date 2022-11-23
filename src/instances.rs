@@ -1062,8 +1062,48 @@ impl Objective {
             }
         }
     }
+
+    /// Gets the maximum variable in the objective
+    pub fn max_var(&self) -> Option<Var> {
+        let find_max = |mv, v| {
+            if let Some(mv) = mv {
+                if mv < v {
+                    Some(v)
+                } else {
+                    Some(mv)
+                }
+            } else {
+                Some(v)
+            }
+        };
+        match self {
+            Objective::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                let max_var = soft_lits
+                    .iter()
+                    .fold(None, |mv, (l, _)| find_max(mv, l.var()));
+                soft_clauses.iter().fold(max_var, |mv, (cl, _)| {
+                    cl.iter().fold(mv, |mv, l| find_max(mv, l.var()))
+                })
+            }
+            Objective::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                let max_var = soft_lits.iter().fold(None, |mv, l| find_max(mv, l.var()));
+                soft_clauses.iter().fold(max_var, |mv, cl| {
+                    cl.iter().fold(mv, |mv, l| find_max(mv, l.var()))
+                })
+            }
+        }
+    }
 }
 
+#[cfg(feature = "optimization")]
 impl FromIterator<(Lit, usize)> for Objective {
     fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
         let mut obj = Self::default();
@@ -1074,6 +1114,7 @@ impl FromIterator<(Lit, usize)> for Objective {
     }
 }
 
+#[cfg(feature = "optimization")]
 impl FromIterator<(Lit, isize)> for Objective {
     fn from_iter<T: IntoIterator<Item = (Lit, isize)>>(iter: T) -> Self {
         let mut obj = Self::default();
@@ -1084,6 +1125,7 @@ impl FromIterator<(Lit, isize)> for Objective {
     }
 }
 
+#[cfg(feature = "optimization")]
 impl FromIterator<(Clause, usize)> for Objective {
     fn from_iter<T: IntoIterator<Item = (Clause, usize)>>(iter: T) -> Self {
         let mut obj = Self::default();
@@ -1122,7 +1164,10 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Creates a new optimization instance from constraints and an objective
-    pub fn compose(constraints: SatInstance<VM>, objective: Objective) -> Self {
+    pub fn compose(mut constraints: SatInstance<VM>, objective: Objective) -> Self {
+        if let Some(mv) = objective.max_var() {
+            constraints.var_manager().increase_next_free(mv);
+        }
         OptInstance {
             constrs: constraints,
             obj: objective,
@@ -1367,10 +1412,16 @@ impl<VM: ManageVars> BiOptInstance<VM> {
 
     /// Creates a new optimization instance from constraints and two objectives
     pub fn compose(
-        constraints: SatInstance<VM>,
+        mut constraints: SatInstance<VM>,
         objective_1: Objective,
         objective_2: Objective,
     ) -> Self {
+        if let Some(mv) = objective_1.max_var() {
+            constraints.var_manager().increase_next_free(mv);
+        }
+        if let Some(mv) = objective_2.max_var() {
+            constraints.var_manager().increase_next_free(mv);
+        }
         BiOptInstance {
             constr: constraints,
             obj_1: objective_1,
@@ -1464,7 +1515,12 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Creates a new optimization instance from constraints and objectives
-    pub fn compose(constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
+    pub fn compose(mut constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
+        objectives.iter().for_each(|o| {
+            if let Some(mv) = o.max_var() {
+                constraints.var_manager().increase_next_free(mv);
+            }
+        });
         MultiOptInstance {
             constrs: constraints,
             objs: objectives,
