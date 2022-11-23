@@ -321,7 +321,7 @@ impl Drop for Kissat<'_> {
 }
 
 /// Possible Kissat configurations
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Config {
     /// Default configuration
     Default,

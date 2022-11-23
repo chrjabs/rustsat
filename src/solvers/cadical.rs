@@ -631,7 +631,7 @@ impl Drop for CaDiCaL<'_, '_> {
 }
 
 /// Possible CaDiCaL configurations
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Config {
     /// Set default advanced internal options
     Default,
