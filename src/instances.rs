@@ -1187,6 +1187,22 @@ impl Objective {
             }
         }
     }
+
+    /// Normalizes the objective to a unified representation. This sorts internal data structures.
+    pub fn normalize(mut self) -> Self {
+        match &mut self {
+            Objective::Weighted { .. } => (),
+            Objective::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                soft_lits.sort_unstable();
+                soft_clauses.sort_unstable();
+            }
+        };
+        self
+    }
 }
 
 #[cfg(feature = "optimization")]
