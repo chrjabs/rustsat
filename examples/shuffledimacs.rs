@@ -7,9 +7,7 @@
 
 use std::path::PathBuf;
 
-use rustsat::instances::{
-    BasicVarManager, ManageVars, MultiOptInstance, OptInstance, RandReindVarManager, SatInstance,
-};
+use rustsat::instances::{self, BasicVarManager, ManageVars, RandReindVarManager};
 
 macro_rules! print_usage {
     () => {{
@@ -20,7 +18,9 @@ macro_rules! print_usage {
 
 enum FileType {
     CNF,
+    #[cfg(feature = "optimization")]
     WCNF,
+    #[cfg(feature = "multiopt")]
     MCNF,
 }
 
@@ -30,7 +30,7 @@ fn main() {
 
     match determine_file_type(&in_path) {
         FileType::CNF => {
-            let mut inst = SatInstance::<BasicVarManager>::from_dimacs_path(in_path)
+            let mut inst = instances::SatInstance::<BasicVarManager>::from_dimacs_path(in_path)
                 .expect("Could not parse CNF");
             let n_vars = inst.var_manager().n_used();
             let rand_reindexer = RandReindVarManager::init(n_vars);
@@ -39,8 +39,9 @@ fn main() {
                 .to_dimacs_path(out_path)
                 .expect("Could not write CNF");
         }
+        #[cfg(feature = "optimization")]
         FileType::WCNF => {
-            let mut inst = OptInstance::<BasicVarManager>::from_dimacs_path(in_path)
+            let mut inst = instances::OptInstance::<BasicVarManager>::from_dimacs_path(in_path)
                 .expect("Could not parse WCNF");
             let n_vars = inst.get_constraints().var_manager().n_used();
             let rand_reindexer = RandReindVarManager::init(n_vars);
@@ -49,9 +50,11 @@ fn main() {
                 .to_dimacs_path(out_path)
                 .expect("Could not write WCNF");
         }
+        #[cfg(feature = "multiopt")]
         FileType::MCNF => {
-            let mut inst = MultiOptInstance::<BasicVarManager>::from_dimacs_path(in_path)
-                .expect("Could not parse MCNF");
+            let mut inst =
+                instances::MultiOptInstance::<BasicVarManager>::from_dimacs_path(in_path)
+                    .expect("Could not parse MCNF");
             let n_vars = inst.get_constraints().var_manager().n_used();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
@@ -80,14 +83,15 @@ fn determine_file_type(in_path: &PathBuf) -> FileType {
         } else {
             ext
         };
+        #[cfg(feature = "optimization")]
         if "wcnf" == ext {
-            FileType::WCNF
-        } else if "mcnf" == ext {
-            FileType::MCNF
-        } else {
-            FileType::CNF // Fallback default
-        }
-    } else {
-        FileType::CNF // Fallback default
-    }
+            return FileType::WCNF;
+        };
+        #[cfg(feature = "multiopt")]
+        if "mcnf" == ext {
+            return FileType::MCNF;
+        };
+        return FileType::CNF; // Fallback default
+    };
+    FileType::CNF // Fallback default
 }
