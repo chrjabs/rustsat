@@ -2,7 +2,7 @@
 //!
 //! A small tool for converting DIMACS MCNF files to OPB.
 //!
-//! Useage: wcnf2opb [dimacs mcnf file] [opb output path]
+//! Usage: wcnf2opb [dimacs mcnf file] [opb output path]
 
 use rustsat::instances::MultiOptInstance;
 

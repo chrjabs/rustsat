@@ -2,7 +2,7 @@
 //!
 //! A small tool for converting DIMACS WCNF files to OPB.
 //!
-//! Useage: wcnf2opb [dimacs wcnf file] [opb output path]
+//! Usage: wcnf2opb [dimacs wcnf file] [opb output path]
 
 use rustsat::instances::OptInstance;
 
