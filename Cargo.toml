@@ -61,3 +61,7 @@ required-features = ["compression", "multiopt"]
 [[example]]
 name = "opb2mcnf"
 required-features = ["compression", "multiopt"]
+
+[[example]]
+name = "shuffledimacs"
+required-features = ["compression", "rand"]
