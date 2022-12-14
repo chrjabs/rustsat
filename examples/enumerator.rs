@@ -2,7 +2,7 @@
 //!
 //! A small tool that enumerates all solutions of a DIMACS CNF file.
 //!
-//! Useage: enumerator [dimacs cnf file]
+//! Usage: enumerator [dimacs cnf file]
 
 use rustsat::{
     instances::{ManageVars, SatInstance},

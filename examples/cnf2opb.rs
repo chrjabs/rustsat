@@ -2,7 +2,7 @@
 //!
 //! A small tool for converting DIMACS CNF files to OPB.
 //!
-//! Useage: cnf2opb [dimacs cnf file] [opb output path]
+//! Usage: cnf2opb [dimacs cnf file] [opb output path]
 
 use rustsat::instances::SatInstance;
 

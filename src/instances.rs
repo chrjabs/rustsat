@@ -252,6 +252,15 @@ impl CNF {
             clauses: norm_clauses,
         }
     }
+
+    #[cfg(feature = "rand")]
+    /// Randomly shuffles the order of clauses in the CNF
+    pub fn shuffle(mut self) -> Self {
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        (&mut self.clauses[..]).shuffle(&mut rng);
+        self
+    }
 }
 
 impl IntoIterator for CNF {
@@ -482,10 +491,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
-    pub fn reindex(
-        mut self,
-        mut reindexer: ReindexingVarManager,
-    ) -> SatInstance<ReindexingVarManager> {
+    pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> SatInstance<R> {
         self.cnf
             .iter_mut()
             .for_each(|cl| cl.iter_mut().for_each(|l| *l = reindexer.reindex_lit(*l)));
@@ -502,6 +508,17 @@ impl<VM: ManageVars> SatInstance<VM> {
             pbs: self.pbs,
             var_manager: reindexer,
         }
+    }
+
+    #[cfg(feature = "rand")]
+    /// Randomly shuffles the order of constraints.
+    pub fn shuffle(mut self) -> Self {
+        use rand::seq::SliceRandom;
+        self.cnf = self.cnf.shuffle();
+        let mut rng = rand::thread_rng();
+        (&mut self.cards[..]).shuffle(&mut rng);
+        (&mut self.pbs[..]).shuffle(&mut rng);
+        self
     }
 
     /// Writes the instance to a DIMACS CNF file at a path
@@ -1138,7 +1155,7 @@ impl Objective {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
-    pub fn reindex(self, reindexer: &mut ReindexingVarManager) -> Objective {
+    pub fn reindex<R: ReindexVars>(self, reindexer: &mut R) -> Objective {
         match self {
             Objective::Weighted {
                 soft_lits,
@@ -1199,6 +1216,25 @@ impl Objective {
             } => {
                 soft_lits.sort_unstable();
                 soft_clauses.sort_unstable();
+            }
+        };
+        self
+    }
+
+    #[cfg(feature = "rand")]
+    /// Randomly shuffles the order of literals
+    pub fn shuffle(mut self) -> Self {
+        use rand::seq::SliceRandom;
+        match &mut self {
+            Objective::Weighted { .. } => (),
+            Objective::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                let mut rng = rand::thread_rng();
+                (soft_lits[..]).shuffle(&mut rng);
+                (soft_clauses[..]).shuffle(&mut rng);
             }
         };
         self
@@ -1316,10 +1352,18 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
-    pub fn reindex(self, mut reindexer: ReindexingVarManager) -> OptInstance<ReindexingVarManager> {
+    pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> OptInstance<R> {
         let obj = self.obj.reindex(&mut reindexer);
         let constrs = self.constrs.reindex(reindexer);
         OptInstance { constrs, obj }
+    }
+
+    #[cfg(feature = "rand")]
+    /// Randomly shuffles the order of constraints and the objective
+    pub fn shuffle(mut self) -> Self {
+        self.constrs = self.constrs.shuffle();
+        self.obj = self.obj.shuffle();
+        self
     }
 
     /// Writes the instance to a DIMACS WCNF file at a path
@@ -1565,10 +1609,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
-    pub fn reindex(
-        self,
-        mut reindexer: ReindexingVarManager,
-    ) -> MultiOptInstance<ReindexingVarManager> {
+    pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
         let objs = self
             .objs
             .into_iter()
@@ -1576,6 +1617,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             .collect();
         let constrs = self.constrs.reindex(reindexer);
         MultiOptInstance { constrs, objs }
+    }
+
+    #[cfg(feature = "rand")]
+    /// Randomly shuffles the order of constraints and the objective
+    pub fn shuffle(mut self) -> Self {
+        self.constrs = self.constrs.shuffle();
+        self.objs = self.objs.into_iter().map(|o| o.shuffle()).collect();
+        self
     }
 
     /// Writes the instance to a DIMACS MCNF file at a path
@@ -1721,6 +1770,34 @@ pub trait ManageVars {
     fn n_used(&self) -> usize;
 }
 
+/// Trait for variable managers reindexing an existing instance
+pub trait ReindexVars: ManageVars {
+    /// Gets a remapped variable for an input variable or crates a new mapping
+    fn reindex(&mut self, in_var: Var) -> Var;
+    /// Gets a remapped literal for an input literal
+    fn reindex_lit(&mut self, in_lit: Lit) -> Lit {
+        let v = self.reindex(in_lit.var());
+        if in_lit.is_pos() {
+            v.pos_lit()
+        } else {
+            v.neg_lit()
+        }
+    }
+    /// Reverses the reindexing of a variable
+    fn reverse(&self, out_var: Var) -> Option<Var>;
+    /// Reverses the reindexing of a literal
+    fn reverse_lit(&self, out_lit: Lit) -> Option<Lit> {
+        match self.reverse(out_lit.var()) {
+            Some(v) => Some(if out_lit.is_pos() {
+                v.pos_lit()
+            } else {
+                v.neg_lit()
+            }),
+            None => None,
+        }
+    }
+}
+
 /// Simple counter variable manager
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BasicVarManager {
@@ -1793,9 +1870,10 @@ impl ReindexingVarManager {
             out_map: RsHashMap::default(),
         }
     }
+}
 
-    /// Gets a remapped variable for an input variable or crates a new mapping
-    pub fn reindex(&mut self, in_var: Var) -> Var {
+impl ReindexVars for ReindexingVarManager {
+    fn reindex(&mut self, in_var: Var) -> Var {
         match self.in_map.get(&in_var) {
             Some(v) => *v,
             None => {
@@ -1807,31 +1885,8 @@ impl ReindexingVarManager {
         }
     }
 
-    /// Wrapper for mapping literals instead of variables
-    pub fn reindex_lit(&mut self, in_lit: Lit) -> Lit {
-        let v = self.reindex(in_lit.var());
-        if in_lit.is_pos() {
-            v.pos_lit()
-        } else {
-            v.neg_lit()
-        }
-    }
-
-    /// Reverse the reindexing of a variable
-    pub fn reverse(&self, out_var: Var) -> Option<Var> {
+    fn reverse(&self, out_var: Var) -> Option<Var> {
         self.out_map.get(&out_var).copied()
-    }
-
-    /// Reverse the reindexing of a literal
-    pub fn reverse_lit(&self, out_lit: Lit) -> Option<Lit> {
-        match self.reverse(out_lit.var()) {
-            Some(v) => Some(if out_lit.is_pos() {
-                v.pos_lit()
-            } else {
-                v.neg_lit()
-            }),
-            None => None,
-        }
     }
 }
 
@@ -1951,6 +2006,97 @@ impl ManageVars for ObjectVarManager {
             self.next_var = other.next_var;
         };
         self.object_map.extend(other.object_map);
+    }
+
+    fn n_used(&self) -> usize {
+        self.next_var.idx()
+    }
+}
+
+#[cfg(feature = "rand")]
+/// Manager for randomly reindexing an instance
+#[derive(PartialEq, Eq)]
+pub struct RandReindVarManager {
+    next_var: Var,
+    in_map: Vec<Var>,
+    out_map: Vec<Var>,
+}
+
+#[cfg(feature = "rand")]
+impl RandReindVarManager {
+    /// Creates a new variable manager from a next free variable
+    pub fn init(n_vars: usize) -> Self {
+        use rand::seq::SliceRandom;
+        let mut in_map: Vec<Var> = (0..n_vars).map(|idx| Var::new(idx)).collect();
+        let mut rng = rand::thread_rng();
+        // Build randomly shuffled input map
+        (&mut in_map[..]).shuffle(&mut rng);
+        // Build reverse map
+        let mut out_map = vec![Var::new(0); n_vars];
+        in_map
+            .iter()
+            .enumerate()
+            .for_each(|(idx, v)| out_map[v.idx()] = Var::new(idx));
+        Self {
+            next_var: Var::new(n_vars),
+            in_map,
+            out_map,
+        }
+    }
+}
+
+#[cfg(feature = "rand")]
+impl ReindexVars for RandReindVarManager {
+    fn reindex(&mut self, in_var: Var) -> Var {
+        match self.in_map.get(in_var.idx()) {
+            Some(v) => *v,
+            None => {
+                // Don't reindex vars that are out of initialized range
+                in_var
+            }
+        }
+    }
+
+    fn reverse(&self, out_var: Var) -> Option<Var> {
+        match self.out_map.get(out_var.idx()) {
+            Some(v) => Some(*v),
+            None => {
+                // Vars out of the initialized range are not reindexed
+                Some(out_var)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "rand")]
+impl ManageVars for RandReindVarManager {
+    fn new_var(&mut self) -> Var {
+        let v = self.next_var;
+        self.next_var = Var::new(v.idx() + 1);
+        v
+    }
+
+    fn max_var(&self) -> Option<Var> {
+        if self.next_var == var![0] {
+            None
+        } else {
+            Some(self.next_var - 1)
+        }
+    }
+
+    fn increase_next_free(&mut self, v: Var) -> bool {
+        if v > self.next_var {
+            self.next_var = v;
+            return true;
+        };
+        false
+    }
+
+    fn combine(&mut self, other: Self) {
+        if other.next_var > self.next_var {
+            self.next_var = other.next_var;
+        };
+        self.in_map.extend(other.in_map);
     }
 
     fn n_used(&self) -> usize {
