@@ -1558,6 +1558,11 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         (self.constrs, self.objs)
     }
 
+    /// Returns the number of objectives in the instance
+    pub fn n_objectives(&self) -> usize {
+        self.objs.len()
+    }
+
     /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
@@ -1568,6 +1573,16 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     pub fn get_objective(&mut self, obj_idx: usize) -> &mut Objective {
         assert!(obj_idx < self.objs.len());
         &mut self.objs[obj_idx]
+    }
+
+    /// Returns an iterator over references to the objectives
+    pub fn iter_obj(&self) -> impl Iterator<Item = &Objective> {
+        self.objs.iter()
+    }
+
+    /// Returns an iterator over mutable references to the objectives
+    pub fn iter_obj_mut(&mut self) -> impl Iterator<Item = &mut Objective> {
+        self.objs.iter_mut()
     }
 
     /// Converts the instance to a set of hard and soft clauses
