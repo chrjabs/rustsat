@@ -330,7 +330,7 @@ mod test {
     }
 
     #[test]
-    fn tiny_instance() {
+    fn tiny_instance_sat() {
         let mut solver = IpasirSolver::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
@@ -338,6 +338,20 @@ mod test {
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
             Ok(res) => assert_eq!(res, SolverResult::SAT),
+        }
+    }
+
+    #[test]
+    fn tiny_instance_unsat() {
+        let mut solver = IpasirSolver::default();
+        solver.add_unit(!lit![0]).unwrap();
+        solver.add_binary(lit![0], !lit![1]).unwrap();
+        solver.add_binary(lit![1], !lit![2]).unwrap();
+        solver.add_unit(lit![2]).unwrap();
+        let ret = solver.solve();
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
         }
     }
 

@@ -43,7 +43,7 @@ fn main() {
     build_glucose4(
         "https://github.com/chrjabs/glucose4",
         "main",
-        "359974cecd675ff7eab6a7572f5b847ccc28cc26",
+        "8e8212d09c2b37a06c11ce2e0434956448bc8785",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -220,11 +220,9 @@ fn build_glucose4(repo: &str, branch: &str, commit: &str) -> bool {
         if update_repo(glucose4_dir, repo, branch, commit)
             || !Path::new(&out_dir).join("libglucose4.a").exists()
         {
-            // Repo changed, rebuild
             cmake::build(glucose4_dir);
         };
 
-        #[cfg(not(feature = "glucose4-parallel"))]
         println!("cargo:rustc-link-lib=static=glucose4");
 
         return true;
