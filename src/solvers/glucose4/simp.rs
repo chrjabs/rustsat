@@ -3,47 +3,43 @@
 //! Interface to the [Glucose 4](https://www.labri.fr/perso/lsimon/research/glucose/#glucose-4.2.1) incremental SAT solver.
 
 use core::ffi::{c_int, CStr};
-use std::fmt;
 
 use super::{
-    IncrementalSolve, InternalSolverState, Solve, SolveMightFail, SolveStats, SolverError,
+    IncrementalSolve, InternalSolverState, Limit, Solve, SolveMightFail, SolveStats, SolverError,
     SolverResult, SolverState, SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
 use ffi::Glucose4Handle;
 
-mod simp;
-pub use simp::GlucoseSimp4;
-
-/// The Glucose 4 solver type without preprocessing
-pub struct Glucose4 {
+/// The Glucose 4 solver type with preprocessing
+pub struct GlucoseSimp4 {
     handle: *mut Glucose4Handle,
     state: InternalSolverState,
     stats: SolverStats,
 }
 
-impl Default for Glucose4 {
+impl Default for GlucoseSimp4 {
     fn default() -> Self {
         Self {
-            handle: unsafe { ffi::cglucose4_init() },
+            handle: unsafe { ffi::cglucosesimp4_init() },
             state: Default::default(),
             stats: Default::default(),
         }
     }
 }
 
-impl Glucose4 {
+impl GlucoseSimp4 {
     fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
         for a in assumps {
-            match unsafe { ffi::cglucose4_failed(self.handle, a.to_ipasir()) } {
+            match unsafe { ffi::cglucosesimp4_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
                 1 => core.push(!*a),
                 invalid => {
                     return Err(SolverError::API(format!(
-                        "cglucose4_failed returned invalid value: {}",
+                        "cglucosesimp4_failed returned invalid value: {}",
                         invalid
                     )))
                 }
@@ -55,31 +51,48 @@ impl Glucose4 {
     /// Sets an internal limit for Glucose
     pub fn set_limit(&mut self, limit: Limit) {
         match limit {
-            Limit::None => unsafe { ffi::cglucose4_set_no_limit(self.handle) },
-            Limit::Conflicts(limit) => unsafe { ffi::cglucose4_set_conf_limit(self.handle, limit) },
+            Limit::None => unsafe { ffi::cglucosesimp4_set_no_limit(self.handle) },
+            Limit::Conflicts(limit) => unsafe {
+                ffi::cglucosesimp4_set_conf_limit(self.handle, limit)
+            },
             Limit::Propagations(limit) => unsafe {
-                ffi::cglucose4_set_prop_limit(self.handle, limit)
+                ffi::cglucosesimp4_set_prop_limit(self.handle, limit)
             },
         };
     }
 
     /// Gets the current number of assigned literals
     pub fn n_assigns(&self) -> c_int {
-        unsafe { ffi::cglucose4_n_assigns(self.handle) }
+        unsafe { ffi::cglucosesimp4_n_assigns(self.handle) }
     }
 
     /// Gets the current number of learnt clauses
     pub fn n_learnts(&self) -> c_int {
-        unsafe { ffi::cglucose4_n_learnts(self.handle) }
+        unsafe { ffi::cglucosesimp4_n_learnts(self.handle) }
     }
 
     /// Asynchronously force the solver to terminate
     pub fn terminate(&mut self) {
-        unsafe { ffi::cglucose4_interrupt(self.handle) }
+        unsafe { ffi::cglucosesimp4_interrupt(self.handle) }
+    }
+
+    /// Freezes a literal.
+    pub fn freeze_lit(&mut self, lit: Lit) {
+        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, lit.var().to_ipasir(), true) }
+    }
+
+    /// Melts a literal.
+    pub fn melt_lit(&mut self, lit: Lit) {
+        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, lit.var().to_ipasir(), false) }
+    }
+
+    /// Checks if a variable has been eliminated by preprocessing.
+    pub fn var_eliminated(&mut self, var: Var) {
+        unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) }
     }
 }
 
-impl Solve for Glucose4 {
+impl Solve for GlucoseSimp4 {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::cglucose4_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -104,7 +117,7 @@ impl Solve for Glucose4 {
         }
         let start = ProcessTime::now();
         // Solve with glucose backend
-        let res = unsafe { ffi::cglucose4_solve(self.handle) };
+        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -133,7 +146,7 @@ impl Solve for Glucose4 {
         match &self.state {
             InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
-                match unsafe { ffi::cglucose4_val(self.handle, lit) } {
+                match unsafe { ffi::cglucosesimp4_val(self.handle, lit) } {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
@@ -163,14 +176,14 @@ impl Solve for Glucose4 {
         self.state = InternalSolverState::Input;
         // Call glucose backend
         clause.into_iter().for_each(|l| unsafe {
-            ffi::cglucose4_add(self.handle, l.to_ipasir());
+            ffi::cglucosesimp4_add(self.handle, l.to_ipasir());
         });
-        unsafe { ffi::cglucose4_add(self.handle, 0) };
+        unsafe { ffi::cglucosesimp4_add(self.handle, 0) };
         Ok(())
     }
 }
 
-impl IncrementalSolve for Glucose4 {
+impl IncrementalSolve for GlucoseSimp4 {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -183,9 +196,9 @@ impl IncrementalSolve for Glucose4 {
         let start = ProcessTime::now();
         // Solve with glucose backend
         for a in &assumps {
-            unsafe { ffi::cglucose4_assume(self.handle, a.to_ipasir()) }
+            unsafe { ffi::cglucosesimp4_assume(self.handle, a.to_ipasir()) }
         }
-        let res = unsafe { ffi::cglucose4_solve(self.handle) };
+        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -218,7 +231,7 @@ impl IncrementalSolve for Glucose4 {
     }
 }
 
-impl SolveStats for Glucose4 {
+impl SolveStats for GlucoseSimp4 {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
         stats.max_var = self.max_var();
@@ -227,7 +240,7 @@ impl SolveStats for Glucose4 {
     }
 
     fn max_var(&self) -> Option<Var> {
-        let max_var_idx = unsafe { ffi::cglucose4_n_vars(self.handle) };
+        let max_var_idx = unsafe { ffi::cglucosesimp4_n_vars(self.handle) };
         if max_var_idx > 0 {
             Some(Var::new((max_var_idx - 1) as usize))
         } else {
@@ -236,42 +249,21 @@ impl SolveStats for Glucose4 {
     }
 
     fn n_clauses(&self) -> usize {
-        unsafe { ffi::cglucose4_n_clauses(self.handle) }
+        unsafe { ffi::cglucosesimp4_n_clauses(self.handle) }
             .try_into()
             .unwrap()
     }
 }
 
-impl Drop for Glucose4 {
+impl Drop for GlucoseSimp4 {
     fn drop(&mut self) {
-        unsafe { ffi::cglucose4_release(self.handle) }
-    }
-}
-
-/// Possible Glucose limits
-#[derive(Debug)]
-pub enum Limit {
-    /// No limits
-    None,
-    /// A limit on the number of conflicts
-    Conflicts(i64),
-    /// A limit on the number of propagations
-    Propagations(i64),
-}
-
-impl fmt::Display for Limit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Limit::None => write!(f, "none"),
-            Limit::Conflicts(val) => write!(f, "conflicts ({})", val),
-            Limit::Propagations(val) => write!(f, "propagations ({})", val),
-        }
+        unsafe { ffi::cglucosesimp4_release(self.handle) }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::Glucose4;
+    use super::GlucoseSimp4;
     use crate::{
         lit,
         solvers::{Solve, SolveStats, SolverResult},
@@ -281,18 +273,18 @@ mod test {
 
     #[test]
     fn build_destroy() {
-        let _solver = Glucose4::default();
+        let _solver = GlucoseSimp4::default();
     }
 
     #[test]
     fn build_two() {
-        let _solver1 = Glucose4::default();
-        let _solver2 = Glucose4::default();
+        let _solver1 = GlucoseSimp4::default();
+        let _solver2 = GlucoseSimp4::default();
     }
 
     #[test]
     fn tiny_instance_sat() {
-        let mut solver = Glucose4::default();
+        let mut solver = GlucoseSimp4::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         let ret = solver.solve();
@@ -304,7 +296,7 @@ mod test {
 
     #[test]
     fn tiny_instance_unsat() {
-        let mut solver = Glucose4::default();
+        let mut solver = GlucoseSimp4::default();
         solver.add_unit(!lit![0]).unwrap();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
@@ -318,7 +310,7 @@ mod test {
 
     #[test]
     fn backend_stats() {
-        let mut solver = Glucose4::default();
+        let mut solver = GlucoseSimp4::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -344,22 +336,24 @@ mod ffi {
     }
 
     extern "C" {
-        // Redefinitions of Glucose C API
+        // Redefinitions of CaDiCaL C API
         pub fn cglucose4_signature() -> *const c_char;
-        pub fn cglucose4_init() -> *mut Glucose4Handle;
-        pub fn cglucose4_release(solver: *mut Glucose4Handle);
-        pub fn cglucose4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int);
-        pub fn cglucose4_assume(solver: *mut Glucose4Handle, lit: c_int);
-        pub fn cglucose4_solve(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucose4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucose4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_n_learnts(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_n_vars(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_set_conf_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucose4_set_prop_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucose4_set_no_limit(solver: *mut Glucose4Handle);
-        pub fn cglucose4_interrupt(solver: *mut Glucose4Handle);
+        pub fn cglucosesimp4_init() -> *mut Glucose4Handle;
+        pub fn cglucosesimp4_release(solver: *mut Glucose4Handle);
+        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int);
+        pub fn cglucosesimp4_assume(solver: *mut Glucose4Handle, lit: c_int);
+        pub fn cglucosesimp4_solve(solver: *mut Glucose4Handle) -> c_int;
+        pub fn cglucosesimp4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
+        pub fn cglucosesimp4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
+        pub fn cglucosesimp4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
+        pub fn cglucosesimp4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
+        pub fn cglucosesimp4_n_learnts(solver: *mut Glucose4Handle) -> c_int;
+        pub fn cglucosesimp4_n_vars(solver: *mut Glucose4Handle) -> c_int;
+        pub fn cglucosesimp4_set_conf_limit(solver: *mut Glucose4Handle, limit: i64);
+        pub fn cglucosesimp4_set_prop_limit(solver: *mut Glucose4Handle, limit: i64);
+        pub fn cglucosesimp4_set_no_limit(solver: *mut Glucose4Handle);
+        pub fn cglucosesimp4_interrupt(solver: *mut Glucose4Handle);
+        pub fn cglucosesimp4_set_frozen(solver: *mut Glucose4Handle, var: c_int, frozen: bool);
+        pub fn cglucosesimp4_is_eliminated(solver: *mut Glucose4Handle, var: c_int);
     }
 }
