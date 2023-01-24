@@ -104,3 +104,19 @@ fn kissat_unsat_small_unsat() {
         .unwrap();
     small_unsat_instance(solver);
 }
+
+#[test]
+#[cfg(feature = "glucose4")]
+fn glucose4_small_sat() {
+    let solver = solvers::Glucose4::default();
+    small_sat_instance(solver);
+}
+
+// Note: this instance seems too hard for glucose to solve
+#[test]
+#[ignore]
+#[cfg(feature = "glucose4")]
+fn glucose4_small_unsat() {
+    let solver = solvers::Glucose4::default();
+    small_unsat_instance(solver);
+}

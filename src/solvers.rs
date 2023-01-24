@@ -44,7 +44,21 @@
 //!   Entering the SAT Competition 2020_, SAT Competition 2020.
 //! - Repository:
 //!   [https://github.com/arminbiere/kissat](https://github.com/arminbiere/kissat)
-//!
+//! 
+//! ### Glucose
+//! 
+//! [Glucose](https://www.labri.fr/perso/lsimon/research/glucose/) is a SAT
+//! solver based on MiniSat and developed by Gilles Audemard and Laurent Simon.
+//! Currently only Glucose version 4 (4.2.1) is included in RustSAT, controlled
+//! by the feature `glucose4`.
+//! 
+//! #### References
+//! 
+//! - Gilles Audemard and Laurent Simon: _Predicting Learnt Clauses Quality in
+//!   Modern SAT Solvers_, IJCAI 2009.
+//! - More references at the [Glucose
+//!   webpage](https://www.labri.fr/perso/lsimon/research/glucose/)
+//! 
 //! ### IPASIR
 //!
 //! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
@@ -92,6 +106,11 @@ pub use cadical::CaDiCaL;
 pub mod kissat;
 #[cfg(feature = "kissat")]
 pub use kissat::Kissat;
+
+#[cfg(feature = "glucose4")]
+pub mod glucose4;
+#[cfg(feature = "glucose4")]
+pub use glucose4::Glucose4;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to

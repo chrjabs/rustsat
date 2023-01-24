@@ -24,7 +24,13 @@ chrono = "0.4"
 cmake = "0.1"
 
 [features]
-default = ["cadical", "kissat", "optimization", "fxhash"]
+default = [
+  "cadical",
+  "kissat",
+  "glucose4",
+  "optimization",
+  "fxhash"
+]
 fxhash = ["dep:rustc-hash"]
 ipasir = []
 cadical = []
@@ -34,7 +40,16 @@ optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2"]
 rand = ["dep:rand"]
-all-non-conflicting = ["cadical", "optimization", "multiopt", "compression", "rand"]
+all-non-conflicting = [
+  "cadical",
+  "kissat",
+  "glucose4",
+  "optimization",
+  "multiopt",
+  "compression",
+  "rand",
+  "fxhash"
+]
 
 [[example]]
 name = "enumerator"
