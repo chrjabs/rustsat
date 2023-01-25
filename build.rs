@@ -45,6 +45,11 @@ fn main() {
         "main",
         "11276548d0c111aa96d85585ab1293ed575d83bb",
     );
+    build_minisat(
+        "https://github.com/chrjabs/minisat",
+        "main",
+        "593e654524586c0ee6d67ee6345fe3cf03b0bd0d",
+    );
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
@@ -218,12 +223,32 @@ fn build_glucose4(repo: &str, branch: &str, commit: &str) -> bool {
         glucose4_dir_str.push_str("/glucose4");
         let glucose4_dir = Path::new(&glucose4_dir_str);
         if update_repo(glucose4_dir, repo, branch, commit)
-            || !Path::new(&out_dir).join("libglucose4.a").exists()
+            || !Path::new(&out_dir).join("lib").join("libglucose4.a").exists()
         {
             cmake::build(glucose4_dir);
         };
 
         println!("cargo:rustc-link-lib=static=glucose4");
+
+        return true;
+    }
+    false
+}
+
+fn build_minisat(repo: &str, branch: &str, commit: &str) -> bool {
+    #[cfg(feature = "minisat")]
+    {
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let mut minisat_dir_str = out_dir.clone();
+        minisat_dir_str.push_str("/minisat");
+        let minisat_dir = Path::new(&minisat_dir_str);
+        if update_repo(minisat_dir, repo, branch, commit)
+            || !Path::new(&out_dir).join("lib").join("libminisat.a").exists()
+        {
+            cmake::build(minisat_dir);
+        };
+
+        println!("cargo:rustc-link-lib=static=minisat");
 
         return true;
     }

@@ -28,6 +28,7 @@ default = [
   "cadical",
   "kissat",
   "glucose4",
+  "minisat",
   "optimization",
   "fxhash"
 ]
@@ -36,6 +37,7 @@ ipasir = []
 cadical = []
 kissat = []
 glucose4 = []
+minisat = []
 optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2"]
@@ -44,6 +46,7 @@ all-non-conflicting = [
   "cadical",
   "kissat",
   "glucose4",
+  "minisat",
   "optimization",
   "multiopt",
   "compression",

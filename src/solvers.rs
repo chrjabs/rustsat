@@ -116,6 +116,15 @@ pub use glucose4::GlucoseSimp4;
 #[cfg(feature = "glucose4")]
 pub use glucose4::GlucoseSimp4 as Glucose4;
 
+#[cfg(feature = "minisat")]
+pub mod minisat;
+#[cfg(feature = "minisat")]
+pub use minisat::MinisatCore;
+#[cfg(feature = "minisat")]
+pub use minisat::MinisatSimp;
+#[cfg(feature = "minisat")]
+pub use minisat::MinisatSimp as Minisat;
+
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
