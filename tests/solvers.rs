@@ -107,8 +107,8 @@ fn kissat_unsat_small_unsat() {
 
 #[test]
 #[cfg(feature = "glucose4")]
-fn glucose4_small_sat() {
-    let solver = solvers::Glucose4::default();
+fn glucosecore4_small_sat() {
+    let solver = solvers::GlucoseCore4::default();
     small_sat_instance(solver);
 }
 
@@ -116,8 +116,8 @@ fn glucose4_small_sat() {
 #[test]
 #[ignore]
 #[cfg(feature = "glucose4")]
-fn glucose4_small_unsat() {
-    let solver = solvers::Glucose4::default();
+fn glucosecore4_small_unsat() {
+    let solver = solvers::GlucoseCore4::default();
     small_unsat_instance(solver);
 }
 

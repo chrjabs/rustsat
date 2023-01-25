@@ -110,9 +110,11 @@ pub use kissat::Kissat;
 #[cfg(feature = "glucose4")]
 pub mod glucose4;
 #[cfg(feature = "glucose4")]
-pub use glucose4::Glucose4;
+pub use glucose4::GlucoseCore4;
 #[cfg(feature = "glucose4")]
 pub use glucose4::GlucoseSimp4;
+#[cfg(feature = "glucose4")]
+pub use glucose4::GlucoseSimp4 as Glucose4;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
