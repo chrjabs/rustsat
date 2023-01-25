@@ -1,8 +1,7 @@
-//! # Glucose 4 Solver Interface With Preprocessing (Simp)
+//! # Minisat Solver Interface Without Preprocessing (Core)
 //!
-//! Interface to the [Glucose
-//! 4](https://www.labri.fr/perso/lsimon/research/glucose/#glucose-4.2.1)
-//! incremental SAT solver.
+//! Interface to the [Minisat](https://github.com/niklasso/minisat) incremental
+//! SAT solver.
 
 use core::ffi::{c_int, CStr};
 
@@ -13,36 +12,36 @@ use crate::solvers::{
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
-use ffi::Glucose4Handle;
+use ffi::MinisatHandle;
 
-/// The Glucose 4 solver type with preprocessing
-pub struct GlucoseSimp4 {
-    handle: *mut Glucose4Handle,
+/// The Minisat solver type without preprocessing
+pub struct MinisatCore {
+    handle: *mut MinisatHandle,
     state: InternalSolverState,
     stats: SolverStats,
 }
 
-impl Default for GlucoseSimp4 {
+impl Default for MinisatCore {
     fn default() -> Self {
         Self {
-            handle: unsafe { ffi::cglucosesimp4_init() },
+            handle: unsafe { ffi::cminisat_init() },
             state: Default::default(),
             stats: Default::default(),
         }
     }
 }
 
-impl GlucoseSimp4 {
+impl MinisatCore {
     fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
         for a in assumps {
-            match unsafe { ffi::cglucosesimp4_failed(self.handle, a.to_ipasir()) } {
+            match unsafe { ffi::cminisat_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
                 1 => core.push(!*a),
                 invalid => {
                     return Err(SolverError::API(format!(
-                        "cglucosesimp4_failed returned invalid value: {}",
+                        "cminisat_failed returned invalid value: {}",
                         invalid
                     )))
                 }
@@ -51,57 +50,40 @@ impl GlucoseSimp4 {
         Ok(core)
     }
 
-    /// Sets an internal limit for Glucose
+    /// Sets an internal limit for Minisat
     pub fn set_limit(&mut self, limit: Limit) {
         match limit {
-            Limit::None => unsafe { ffi::cglucosesimp4_set_no_limit(self.handle) },
-            Limit::Conflicts(limit) => unsafe {
-                ffi::cglucosesimp4_set_conf_limit(self.handle, limit)
-            },
+            Limit::None => unsafe { ffi::cminisat_set_no_limit(self.handle) },
+            Limit::Conflicts(limit) => unsafe { ffi::cminisat_set_conf_limit(self.handle, limit) },
             Limit::Propagations(limit) => unsafe {
-                ffi::cglucosesimp4_set_prop_limit(self.handle, limit)
+                ffi::cminisat_set_prop_limit(self.handle, limit)
             },
         };
     }
 
     /// Gets the current number of assigned literals
     pub fn n_assigns(&self) -> c_int {
-        unsafe { ffi::cglucosesimp4_n_assigns(self.handle) }
+        unsafe { ffi::cminisat_n_assigns(self.handle) }
     }
 
     /// Gets the current number of learnt clauses
     pub fn n_learnts(&self) -> c_int {
-        unsafe { ffi::cglucosesimp4_n_learnts(self.handle) }
+        unsafe { ffi::cminisat_n_learnts(self.handle) }
     }
 
     /// Asynchronously force the solver to terminate
     pub fn terminate(&mut self) {
-        unsafe { ffi::cglucosesimp4_interrupt(self.handle) }
-    }
-
-    /// Freezes a literal.
-    pub fn freeze_lit(&mut self, lit: Lit) {
-        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, lit.var().to_ipasir(), true) }
-    }
-
-    /// Melts a literal.
-    pub fn melt_lit(&mut self, lit: Lit) {
-        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, lit.var().to_ipasir(), false) }
-    }
-
-    /// Checks if a variable has been eliminated by preprocessing.
-    pub fn var_eliminated(&mut self, var: Var) {
-        unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) }
+        unsafe { ffi::cminisat_interrupt(self.handle) }
     }
 }
 
-impl Solve for GlucoseSimp4 {
+impl Solve for MinisatCore {
     fn signature(&self) -> &'static str {
-        let c_chars = unsafe { ffi::cglucose4_signature() };
+        let c_chars = unsafe { ffi::cminisat_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
         c_str
             .to_str()
-            .expect("Glucose 4 signature returned invalid UTF-8.")
+            .expect("Minisat signature returned invalid UTF-8.")
     }
 
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
@@ -119,8 +101,8 @@ impl Solve for GlucoseSimp4 {
             ));
         }
         let start = ProcessTime::now();
-        // Solve with glucose backend
-        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
+        // Solve with minisat backend
+        let res = unsafe { ffi::cminisat_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -139,7 +121,7 @@ impl Solve for GlucoseSimp4 {
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
-                "cglucosesimp4_solve returned invalid value: {}",
+                "cminisat_solve returned invalid value: {}",
                 invalid
             ))),
         }
@@ -149,12 +131,12 @@ impl Solve for GlucoseSimp4 {
         match &self.state {
             InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
-                match unsafe { ffi::cglucosesimp4_val(self.handle, lit) } {
+                match unsafe { ffi::cminisat_val(self.handle, lit) } {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
                     invalid => Err(SolverError::API(format!(
-                        "cglucosesimp4_val returned invalid value: {}",
+                        "cminisat_val returned invalid value: {}",
                         invalid
                     ))),
                 }
@@ -177,16 +159,16 @@ impl Solve for GlucoseSimp4 {
             (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
-        // Call glucose backend
+        // Call minisat backend
         clause.into_iter().for_each(|l| unsafe {
-            ffi::cglucosesimp4_add(self.handle, l.to_ipasir());
+            ffi::cminisat_add(self.handle, l.to_ipasir());
         });
-        unsafe { ffi::cglucosesimp4_add(self.handle, 0) };
+        unsafe { ffi::cminisat_add(self.handle, 0) };
         Ok(())
     }
 }
 
-impl IncrementalSolve for GlucoseSimp4 {
+impl IncrementalSolve for MinisatCore {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -197,11 +179,11 @@ impl IncrementalSolve for GlucoseSimp4 {
             ));
         }
         let start = ProcessTime::now();
-        // Solve with glucose backend
+        // Solve with minisat backend
         for a in &assumps {
-            unsafe { ffi::cglucosesimp4_assume(self.handle, a.to_ipasir()) }
+            unsafe { ffi::cminisat_assume(self.handle, a.to_ipasir()) }
         }
-        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
+        let res = unsafe { ffi::cminisat_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -220,7 +202,7 @@ impl IncrementalSolve for GlucoseSimp4 {
                 Ok(SolverResult::UNSAT)
             }
             invalid => Err(SolverError::API(format!(
-                "cglucosesimp4_solve returned invalid value: {}",
+                "cminisat_solve returned invalid value: {}",
                 invalid
             ))),
         }
@@ -234,7 +216,7 @@ impl IncrementalSolve for GlucoseSimp4 {
     }
 }
 
-impl SolveStats for GlucoseSimp4 {
+impl SolveStats for MinisatCore {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
         stats.max_var = self.max_var();
@@ -243,7 +225,7 @@ impl SolveStats for GlucoseSimp4 {
     }
 
     fn max_var(&self) -> Option<Var> {
-        let max_var_idx = unsafe { ffi::cglucosesimp4_n_vars(self.handle) };
+        let max_var_idx = unsafe { ffi::cminisat_n_vars(self.handle) };
         if max_var_idx > 0 {
             Some(Var::new((max_var_idx - 1) as usize))
         } else {
@@ -252,21 +234,21 @@ impl SolveStats for GlucoseSimp4 {
     }
 
     fn n_clauses(&self) -> usize {
-        unsafe { ffi::cglucosesimp4_n_clauses(self.handle) }
+        unsafe { ffi::cminisat_n_clauses(self.handle) }
             .try_into()
             .unwrap()
     }
 }
 
-impl Drop for GlucoseSimp4 {
+impl Drop for MinisatCore {
     fn drop(&mut self) {
-        unsafe { ffi::cglucosesimp4_release(self.handle) }
+        unsafe { ffi::cminisat_release(self.handle) }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::GlucoseSimp4;
+    use super::MinisatCore;
     use crate::{
         lit,
         solvers::{Solve, SolveStats, SolverResult},
@@ -276,18 +258,18 @@ mod test {
 
     #[test]
     fn build_destroy() {
-        let _solver = GlucoseSimp4::default();
+        let _solver = MinisatCore::default();
     }
 
     #[test]
     fn build_two() {
-        let _solver1 = GlucoseSimp4::default();
-        let _solver2 = GlucoseSimp4::default();
+        let _solver1 = MinisatCore::default();
+        let _solver2 = MinisatCore::default();
     }
 
     #[test]
     fn tiny_instance_sat() {
-        let mut solver = GlucoseSimp4::default();
+        let mut solver = MinisatCore::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         let ret = solver.solve();
@@ -299,7 +281,7 @@ mod test {
 
     #[test]
     fn tiny_instance_unsat() {
-        let mut solver = GlucoseSimp4::default();
+        let mut solver = MinisatCore::default();
         solver.add_unit(!lit![0]).unwrap();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
@@ -313,7 +295,7 @@ mod test {
 
     #[test]
     fn backend_stats() {
-        let mut solver = GlucoseSimp4::default();
+        let mut solver = MinisatCore::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -334,29 +316,27 @@ mod ffi {
     use core::ffi::{c_char, c_int};
 
     #[repr(C)]
-    pub struct Glucose4Handle {
+    pub struct MinisatHandle {
         _private: [u8; 0],
     }
 
     extern "C" {
-        // Redefinitions of Glucose C API
-        pub fn cglucose4_signature() -> *const c_char;
-        pub fn cglucosesimp4_init() -> *mut Glucose4Handle;
-        pub fn cglucosesimp4_release(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int);
-        pub fn cglucosesimp4_assume(solver: *mut Glucose4Handle, lit: c_int);
-        pub fn cglucosesimp4_solve(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_n_learnts(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_n_vars(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_set_conf_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucosesimp4_set_prop_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucosesimp4_set_no_limit(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_interrupt(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_set_frozen(solver: *mut Glucose4Handle, var: c_int, frozen: bool);
-        pub fn cglucosesimp4_is_eliminated(solver: *mut Glucose4Handle, var: c_int);
+        // Redefinitions of Minisat C API
+        pub fn cminisat_signature() -> *const c_char;
+        pub fn cminisat_init() -> *mut MinisatHandle;
+        pub fn cminisat_release(solver: *mut MinisatHandle);
+        pub fn cminisat_add(solver: *mut MinisatHandle, lit_or_zero: c_int);
+        pub fn cminisat_assume(solver: *mut MinisatHandle, lit: c_int);
+        pub fn cminisat_solve(solver: *mut MinisatHandle) -> c_int;
+        pub fn cminisat_val(solver: *mut MinisatHandle, lit: c_int) -> c_int;
+        pub fn cminisat_failed(solver: *mut MinisatHandle, lit: c_int) -> c_int;
+        pub fn cminisat_n_assigns(solver: *mut MinisatHandle) -> c_int;
+        pub fn cminisat_n_clauses(solver: *mut MinisatHandle) -> c_int;
+        pub fn cminisat_n_learnts(solver: *mut MinisatHandle) -> c_int;
+        pub fn cminisat_n_vars(solver: *mut MinisatHandle) -> c_int;
+        pub fn cminisat_set_conf_limit(solver: *mut MinisatHandle, limit: i64);
+        pub fn cminisat_set_prop_limit(solver: *mut MinisatHandle, limit: i64);
+        pub fn cminisat_set_no_limit(solver: *mut MinisatHandle);
+        pub fn cminisat_interrupt(solver: *mut MinisatHandle);
     }
 }

@@ -136,3 +136,35 @@ fn glucosesimp4_small_unsat() {
     let solver = solvers::GlucoseSimp4::default();
     small_unsat_instance(solver);
 }
+
+#[test]
+#[cfg(feature = "minisat")]
+fn minisatcore_small_sat() {
+    let solver = solvers::MinisatCore::default();
+    small_sat_instance(solver);
+}
+
+// Note: this instance seems too hard for minisat to solve
+#[test]
+#[ignore]
+#[cfg(feature = "minisat")]
+fn minisatcore_small_unsat() {
+    let solver = solvers::MinisatCore::default();
+    small_unsat_instance(solver);
+}
+
+#[test]
+#[cfg(feature = "minisat")]
+fn minisatsimp_small_sat() {
+    let solver = solvers::MinisatSimp::default();
+    small_sat_instance(solver);
+}
+
+// Note: this instance seems too hard for minisat to solve
+#[test]
+#[ignore]
+#[cfg(feature = "minisat")]
+fn minisatsimp_small_unsat() {
+    let solver = solvers::MinisatSimp::default();
+    small_unsat_instance(solver);
+}
