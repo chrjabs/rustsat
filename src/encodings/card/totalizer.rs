@@ -9,9 +9,9 @@
 //! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
-use super::{Encode, EncodingError, IncEncode, IncLB, IncUB, LB, UB};
+use super::{Encode, IncEncode, IncLB, IncUB, LB, UB};
 use crate::{
-    encodings::EncodeStats,
+    encodings::{EncodeStats, EncodingError},
     instances::{ManageVars, CNF},
     types::Lit,
 };

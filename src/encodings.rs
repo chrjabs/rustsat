@@ -2,6 +2,7 @@
 //!
 //! CNF encodings for cardinality and pseudo-boolean constraints.
 
+pub mod am1;
 pub mod card;
 pub mod pb;
 
