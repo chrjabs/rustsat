@@ -44,36 +44,36 @@
 //!   Entering the SAT Competition 2020_, SAT Competition 2020.
 //! - Repository:
 //!   [https://github.com/arminbiere/kissat](https://github.com/arminbiere/kissat)
-//! 
+//!
 //! ### Minisat
-//! 
+//!
 //! [Minisat](https://github.com/niklasso/minisat) is an incremental SAT solver
 //! by Niklas Een and Niklas Sörensson.
-//! 
+//!
 //! Including Minisat in a build of RustSAT is controlled by the `minisat`
 //! feature.
-//! 
+//!
 //! #### References
-//! 
+//!
 //! - Niklas Een and Niklas Sörensson (2003): _An Extensible SAT-solver_, SAT
 //!   2003.
 //! - Repository:
 //!   [https://github.com/niklasso/minisat](https://github.com/niklasso/minisat)
-//! 
+//!
 //! ### Glucose
-//! 
+//!
 //! [Glucose](https://www.labri.fr/perso/lsimon/research/glucose/) is a SAT
 //! solver based on Minisat and developed by Gilles Audemard and Laurent Simon.
 //! Currently only Glucose version 4 (4.2.1) is included in RustSAT, controlled
 //! by the feature `glucose4`.
-//! 
+//!
 //! #### References
-//! 
+//!
 //! - Gilles Audemard and Laurent Simon: _Predicting Learnt Clauses Quality in
 //!   Modern SAT Solvers_, IJCAI 2009.
 //! - More references at the [Glucose
 //!   webpage](https://www.labri.fr/perso/lsimon/research/glucose/)
-//! 
+//!
 //! ### IPASIR
 //!
 //! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
