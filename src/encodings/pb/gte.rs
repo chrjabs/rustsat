@@ -8,9 +8,9 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{Encode, EncodingError, IncEncode, IncUB, UB};
+use super::{Encode, IncEncode, IncUB, UB};
 use crate::{
-    encodings::EncodeStats,
+    encodings::{EncodeStats, EncodingError},
     instances::{ManageVars, CNF},
     types::{Lit, RsHashMap},
 };
