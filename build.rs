@@ -43,12 +43,12 @@ fn main() {
     build_glucose4(
         "https://github.com/chrjabs/glucose4",
         "main",
-        "11276548d0c111aa96d85585ab1293ed575d83bb",
+        "35a008f1b64da2235c4ea469446d7a046ea24fbc",
     );
     build_minisat(
         "https://github.com/chrjabs/minisat",
         "main",
-        "593e654524586c0ee6d67ee6345fe3cf03b0bd0d",
+        "7b20f5002b169715a9d2d834e39b2b6c744136eb",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -223,7 +223,10 @@ fn build_glucose4(repo: &str, branch: &str, commit: &str) -> bool {
         glucose4_dir_str.push_str("/glucose4");
         let glucose4_dir = Path::new(&glucose4_dir_str);
         if update_repo(glucose4_dir, repo, branch, commit)
-            || !Path::new(&out_dir).join("lib").join("libglucose4.a").exists()
+            || !Path::new(&out_dir)
+                .join("lib")
+                .join("libglucose4.a")
+                .exists()
         {
             cmake::build(glucose4_dir);
         };
@@ -243,7 +246,10 @@ fn build_minisat(repo: &str, branch: &str, commit: &str) -> bool {
         minisat_dir_str.push_str("/minisat");
         let minisat_dir = Path::new(&minisat_dir_str);
         if update_repo(minisat_dir, repo, branch, commit)
-            || !Path::new(&out_dir).join("lib").join("libminisat.a").exists()
+            || !Path::new(&out_dir)
+                .join("lib")
+                .join("libminisat.a")
+                .exists()
         {
             cmake::build(minisat_dir);
         };
