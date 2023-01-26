@@ -1,25 +1,31 @@
 //! # opb2cnf
 //!
 //! A small tool for converting OPB files to DIMACS CNF.
-//!
-//! Usage: opb2cnf [opb file] [dimacs cnf output path]
 
-use rustsat::instances::SatInstance;
+use clap::Parser;
+use rustsat::instances::{fio::opb::Options as OpbOptions, SatInstance};
+use std::path::PathBuf;
 
-macro_rules! print_usage {
-    () => {{
-        eprintln!("Usage: opb2cnf [opb file] [dimacs cnf output path]");
-        panic!()
-    }};
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// The OPB input file
+    in_path: PathBuf,
+    /// The DIMACS CNF output path
+    out_path: PathBuf,
+    /// The index in the OPB file to treat as the lowest variable
+    #[arg(long, default_value_t = 0)]
+    first_var_index: usize,
 }
 
 fn main() {
-    let in_path = std::env::args().nth(1).unwrap_or_else(|| print_usage!());
-    let out_path = std::env::args().nth(2).unwrap_or_else(|| print_usage!());
+    let args = Args::parse();
+    let mut opb_opts = OpbOptions::default();
+    opb_opts.first_var_idx = 0;
 
     let inst: SatInstance =
-        SatInstance::from_opb_path(in_path).expect("error parsing the input file");
+        SatInstance::from_opb_path(args.in_path, opb_opts).expect("error parsing the input file");
 
-    inst.to_dimacs_path(out_path)
+    inst.to_dimacs_path(args.out_path)
         .expect("io error writing the output file");
 }

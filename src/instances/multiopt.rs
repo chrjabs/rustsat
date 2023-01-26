@@ -1,10 +1,16 @@
 //! # Multi-Objective Optimization Instance Representations
 
-use std::{path::Path, io};
+use std::{io, path::Path};
 
-use crate::{encodings::{card, pb}, types::{constraints::{CardConstraint, PBConstraint}, WClsIter, WLitIter}};
+use crate::{
+    encodings::{card, pb},
+    types::{
+        constraints::{CardConstraint, PBConstraint},
+        WClsIter, WLitIter,
+    },
+};
 
-use super::{BasicVarManager, ManageVars, Objective, SatInstance, ReindexVars, CNF, fio};
+use super::{fio, BasicVarManager, ManageVars, Objective, ReindexVars, SatInstance, CNF};
 
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
@@ -163,14 +169,22 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Writes the instance to an OPB file at a path
-    pub fn to_opb_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+    pub fn to_opb_path<P: AsRef<Path>>(
+        self,
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        self.to_opb(&mut writer)
+        self.to_opb(&mut writer, opts)
     }
 
     /// Writes the instance to an OPB file
-    pub fn to_opb<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
-        fio::opb::write_multi_opt::<W, VM>(writer, self)
+    pub fn to_opb<W: io::Write>(
+        self,
+        writer: &mut W,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
+        fio::opb::write_multi_opt::<W, VM>(writer, self, opts)
     }
 }
 
@@ -231,17 +245,23 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// pseudo-boolean optimization instances with multiple objectives defined.
     /// For details on the file format see
     /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
-        Ok(fio::opb::parse_multi_opt(reader)?)
+    pub fn from_opb_reader<R: io::Read>(
+        reader: R,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::ParsingError> {
+        Ok(fio::opb::parse_multi_opt(reader, opts)?)
     }
 
     /// Parses an OPB instance from a file path. For more details see
     /// [`MultiOptInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::ParsingError> {
+    pub fn from_opb_path<P: AsRef<Path>>(
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => MultiOptInstance::from_opb_reader(reader),
+            Ok(reader) => MultiOptInstance::from_opb_reader(reader, opts),
         }
     }
 }

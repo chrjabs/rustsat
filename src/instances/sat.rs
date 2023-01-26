@@ -456,14 +456,22 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Writes the instance to an OPB file at a path
-    pub fn to_opb_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+    pub fn to_opb_path<P: AsRef<Path>>(
+        self,
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        self.to_opb(&mut writer)
+        self.to_opb(&mut writer, opts)
     }
 
     /// Writes the instance to an OPB file
-    pub fn to_opb<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
-        fio::opb::write_sat(writer, self)
+    pub fn to_opb<W: io::Write>(
+        self,
+        writer: &mut W,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
+        fio::opb::write_sat(writer, self, opts)
     }
 }
 
@@ -504,17 +512,23 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean satisfaction instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
-        Ok(fio::opb::parse_sat(reader)?)
+    pub fn from_opb_reader<R: io::Read>(
+        reader: R,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::ParsingError> {
+        Ok(fio::opb::parse_sat(reader, opts)?)
     }
 
     /// Parses an OPB instance from a file path. For more details see
     /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::ParsingError> {
+    pub fn from_opb_path<P: AsRef<Path>>(
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => SatInstance::from_opb_reader(reader),
+            Ok(reader) => SatInstance::from_opb_reader(reader, opts),
         }
     }
 }

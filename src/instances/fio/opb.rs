@@ -59,6 +59,28 @@ impl fmt::Display for Error {
     }
 }
 
+/// Options for reading and writing OPB files
+/// Possible relational operators
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Options {
+    /// The variable with this index (`x<idx>`) in the OPB file will correspond to
+    /// `var![0]`
+    pub first_var_idx: usize,
+    /// Whether to avoid negated literals (e.g., `4 ~x1`) by transforming the
+    /// constraint
+    pub no_negated_lits: bool,
+}
+
+impl Default for Options {
+    /// Default options following the OPB specification
+    fn default() -> Self {
+        Self {
+            first_var_idx: 0,
+            no_negated_lits: true,
+        }
+    }
+}
+
 /// Possible relational operators
 #[derive(Debug, PartialEq, Eq)]
 enum OpbOperator {
@@ -89,12 +111,12 @@ enum OpbData {
 }
 
 /// Parses the constraints from an OPB file as a [`SatInstance`]
-pub fn parse_sat<R, VM>(reader: R) -> Result<SatInstance<VM>, Error>
+pub fn parse_sat<R, VM>(reader: R, opts: Options) -> Result<SatInstance<VM>, Error>
 where
     R: Read,
     VM: ManageVars + Default,
 {
-    let data = parse_opb_data(reader)?;
+    let data = parse_opb_data(reader, opts)?;
     let mut inst = SatInstance::<VM>::new();
     data.into_iter().for_each(|d| {
         if let OpbData::Constr(constr) = d {
@@ -107,12 +129,16 @@ where
 #[cfg(feature = "optimization")]
 /// Parses an OPB file as an [`OptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_opt_with_idx<R, VM>(reader: R, obj_idx: usize) -> Result<OptInstance<VM>, Error>
+pub fn parse_opt_with_idx<R, VM>(
+    reader: R,
+    obj_idx: usize,
+    opts: Options,
+) -> Result<OptInstance<VM>, Error>
 where
     R: Read,
     VM: ManageVars + Default,
 {
-    let data = parse_opb_data(reader)?;
+    let data = parse_opb_data(reader, opts)?;
     let mut sat_inst = SatInstance::<VM>::new();
     let mut obj_cnt = 0;
     let obj = data.into_iter().fold(Objective::new(), |o, d| match d {
@@ -140,12 +166,12 @@ where
 #[cfg(feature = "multiopt")]
 /// Parses an OPB file as an [`MultiOptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_multi_opt<R, VM>(reader: R) -> Result<MultiOptInstance<VM>, Error>
+pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> Result<MultiOptInstance<VM>, Error>
 where
     R: Read,
     VM: ManageVars + Default,
 {
-    let data = parse_opb_data(reader)?;
+    let data = parse_opb_data(reader, opts)?;
     let mut sat_inst = SatInstance::<VM>::new();
     let mut objs = vec![];
     data.into_iter().for_each(|d| match d {
@@ -157,7 +183,7 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, Error> {
+fn parse_opb_data<R: Read>(reader: R, opts: Options) -> Result<Vec<OpbData>, Error> {
     let mut reader = BufReader::new(reader);
     let mut buf = String::new();
     let mut data = vec![];
@@ -165,7 +191,7 @@ fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, Error> {
         if len == 0 {
             return Ok(data);
         }
-        match many0(opb_data)(&buf) {
+        match many0(|i| opb_data(i, opts))(&buf) {
             Ok((rem, new_data)) => {
                 if !rem.is_empty() {
                     return Err(Error::InvalidLine(buf.clone()));
@@ -192,10 +218,10 @@ fn comment(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parses an OPB variable
-fn variable(input: &str) -> IResult<&str, Var> {
+fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
     let (input, _) = tag("x")(input)?;
     map_res(u64, |idx| {
-        let idx = idx.try_into()?;
+        let idx = (TryInto::<usize>::try_into(idx)?) - opts.first_var_idx;
         Ok::<Var, TryFromIntError>(Var::new(idx))
     })(input)
 }
@@ -203,10 +229,10 @@ fn variable(input: &str) -> IResult<&str, Var> {
 /// Parses a literal. The spec for linear OPB instances only allows for
 /// variables but we allow negated literals with '~' as in non-linear OPB
 /// instances.
-fn literal(input: &str) -> IResult<&str, Lit> {
+fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
     match tag::<_, _, NomError<_>>("~")(input) {
-        Ok((input, _)) => map_res(variable, |v| Ok::<_, ()>(v.neg_lit()))(input),
-        Err(_) => map_res(variable, |v| Ok::<_, ()>(v.pos_lit()))(input),
+        Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),
+        Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit()))(input),
     }
 }
 
@@ -235,15 +261,16 @@ fn weight(input: &str) -> IResult<&str, isize> {
 }
 
 /// Parses an OPB weighted term
-fn weighted_literal(input: &str) -> IResult<&str, (Lit, isize)> {
-    map_res(tuple((weight, space1, literal, space0)), |(w, _, l, _)| {
-        Ok::<_, ()>((l, w))
-    })(input)
+fn weighted_literal(input: &str, opts: Options) -> IResult<&str, (Lit, isize)> {
+    map_res(
+        tuple((weight, space1, |i| literal(i, opts), space0)),
+        |(w, _, l, _)| Ok::<_, ()>((l, w)),
+    )(input)
 }
 
 /// Parses an OPB sum
-fn weighted_lit_sum(input: &str) -> IResult<&str, Vec<(Lit, isize)>> {
-    many1(weighted_literal)(input)
+fn weighted_lit_sum(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
+    many1(|i| weighted_literal(i, opts))(input)
 }
 
 /// Leniently parses OPB constraint or objective ending as ';' or a line ending
@@ -262,9 +289,15 @@ fn opb_ending(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parses an OPB constraint
-fn constraint(input: &str) -> IResult<&str, PBConstraint> {
+fn constraint(input: &str, opts: Options) -> IResult<&str, PBConstraint> {
     map_res(
-        tuple((weighted_lit_sum, operator, space0, weight, opb_ending)),
+        tuple((
+            |i| weighted_lit_sum(i, opts),
+            operator,
+            space0,
+            weight,
+            opb_ending,
+        )),
         |(wls, op, _, b, _)| {
             let lits = wls.into_iter();
             Ok::<_, ()>(match op {
@@ -280,9 +313,14 @@ fn constraint(input: &str) -> IResult<&str, PBConstraint> {
 
 #[cfg(feature = "optimization")]
 /// Parses an OPB objective
-fn objective(input: &str) -> IResult<&str, Objective> {
+fn objective(input: &str, opts: Options) -> IResult<&str, Objective> {
     map_res(
-        tuple((tag("min:"), space0, weighted_lit_sum, opb_ending)),
+        tuple((
+            tag("min:"),
+            space0,
+            |i| weighted_lit_sum(i, opts),
+            opb_ending,
+        )),
         |(_, _, wsl, _)| {
             let mut obj = Objective::new();
             wsl.into_iter()
@@ -294,19 +332,27 @@ fn objective(input: &str) -> IResult<&str, Objective> {
 
 #[cfg(not(feature = "optimization"))]
 /// Matches an OPB objective
-fn objective(input: &str) -> IResult<&str, &str> {
-    recognize(tuple((tag("min:"), space0, weighted_lit_sum, opb_ending)))(input)
+fn objective(input: &str, opts: Options) -> IResult<&str, &str> {
+    recognize(tuple((
+        tag("min:"),
+        space0,
+        |i| weighted_lit_sum(i, opts),
+        opb_ending,
+    )))(input)
 }
 
 /// Top level string parser applied to lines
-fn opb_data(input: &str) -> IResult<&str, OpbData> {
+fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
     // remove leading spaces
     let (input, _) = space0(input)?;
     alt((
         map_res(comment, |cmt| Ok::<_, ()>(OpbData::Cmt(String::from(cmt)))),
-        map_res(constraint, |constr| Ok::<_, ()>(OpbData::Constr(constr))),
+        map_res(
+            |i| constraint(i, opts),
+            |constr| Ok::<_, ()>(OpbData::Constr(constr)),
+        ),
         #[cfg(feature = "optimization")]
-        map_res(objective, |obj| Ok::<_, ()>(OpbData::Obj(obj))),
+        map_res(|i| objective(i, opts), |obj| Ok::<_, ()>(OpbData::Obj(obj))),
         #[cfg(not(feature = "optimization"))]
         map_res(objective, |obj| {
             Ok::<_, ()>(OpbData::Obj(String::from(obj)))
@@ -315,7 +361,11 @@ fn opb_data(input: &str) -> IResult<&str, OpbData> {
 }
 
 /// Writes a [`SatInstance`] to an OPB file
-pub fn write_sat<W, VM>(writer: &mut W, inst: SatInstance<VM>) -> Result<(), io::Error>
+pub fn write_sat<W, VM>(
+    writer: &mut W,
+    inst: SatInstance<VM>,
+    opts: Options,
+) -> Result<(), io::Error>
 where
     W: Write,
     VM: ManageVars,
@@ -329,19 +379,23 @@ where
     writeln!(writer, "* {} pseudo-boolean constraints", inst.pbs.len())?;
     inst.cnf
         .into_iter()
-        .try_for_each(|cl| write_clause(writer, cl))?;
+        .try_for_each(|cl| write_clause(writer, cl, opts))?;
     inst.cards
         .into_iter()
-        .try_for_each(|card| write_card(writer, card))?;
+        .try_for_each(|card| write_card(writer, card, opts))?;
     inst.pbs
         .into_iter()
-        .try_for_each(|pb| write_pb(writer, pb))?;
+        .try_for_each(|pb| write_pb(writer, pb, opts))?;
     writer.flush()
 }
 
 #[cfg(feature = "optimization")]
 /// Writes an [`OptInstance`] to an OPB file
-pub fn write_opt<W, VM>(writer: &mut W, inst: OptInstance<VM>) -> Result<(), io::Error>
+pub fn write_opt<W, VM>(
+    writer: &mut W,
+    inst: OptInstance<VM>,
+    opts: Options,
+) -> Result<(), io::Error>
 where
     W: Write,
     VM: ManageVars,
@@ -364,22 +418,27 @@ where
         "* {} relaxed and hardened soft clauses",
         hardened.n_clauses()
     )?;
-    write_objective(writer, softs)?;
+    write_objective(writer, softs, opts)?;
     hardened
         .into_iter()
-        .try_for_each(|cl| write_clause(writer, cl))?;
+        .try_for_each(|cl| write_clause(writer, cl, opts))?;
     cnf.into_iter()
-        .try_for_each(|cl| write_clause(writer, cl))?;
+        .try_for_each(|cl| write_clause(writer, cl, opts))?;
     cards
         .into_iter()
-        .try_for_each(|card| write_card(writer, card))?;
-    pbs.into_iter().try_for_each(|pb| write_pb(writer, pb))?;
+        .try_for_each(|card| write_card(writer, card, opts))?;
+    pbs.into_iter()
+        .try_for_each(|pb| write_pb(writer, pb, opts))?;
     writer.flush()
 }
 
 #[cfg(feature = "multiopt")]
 /// Writes a [`MultiOptInstance`] to an OPB file
-pub fn write_multi_opt<W, VM>(writer: &mut W, inst: MultiOptInstance<VM>) -> Result<(), io::Error>
+pub fn write_multi_opt<W, VM>(
+    writer: &mut W,
+    inst: MultiOptInstance<VM>,
+    opts: Options,
+) -> Result<(), io::Error>
 where
     W: Write,
     VM: ManageVars,
@@ -406,115 +465,199 @@ where
         .try_for_each(|h| write!(writer, "{} ", h.n_clauses()))?;
     writeln!(writer, ") relaxed and hardened soft clauses",)?;
     objs.into_iter()
-        .try_for_each(|softs| write_objective(writer, softs))?;
-    hardened
-        .into_iter()
-        .try_for_each(|h| h.into_iter().try_for_each(|cl| write_clause(writer, cl)))?;
+        .try_for_each(|softs| write_objective(writer, softs, opts))?;
+    hardened.into_iter().try_for_each(|h| {
+        h.into_iter()
+            .try_for_each(|cl| write_clause(writer, cl, opts))
+    })?;
     cnf.into_iter()
-        .try_for_each(|cl| write_clause(writer, cl))?;
+        .try_for_each(|cl| write_clause(writer, cl, opts))?;
     cards
         .into_iter()
-        .try_for_each(|card| write_card(writer, card))?;
-    pbs.into_iter().try_for_each(|pb| write_pb(writer, pb))?;
+        .try_for_each(|card| write_card(writer, card, opts))?;
+    pbs.into_iter()
+        .try_for_each(|pb| write_pb(writer, pb, opts))?;
     writer.flush()
 }
 
 /// Writes a clause to an OPB file
-fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Error> {
-    let mut rhs: isize = 1;
-    clause.into_iter().try_for_each(|l| {
-        if l.is_pos() {
-            write!(writer, "1 x{} ", l.vidx())
-        } else {
-            rhs -= 1;
-            write!(writer, "-1 x{} ", l.vidx())
-        }
-    })?;
-    writeln!(writer, ">= {};", rhs)
+fn write_clause<W: Write>(writer: &mut W, clause: Clause, opts: Options) -> Result<(), io::Error> {
+    if opts.no_negated_lits {
+        let mut rhs: isize = 1;
+        clause.into_iter().try_for_each(|l| {
+            if l.is_pos() {
+                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+            } else {
+                rhs -= 1;
+                write!(writer, "-1 x{} ", l.vidx() + opts.first_var_idx)
+            }
+        })?;
+        writeln!(writer, ">= {};", rhs)
+    } else {
+        clause.into_iter().try_for_each(|l| {
+            if l.is_pos() {
+                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+            } else {
+                write!(writer, "1 ~x{} ", l.vidx() + opts.first_var_idx)
+            }
+        })?;
+        writeln!(writer, ">= 1;")
+    }
 }
 
 /// Writes a cardinality constraint to an OPB file
-fn write_card<W: Write>(writer: &mut W, card: CardConstraint) -> Result<(), io::Error> {
-    let (lits, bound, op) = match card {
-        CardConstraint::UB(constr) => {
-            let (lits, bound) = constr.decompose();
-            let bound = lits.len() as isize - bound as isize;
-            // Flip operator by negating literals
-            let lits: Vec<Lit> = lits.into_iter().map(|l| !l).collect();
-            (lits, bound, ">=")
-        }
-        CardConstraint::LB(constr) => {
-            let (lits, bound) = constr.decompose();
-            (lits, bound as isize, ">=")
-        }
-        CardConstraint::EQ(constr) => {
-            let (lits, bound) = constr.decompose();
-            (lits, bound as isize, "=")
-        }
-    };
-    let mut offset = 0;
-    lits.into_iter().try_for_each(|l| {
-        if l.is_pos() {
-            write!(writer, "1 x{} ", l.vidx())
-        } else {
-            offset += 1;
-            write!(writer, "-1 x{} ", l.vidx())
-        }
-    })?;
-    writeln!(writer, "{} {};", op, bound as isize - offset)
+fn write_card<W: Write>(
+    writer: &mut W,
+    card: CardConstraint,
+    opts: Options,
+) -> Result<(), io::Error> {
+    if opts.no_negated_lits {
+        let (lits, bound, op) = match card {
+            CardConstraint::UB(constr) => {
+                let (lits, bound) = constr.decompose();
+                let bound = lits.len() as isize - bound as isize;
+                // Flip operator by negating literals
+                let lits: Vec<Lit> = lits.into_iter().map(|l| !l).collect();
+                (lits, bound, ">=")
+            }
+            CardConstraint::LB(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound as isize, ">=")
+            }
+            CardConstraint::EQ(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound as isize, "=")
+            }
+        };
+        let mut offset = 0;
+        lits.into_iter().try_for_each(|l| {
+            if l.is_pos() {
+                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+            } else {
+                offset += 1;
+                write!(writer, "-1 x{} ", l.vidx() + opts.first_var_idx)
+            }
+        })?;
+        writeln!(writer, "{} {};", op, bound as isize - offset)
+    } else {
+        let (lits, bound, op) = match card {
+            CardConstraint::UB(constr) => {
+                let (lits, bound) = constr.decompose();
+                let bound = lits.len() as isize - bound as isize;
+                // Flip operator by negating literals
+                let lits: Vec<Lit> = lits.into_iter().map(|l| !l).collect();
+                (lits, bound, ">=")
+            }
+            CardConstraint::LB(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound as isize, ">=")
+            }
+            CardConstraint::EQ(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound as isize, "=")
+            }
+        };
+        lits.into_iter().try_for_each(|l| {
+            if l.is_pos() {
+                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+            } else {
+                write!(writer, "1 ~x{} ", l.vidx() + opts.first_var_idx)
+            }
+        })?;
+        writeln!(writer, "{} {};", op, bound)
+    }
 }
 
 /// Writes a pseudo-boolean constraint to an OPB file
-fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint) -> Result<(), io::Error> {
-    let (lits, bound, op) = match pb {
-        PBConstraint::UB(constr) => {
-            let (lits, bound) = constr.decompose();
-            let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
-            // Flip operator by negating literals
-            let lits = lits.into_iter().map(|(l, w)| (!l, w)).collect();
-            (lits, weight_sum as isize - bound, ">=")
-        }
-        PBConstraint::LB(constr) => {
-            let (lits, bound) = constr.decompose();
-            (lits, bound, ">=")
-        }
-        PBConstraint::EQ(constr) => {
-            let (lits, bound) = constr.decompose();
-            (lits, bound, "=")
-        }
-    };
-    let mut offset: isize = 0;
-    lits.into_iter().try_for_each(|(l, w)| {
-        if l.is_pos() {
-            write!(writer, "{} x{} ", w, l.vidx())
-        } else {
-            // TODO: consider returning error for usize -> isize cast
-            let w = w as isize;
-            offset += w;
-            write!(writer, "{} x{} ", -w, l.vidx())
-        }
-    })?;
-    writeln!(writer, "{} {};", op, bound - offset)
+fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint, opts: Options) -> Result<(), io::Error> {
+    if opts.no_negated_lits {
+        let (lits, bound, op) = match pb {
+            PBConstraint::UB(constr) => {
+                let (lits, bound) = constr.decompose();
+                let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+                // Flip operator by negating literals
+                let lits = lits.into_iter().map(|(l, w)| (!l, w)).collect();
+                (lits, weight_sum as isize - bound, ">=")
+            }
+            PBConstraint::LB(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound, ">=")
+            }
+            PBConstraint::EQ(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound, "=")
+            }
+        };
+        let mut offset: isize = 0;
+        lits.into_iter().try_for_each(|(l, w)| {
+            if l.is_pos() {
+                write!(writer, "{} x{} ", w, l.vidx() + opts.first_var_idx)
+            } else {
+                // TODO: consider returning error for usize -> isize cast
+                let w = w as isize;
+                offset += w;
+                write!(writer, "{} x{} ", -w, l.vidx() + opts.first_var_idx)
+            }
+        })?;
+        writeln!(writer, "{} {};", op, bound - offset)
+    } else {
+        let (lits, bound, op) = match pb {
+            PBConstraint::UB(constr) => {
+                let (lits, bound) = constr.decompose();
+                let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+                // Flip operator by negating literals
+                let lits = lits.into_iter().map(|(l, w)| (!l, w)).collect();
+                (lits, weight_sum as isize - bound, ">=")
+            }
+            PBConstraint::LB(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound, ">=")
+            }
+            PBConstraint::EQ(constr) => {
+                let (lits, bound) = constr.decompose();
+                (lits, bound, "=")
+            }
+        };
+        lits.into_iter().try_for_each(|(l, w)| {
+            if l.is_pos() {
+                write!(writer, "{} x{} ", w, l.vidx() + opts.first_var_idx)
+            } else {
+                write!(writer, "{} ~x{} ", w, l.vidx() + opts.first_var_idx)
+            }
+        })?;
+        writeln!(writer, "{} {};", op, bound)
+    }
 }
 
 #[cfg(feature = "optimization")]
 fn write_objective<W: Write, LI: WLitIter>(
     writer: &mut W,
     softs: (LI, isize),
+    opts: Options,
 ) -> Result<(), io::Error> {
     let (soft_lits, mut offset) = softs;
     write!(writer, "min:")?;
-    soft_lits
-        .into_iter()
-        .map(|(l, w)| {
-            if l.is_neg() {
-                offset += w as isize;
-                (l.var(), -(w as isize))
+    if opts.no_negated_lits {
+        soft_lits
+            .into_iter()
+            .map(|(l, w)| {
+                if l.is_neg() {
+                    offset += w as isize;
+                    (l.var(), -(w as isize))
+                } else {
+                    (l.var(), w as isize)
+                }
+            })
+            .try_for_each(|(v, w)| write!(writer, " {} x{}", w, v.idx() + opts.first_var_idx))?;
+    } else {
+        soft_lits.into_iter().try_for_each(|(l, w)| {
+            if l.is_pos() {
+                write!(writer, " {} x{}", w, l.vidx() + opts.first_var_idx)
             } else {
-                (l.var(), w as isize)
+                write!(writer, " {} ~x{}", w, l.vidx() + opts.first_var_idx)
             }
-        })
-        .try_for_each(|(v, w)| write!(writer, " {} x{}", w, v.idx()))?;
+        })?;
+    }
     writeln!(writer, ";")?;
     if offset != 0 {
         // OPB does not support offsets in objectives, so we have to add it as a comment
@@ -533,7 +676,7 @@ mod test {
 
     use super::{
         comment, constraint, literal, objective, opb_ending, operator, variable, weight,
-        weighted_lit_sum, weighted_literal, write_clause, write_sat, OpbOperator,
+        weighted_lit_sum, weighted_literal, write_clause, write_sat, OpbOperator, Options,
     };
     use crate::{
         clause,
@@ -567,20 +710,48 @@ mod test {
 
     #[test]
     fn parse_variable() {
-        assert_eq!(variable("x5 test"), Ok((" test", var![5])));
-        assert_eq!(variable("x2 test"), Ok((" test", var![2])));
         assert_eq!(
-            variable(" test\n"),
+            variable("x5 test", Options::default()),
+            Ok((" test", var![5]))
+        );
+        assert_eq!(
+            variable(
+                "x5 test",
+                Options {
+                    first_var_idx: 1,
+                    no_negated_lits: true
+                }
+            ),
+            Ok((" test", var![4]))
+        );
+        assert_eq!(
+            variable("x2 test", Options::default()),
+            Ok((" test", var![2]))
+        );
+        assert_eq!(
+            variable(" test\n", Options::default()),
             Err(nom::Err::Error(NomError::new(" test\n", ErrorKind::Tag)))
         );
     }
 
     #[test]
     fn parse_literal() {
-        assert_eq!(literal("x5 test"), Ok((" test", lit![5])));
-        assert_eq!(literal("x2 test"), Ok((" test", lit![2])));
-        assert_eq!(literal("~x5 test"), Ok((" test", !lit![5])));
-        assert_eq!(literal("~x2 test"), Ok((" test", !lit![2])));
+        assert_eq!(
+            literal("x5 test", Options::default()),
+            Ok((" test", lit![5]))
+        );
+        assert_eq!(
+            literal("x2 test", Options::default()),
+            Ok((" test", lit![2]))
+        );
+        assert_eq!(
+            literal("~x5 test", Options::default()),
+            Ok((" test", !lit![5]))
+        );
+        assert_eq!(
+            literal("~x2 test", Options::default()),
+            Ok((" test", !lit![2]))
+        );
     }
 
     #[test]
@@ -601,11 +772,20 @@ mod test {
 
     #[test]
     fn parse_weighted_literal() {
-        assert_eq!(weighted_literal("5 x1 test"), Ok(("test", (lit![1], 5))));
-        assert_eq!(weighted_literal("-5  x1 test"), Ok(("test", (lit![1], -5))));
-        assert_eq!(weighted_literal("5 ~x1  test"), Ok(("test", (!lit![1], 5))));
         assert_eq!(
-            weighted_literal("-5 ~x1 test"),
+            weighted_literal("5 x1 test", Options::default()),
+            Ok(("test", (lit![1], 5)))
+        );
+        assert_eq!(
+            weighted_literal("-5  x1 test", Options::default()),
+            Ok(("test", (lit![1], -5)))
+        );
+        assert_eq!(
+            weighted_literal("5 ~x1  test", Options::default()),
+            Ok(("test", (!lit![1], 5)))
+        );
+        assert_eq!(
+            weighted_literal("-5 ~x1 test", Options::default()),
             Ok(("test", (!lit![1], -5)))
         );
     }
@@ -613,7 +793,7 @@ mod test {
     #[test]
     fn parse_weighted_lit_sum() {
         assert_eq!(
-            weighted_lit_sum("5  x1    -3 ~x2  test"),
+            weighted_lit_sum("5  x1    -3 ~x2  test", Options::default()),
             Ok(("test", vec![(lit![1], 5), (!lit![2], -3)]))
         );
     }
@@ -628,7 +808,7 @@ mod test {
 
     #[test]
     fn parse_constraint() {
-        match constraint("3 x1 -2 ~x2 <= 4;") {
+        match constraint("3 x1 -2 ~x2 <= 4;", Options::default()) {
             Ok((rest, constr)) => match constr {
                 PBConstraint::UB(constr) => {
                     assert_eq!(rest, "");
@@ -647,7 +827,7 @@ mod test {
     #[cfg(feature = "optimization")]
     #[test]
     fn parse_objective() {
-        match objective("min: 3 x1 -2 ~x2;") {
+        match objective("min: 3 x1 -2 ~x2;", Options::default()) {
             Ok((rest, obj)) => {
                 assert_eq!(rest, "");
                 let mut should_be_obj = Objective::new();
@@ -657,7 +837,7 @@ mod test {
             }
             Err(_) => panic!(),
         }
-        match objective("min: x0;") {
+        match objective("min: x0;", Options::default()) {
             Ok(_) => panic!(),
             Err(err) => assert_eq!(err, nom::Err::Error(NomError::new("x0;", ErrorKind::Digit))),
         }
@@ -676,13 +856,13 @@ mod test {
     #[test]
     fn single_opb_data() {
         assert_eq!(
-            opb_data("* test\n"),
+            opb_data("* test\n", Options::default()),
             Ok(("", OpbData::Cmt(String::from("* test\n"))))
         );
         let lits = vec![(lit![1], 3), (!lit![2], -2)];
         let should_be_constr = PBConstraint::new_ub(lits, 4);
         assert_eq!(
-            opb_data("3 x1 -2 ~x2 <= 4;\n"),
+            opb_data("3 x1 -2 ~x2 <= 4;\n", Options::default()),
             Ok(("", OpbData::Constr(should_be_constr)))
         );
         #[cfg(feature = "optimization")]
@@ -690,9 +870,12 @@ mod test {
             let mut obj = Objective::new();
             obj.increase_soft_lit_int(-3, lit![0]);
             obj.increase_soft_lit_int(4, lit![1]);
-            assert_eq!(opb_data("min: -3 x0 4 x1;"), Ok(("", OpbData::Obj(obj))));
             assert_eq!(
-                opb_data("min: x0;"),
+                opb_data("min: -3 x0 4 x1;", Options::default()),
+                Ok(("", OpbData::Obj(obj)))
+            );
+            assert_eq!(
+                opb_data("min: x0;", Options::default()),
                 Err(nom::Err::Error(NomError::new("x0;", ErrorKind::Digit)))
             );
         }
@@ -704,7 +887,7 @@ mod test {
         let data = "* test\n5 x0 -3 x1 >= 4;\nmin: 1 x0;";
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
-        match parse_opb_data(reader) {
+        match parse_opb_data(reader, Options::default()) {
             Ok(data) => {
                 assert_eq!(data.len(), 3);
                 assert_eq!(data[0], OpbData::Cmt(String::from("* test\n")));
@@ -725,7 +908,7 @@ mod test {
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
         assert_eq!(
-            parse_opb_data(reader),
+            parse_opb_data(reader, Options::default()),
             Err(Error::InvalidLine(String::from("min: x0;")))
         );
     }
@@ -736,11 +919,11 @@ mod test {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_clause(&mut cursor, cl.clone()).unwrap();
+        write_clause(&mut cursor, cl.clone(), Options::default()).unwrap();
 
         cursor.rewind().unwrap();
 
-        let (cnf, _) = super::parse_sat::<_, BasicVarManager>(cursor)
+        let (cnf, _) = super::parse_sat::<_, BasicVarManager>(cursor, Options::default())
             .unwrap()
             .as_cnf();
 
@@ -748,14 +931,14 @@ mod test {
         assert_eq!(cnf.into_iter().next().unwrap().normalize(), cl.normalize());
     }
 
-    fn write_parse_inst_test(in_inst: SatInstance, true_inst: SatInstance) {
+    fn write_parse_inst_test(in_inst: SatInstance, true_inst: SatInstance, opts: Options) {
         let mut cursor = Cursor::new(vec![]);
 
-        write_sat(&mut cursor, in_inst).unwrap();
+        write_sat(&mut cursor, in_inst, opts).unwrap();
 
         cursor.rewind().unwrap();
 
-        let parsed_inst: SatInstance = super::parse_sat(cursor).unwrap();
+        let parsed_inst: SatInstance = super::parse_sat(cursor, opts).unwrap();
 
         let (parsed_cnf, parsed_vm) = parsed_inst.as_cnf();
         let (true_cnf, true_vm) = true_inst.as_cnf();
@@ -778,19 +961,51 @@ mod test {
         in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst);
+        write_parse_inst_test(in_inst, true_inst, Options::default());
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst);
+        write_parse_inst_test(in_inst, true_inst, Options::default());
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst);
+        write_parse_inst_test(in_inst, true_inst, Options::default());
+    }
+
+    #[test]
+    fn write_parse_card_neg_lits() {
+        // Note: this test is known to fail _sometimes_ without feature "fxhash".
+        // This is due to the non-deterministic default hash function.
+
+        // Since the hash map of going through a pb constraint at parsing
+        // reorders the literals, the true instance has to go through a pb
+        // constraint as well.
+        let lits = vec![(!lit![3], 1), (lit![4], 1), (!lit![5], 1)];
+
+        let mut alt_opb_opts = Options::default();
+        alt_opb_opts.no_negated_lits = false;
+
+        let mut in_inst: SatInstance = SatInstance::new();
+        in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        write_parse_inst_test(in_inst, true_inst, alt_opb_opts);
+
+        let mut in_inst: SatInstance = SatInstance::new();
+        in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        write_parse_inst_test(in_inst, true_inst, alt_opb_opts);
+
+        let mut in_inst: SatInstance = SatInstance::new();
+        in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        write_parse_inst_test(in_inst, true_inst, alt_opb_opts);
     }
 
     #[test]
@@ -799,14 +1014,34 @@ mod test {
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst);
+        write_parse_inst_test(true_inst.clone(), true_inst, Options::default());
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst);
+        write_parse_inst_test(true_inst.clone(), true_inst, Options::default());
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst);
+        write_parse_inst_test(true_inst.clone(), true_inst, Options::default());
+    }
+
+    #[test]
+    fn write_parse_pb_neg_lits() {
+        let lits = vec![(!lit![6], 3), (!lit![7], -5), (lit![8], 2), (lit![9], -4)];
+
+        let mut alt_opb_opts = Options::default();
+        alt_opb_opts.no_negated_lits = false;
+
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        write_parse_inst_test(true_inst.clone(), true_inst, alt_opb_opts);
+
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        write_parse_inst_test(true_inst.clone(), true_inst, alt_opb_opts);
+
+        let mut true_inst: SatInstance = SatInstance::new();
+        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        write_parse_inst_test(true_inst.clone(), true_inst, alt_opb_opts);
     }
 }
