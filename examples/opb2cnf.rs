@@ -15,13 +15,13 @@ struct Args {
     out_path: PathBuf,
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 0)]
-    first_var_index: usize,
+    first_var_idx: usize,
 }
 
 fn main() {
     let args = Args::parse();
     let mut opb_opts = OpbOptions::default();
-    opb_opts.first_var_idx = 0;
+    opb_opts.first_var_idx = args.first_var_idx;
 
     let inst: SatInstance =
         SatInstance::from_opb_path(args.in_path, opb_opts).expect("error parsing the input file");
