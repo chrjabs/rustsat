@@ -8,17 +8,19 @@
 //!
 //! - [OPB](https://www.cril.univ-artois.fr/PB12/format.pdf)
 
-use super::{ManageVars, SatInstance};
-use crate::types::{
-    constraints::{CardConstraint, PBConstraint},
-    Clause, Lit, Var,
+use crate::{
+    instances::{ManageVars, SatInstance},
+    types::{
+        constraints::{CardConstraint, PBConstraint},
+        Clause, Lit, Var,
+    },
 };
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{anychar, i64, line_ending, space0, space1, u64},
     combinator::{map_res, opt, recognize},
-    error::Error,
+    error::Error as NomError,
     multi::{many0, many1, many_till},
     sequence::{pair, tuple},
     IResult,
@@ -30,15 +32,15 @@ use std::{
 };
 
 #[cfg(feature = "multiopt")]
-use super::MultiOptInstance;
+use crate::instances::MultiOptInstance;
 #[cfg(feature = "optimization")]
-use super::{Objective, OptInstance};
+use crate::instances::{Objective, OptInstance};
 #[cfg(feature = "optimization")]
 use crate::types::WLitIter;
 
 /// Errors occuring within the OPB parsing module
 #[derive(Debug, PartialEq, Eq)]
-pub enum OpbError {
+pub enum Error {
     /// The requested objective does not exist
     ObjectiveNotFound,
     /// Encountered an unexpected line in the OPB file
@@ -47,12 +49,12 @@ pub enum OpbError {
     IOError,
 }
 
-impl fmt::Display for OpbError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OpbError::ObjectiveNotFound => write!(f, "No matching objective found in file"),
-            OpbError::InvalidLine(line) => write!(f, "Invalid OPB line: {}", line),
-            OpbError::IOError => write!(f, "Encountered error reading file"),
+            Error::ObjectiveNotFound => write!(f, "No matching objective found in file"),
+            Error::InvalidLine(line) => write!(f, "Invalid OPB line: {}", line),
+            Error::IOError => write!(f, "Encountered error reading file"),
         }
     }
 }
@@ -87,7 +89,7 @@ enum OpbData {
 }
 
 /// Parses the constraints from an OPB file as a [`SatInstance`]
-pub fn parse_sat<R, VM>(reader: R) -> Result<SatInstance<VM>, OpbError>
+pub fn parse_sat<R, VM>(reader: R) -> Result<SatInstance<VM>, Error>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -105,7 +107,7 @@ where
 #[cfg(feature = "optimization")]
 /// Parses an OPB file as an [`OptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_opt_with_idx<R, VM>(reader: R, obj_idx: usize) -> Result<OptInstance<VM>, OpbError>
+pub fn parse_opt_with_idx<R, VM>(reader: R, obj_idx: usize) -> Result<OptInstance<VM>, Error>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -129,7 +131,7 @@ where
         }
     });
     if obj_cnt <= obj_idx {
-        Err(OpbError::ObjectiveNotFound)
+        Err(Error::ObjectiveNotFound)
     } else {
         Ok(OptInstance::compose(sat_inst, obj))
     }
@@ -138,7 +140,7 @@ where
 #[cfg(feature = "multiopt")]
 /// Parses an OPB file as an [`MultiOptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_multi_opt<R, VM>(reader: R) -> Result<MultiOptInstance<VM>, OpbError>
+pub fn parse_multi_opt<R, VM>(reader: R) -> Result<MultiOptInstance<VM>, Error>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -155,7 +157,7 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, OpbError> {
+fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, Error> {
     let mut reader = BufReader::new(reader);
     let mut buf = String::new();
     let mut data = vec![];
@@ -166,16 +168,16 @@ fn parse_opb_data<R: Read>(reader: R) -> Result<Vec<OpbData>, OpbError> {
         match many0(opb_data)(&buf) {
             Ok((rem, new_data)) => {
                 if !rem.is_empty() {
-                    return Err(OpbError::InvalidLine(buf.clone()));
+                    return Err(Error::InvalidLine(buf.clone()));
                 } else {
                     data.extend(new_data)
                 }
             }
-            Err(_) => return Err(OpbError::InvalidLine(buf.clone())),
+            Err(_) => return Err(Error::InvalidLine(buf.clone())),
         }
         buf.clear();
     }
-    Err(OpbError::IOError)
+    Err(Error::IOError)
 }
 
 /// Matches an OPB comment
@@ -202,7 +204,7 @@ fn variable(input: &str) -> IResult<&str, Var> {
 /// variables but we allow negated literals with '~' as in non-linear OPB
 /// instances.
 fn literal(input: &str) -> IResult<&str, Lit> {
-    match tag::<_, _, Error<_>>("~")(input) {
+    match tag::<_, _, NomError<_>>("~")(input) {
         Ok((input, _)) => map_res(variable, |v| Ok::<_, ()>(v.neg_lit()))(input),
         Err(_) => map_res(variable, |v| Ok::<_, ()>(v.pos_lit()))(input),
     }
@@ -531,11 +533,11 @@ mod test {
 
     use super::{
         comment, constraint, literal, objective, opb_ending, operator, variable, weight,
-        weighted_lit_sum, weighted_literal, write_clause, OpbOperator,
+        weighted_lit_sum, weighted_literal, write_clause, write_sat, OpbOperator,
     };
     use crate::{
         clause,
-        instances::{opb::write_sat, BasicVarManager, SatInstance},
+        instances::{BasicVarManager, SatInstance},
         lit,
         types::{
             constraints::{CardConstraint, PBConstraint},
@@ -543,10 +545,10 @@ mod test {
         },
         var,
     };
-    use nom::error::{Error, ErrorKind};
+    use nom::error::{Error as NomError, ErrorKind};
 
     #[cfg(feature = "optimization")]
-    use super::{opb_data, parse_opb_data, OpbData, OpbError};
+    use super::{opb_data, parse_opb_data, Error, OpbData};
     #[cfg(feature = "optimization")]
     use crate::instances::Objective;
     #[cfg(feature = "optimization")]
@@ -559,7 +561,7 @@ mod test {
         assert_eq!(comment("*\n"), Ok(("", "*\n")));
         assert_eq!(
             comment(" test\n"),
-            Err(nom::Err::Error(Error::new(" test\n", ErrorKind::Tag)))
+            Err(nom::Err::Error(NomError::new(" test\n", ErrorKind::Tag)))
         );
     }
 
@@ -569,7 +571,7 @@ mod test {
         assert_eq!(variable("x2 test"), Ok((" test", var![2])));
         assert_eq!(
             variable(" test\n"),
-            Err(nom::Err::Error(Error::new(" test\n", ErrorKind::Tag)))
+            Err(nom::Err::Error(NomError::new(" test\n", ErrorKind::Tag)))
         );
     }
 
@@ -657,7 +659,7 @@ mod test {
         }
         match objective("min: x0;") {
             Ok(_) => panic!(),
-            Err(err) => assert_eq!(err, nom::Err::Error(Error::new("x0;", ErrorKind::Digit))),
+            Err(err) => assert_eq!(err, nom::Err::Error(NomError::new("x0;", ErrorKind::Digit))),
         }
     }
 
@@ -691,7 +693,7 @@ mod test {
             assert_eq!(opb_data("min: -3 x0 4 x1;"), Ok(("", OpbData::Obj(obj))));
             assert_eq!(
                 opb_data("min: x0;"),
-                Err(nom::Err::Error(Error::new("x0;", ErrorKind::Digit)))
+                Err(nom::Err::Error(NomError::new("x0;", ErrorKind::Digit)))
             );
         }
     }
@@ -724,7 +726,7 @@ mod test {
         let reader = BufReader::new(reader);
         assert_eq!(
             parse_opb_data(reader),
-            Err(OpbError::InvalidLine(String::from("min: x0;")))
+            Err(Error::InvalidLine(String::from("min: x0;")))
         );
     }
 
