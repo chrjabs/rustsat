@@ -13,6 +13,9 @@ struct Args {
     in_path: PathBuf,
     /// The OPB output path
     out_path: PathBuf,
+    /// The index in the OPB file to treat as the lowest variable
+    #[arg(long, default_value_t = 0)]
+    first_var_idx: usize,
     /// Avoid negated literals in the OPB file by transforming constraints
     #[arg(long)]
     avoid_negated_lits: bool,
@@ -21,6 +24,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let mut opb_opts = OpbOptions::default();
+    opb_opts.first_var_idx = args.first_var_idx;
     opb_opts.no_negated_lits = args.avoid_negated_lits;
 
     let inst: MultiOptInstance =
