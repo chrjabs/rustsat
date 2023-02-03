@@ -58,6 +58,9 @@ pub(crate) fn open_compressed_uncompressed_read<P: AsRef<Path>>(
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("gz")) {
             return Ok(Box::new(flate2::read::GzDecoder::new(raw_reader)));
         }
+        if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("xz")) {
+            return Ok(Box::new(xz2::read::XzDecoder::new(raw_reader)));
+        }
     }
     Ok(Box::new(raw_reader))
 }
@@ -81,6 +84,12 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
             return Ok(Box::new(flate2::write::GzEncoder::new(
                 raw_reader,
                 flate2::Compression::fast(),
+            )));
+        }
+        if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("xz")) {
+            return Ok(Box::new(xz2::write::XzEncoder::new(
+                raw_reader,
+                1,
             )));
         }
     }

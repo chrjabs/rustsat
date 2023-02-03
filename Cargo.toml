@@ -12,10 +12,14 @@ build = "build.rs"
 nom = "7.1.1"
 bzip2 = { version = "0.4", optional = true }
 flate2 = { version = "1.0", optional = true, features = ["zlib-ng"], default-features = false }
+xz2 = { version = "0.1", optional = true }
 rustc-hash = { version = "1.1", optional = true }
 cpu-time = "1.0"
 rand = { version = "0.8", optional = true }
 clap = { optional = true, version = "4.0", features = ["derive", "cargo"] }
+concolor-clap = { optional = true, version = "0.0.13" }
+termcolor = { optional = true, version = "1.1" }
+atty = { optional = true, version = "0.2" }
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
@@ -41,7 +45,7 @@ glucose4 = []
 minisat = []
 optimization = []
 multiopt = ["optimization"]
-compression = ["dep:bzip2", "dep:flate2"]
+compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 all-non-conflicting = [
   "cadical",
@@ -54,7 +58,7 @@ all-non-conflicting = [
   "rand",
   "fxhash"
 ]
-cli = ["dep:clap"]
+cli = ["dep:clap", "dep:concolor-clap", "dep:termcolor", "dep:atty"]
 
 [[example]]
 name = "enumerator"
@@ -87,3 +91,7 @@ required-features = ["compression", "multiopt", "cli"]
 [[example]]
 name = "shuffledimacs"
 required-features = ["compression", "rand", "cli"]
+
+[[example]]
+name = "gbmosplit"
+required-features = ["compression", "multiopt", "cli"]
