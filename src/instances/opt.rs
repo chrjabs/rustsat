@@ -1,6 +1,6 @@
 //! # Optimization Instance Representations
 
-use std::{io, path::Path};
+use std::{cmp, io, path::Path};
 
 use crate::{
     clause,
@@ -73,6 +73,112 @@ impl Objective {
                 ..
             } => soft_lits.is_empty() && soft_clauses.is_empty() && offset == &0,
         }
+    }
+
+    /// Gets the number of soft literals in the objective
+    pub fn n_lits(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_lits, .. } => soft_lits.len(),
+            IntObj::Unweighted { soft_lits, .. } => soft_lits.len(),
+        }
+    }
+
+    /// Gets the number of soft clauses in the objective
+    pub fn n_clauses(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_clauses, .. } => soft_clauses.len(),
+            IntObj::Unweighted { soft_clauses, .. } => soft_clauses.len(),
+        }
+    }
+
+    /// Gets the number of soft literals and clauses in the objective
+    pub fn n_softs(&self) -> usize {
+        self.n_lits() + self.n_clauses()
+    }
+
+    /// Gets the weight sum of soft literals
+    pub fn lit_weight_sum(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_lits, .. } => soft_lits.iter().fold(0, |s, (_, w)| s + w),
+            IntObj::Unweighted {
+                soft_lits,
+                unit_weight,
+                ..
+            } => soft_lits.len() * unit_weight.unwrap_or(0),
+        }
+    }
+
+    /// Gets the weight sum of soft clauses
+    pub fn clause_weight_sum(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_clauses, .. } => soft_clauses.iter().fold(0, |s, (_, w)| s + w),
+            IntObj::Unweighted {
+                soft_clauses,
+                unit_weight,
+                ..
+            } => soft_clauses.len() * unit_weight.unwrap_or(0),
+        }
+    }
+
+    /// Gets the weight sum of all softs
+    pub fn weight_sum(&self) -> usize {
+        self.lit_weight_sum() + self.clause_weight_sum()
+    }
+
+    /// Gets the maximum weight of a soft literal
+    pub fn max_lit_weight(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_lits, .. } => {
+                soft_lits
+                    .iter()
+                    .fold(0, |s, (_, w)| if *w > s { *w } else { s })
+            }
+            IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
+        }
+    }
+
+    /// Gets the maximum weight of a soft clause
+    pub fn max_clause_weight(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_clauses, .. } => {
+                soft_clauses
+                    .iter()
+                    .fold(0, |s, (_, w)| if *w > s { *w } else { s })
+            }
+            IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
+        }
+    }
+
+    /// Gets the maximum weight of any soft
+    pub fn max_weight(&self) -> usize {
+        cmp::max(self.max_lit_weight(), self.max_clause_weight())
+    }
+
+    /// Gets the minimum weight of a soft literal
+    pub fn min_lit_weight(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_lits, .. } => {
+                soft_lits
+                    .iter()
+                    .fold(usize::MAX, |s, (_, w)| if *w < s { *w } else { s })
+            }
+            IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
+        }
+    }
+
+    /// Gets the minimum weight of a soft clause
+    pub fn min_clause_weight(&self) -> usize {
+        match &self.0 {
+            IntObj::Weighted { soft_clauses, .. } => soft_clauses
+                .iter()
+                .fold(usize::MAX, |s, (_, w)| if *w < s { *w } else { s }),
+            IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
+        }
+    }
+
+    /// Gets the minimum weight of any soft
+    pub fn min_weight(&self) -> usize {
+        cmp::min(self.min_lit_weight(), self.min_clause_weight())
     }
 
     /// Sets the value offset
