@@ -462,6 +462,8 @@ fn split_gbmo(sorted_clauses: Vec<(Clause, usize)>, cli: &Cli) -> (Vec<Objective
 fn main() {
     let cli = Cli::init();
 
+    cli.info(&format!("finding splits in {}", cli.in_path.display()));
+
     let so_inst: OptInstance = OptInstance::from_dimacs_path(&cli.in_path).unwrap_or_else(|e| {
         cli.error(&format!("could not read input file: {}", e));
         panic!()
