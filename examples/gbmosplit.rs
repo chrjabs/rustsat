@@ -471,14 +471,21 @@ fn main() {
 
     cli.print_split_stats(split_stats);
 
+    let found_split = mo_inst.n_objectives() > 1;
+
     if let Some(out_path) = &cli.out_path {
-        if mo_inst.n_objectives() > 1 || cli.always_dump {
+        if found_split || cli.always_dump {
             mo_inst.to_dimacs_path(out_path).unwrap_or_else(|e| {
                 cli.error(&format!("io error writing the output file: {}", e));
                 panic!()
             });
         }
     }
+
+    if found_split {
+        std::process::exit(0);
+    }
+    std::process::exit(1);
 }
 
 #[cfg(test)]
