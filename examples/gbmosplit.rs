@@ -6,10 +6,9 @@
 //! for GBMO: left_sum < min_right_diff (instead of <=).
 //!
 //! ## References
-//! 
+//!
 //! - \[1\] Tobias Paxian, Pascal Raiola and Bernd Becker: _On Preprocessing for Weighted MaxSAT_, VMCAI 2021.
 //! - \[2\] Josep Argelich, Ines Lynce and Joao Marques-Silva: _On Solving Boolean Multilevel Optimization Problems, IJCAI 2009.
-
 
 use clap::{Parser, ValueEnum};
 use rustsat::{
@@ -20,10 +19,11 @@ use std::{collections::BTreeSet, fmt, io::Write, path::PathBuf};
 use termcolor::{Buffer, BufferWriter, Color, ColorSpec, WriteColor};
 
 struct Cli {
-    pub in_path: PathBuf,
-    pub out_path: Option<PathBuf>,
-    pub split_alg: SplitAlg,
-    pub max_combs: usize,
+    in_path: PathBuf,
+    out_path: Option<PathBuf>,
+    split_alg: SplitAlg,
+    max_combs: usize,
+    always_dump: bool,
     stdout: BufferWriter,
     stderr: BufferWriter,
 }
@@ -36,6 +36,7 @@ impl Cli {
             out_path: args.out_path,
             split_alg: args.split_alg,
             max_combs: args.max_combs,
+            always_dump: args.always_dump,
             stdout: BufferWriter::stdout(match args.color.color {
                 concolor_clap::ColorChoice::Always => termcolor::ColorChoice::Always,
                 concolor_clap::ColorChoice::Never => termcolor::ColorChoice::Never,
@@ -183,6 +184,9 @@ struct Args {
     /// The maximum number of weight combinations to check when thoroughly checking GBMO
     #[arg(long, default_value_t = 100000)]
     max_combs: usize,
+    /// Always dump an MCNF file, even if the instance couldn't be split
+    #[arg(long)]
+    always_dump: bool,
     #[command(flatten)]
     color: concolor_clap::Color,
 }
@@ -275,38 +279,40 @@ fn split<VM: ManageVars>(
 fn perform_split(
     sorted_clauses: Vec<(Clause, usize)>,
     split_ends: Vec<usize>,
-    multipliers: Vec<usize>,
 ) -> (Vec<Objective>, SplitStats) {
-    // split objectives
+    // split objectives and collect stats
     let mut objs = vec![];
     let mut split_start = 0;
-    for (idx, split_end) in split_ends.into_iter().enumerate() {
-        objs.push(Objective::from_iter(
-            (&sorted_clauses[split_start..split_end + 1])
-                .iter()
-                .cloned()
-                .map(|(c, w)| (c, w / multipliers[idx])),
-        ));
+    let mut split_stats = SplitStats { obj_stats: vec![] };
+    for split_end in split_ends {
+        let softs = &sorted_clauses[split_start..split_end + 1];
+        let w_gcd = softs
+            .iter()
+            .fold(softs[0].1, |w_gcd, (_, w)| gcd(w_gcd, *w));
+        let obj = Objective::from_iter(softs.iter().cloned().map(|(c, w)| (c, w / w_gcd)));
+        split_stats.obj_stats.push(ObjStats {
+            n_softs: obj.n_softs(),
+            weight_sum: obj.weight_sum(),
+            min_weight: obj.min_weight(),
+            max_weight: obj.max_weight(),
+            multiplier: w_gcd,
+        });
+        objs.push(obj);
         split_start = split_end + 1;
     }
-    objs.push(Objective::from_iter(
-        (&sorted_clauses[split_start..])
-            .iter()
-            .cloned()
-            .map(|(c, w)| (c, w / multipliers.last().unwrap())),
-    ));
-    assert_eq!(objs.len(), multipliers.len());
-    // collect split stats
-    let mut split_stats = SplitStats { obj_stats: vec![] };
-    for idx in 0..objs.len() {
-        split_stats.obj_stats.push(ObjStats {
-            n_softs: objs[idx].n_softs(),
-            weight_sum: objs[idx].weight_sum(),
-            min_weight: objs[idx].min_weight(),
-            max_weight: objs[idx].max_weight(),
-            multiplier: multipliers[idx],
-        })
-    }
+    let softs = &sorted_clauses[split_start..];
+    let w_gcd = softs
+        .iter()
+        .fold(softs[0].1, |w_gcd, (_, w)| gcd(w_gcd, *w));
+    let obj = Objective::from_iter(softs.iter().cloned().map(|(c, w)| (c, w / w_gcd)));
+    split_stats.obj_stats.push(ObjStats {
+        n_softs: obj.n_softs(),
+        weight_sum: obj.weight_sum(),
+        min_weight: obj.min_weight(),
+        max_weight: obj.max_weight(),
+        multiplier: w_gcd,
+    });
+    objs.push(obj);
     (objs, split_stats)
 }
 
@@ -319,7 +325,6 @@ fn split_bmo(sorted_clauses: Vec<(Clause, usize)>) -> (Vec<Objective>, SplitStat
             if *w <= sum {
                 // instance not BMO, return original instance
                 split_ends.clear();
-                multipliers = vec![*multipliers.first().unwrap()];
                 break;
             } else {
                 multipliers.push(*w);
@@ -328,7 +333,7 @@ fn split_bmo(sorted_clauses: Vec<(Clause, usize)>) -> (Vec<Objective>, SplitStat
         }
         sum += *w;
     }
-    perform_split(sorted_clauses, split_ends, multipliers)
+    perform_split(sorted_clauses, split_ends)
 }
 
 fn gcd(mut a: usize, mut b: usize) -> usize {
@@ -438,7 +443,6 @@ fn check_split_thorough_gbmo(
 fn split_gbmo(sorted_clauses: Vec<(Clause, usize)>, cli: &Cli) -> (Vec<Objective>, SplitStats) {
     let (sums, pot_split_ends, gcds) = get_sums_pot_splits_gcds(&sorted_clauses);
     let mut split_ends = vec![];
-    let mut multipliers = vec![1];
     for split_end in pot_split_ends {
         // checking strictly for truly separate objectives
         if sums[split_end] < gcds[split_end + 1]
@@ -450,10 +454,9 @@ fn split_gbmo(sorted_clauses: Vec<(Clause, usize)>, cli: &Cli) -> (Vec<Objective
                 ))
         {
             split_ends.push(split_end);
-            multipliers.push(gcds[split_end + 1]);
         }
     }
-    perform_split(sorted_clauses, split_ends, multipliers)
+    perform_split(sorted_clauses, split_ends)
 }
 
 fn main() {
@@ -469,10 +472,12 @@ fn main() {
     cli.print_split_stats(split_stats);
 
     if let Some(out_path) = &cli.out_path {
-        mo_inst.to_dimacs_path(out_path).unwrap_or_else(|e| {
-            cli.error(&format!("io error writing the output file: {}", e));
-            panic!()
-        });
+        if mo_inst.n_objectives() > 1 || cli.always_dump {
+            mo_inst.to_dimacs_path(out_path).unwrap_or_else(|e| {
+                cli.error(&format!("io error writing the output file: {}", e));
+                panic!()
+            });
+        }
     }
 }
 
