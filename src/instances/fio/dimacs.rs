@@ -244,7 +244,7 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> Result<(R, Preamble), Error> {
             }
             Err(ioe) => return Err(Error::IOError(ioe)),
         };
-        if buf.starts_with('c') {
+        if buf.starts_with('c') || buf.trim().is_empty() {
             continue;
         }
         if buf.starts_with('p') {
@@ -410,6 +410,10 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble, Error> {
 /// Parses a CNF line, either a comment or a clause
 fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>, Error> {
     let (input, _) = multispace0(input)?;
+    if input.trim().is_empty() {
+        // Tolerate empty lines
+        return Ok((input, None));
+    }
     match tag::<&str, &str, NomError<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
         Err(_) => {
@@ -425,6 +429,10 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>, Error> {
 /// Parses a WCNF pre 22 line, either a comment or a clause
 fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>, Error> {
     let (input, _) = multispace0(input)?;
+    if input.trim().is_empty() {
+        // Tolerate empty lines
+        return Ok((input, None));
+    }
     match tag::<&str, &str, NomError<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
         Err(_) => {
@@ -448,6 +456,10 @@ type McnfLine = Option<(Option<(usize, usize)>, Clause)>;
 /// it is assumed to be 1. This enables for also parsing mcnf lines.
 fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine, Error> {
     let (input, _) = multispace0(input)?;
+    if input.trim().is_empty() {
+        // Tolerate empty lines
+        return Ok((input, None));
+    }
     match tag::<&str, &str, NomError<&str>>("c")(input) {
         Ok((input, _)) => Ok((input, None)),
         Err(_) =>
