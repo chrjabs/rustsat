@@ -70,14 +70,13 @@ pub trait ReindexVars: ManageVars {
     fn reverse(&self, out_var: Var) -> Option<Var>;
     /// Reverses the reindexing of a literal
     fn reverse_lit(&self, out_lit: Lit) -> Option<Lit> {
-        match self.reverse(out_lit.var()) {
-            Some(v) => Some(if out_lit.is_pos() {
+        self.reverse(out_lit.var()).map(|v| {
+            if out_lit.is_pos() {
                 v.pos_lit()
             } else {
                 v.neg_lit()
-            }),
-            None => None,
-        }
+            }
+        })
     }
 }
 
@@ -310,10 +309,10 @@ impl RandReindVarManager {
     /// Creates a new variable manager from a next free variable
     pub fn init(n_vars: usize) -> Self {
         use rand::seq::SliceRandom;
-        let mut in_map: Vec<Var> = (0..n_vars).map(|idx| Var::new(idx)).collect();
+        let mut in_map: Vec<Var> = (0..n_vars).map(Var::new).collect();
         let mut rng = rand::thread_rng();
         // Build randomly shuffled input map
-        (&mut in_map[..]).shuffle(&mut rng);
+        in_map[..].shuffle(&mut rng);
         // Build reverse map
         let mut out_map = vec![Var::new(0); n_vars];
         in_map

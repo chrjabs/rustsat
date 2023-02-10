@@ -160,7 +160,7 @@ impl CNF {
     pub fn shuffle(mut self) -> Self {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
-        (&mut self.clauses[..]).shuffle(&mut rng);
+        self.clauses[..].shuffle(&mut rng);
         self
     }
 }
@@ -418,8 +418,8 @@ impl<VM: ManageVars> SatInstance<VM> {
         use rand::seq::SliceRandom;
         self.cnf = self.cnf.shuffle();
         let mut rng = rand::thread_rng();
-        (&mut self.cards[..]).shuffle(&mut rng);
-        (&mut self.pbs[..]).shuffle(&mut rng);
+        self.cards[..].shuffle(&mut rng);
+        self.pbs[..].shuffle(&mut rng);
         self
     }
 

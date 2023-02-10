@@ -298,7 +298,7 @@ impl Objective {
                     match unit_weight {
                         Some(unit_weight) => {
                             if w == *unit_weight {
-                                if soft_lits.iter().position(|l2| l2 == &l).is_some() {
+                                if soft_lits.iter().any(|l2| l2 == &l) {
                                     return Some(*unit_weight);
                                 }
                                 soft_lits.push(l);
@@ -386,7 +386,7 @@ impl Objective {
                     match unit_weight {
                         Some(unit_weight) => {
                             if w == *unit_weight {
-                                if let Some(_) = soft_clauses.iter().position(|cl2| cl2 == &cl) {
+                                if soft_clauses.iter().any(|cl2| cl2 == &cl) {
                                     return Some(*unit_weight);
                                 }
                                 soft_clauses.push(cl);
@@ -440,7 +440,7 @@ impl Objective {
                 soft_lits,
                 ..
             } => {
-                if soft_lits.iter().position(|l2| l2 == &l).is_some() {
+                if soft_lits.iter().any(|l2| l2 == &l) {
                     Some(unit_weight.unwrap())
                 } else {
                     None
@@ -458,7 +458,7 @@ impl Objective {
                 soft_clauses,
                 ..
             } => {
-                if soft_clauses.iter().position(|cl2| cl2 == cl).is_some() {
+                if soft_clauses.iter().any(|cl2| cl2 == cl) {
                     Some(unit_weight.unwrap())
                 } else {
                     None
