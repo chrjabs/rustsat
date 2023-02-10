@@ -87,10 +87,7 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
             )));
         }
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("xz")) {
-            return Ok(Box::new(xz2::write::XzEncoder::new(
-                raw_reader,
-                1,
-            )));
+            return Ok(Box::new(xz2::write::XzEncoder::new(raw_reader, 1)));
         }
     }
     Ok(Box::new(raw_reader))
