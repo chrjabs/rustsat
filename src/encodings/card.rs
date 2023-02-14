@@ -323,6 +323,14 @@ pub fn default_encode_cardinality_constraint(
     constr: CardConstraint,
     var_manager: &mut dyn ManageVars,
 ) -> CNF {
+    encode_cardinality_constraint::<DefBothB>(constr, var_manager)
+}
+
+/// An encoder for any cardinality constraint with an encoding of choice
+pub fn encode_cardinality_constraint<CE: BothB>(
+    constr: CardConstraint,
+    var_manager: &mut dyn ManageVars,
+) -> CNF {
     if constr.is_tautology() {
         return CNF::new();
     }
@@ -342,5 +350,5 @@ pub fn default_encode_cardinality_constraint(
         cnf.add_clause(constr.into_clause().unwrap());
         return cnf;
     }
-    DefBothB::encode_constr(constr, var_manager).unwrap()
+    CE::encode_constr(constr, var_manager).unwrap()
 }

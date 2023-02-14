@@ -346,6 +346,14 @@ pub fn new_default_inc_both() -> impl BothB {
 /// [`DefBothB`] to encode true pseudo-boolean constraints and
 /// [`card::default_encode_cardinality_constraint`] for cardinality constraints.
 pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> CNF {
+    encode_pb_constraint::<DefBothB>(constr, var_manager)
+}
+
+/// An encoder for any pseudo-boolean constraint with an encoding of choice
+pub fn encode_pb_constraint<PBE: BothB>(
+    constr: PBConstraint,
+    var_manager: &mut dyn ManageVars,
+) -> CNF {
     if constr.is_tautology() {
         return CNF::new();
     }
@@ -364,5 +372,5 @@ pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn 
         let card = constr.as_card_constr().unwrap();
         return card::default_encode_cardinality_constraint(card, var_manager);
     }
-    DefBothB::encode_constr(constr, var_manager).unwrap()
+    PBE::encode_constr(constr, var_manager).unwrap()
 }
