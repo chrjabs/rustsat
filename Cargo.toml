@@ -29,13 +29,16 @@ chrono = "0.4"
 cmake = "0.1"
 
 [features]
+default-but-solvers = [
+  "optimization",
+  "fxhash"
+]
 default = [
+  "default-but-solvers",
   "cadical",
   "kissat",
   "glucose4",
   "minisat",
-  "optimization",
-  "fxhash"
 ]
 fxhash = ["dep:rustc-hash"]
 ipasir = []
