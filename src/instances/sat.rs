@@ -131,6 +131,13 @@ impl CNF {
         self.clauses.append(&mut other.clauses);
     }
 
+    /// Joins the current CNF with another one. Like [`CNF::extend`] but
+    /// consumes the object and returns a new object.
+    pub fn join(mut self, other: CNF) -> CNF {
+        self.extend(other);
+        self
+    }
+
     /// Returns an iterator over references to the clauses
     pub fn iter(&self) -> std::slice::Iter<'_, Clause> {
         self.clauses.iter()

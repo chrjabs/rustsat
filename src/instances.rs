@@ -96,7 +96,7 @@ impl BasicVarManager {
 impl ManageVars for BasicVarManager {
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
-        self.next_var = Var::new(v.idx() + 1);
+        self.next_var += 1;
         v
     }
 
