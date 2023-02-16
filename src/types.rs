@@ -140,6 +140,12 @@ impl ops::Add<usize> for Var {
     }
 }
 
+impl ops::AddAssign<usize> for Var {
+    fn add_assign(&mut self, rhs: usize) {
+        self.idx += rhs
+    }
+}
+
 /// Decrementing variables
 impl ops::Sub<usize> for Var {
     type Output = Var;
@@ -148,6 +154,12 @@ impl ops::Sub<usize> for Var {
         Var {
             idx: self.idx - rhs,
         }
+    }
+}
+
+impl ops::SubAssign<usize> for Var {
+    fn sub_assign(&mut self, rhs: usize) {
+        self.idx -= rhs
     }
 }
 
