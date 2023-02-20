@@ -47,21 +47,21 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     enc.extend(lits);
 
     solver
-        .add_cnf(enc.encode_ub(0, 2, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub(0..3, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     solver
-        .add_cnf(enc.encode_ub_change(0, 4, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub_change(0..5, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     solver
-        .add_cnf(enc.encode_ub_change(0, 5, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub_change(0..6, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -72,14 +72,14 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     enc.extend(lits);
 
     solver
-        .add_cnf(enc.encode_ub_change(0, 5, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub_change(0..6, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     solver
-        .add_cnf(enc.encode_ub_change(0, 9, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub_change(0..10, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -94,14 +94,14 @@ fn test_inc_pb_ub<PBE: IncUB>(mut enc: PBE) {
     enc.extend(lits);
 
     solver
-        .add_cnf(enc.encode_ub_change(0, 9, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub_change(0..10, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
     assert_eq!(res, SolverResult::UNSAT);
 
     solver
-        .add_cnf(enc.encode_ub_change(0, 14, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub_change(0..15, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(14).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -121,7 +121,7 @@ fn test_pb_eq<PBE: IncBothB>(mut enc: PBE) {
     enc.extend(lits);
 
     solver
-        .add_cnf(enc.encode_both(4, 4, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_both(4..5, &mut var_manager))
         .unwrap();
 
     let mut assumps = enc.enforce_eq(4).unwrap();
@@ -184,7 +184,7 @@ fn test_pb_lb<PBE: LB>(mut enc: PBE) {
     enc.extend(lits);
 
     solver
-        .add_cnf(enc.encode_lb(0, 10, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_lb(0..11, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_lb(10).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
@@ -209,7 +209,7 @@ fn test_pb_ub_min_enc<PBE: UB>(mut enc: PBE) {
     enc.extend(lits);
 
     solver
-        .add_cnf(enc.encode_ub(2, 2, &mut var_manager).unwrap())
+        .add_cnf(enc.encode_ub(2..3, &mut var_manager))
         .unwrap();
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);

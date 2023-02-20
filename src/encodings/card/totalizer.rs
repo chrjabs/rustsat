@@ -15,7 +15,7 @@ use crate::{
     instances::{ManageVars, CNF},
     types::Lit,
 };
-use std::{cmp, slice};
+use std::{cmp, ops::Range, slice};
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
@@ -100,26 +100,21 @@ impl IncEncode for Totalizer {
 }
 
 impl UB for Totalizer {
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        if min_ub > max_ub {
-            return Err(EncodingError::InvalidLimits);
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        if range.is_empty() {
+            return CNF::new();
         };
         self.extend_tree();
-        Ok(match &mut self.root {
+        match &mut self.root {
             None => CNF::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_ub_rec(min_ub, max_ub, var_manager);
+                let cnf = root.encode_ub_rec(range.start, range.end - 1, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
             }
-        })
+        }
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -154,26 +149,21 @@ impl UB for Totalizer {
 }
 
 impl LB for Totalizer {
-    fn encode_lb(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        if min_lb > max_lb {
-            return Err(EncodingError::InvalidLimits);
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        if range.is_empty() {
+            return CNF::new();
         };
         self.extend_tree();
-        Ok(match &mut self.root {
+        match &mut self.root {
             None => CNF::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_lb_rec(min_lb, max_lb, var_manager);
+                let cnf = root.encode_lb_rec(range.start, range.end - 1, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
             }
-        })
+        }
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -210,50 +200,40 @@ impl LB for Totalizer {
 }
 
 impl IncUB for Totalizer {
-    fn encode_ub_change(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        if min_ub > max_ub {
-            return Err(EncodingError::InvalidLimits);
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        if range.is_empty() {
+            return CNF::new();
         };
         self.extend_tree();
-        Ok(match &mut self.root {
+        match &mut self.root {
             None => CNF::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_ub_change_rec(min_ub, max_ub, var_manager);
+                let cnf = root.encode_ub_change_rec(range.start, range.end - 1, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
             }
-        })
+        }
     }
 }
 
 impl IncLB for Totalizer {
-    fn encode_lb_change(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        if min_lb > max_lb {
-            return Err(EncodingError::InvalidLimits);
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        if range.is_empty() {
+            return CNF::new();
         };
         self.extend_tree();
-        Ok(match &mut self.root {
+        match &mut self.root {
             None => CNF::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_lb_change_rec(min_lb, max_lb, var_manager);
+                let cnf = root.encode_lb_change_rec(range.start, range.end - 1, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
             }
-        })
+        }
     }
 }
 
@@ -1013,8 +993,8 @@ mod tests {
         assert_eq!(tot.enforce_ub(2), Err(EncodingError::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
-        let mut cnf = tot.encode_ub(0, 4, &mut var_manager).unwrap();
-        cnf.extend(tot.encode_lb(0, 4, &mut var_manager).unwrap());
+        let mut cnf = tot.encode_ub(0..5, &mut var_manager);
+        cnf.extend(tot.encode_lb(0..5, &mut var_manager));
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 28);
         assert_eq!(tot.n_clauses(), 28);
@@ -1028,7 +1008,7 @@ mod tests {
         let mut tot = Totalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
-        let cnf = tot.encode_both(3, 3, &mut var_manager).unwrap();
+        let cnf = tot.encode_both(3..4, &mut var_manager);
         assert_eq!(tot.get_depth(), 3);
         assert_eq!(cnf.n_clauses(), 12);
         assert_eq!(cnf.n_clauses(), tot.n_clauses());
@@ -1039,12 +1019,12 @@ mod tests {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
-        let cnf1 = tot1.encode_ub(0, 4, &mut var_manager).unwrap();
+        let cnf1 = tot1.encode_ub(0..5, &mut var_manager);
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf2 = tot2.encode_ub(0, 2, &mut var_manager).unwrap();
-        cnf2.extend(tot2.encode_ub_change(0, 4, &mut var_manager).unwrap());
+        let mut cnf2 = tot2.encode_ub(0..3, &mut var_manager);
+        cnf2.extend(tot2.encode_ub_change(0..5, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
         assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
         assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
@@ -1055,24 +1035,14 @@ mod tests {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
-        let cnf1 = tot1.encode_lb(0, 4, &mut var_manager).unwrap();
+        let cnf1 = tot1.encode_lb(0..5, &mut var_manager);
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf2 = tot2.encode_lb(0, 2, &mut var_manager).unwrap();
-        cnf2.extend(tot2.encode_lb_change(0, 4, &mut var_manager).unwrap());
+        let mut cnf2 = tot2.encode_lb(0..3, &mut var_manager);
+        cnf2.extend(tot2.encode_lb_change(0..5, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
         assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
         assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
-    }
-
-    #[test]
-    fn invalid_useage() {
-        let mut tot = Totalizer::default();
-        let mut var_manager = BasicVarManager::default();
-        assert_eq!(
-            tot.encode_ub(5, 4, &mut var_manager),
-            Err(EncodingError::InvalidLimits)
-        );
     }
 }

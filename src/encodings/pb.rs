@@ -29,7 +29,7 @@
 //! lits.insert(lit![2], 2);
 //! lits.insert(lit![3], 6);
 //! enc.extend(lits);
-//! solver.add_cnf(enc.encode_both(4, 4, &mut var_manager).unwrap());
+//! solver.add_cnf(enc.encode_both(4..5, &mut var_manager));
 //!
 //! let mut assumps = enc.enforce_eq(4).unwrap();
 //! assumps.extend(vec![!lit![0], lit![1], lit![2], !lit![3]]);
@@ -45,6 +45,8 @@
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodePB`.
+
+use std::ops::Range;
 
 use super::{card, EncodingError};
 use crate::{
@@ -78,17 +80,11 @@ pub trait Encode:
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
 pub trait UB: Encode {
-    /// Lazily builds the pseudo-boolean encoding to enable upper bounds from
-    /// `min_ub` to `max_ub`. `var_manager` is the variable manager to use for
-    /// tracking new variables. A specific encoding might ignore `min_ub` or
-    /// `max_ub`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>;
+    /// Lazily builds the pseudo-boolean encoding to enable upper bounds within
+    /// a given range. `var_manager` is the variable manager to use for tracking
+    /// new variables. A specific encoding might ignore `min_ub` or `max_ub`.
+    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
     /// Returns assumptions/units for enforcing an upper bound (`weighted sum of
     /// lits <= ub`). Make sure that [`UBPB::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
@@ -110,7 +106,7 @@ pub trait UB: Encode {
             ub as usize
         };
         enc.extend(lits);
-        let mut cnf = enc.encode_ub(ub, ub, var_manager)?;
+        let mut cnf = enc.encode_ub(ub..ub + 1, var_manager);
         enc.enforce_ub(ub)
             .unwrap()
             .into_iter()
@@ -122,17 +118,11 @@ pub trait UB: Encode {
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
 pub trait LB: Encode {
-    /// Lazily builds the pseudo-boolean encoding to enable lower bounds from
-    /// `min_lb` to `max_lb`. `var_manager` is the variable manager to use for
-    /// tracking new variables. A specific encoding might ignore `min_lb` or
-    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_lb(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>;
+    /// Lazily builds the pseudo-boolean encoding to enable lower bounds in a
+    /// given range. `var_manager` is the variable manager to use for tracking
+    /// new variables. A specific encoding might ignore `min_lb` or `max_lb`.
+    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`LBPB::encode_lb`] has been called adequately and
     /// nothing has been added afterwards, otherwise
@@ -156,7 +146,7 @@ pub trait LB: Encode {
             lb as usize
         };
         enc.extend(lits);
-        let mut cnf = enc.encode_lb(lb, lb, var_manager)?;
+        let mut cnf = enc.encode_lb(lb..lb + 1, var_manager);
         enc.enforce_lb(lb)
             .unwrap()
             .into_iter()
@@ -167,20 +157,13 @@ pub trait LB: Encode {
 
 /// Trait for pseudo-boolean encodings that allow upper and lower bounding
 pub trait BothB: UB + LB {
-    /// Lazily builds the pseudo-boolean encoding to enable both bounds from
-    /// `min_b` to `max_b`. `var_manager` is the variable manager to use for
-    /// tracking new variables. A specific encoding might ignore `min_lb` or
-    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_both(
-        &mut self,
-        min_b: usize,
-        max_b: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        let mut cnf = self.encode_ub(min_b, max_b, var_manager)?;
-        cnf.extend(self.encode_lb(min_b, max_b, var_manager)?);
-        Ok(cnf)
+    /// Lazily builds the pseudo-boolean encoding to enable both bounds in a
+    /// given range. `var_manager` is the variable manager to use for tracking
+    /// new variables. A specific encoding might ignore `min_lb` or `max_lb`.
+    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
+    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        let cnf = self.encode_ub(range.clone(), var_manager);
+        cnf.join(self.encode_lb(range, var_manager))
     }
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
@@ -210,7 +193,7 @@ pub trait BothB: UB + LB {
             b as usize
         };
         enc.extend(lits);
-        let mut cnf = enc.encode_both(b, b, var_manager)?;
+        let mut cnf = enc.encode_both(b..b + 1, var_manager);
         enc.enforce_eq(b)
             .unwrap()
             .into_iter()
@@ -247,33 +230,23 @@ pub trait IncEncode: Encode {
 /// form `sum of lits <= ub`
 pub trait IncUB: UB + IncEncode {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable upper
-    /// bounds from `min_ub` to `max_ub`. A change might be added literals or
+    /// bounds from within the range. A change might be added literals or
     /// changed bounds. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore `min_ub` or
     /// `max_ub`. Returns [`EncodingError::InvalidLimits`] if the bounds are
     /// invalid.
-    fn encode_ub_change(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>;
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
 pub trait IncLB: LB + IncEncode {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable lower
-    /// bounds from `min_lb` to `max_lb`. `var_manager` is the variable manager
-    /// to use for tracking new variables. A specific encoding might ignore
-    /// `min_lb` or `max_lb`. Returns [`EncodingError::InvalidLimits`] if the
-    /// bounds are invalid.
-    fn encode_lb_change(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>;
+    /// bounds within the range. `var_manager` is the variable manager to use
+    /// for tracking new variables. A specific encoding might ignore `min_lb` or
+    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
+    /// invalid.
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
@@ -283,15 +256,9 @@ pub trait IncBothB: IncUB + IncLB {
     /// for tracking new variables. A specific encoding might ignore `min_lb` or
     /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
     /// invalid.
-    fn encode_both_change(
-        &mut self,
-        min_b: usize,
-        max_b: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        let mut cnf = self.encode_ub_change(min_b, max_b, var_manager)?;
-        cnf.extend(self.encode_lb_change(min_b, max_b, var_manager)?);
-        Ok(cnf)
+    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        let cnf = self.encode_ub_change(range.clone(), var_manager);
+        cnf.join(self.encode_lb_change(range, var_manager))
     }
 }
 
