@@ -244,6 +244,18 @@ pub trait Learn<'learn> {
     fn detach_learner(&mut self);
 }
 
+/// Trait for all solver that can force a face for a literal
+pub trait PhaseLit {
+    /// Forces the default decision phase of a variable to a certain value
+    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError>;
+    /// Undoes the effect of a call to [`PhaseLit::phase_lit`]
+    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError>;
+    /// Undoes the effect of a call to [`PhaseLit::phase_lit`]
+    fn unphase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+        self.unphase_var(lit.var())
+    }
+}
+
 /// Return type of solver calls that don't return but might fail
 pub type SolveMightFail = Result<(), SolverError>;
 
