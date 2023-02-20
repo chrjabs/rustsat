@@ -561,6 +561,12 @@ impl Assignment {
         };
         self.assign_var(lit.var(), val)
     }
+
+    /// Truncates a solution to only include assignments up to a maximum variable
+    pub fn truncate(mut self, max_var: Var) -> Self {
+        self.assignment.truncate(max_var.idx());
+        self
+    }
 }
 
 impl fmt::Debug for Assignment {

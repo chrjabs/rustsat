@@ -415,6 +415,8 @@ impl Solve for CaDiCaL<'_, '_> {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
+                    // CaDiCaL returns -1 if variable is higher than max var
+                    dc if dc == -1 => Ok(TernaryVal::DontCare),
                     invalid => Err(SolverError::API(format!(
                         "ccadical_val returned invalid value: {}",
                         invalid
