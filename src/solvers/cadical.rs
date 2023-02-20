@@ -7,7 +7,7 @@ use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
     ControlSignal, IncrementalSolve, InternalSolverState, Learn, OptLearnCallbackStore,
-    OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
+    OptTermCallbackStore, PhaseLit, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
     SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
@@ -244,16 +244,6 @@ impl CaDiCaL<'_, '_> {
     /// Checks if a literal is frozen. See CaDiCaL documentation for more details.
     pub fn is_frozen(&self, lit: Lit) -> bool {
         (unsafe { ffi::ccadical_frozen(self.handle, lit.to_ipasir()) }) != 0
-    }
-
-    /// Forces the default decision phase of a variable to a certain value
-    pub fn phase_lit(&mut self, lit: Lit) {
-        unsafe { ffi::ccadical_phase(self.handle, lit.to_ipasir()) }
-    }
-
-    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
-    pub fn unphase_lit(&mut self, lit: Lit) {
-        unsafe { ffi::ccadical_unphase(self.handle, lit.to_ipasir()) }
     }
 
     /// Prints the solver statistics from the CaDiCaL backend
@@ -598,6 +588,20 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
         let null_cb: extern "C" fn(*const c_void, *const c_int) =
             unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
         unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null(), 0, null_cb) }
+    }
+}
+
+impl PhaseLit for CaDiCaL<'_, '_> {
+    /// Forces the default decision phase of a variable to a certain value
+    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+        unsafe { ffi::ccadical_phase(self.handle, lit.to_ipasir()) };
+        Ok(())
+    }
+
+    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
+    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
+        unsafe { ffi::ccadical_unphase(self.handle, var.to_ipasir()) };
+        Ok(())
     }
 }
 
