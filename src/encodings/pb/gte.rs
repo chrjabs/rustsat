@@ -14,7 +14,11 @@ use crate::{
     instances::{ManageVars, CNF},
     types::{Lit, RsHashMap},
 };
-use std::{cmp, collections::BTreeMap, ops::Bound};
+use std::{
+    cmp,
+    collections::BTreeMap,
+    ops::{Bound, Range},
+};
 
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
@@ -125,24 +129,23 @@ impl IncEncode for GeneralizedTotalizer {
 }
 
 impl UB for GeneralizedTotalizer {
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        if min_ub > max_ub {
-            return Err(EncodingError::InvalidLimits);
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        if range.is_empty() {
+            return CNF::new();
         };
         let n_vars_before = var_manager.n_used();
-        self.extend_tree(max_ub);
+        self.extend_tree(range.end - 1);
         let cnf = match &mut self.root {
             None => CNF::new(),
-            Some(root) => root.encode_rec(min_ub + 1, max_ub + self.max_leaf_weight, var_manager),
+            Some(root) => root.encode_rec(
+                range.start + 1,
+                range.end - 1 + self.max_leaf_weight,
+                var_manager,
+            ),
         };
         self.n_clauses += cnf.n_clauses();
         self.n_vars += var_manager.n_used() - n_vars_before;
-        Ok(cnf)
+        cnf
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -202,26 +205,23 @@ impl UB for GeneralizedTotalizer {
 }
 
 impl IncUB for GeneralizedTotalizer {
-    fn encode_ub_change(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        if min_ub > max_ub {
-            return Err(EncodingError::InvalidLimits);
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        if range.is_empty() {
+            return CNF::new();
         };
         let n_vars_before = var_manager.n_used();
-        self.extend_tree(max_ub);
+        self.extend_tree(range.end - 1);
         let cnf = match &mut self.root {
             None => CNF::new(),
-            Some(root) => {
-                root.encode_change_rec(min_ub + 1, max_ub + self.max_leaf_weight, var_manager)
-            }
+            Some(root) => root.encode_change_rec(
+                range.start + 1,
+                range.end - 1 + self.max_leaf_weight,
+                var_manager,
+            ),
         };
         self.n_clauses += cnf.n_clauses();
         self.n_vars += var_manager.n_used() - n_vars_before;
-        Ok(cnf)
+        cnf
     }
 }
 
@@ -841,7 +841,7 @@ mod tests {
         gte.extend(lits);
         assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
-        gte.encode_ub(0, 6, &mut var_manager).unwrap();
+        gte.encode_ub(0..7, &mut var_manager);
         assert_eq!(gte.get_depth(), 3);
         assert_eq!(gte.n_vars(), 10);
     }
@@ -856,12 +856,12 @@ mod tests {
         lits.insert(lit![3], 3);
         gte1.extend(lits.clone());
         let mut var_manager = BasicVarManager::default();
-        let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
+        let cnf1 = gte1.encode_ub(0..5, &mut var_manager);
         let mut gte2 = GeneralizedTotalizer::default();
         gte2.extend(lits);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf2 = gte2.encode_ub(0, 2, &mut var_manager).unwrap();
-        cnf2.extend(gte2.encode_ub_change(0, 4, &mut var_manager).unwrap());
+        let mut cnf2 = gte2.encode_ub(0..3, &mut var_manager);
+        cnf2.extend(gte2.encode_ub_change(0..5, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
         assert_eq!(cnf1.n_clauses(), gte1.n_clauses());
         assert_eq!(cnf2.n_clauses(), gte2.n_clauses());
@@ -877,7 +877,7 @@ mod tests {
         lits.insert(lit![3], 3);
         gte1.extend(lits);
         let mut var_manager = BasicVarManager::default();
-        let cnf1 = gte1.encode_ub(0, 4, &mut var_manager).unwrap();
+        let cnf1 = gte1.encode_ub(0..5, &mut var_manager);
         let mut gte2 = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 10);
@@ -886,20 +886,10 @@ mod tests {
         lits.insert(lit![3], 6);
         gte2.extend(lits);
         let mut var_manager = BasicVarManager::default();
-        let cnf2 = gte2.encode_ub(0, 8, &mut var_manager).unwrap();
+        let cnf2 = gte2.encode_ub(0..9, &mut var_manager);
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
         assert_eq!(cnf1.n_clauses(), gte1.n_clauses());
         assert_eq!(cnf2.n_clauses(), gte2.n_clauses());
-    }
-
-    #[test]
-    fn ub_gte_invalid_useage() {
-        let mut gte = GeneralizedTotalizer::default();
-        let mut var_manager = BasicVarManager::default();
-        assert_eq!(
-            gte.encode_ub(5, 4, &mut var_manager),
-            Err(EncodingError::InvalidLimits)
-        );
     }
 
     #[test]
@@ -918,7 +908,7 @@ mod tests {
         lits.insert(lit![5], 1);
         lits.insert(lit![6], 1);
         gte.extend(lits);
-        let gte_cnf = gte.encode_ub(3, 7, &mut var_manager_gte).unwrap();
+        let gte_cnf = gte.encode_ub(3..8, &mut var_manager_gte);
         // Set up Tot
         let mut tot = card::Totalizer::default();
         tot.extend(vec![
@@ -930,7 +920,7 @@ mod tests {
             lit![5],
             lit![6],
         ]);
-        let tot_cnf = card::UB::encode_ub(&mut tot, 3, 7, &mut var_manager_tot).unwrap();
+        let tot_cnf = card::UB::encode_ub(&mut tot, 3..8, &mut var_manager_tot);
         println!("{:?}", gte_cnf);
         println!("{:?}", tot_cnf);
         assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());

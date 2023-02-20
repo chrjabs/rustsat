@@ -5,7 +5,7 @@
 //! bounding with an encoding that only natively support upper bounding by
 //! negating the input literals.
 
-use std::ops::Not;
+use std::ops::{Not, Range};
 
 use super::{Encode, IncEncode, IncLB, IncUB, LB, UB};
 use crate::{
@@ -23,6 +23,25 @@ where
 {
     card_enc: CE,
     n_lits: usize,
+}
+
+impl<CE> Inverted<CE>
+where
+    CE: Encode + 'static,
+{
+    fn convert_encoding_range(&self, range: Range<usize>) -> Range<usize> {
+        let min = if self.n_lits > (range.end - 1) {
+            self.n_lits - (range.end - 1)
+        } else {
+            0
+        };
+        let max = if self.n_lits > range.start {
+            self.n_lits - range.start + 1
+        } else {
+            0
+        };
+        min..max
+    }
 }
 
 impl<CE> From<Vec<Lit>> for Inverted<CE>
@@ -88,23 +107,9 @@ impl<CE> UB for Inverted<CE>
 where
     CE: LB,
 {
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        let min_lb = if self.n_lits > max_ub {
-            self.n_lits - max_ub
-        } else {
-            0
-        };
-        let max_lb = if self.n_lits > min_ub {
-            self.n_lits - min_ub
-        } else {
-            0
-        };
-        self.card_enc.encode_lb(min_lb, max_lb, var_manager)
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.card_enc
+            .encode_lb(self.convert_encoding_range(range), var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -121,23 +126,9 @@ impl<CE> LB for Inverted<CE>
 where
     CE: UB,
 {
-    fn encode_lb(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        let min_ub = if self.n_lits > max_lb {
-            self.n_lits - max_lb
-        } else {
-            0
-        };
-        let max_ub = if self.n_lits > min_lb {
-            self.n_lits - min_lb
-        } else {
-            0
-        };
-        self.card_enc.encode_ub(min_ub, max_ub, var_manager)
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.card_enc
+            .encode_ub(self.convert_encoding_range(range), var_manager)
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -154,23 +145,9 @@ impl<CE> IncUB for Inverted<CE>
 where
     CE: IncLB,
 {
-    fn encode_ub_change(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        let min_lb = if self.n_lits > max_ub {
-            self.n_lits - max_ub
-        } else {
-            0
-        };
-        let max_lb = if self.n_lits > min_ub {
-            self.n_lits - min_ub
-        } else {
-            0
-        };
-        self.card_enc.encode_lb_change(min_lb, max_lb, var_manager)
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.card_enc
+            .encode_lb_change(self.convert_encoding_range(range), var_manager)
     }
 }
 
@@ -178,23 +155,9 @@ impl<CE> IncLB for Inverted<CE>
 where
     CE: IncUB,
 {
-    fn encode_lb_change(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        let min_ub = if self.n_lits > max_lb {
-            self.n_lits - max_lb
-        } else {
-            0
-        };
-        let max_ub = if self.n_lits > min_lb {
-            self.n_lits - min_lb
-        } else {
-            0
-        };
-        self.card_enc.encode_ub_change(min_ub, max_ub, var_manager)
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.card_enc
+            .encode_ub_change(self.convert_encoding_range(range), var_manager)
     }
 }
 
@@ -294,13 +257,8 @@ where
     UBE: UB,
     LBE: LB,
 {
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        self.ub_enc.encode_ub(min_ub, max_ub, var_manager)
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.ub_enc.encode_ub(range, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -313,13 +271,8 @@ where
     UBE: UB,
     LBE: LB,
 {
-    fn encode_lb(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        self.lb_enc.encode_lb(min_lb, max_lb, var_manager)
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.lb_enc.encode_lb(range, var_manager)
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
@@ -332,13 +285,8 @@ where
     UBE: IncUB,
     LBE: IncLB,
 {
-    fn encode_ub_change(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        self.ub_enc.encode_ub_change(min_ub, max_ub, var_manager)
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.ub_enc.encode_ub_change(range, var_manager)
     }
 }
 
@@ -347,13 +295,8 @@ where
     UBE: IncUB,
     LBE: IncLB,
 {
-    fn encode_lb_change(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError> {
-        self.lb_enc.encode_lb_change(min_lb, max_lb, var_manager)
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+        self.lb_enc.encode_lb_change(range, var_manager)
     }
 }
 

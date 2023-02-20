@@ -13,8 +13,6 @@ pub enum EncodingError {
     NotEncoded,
     /// The requested encoding is unsatisfiable
     Unsat,
-    /// The limits for the encoding are invalid
-    InvalidLimits,
 }
 
 /// Trait for encodings that track statistics.
