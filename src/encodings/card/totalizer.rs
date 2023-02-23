@@ -9,10 +9,13 @@
 //! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
-use super::{Encode, EncodingError, EncodeIncremental, BoundLowerIncremental, BoundUpperIncremental, BoundLower, BoundUpper};
+use super::{
+    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode,
+    EncodeIncremental, EncodingError,
+};
 use crate::{
     encodings::EncodeStats,
-    instances::{ManageVars, Cnf},
+    instances::{Cnf, ManageVars},
     types::Lit,
 };
 use std::{cmp, ops::Range, slice};
@@ -32,7 +35,7 @@ pub struct Totalizer {
     /// Index of the next literal in [`Totalizer::in_lits`] that is not in the tree yet
     not_enc_idx: usize,
     /// The root of the tree, if constructed
-    root: Option<Box<Node>>,
+    root: Option<Node>,
     /// The number of variables in the totalizer
     n_vars: usize,
     /// The number of clauses in the totalizer
@@ -60,10 +63,10 @@ impl Totalizer {
         if self.not_enc_idx != self.in_lits.len() {
             let subtree = Totalizer::build_tree(&self.in_lits[self.not_enc_idx..]);
             self.root = match self.root.take() {
-                None => Some(Box::new(subtree)),
+                None => Some(subtree),
                 Some(old_root) => {
-                    let new_root = Node::new_internal(*old_root, subtree);
-                    Some(Box::new(new_root))
+                    let new_root = Node::new_internal(old_root, subtree);
+                    Some(new_root)
                 }
             };
             self.not_enc_idx = self.in_lits.len();
@@ -76,6 +79,12 @@ impl Totalizer {
             None => 0,
             Some(root_node) => root_node.get_depth(),
         }
+    }
+
+    /// Fully builds the tree, then returns it
+    pub fn tree(mut self) -> Option<Node> {
+        self.extend_tree();
+        self.root
     }
 }
 
@@ -109,7 +118,7 @@ impl BoundUpper for Totalizer {
             None => Cnf::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_ub_rec(range.start, range.end - 1, var_manager);
+                let cnf = root.rec_encode_ub(range, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
@@ -126,19 +135,13 @@ impl BoundUpper for Totalizer {
         };
         match &self.root {
             None => Err(EncodingError::NotEncoded),
-            Some(root_node) => match &**root_node {
+            Some(root_node) => match root_node {
                 Node::Leaf { lit } => Ok(vec![!*lit]),
                 Node::Internal {
-                    out_lits,
-                    min_max_ub,
-                    ..
+                    out_lits, ub_range, ..
                 } => {
-                    if let Some((min_ub, max_ub)) = min_max_ub {
-                        if *max_ub < ub || *min_ub > ub {
-                            Err(EncodingError::NotEncoded)
-                        } else {
-                            Ok(vec![!out_lits[ub].unwrap()])
-                        }
+                    if ub_range.contains(&ub) {
+                        Ok(vec![!out_lits[ub].unwrap()])
                     } else {
                         Err(EncodingError::NotEncoded)
                     }
@@ -158,7 +161,7 @@ impl BoundLower for Totalizer {
             None => Cnf::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_lb_rec(range.start, range.end - 1, var_manager);
+                let cnf = root.rec_encode_lb(range, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
@@ -177,19 +180,13 @@ impl BoundLower for Totalizer {
         };
         match &self.root {
             None => Err(EncodingError::NotEncoded),
-            Some(root_node) => match &**root_node {
+            Some(root_node) => match root_node {
                 Node::Leaf { lit } => Ok(vec![*lit]),
                 Node::Internal {
-                    out_lits,
-                    min_max_lb,
-                    ..
+                    out_lits, lb_range, ..
                 } => {
-                    if let Some((min_lb, max_lb)) = min_max_lb {
-                        if *max_lb < lb || *min_lb > lb {
-                            Err(EncodingError::NotEncoded)
-                        } else {
-                            Ok(vec![out_lits[lb - 1].unwrap()])
-                        }
+                    if lb_range.contains(&lb) {
+                        Ok(vec![out_lits[lb - 1].unwrap()])
                     } else {
                         Err(EncodingError::NotEncoded)
                     }
@@ -209,7 +206,7 @@ impl BoundUpperIncremental for Totalizer {
             None => Cnf::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_ub_change_rec(range.start, range.end - 1, var_manager);
+                let cnf = root.rec_encode_ub_change(range, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
@@ -228,7 +225,7 @@ impl BoundLowerIncremental for Totalizer {
             None => Cnf::new(),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.encode_lb_change_rec(range.start, range.end - 1, var_manager);
+                let cnf = root.rec_encode_lb_change(range, var_manager);
                 self.n_clauses += cnf.n_clauses();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
@@ -279,7 +276,8 @@ impl Extend<Lit> for Totalizer {
 
 type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 
-enum Node {
+/// A node in the totalizer tree
+pub enum Node {
     Leaf {
         /// The input literal to the tree
         lit: Lit,
@@ -293,10 +291,10 @@ enum Node {
         n_clauses: usize,
         /// The maximum output this node can have
         max_val: usize,
-        /// The minimum and maximum upper bound encoded by this node
-        min_max_ub: Option<(usize, usize)>,
-        /// The minimum and maximum upper bound encoded by this node
-        min_max_lb: Option<(usize, usize)>,
+        /// The range encoded for upper bounding
+        ub_range: Range<usize>,
+        /// The range encoded for lower bounding
+        lb_range: Range<usize>,
         /// The left child
         left: Box<Node>,
         /// The right child
@@ -328,8 +326,8 @@ impl Node {
                 right_depth + 1
             },
             n_clauses: 0,
-            min_max_ub: None,
-            min_max_lb: None,
+            ub_range: 0..0,
+            lb_range: 0..0,
             max_val: match left {
                 Node::Leaf { .. } => 1,
                 Node::Internal { max_val, .. } => max_val,
@@ -343,27 +341,23 @@ impl Node {
     }
 
     /// Gets the maximum depth of the subtree rooted in this node
-    fn get_depth(&self) -> usize {
+    pub fn get_depth(&self) -> usize {
         match self {
             Node::Leaf { .. } => 1,
             Node::Internal { depth, .. } => *depth,
         }
     }
 
-    /// Encodes the upper bound adder for this node from `min_ub` to `max_ub`.
-    /// This method only produces the encoding and does _not_ change any of the
-    /// stats of the node.
-    fn encode_ub_from_till(
+    /// Encodes the upper bound adder for this node in a given range. This
+    /// method only produces the encoding and does _not_ change any of the stats
+    /// of the node.
+    fn encode_ub_range(
         &mut self,
-        min_ub: usize,
-        max_ub: usize,
+        mut range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) -> Cnf {
-        if min_ub > max_ub {
-            return Cnf::new();
-        };
         // Reserve vars if needed
-        self.reserve_vars_from_till(min_ub, max_ub, var_manager);
+        self.reserve_vars_range(range.clone(), var_manager);
         match self {
             Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
@@ -373,10 +367,12 @@ impl Node {
                 right,
                 ..
             } => {
-                if min_ub > *max_val {
+                if range.end - 1 > *max_val {
+                    range.end = *max_val + 1;
+                }
+                if range.is_empty() {
                     return Cnf::new();
-                };
-                let max_ub = if max_ub > *max_val { *max_val } else { max_ub };
+                }
                 // Encode adder for current node
                 let mut cnf = Cnf::new();
                 let tmp_opt_lit_l;
@@ -399,7 +395,7 @@ impl Node {
                 for left_val in 0..=left_lits.len() {
                     for right_val in 0..=right_lits.len() {
                         let sum_val = left_val + right_val;
-                        if sum_val > max_ub + 1 || sum_val <= min_ub {
+                        if sum_val > range.end || sum_val <= range.start {
                             continue;
                         }
                         let mut lhs = vec![];
@@ -420,22 +416,21 @@ impl Node {
         }
     }
 
-    /// Encodes the lower bound adder for this node from `min_lb` to `max_lb`.
-    /// This method only produces the encoding and does _not_ change any of the
-    /// stats of the node.
-    fn encode_lb_from_till(
+    /// Encodes the lower bound adder for this node in a given range. This
+    /// method only produces the encoding and does _not_ change any of the stats
+    /// of the node.
+    fn encode_lb_range(
         &mut self,
-        min_lb: usize,
-        max_lb: usize,
+        mut range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) -> Cnf {
-        if min_lb > max_lb {
-            return Cnf::new();
-        };
         // Reserve vars if needed
-        self.reserve_vars_from_till(
-            if min_lb > 1 { min_lb - 1 } else { 0 },
-            if max_lb > 1 { max_lb - 1 } else { 0 },
+        self.reserve_vars_range(
+            if range.start > 0 { range.start - 1 } else { 0 }..if range.end > 0 {
+                range.end - 1
+            } else {
+                0
+            },
             var_manager,
         );
         match self {
@@ -447,10 +442,12 @@ impl Node {
                 right,
                 ..
             } => {
-                if min_lb > *max_val {
+                if range.end - 1 > *max_val {
+                    range.end = *max_val + 1;
+                }
+                if range.is_empty() {
                     return Cnf::new();
-                };
-                let max_lb = if max_lb > *max_val { *max_val } else { max_lb };
+                }
                 // Encode adder for current node
                 let mut cnf = Cnf::new();
                 let tmp_opt_lit_l;
@@ -473,7 +470,7 @@ impl Node {
                 for left_val in 0..=left_lits.len() {
                     for right_val in 0..=right_lits.len() {
                         let sum_val = left_val + right_val;
-                        if sum_val >= max_lb || sum_val + 1 < min_lb {
+                        if sum_val + 1 >= range.end || sum_val + 1 < range.start {
                             continue;
                         }
                         let mut lhs = vec![];
@@ -494,233 +491,192 @@ impl Node {
         }
     }
 
-    /// Encodes the upper bound adder from the children to this node between
-    /// `min_ub` and `max_ub`. Recurses depth first. Always returns the full
-    /// requested CNF encoding.
-    fn encode_ub_rec(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
-        let mut cnf = match self {
+    /// Encodes the upper bound adder from the children to this node in a given
+    /// range. Recurses depth first. Always returns the full requested CNF
+    /// encoding, i.e., non-incremental.
+    pub fn rec_encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let cnf = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal { left, right, .. } => {
-                let left_min_ub = Node::compute_required_min_rhs(min_ub, max_ub, right);
-                let right_min_ub = Node::compute_required_min_rhs(min_ub, max_ub, left);
+                let left_range = Node::compute_required_range(range.clone(), right);
+                let right_range = Node::compute_required_range(range.clone(), left);
                 // Recurse
-                let mut cnf = left.encode_ub_rec(left_min_ub, max_ub, var_manager);
-                cnf.extend(right.encode_ub_rec(right_min_ub, max_ub, var_manager));
-                cnf
+                let cnf = left.rec_encode_ub(left_range, var_manager);
+                cnf.join(right.rec_encode_ub(right_range, var_manager))
             }
         };
         // Ignore all previous encoding and encode from scratch
-        let local_cnf = self.encode_ub_from_till(min_ub, max_ub, var_manager);
+        let local_cnf = self.encode_ub_range(range.clone(), var_manager);
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                min_max_ub,
+                ub_range,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
-                *min_max_ub = Some((min_ub, cmp::min(*max_val, max_ub)));
+                *ub_range = range.start..cmp::min(*max_val + 1, range.end);
                 *n_clauses += local_cnf.n_clauses();
-                cnf.extend(local_cnf);
-                cnf
+                cnf.join(local_cnf)
             }
         }
     }
 
-    /// Encodes the lower bound adder from the children to this node between
-    /// `min_rhs` and `max_rhs`. Recurses depth first. Always returns the full
-    /// requested CNF encoding.
-    fn encode_lb_rec(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
-        let mut cnf = match self {
+    /// Encodes the lower bound adder from the children to this node in a given
+    /// range. Recurses depth first. Always returns the full requested CNF
+    /// encoding.
+    pub fn rec_encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let cnf = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal { left, right, .. } => {
-                let left_min_lb = Node::compute_required_min_rhs(min_lb, max_lb, right);
-                let right_min_lb = Node::compute_required_min_rhs(min_lb, max_lb, left);
+                let left_range = Node::compute_required_range(range.clone(), right);
+                let right_range = Node::compute_required_range(range.clone(), left);
                 // Recurse
-                let mut cnf = left.encode_lb_rec(left_min_lb, max_lb, var_manager);
-                cnf.extend(right.encode_lb_rec(right_min_lb, max_lb, var_manager));
-                cnf
+                let cnf = left.rec_encode_lb(left_range, var_manager);
+                cnf.join(right.rec_encode_lb(right_range, var_manager))
             }
         };
         // Ignore all previous encoding and encode from scratch
-        let local_cnf = self.encode_lb_from_till(min_lb, max_lb, var_manager);
+        let local_cnf = self.encode_lb_range(range.clone(), var_manager);
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                min_max_lb,
+                lb_range,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
-                *min_max_lb = Some((min_lb, cmp::min(*max_val, max_lb)));
+                *lb_range = range.start..cmp::min(*max_val + 1, range.end);
                 *n_clauses += local_cnf.n_clauses();
-                cnf.extend(local_cnf);
-                cnf
+                cnf.join(local_cnf)
             }
         }
     }
 
-    /// Encodes the upper bound adder from the children to this node between a
-    /// given `min_ub` and `max_ub`. Recurses depth first. Incrementally only
-    /// encodes new clauses.
-    fn encode_ub_change_rec(
+    /// Encodes the upper bound adder from the children to this node in a given
+    /// range. Recurses depth first. Incrementally only encodes new clauses.
+    fn rec_encode_ub_change(
         &mut self,
-        min_ub: usize,
-        max_ub: usize,
+        range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) -> Cnf {
-        let (mut cnf, min_max_already_encoded) = match self {
+        let (cnf, old_range) = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal {
                 left,
                 right,
-                min_max_ub,
+                ub_range,
                 ..
             } => {
-                let left_min_ub = Node::compute_required_min_rhs(min_ub, max_ub, right);
-                let right_min_ub = Node::compute_required_min_rhs(min_ub, max_ub, left);
+                let left_range = Node::compute_required_range(range.clone(), right);
+                let right_range = Node::compute_required_range(range.clone(), left);
                 // Recurse
-                let mut cnf = left.encode_ub_change_rec(left_min_ub, max_ub, var_manager);
-                cnf.extend(right.encode_ub_change_rec(right_min_ub, max_ub, var_manager));
-                (cnf, *min_max_ub)
+                let mut cnf = left.rec_encode_ub_change(left_range, var_manager);
+                cnf.extend(right.rec_encode_ub_change(right_range, var_manager));
+                (cnf, ub_range.clone())
             }
         };
         // Encode changes for current node
-        let local_cnf = match min_max_already_encoded {
-            None => {
-                // First time encoding this node
-                self.encode_ub_from_till(min_ub, max_ub, var_manager)
-            }
-            Some((old_min_ub, old_max_ub)) => {
-                // Part already encoded
-                let mut local_cnf = Cnf::new();
-                if min_ub < old_min_ub {
-                    local_cnf.extend(self.encode_ub_from_till(min_ub, old_min_ub - 1, var_manager));
-                };
-                if max_ub > old_max_ub {
-                    local_cnf.extend(self.encode_ub_from_till(old_max_ub + 1, max_ub, var_manager));
-                };
-                local_cnf
-            }
+        let local_cnf = if old_range.is_empty() {
+            // First time encoding this node
+            self.encode_ub_range(range.clone(), var_manager)
+        } else {
+            // Part already encoded
+            let mut local_cnf = Cnf::new();
+            if range.start < old_range.start {
+                local_cnf.extend(self.encode_ub_range(range.start..old_range.start, var_manager));
+            };
+            if range.end > old_range.end {
+                local_cnf.extend(self.encode_ub_range(old_range.end..range.end, var_manager));
+            };
+            local_cnf
         };
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                min_max_ub,
+                ub_range,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
                 *n_clauses += local_cnf.n_clauses();
-                *min_max_ub = if let Some((old_min_ub, old_max_ub)) = *min_max_ub {
-                    Some((
-                        cmp::min(min_ub, old_min_ub),
-                        cmp::min(*max_val, cmp::max(max_ub, old_max_ub)),
-                    ))
+                *ub_range = if (*ub_range).is_empty() {
+                    range.start..cmp::min(*max_val + 1, range.end)
                 } else {
-                    Some((min_ub, cmp::min(max_ub, *max_val)))
+                    cmp::min(ub_range.start, range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(ub_range.end, range.end))
                 };
-                cnf.extend(local_cnf);
-                cnf
+                cnf.join(local_cnf)
             }
         }
     }
 
-    /// Encodes the lower bound adder from the children to this node between a given
-    /// `min_lb` and `max_lb`. Recurses depth first.
-    /// Incrementally only
-    /// encodes new clauses.
-    fn encode_lb_change_rec(
+    /// Encodes the lower bound adder from the children to this node in a given
+    /// range. Recurses depth first. Incrementally only encodes new clauses.
+    fn rec_encode_lb_change(
         &mut self,
-        min_lb: usize,
-        max_lb: usize,
+        range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) -> Cnf {
-        let (mut cnf, min_max_already_encoded) = match self {
+        let (cnf, old_range) = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal {
                 left,
                 right,
-                min_max_lb,
+                lb_range,
                 ..
             } => {
-                let left_min_lb = Node::compute_required_min_rhs(min_lb, max_lb, right);
-                let right_min_lb = Node::compute_required_min_rhs(min_lb, max_lb, left);
+                let left_range = Node::compute_required_range(range.clone(), right);
+                let right_range = Node::compute_required_range(range.clone(), left);
                 // Recurse
-                let mut cnf = left.encode_lb_change_rec(left_min_lb, max_lb, var_manager);
-                cnf.extend(right.encode_lb_change_rec(right_min_lb, max_lb, var_manager));
-                (cnf, *min_max_lb)
+                let mut cnf = left.rec_encode_lb_change(left_range, var_manager);
+                cnf.extend(right.rec_encode_lb_change(right_range, var_manager));
+                (cnf, lb_range.clone())
             }
         };
         // Encode changes for current node
-        let local_cnf = match min_max_already_encoded {
-            None => {
-                // First time encoding this node
-                self.encode_lb_from_till(min_lb, max_lb, var_manager)
-            }
-            Some((old_min_rhs, old_max_rhs)) => {
-                // Part already encoded
-                let mut local_cnf = Cnf::new();
-                if min_lb < old_min_rhs {
-                    local_cnf.extend(self.encode_lb_from_till(
-                        min_lb,
-                        old_min_rhs - 1,
-                        var_manager,
-                    ));
-                };
-                if max_lb > old_max_rhs {
-                    local_cnf.extend(self.encode_lb_from_till(
-                        old_max_rhs + 1,
-                        max_lb,
-                        var_manager,
-                    ));
-                };
-                local_cnf
-            }
+        let local_cnf = if old_range.is_empty() {
+            // First time encoding this node
+            self.encode_lb_range(range.clone(), var_manager)
+        } else {
+            // Part already encoded
+            let mut local_cnf = Cnf::new();
+            if range.start < old_range.start {
+                local_cnf.extend(self.encode_lb_range(range.start..old_range.start, var_manager));
+            };
+            if range.end > old_range.end {
+                local_cnf.extend(self.encode_lb_range(old_range.end..range.end, var_manager));
+            };
+            local_cnf
         };
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                min_max_lb,
+                lb_range,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
                 *n_clauses += local_cnf.n_clauses();
-                *min_max_lb = if let Some((old_min_lb, old_max_lb)) = *min_max_lb {
-                    Some((
-                        cmp::min(min_lb, old_min_lb),
-                        cmp::min(*max_val, cmp::max(max_lb, old_max_lb)),
-                    ))
+                *lb_range = if (*lb_range).is_empty() {
+                    range.start..cmp::min(*max_val + 1, range.end)
                 } else {
-                    Some((min_lb, cmp::min(max_lb, *max_val)))
+                    cmp::min(range.start, lb_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(lb_range.end, range.end))
                 };
-                cnf.extend(local_cnf);
-                cnf
+                cnf.join(local_cnf)
             }
         }
     }
 
-    /// Reserves variables this node might need for indices `min_idx` to
-    /// `max_idx`.
-    fn reserve_vars_from_till(
+    /// Reserves variables this node might need for indices in a given range.
+    fn reserve_vars_range(
         &mut self,
-        min_idx: usize,
-        max_idx: usize,
+        mut idx_range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) {
         match self {
@@ -728,15 +684,19 @@ impl Node {
             Node::Internal {
                 out_lits, max_val, ..
             } => {
-                let max_idx = if max_idx >= *max_val {
-                    *max_val - 1
+                idx_range.end = if idx_range.end > *max_val {
+                    *max_val
                 } else {
-                    max_idx
+                    idx_range.end
                 };
-                if out_lits.len() < max_idx + 1 {
-                    out_lits.resize(max_idx + 1, None);
+                if out_lits.len() < idx_range.end {
+                    out_lits.resize(idx_range.end, None);
                 };
-                for olit in out_lits.iter_mut().take(max_idx + 1).skip(min_idx) {
+                for olit in out_lits
+                    .iter_mut()
+                    .take(idx_range.end)
+                    .skip(idx_range.start)
+                {
                     if olit.is_none() {
                         *olit = Some(var_manager.new_var().pos_lit());
                     }
@@ -753,12 +713,12 @@ impl Node {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
         };
-        self.reserve_vars_from_till(0, max_val, var_manager);
+        self.reserve_vars_range(0..max_val + 1, var_manager);
     }
 
     /// Reserves all variables this node and the lower subtree might need. This
     /// is used if variables in the totalizer should have consecutive indices.
-    fn reserve_all_vars_rec(&mut self, var_manager: &mut dyn ManageVars) {
+    pub fn reserve_all_vars_rec(&mut self, var_manager: &mut dyn ManageVars) {
         match self {
             Node::Leaf { .. } => return,
             Node::Internal { left, right, .. } => {
@@ -770,32 +730,25 @@ impl Node {
         self.reserve_all_vars(var_manager)
     }
 
-    /// Computes the required `min_rhs` for a node given a requested `min_rhs`
-    /// and `max_rhs` of the parent and its sibling.
-    fn compute_required_min_rhs(
-        min_rhs_requested: usize,
-        max_rhs_requested: usize,
-        sibling: &Node,
-    ) -> usize {
+    /// Computes the required encoding range for a node given a requested range
+    /// for the parent and its sibling.
+    fn compute_required_range(requested_range: Range<usize>, sibling: &Node) -> Range<usize> {
+        if requested_range.is_empty() {
+            return 0..0;
+        }
         match *sibling {
             Node::Leaf { .. } => {
-                if min_rhs_requested > 1 {
-                    min_rhs_requested - 1
+                if requested_range.start > 1 {
+                    requested_range.start - 1..requested_range.end
                 } else {
-                    0
+                    0..requested_range.end
                 }
             }
             Node::Internal { max_val, .. } => {
-                if max_rhs_requested < max_val {
-                    if min_rhs_requested > max_rhs_requested {
-                        min_rhs_requested - max_rhs_requested
-                    } else {
-                        0
-                    }
-                } else if min_rhs_requested > max_val {
-                    min_rhs_requested - max_val
+                if requested_range.start > max_val {
+                    requested_range.start - max_val..requested_range.end
                 } else {
-                    0
+                    0..requested_range.end
                 }
             }
         }
@@ -807,7 +760,9 @@ mod tests {
     use super::{Node, Totalizer};
     use crate::{
         encodings::{
-            card::{BoundBoth, BoundLowerIncremental, BoundUpperIncremental, BoundLower, BoundUpper},
+            card::{
+                BoundBoth, BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
+            },
             EncodeStats, EncodingError,
         },
         instances::BasicVarManager,
@@ -822,8 +777,8 @@ mod tests {
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf = node.encode_ub_from_till(0, 2, &mut var_manager);
-        cnf.extend(node.encode_lb_from_till(0, 2, &mut var_manager));
+        let mut cnf = node.encode_ub_range(0..3, &mut var_manager);
+        cnf.extend(node.encode_lb_range(0..3, &mut var_manager));
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
@@ -839,8 +794,8 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
@@ -850,16 +805,16 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf = node.encode_ub_from_till(0, 4, &mut var_manager);
-        cnf.extend(node.encode_lb_from_till(0, 4, &mut var_manager));
+        let mut cnf = node.encode_ub_range(0..5, &mut var_manager);
+        cnf.extend(node.encode_lb_range(0..5, &mut var_manager));
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -874,7 +829,7 @@ mod tests {
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let cnf = node.encode_lb_from_till(0, 1, &mut var_manager);
+        let cnf = node.encode_lb_range(0..2, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 1),
@@ -890,8 +845,8 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
@@ -901,16 +856,16 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf = node.encode_ub_from_till(0, 3, &mut var_manager);
-        cnf.extend(node.encode_lb_from_till(0, 3, &mut var_manager));
+        let mut cnf = node.encode_ub_range(0..4, &mut var_manager);
+        cnf.extend(node.encode_lb_range(0..4, &mut var_manager));
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -926,8 +881,8 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
@@ -937,16 +892,16 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf = node.encode_ub_from_till(3, 2, &mut var_manager);
-        cnf.extend(node.encode_lb_from_till(3, 2, &mut var_manager));
+        let mut cnf = node.encode_ub_range(3..3, &mut var_manager);
+        cnf.extend(node.encode_lb_range(3..3, &mut var_manager));
         assert_eq!(cnf.n_clauses(), 0);
     }
 
@@ -958,8 +913,8 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
@@ -969,16 +924,16 @@ mod tests {
             depth: 1,
             n_clauses: 0,
             max_val: 2,
-            min_max_ub: Some((0, 2)),
-            min_max_lb: Some((0, 2)),
+            ub_range: 0..3,
+            lb_range: 0..3,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0])),
             right: Box::new(Node::new_leaf(lit![0])),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let mut cnf = node.encode_ub_from_till(2, 3, &mut var_manager);
-        cnf.extend(node.encode_lb_from_till(2, 3, &mut var_manager));
+        let mut cnf = node.encode_ub_range(2..4, &mut var_manager);
+        cnf.extend(node.encode_lb_range(2..4, &mut var_manager));
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
