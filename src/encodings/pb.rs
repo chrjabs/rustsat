@@ -57,7 +57,7 @@ use crate::{
     },
 };
 
-mod gte;
+pub mod gte;
 pub use gte::GeneralizedTotalizer;
 pub mod simulators;
 pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;

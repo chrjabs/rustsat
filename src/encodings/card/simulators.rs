@@ -7,10 +7,12 @@
 
 use std::ops::{Not, Range};
 
-use super::{Encode, EncodeIncremental, BoundLowerIncremental, BoundUpperIncremental, BoundLower, BoundUpper};
+use super::{
+    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+};
 use crate::{
     encodings::{EncodeStats, EncodingError},
-    instances::{ManageVars, Cnf},
+    instances::{Cnf, ManageVars},
     types::Lit,
 };
 

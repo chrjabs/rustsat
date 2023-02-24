@@ -8,10 +8,10 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{Encode, EncodingError, EncodeIncremental, BoundUpperIncremental, BoundUpper};
+use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental, EncodingError};
 use crate::{
     encodings::EncodeStats,
-    instances::{ManageVars, Cnf},
+    instances::{Cnf, ManageVars},
     types::{Lit, RsHashMap},
 };
 use std::{
@@ -37,7 +37,7 @@ pub struct GeneralizedTotalizer {
     /// Input literals and weights not yet in the tree
     lit_buffer: RsHashMap<Lit, usize>,
     /// The root of the tree, if constructed
-    root: Option<Box<Node>>,
+    root: Option<Node>,
     /// Maximum weight of a leaf, needed for computing how much more than `max_rhs` to encode
     max_leaf_weight: usize,
     /// Sum of all input weight
@@ -88,10 +88,10 @@ impl GeneralizedTotalizer {
                 new_lits[..].sort_by(|(_, w1), (_, w2)| w1.cmp(w2));
                 let subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
                 self.root = match self.root.take() {
-                    None => Some(Box::new(subtree)),
+                    None => Some(subtree),
                     Some(old_root) => {
-                        let new_root = Node::new_internal(*old_root, subtree);
-                        Some(Box::new(new_root))
+                        let new_root = Node::new_internal(old_root, subtree);
+                        Some(new_root)
                     }
                 };
                 self.lit_buffer.retain(|_, w| *w > max_weight);
@@ -100,11 +100,17 @@ impl GeneralizedTotalizer {
     }
 
     /// Gets the maximum depth of the tree
-    pub fn get_depth(&mut self) -> usize {
+    pub fn depth(&mut self) -> usize {
         match &self.root {
             None => 0,
-            Some(root_node) => root_node.get_depth(),
+            Some(root_node) => root_node.depth(),
         }
+    }
+
+    /// Fully builds the tree, then returns it
+    pub fn tree(mut self) -> Option<Node> {
+        self.extend_tree(usize::MAX);
+        self.root
     }
 }
 
@@ -137,9 +143,8 @@ impl BoundUpper for GeneralizedTotalizer {
         self.extend_tree(range.end - 1);
         let cnf = match &mut self.root {
             None => Cnf::new(),
-            Some(root) => root.encode_rec(
-                range.start + 1,
-                range.end - 1 + self.max_leaf_weight,
+            Some(root) => root.rec_encode(
+                range.start + 1..range.end + self.max_leaf_weight,
                 var_manager,
             ),
         };
@@ -169,31 +174,27 @@ impl BoundUpper for GeneralizedTotalizer {
             None => {
                 vec![]
             }
-            Some(root_node) => match &**root_node {
+            Some(root_node) => match &root_node {
                 // Assumes that literal is already enforced from wrapper function if it's weight is more than `ub`
                 Node::Leaf { .. } => vec![],
                 Node::Internal {
                     out_lits,
-                    min_max_enc,
+                    enc_range,
                     max_val,
                     ..
                 } => {
                     if ub >= *max_val {
                         vec![]
-                    } else if let Some((min_enc, max_enc)) = *min_max_enc {
-                        if max_enc < cmp::min(ub + self.max_leaf_weight, *max_val)
-                            || min_enc > ub + 1
-                        {
-                            return Err(EncodingError::NotEncoded);
-                        } else {
-                            out_lits
-                                .range((
-                                    Bound::Excluded(ub),
-                                    Bound::Included(ub + self.max_leaf_weight),
-                                ))
-                                .map(|(_, &l)| !l)
-                                .collect()
-                        }
+                    } else if enc_range.contains(&(ub + 1))
+                        && enc_range.contains(&cmp::min(*max_val, ub + self.max_leaf_weight))
+                    {
+                        out_lits
+                            .range((
+                                Bound::Excluded(ub),
+                                Bound::Included(ub + self.max_leaf_weight),
+                            ))
+                            .map(|(_, &l)| !l)
+                            .collect()
                     } else {
                         return Err(EncodingError::NotEncoded);
                     }
@@ -213,11 +214,9 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
         self.extend_tree(range.end - 1);
         let cnf = match &mut self.root {
             None => Cnf::new(),
-            Some(root) => root.encode_change_rec(
-                range.start + 1,
-                range.end - 1 + self.max_leaf_weight,
-                var_manager,
-            ),
+            Some(root) => {
+                root.encode_change_rec(range.start..range.end + self.max_leaf_weight, var_manager)
+            }
         };
         self.n_clauses += cnf.n_clauses();
         self.n_vars += var_manager.n_used() - n_vars_before;
@@ -286,14 +285,18 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
     }
 }
 
-/// The Totalzier nodes are _only_ for upper bounding. Lower bounding in the GTE
+/// A node in the generalized totalizer tree. This is only exposed publicly to
+/// be reused in more complex encodings, for using the GTE, this should
+/// not be directly accessed but only through [`GeneralizedTotalizer`].
+///
+/// The Totalizer nodes are _only_ for upper bounding. Lower bounding in the GTE
 /// is possible by negating input literals. This conversion entirely happens in
 /// the [`InvertedGeneralizedTotalizer`] struct. Equally, bounds given on the
 /// encode methods for this type strictly refer to the output literals that
 /// should be encoded. Converting right hand sides to required encoded output
 /// literals happens in the [`GeneralizedTotalizer`] or
 /// [`InvertedGeneralizedTotalizer`] structs.
-enum Node {
+pub enum Node {
     Leaf {
         /// The input literal to the tree
         lit: Lit,
@@ -309,8 +312,8 @@ enum Node {
         n_clauses: usize,
         /// The maximum output this node can have
         max_val: usize,
-        /// The minimum and maximum output weight that is encoded by this node
-        min_max_enc: Option<(usize, usize)>,
+        /// The encoded range of this node
+        enc_range: Range<usize>,
         /// The left child
         left: Box<Node>,
         /// The right child
@@ -320,12 +323,12 @@ enum Node {
 
 impl Node {
     /// Constructs a new leaf node
-    fn new_leaf(lit: Lit, weight: usize) -> Node {
+    pub fn new_leaf(lit: Lit, weight: usize) -> Node {
         Node::Leaf { lit, weight }
     }
 
     /// Constructs a new internal node
-    fn new_internal(left: Node, right: Node) -> Node {
+    pub fn new_internal(left: Node, right: Node) -> Node {
         let left_depth = match left {
             Node::Leaf { .. } => 1,
             Node::Internal { depth, .. } => depth,
@@ -342,7 +345,7 @@ impl Node {
                 right_depth + 1
             },
             n_clauses: 0,
-            min_max_enc: None,
+            enc_range: 0..0,
             max_val: match left {
                 Node::Leaf { weight, .. } => weight,
                 Node::Internal { max_val, .. } => max_val,
@@ -356,13 +359,23 @@ impl Node {
     }
 
     /// Gets the maximum depth of the subtree rooted in this node
-    fn get_depth(&self) -> usize {
+    pub fn depth(&self) -> usize {
         match self {
             Node::Leaf { .. } => 1,
             Node::Internal { depth, .. } => *depth,
         }
     }
 
+    /// Gets the maximum value that the node represents
+    pub fn max_val(&self) -> usize {
+        match self {
+            Node::Leaf { weight, .. } => *weight,
+            Node::Internal { max_val, .. } => *max_val,
+        }
+    }
+
+    /// Gets references to both children's output literals. The temporary maps
+    /// are needed in case the child is a leaf.
     fn get_child_lit_maps<'a>(
         left: &'a Node,
         right: &'a Node,
@@ -387,20 +400,12 @@ impl Node {
         )
     }
 
-    /// Encodes the output literals for this node from values `min_enc` to
-    /// `max_enc`. This method only produces the encoding and does _not_ change
-    /// any of the stats of the node.
-    fn encode_from_till(
-        &mut self,
-        min_enc: usize,
-        max_enc: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
-        if min_enc > max_enc {
-            return Cnf::new();
-        };
+    /// Encodes the output literals for this node in a given range. This method
+    /// only produces the encoding and does _not_ change any of the stats of the
+    /// node.
+    fn encode_range(&mut self, mut range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         // Reserve vars if needed
-        self.reserve_vars_from_till(min_enc, max_enc, var_manager);
+        self.reserve_vars_range(range.clone(), var_manager);
         match &*self {
             Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
@@ -410,48 +415,46 @@ impl Node {
                 right,
                 ..
             } => {
+                if range.end - 1 > *max_val {
+                    range.end = *max_val + 1;
+                }
+                if range.is_empty() {
+                    return Cnf::new();
+                }
                 let mut left_tmp_map = BTreeMap::new();
                 let mut right_tmp_map = BTreeMap::new();
                 let (left_lits, right_lits) =
                     Node::get_child_lit_maps(left, right, &mut left_tmp_map, &mut right_tmp_map);
-                if min_enc > *max_val {
-                    return Cnf::new();
-                };
                 // Encode adder for current node
                 let mut cnf = Cnf::new();
                 // Propagate left value
-                for (&left_val, &left_lit) in
-                    left_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
-                {
+                for (&left_val, &left_lit) in left_lits.range(range.clone()) {
                     cnf.add_lit_impl_lit(left_lit, *out_lits.get(&left_val).unwrap());
                 }
                 // Propagate right value
-                for (&right_val, &right_lit) in
-                    right_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
-                {
+                for (&right_val, &right_lit) in right_lits.range(range.clone()) {
                     cnf.add_lit_impl_lit(right_lit, *out_lits.get(&right_val).unwrap());
                 }
                 // Propagate sum
-                for (&left_val, &left_lit) in
-                    left_lits.range((Bound::Excluded(0), Bound::Excluded(max_enc)))
-                {
-                    let right_min = if min_enc > left_val {
-                        min_enc - left_val
-                    } else {
-                        0
-                    };
-                    for (&right_val, &right_lit) in right_lits.range((
-                        Bound::Included(right_min),
-                        Bound::Included(max_enc - left_val),
-                    )) {
-                        let sum_val = left_val + right_val;
-                        if sum_val > max_enc || sum_val < min_enc {
-                            continue;
+                if range.end > 1 {
+                    for (&left_val, &left_lit) in left_lits.range(1..range.end - 1) {
+                        let right_min = if range.start > left_val {
+                            range.start - left_val
+                        } else {
+                            0
+                        };
+                        for (&right_val, &right_lit) in
+                            right_lits.range(right_min..range.end - left_val)
+                        {
+                            let sum_val = left_val + right_val;
+                            if !range.contains(&sum_val) {
+                                continue;
+                            }
+                            cnf.add_cube_impl_lit(
+                                vec![left_lit, right_lit],
+                                *out_lits.get(&sum_val).unwrap(),
+                            );
                         }
-                        cnf.add_cube_impl_lit(
-                            vec![left_lit, right_lit],
-                            *out_lits.get(&sum_val).unwrap(),
-                        );
                     }
                 }
                 cnf
@@ -459,164 +462,141 @@ impl Node {
         }
     }
 
-    /// Encodes the output literals from the children to this node from values
-    /// `min_enc` to `max_enc`. Recurses depth first. Always encodes the full
-    /// requested CNF encoding.
-    fn encode_rec(
-        &mut self,
-        min_enc: usize,
-        max_enc: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
+    /// Encodes the output literals from the children to this node in a given
+    /// range. Recurses depth first. Always encodes the full requested CNF
+    /// encoding.
+    fn rec_encode(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         // Ignore all previous encoding and encode from scratch
-        let mut cnf = match self {
+        let cnf = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal { left, right, .. } => {
-                let left_min_enc = Node::compute_required_min_enc(min_enc, max_enc, right);
-                let right_min_enc = Node::compute_required_min_enc(min_enc, max_enc, left);
+                let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
+                let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.encode_rec(left_min_enc, max_enc, var_manager);
-                cnf.extend(right.encode_rec(right_min_enc, max_enc, var_manager));
-                cnf
+                let cnf = left.rec_encode(left_range, var_manager);
+                cnf.join(right.rec_encode(right_range, var_manager))
             }
         };
-        let local_cnf = self.encode_from_till(min_enc, max_enc, var_manager);
+        let local_cnf = self.encode_range(range.clone(), var_manager);
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                min_max_enc,
+                enc_range,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
-                *min_max_enc = Some((min_enc, cmp::min(*max_val, max_enc)));
+                *enc_range = range.start..cmp::min(*max_val + 1, range.end);
                 *n_clauses += local_cnf.n_clauses();
-                cnf.extend(local_cnf);
-                cnf
+                cnf.join(local_cnf)
             }
         }
     }
 
-    /// Encodes the output literals from the children to this node from values
-    /// `min_enc` to `max_enc`. Recurses depth first. Incrementally only encodes
-    /// new clauses.
-    fn encode_change_rec(
-        &mut self,
-        min_enc: usize,
-        max_enc: usize,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
-        let (mut cnf, min_max_already_encoded) = match self {
+    /// Encodes the output literals from the children to this node in a given
+    /// range. Recurses depth first. Incrementally only encodes new clauses.
+    fn encode_change_rec(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let (cnf, old_range) = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal {
                 left,
                 right,
-                min_max_enc,
+                enc_range,
                 ..
             } => {
-                let left_min_enc = Node::compute_required_min_enc(min_enc, max_enc, right);
-                let right_min_enc = Node::compute_required_min_enc(min_enc, max_enc, left);
+                let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
+                let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.encode_change_rec(left_min_enc, max_enc, var_manager);
-                cnf.extend(right.encode_change_rec(right_min_enc, max_enc, var_manager));
-                (cnf, *min_max_enc)
+                let mut cnf = left.encode_change_rec(left_range, var_manager);
+                cnf.extend(right.encode_change_rec(right_range, var_manager));
+                (cnf, enc_range.clone())
             }
         };
         // Encode changes for current node
-        let local_cnf = match min_max_already_encoded {
-            None => {
-                // First time encoding this node
-                self.encode_from_till(min_enc, max_enc, var_manager)
-            }
-            Some((old_min_enc, old_max_enc)) => {
-                // Part already encoded
-                let mut local_cnf = Cnf::new();
-                if min_enc < old_min_enc {
-                    local_cnf.extend(self.encode_from_till(min_enc, old_min_enc - 1, var_manager));
-                };
-                if max_enc > old_max_enc {
-                    local_cnf.extend(self.encode_from_till(old_max_enc + 1, max_enc, var_manager));
-                };
-                local_cnf
-            }
+        let local_cnf = if old_range.is_empty() {
+            // First time encoding this node
+            self.encode_range(range.clone(), var_manager)
+        } else {
+            // Part already encoded
+            let mut local_cnf = Cnf::new();
+            if range.start < old_range.start {
+                local_cnf.extend(self.encode_range(range.start..old_range.start, var_manager));
+            };
+            if range.end > old_range.end {
+                local_cnf.extend(self.encode_range(old_range.end..range.end, var_manager));
+            };
+            local_cnf
         };
         match self {
             Node::Leaf { .. } => local_cnf,
             Node::Internal {
-                min_max_enc,
+                enc_range,
                 max_val,
                 n_clauses,
                 ..
             } => {
                 // Update stats
                 *n_clauses += local_cnf.n_clauses();
-                *min_max_enc = if let Some((old_min_enc, old_max_enc)) = *min_max_enc {
-                    Some((
-                        cmp::min(min_enc, old_min_enc),
-                        cmp::min(*max_val, cmp::max(max_enc, old_max_enc)),
-                    ))
+                *enc_range = if (*enc_range).is_empty() {
+                    range.start..cmp::min(*max_val + 1, range.end)
                 } else {
-                    Some((min_enc, cmp::min(max_enc, *max_val)))
+                    cmp::min(range.start, enc_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(range.end, old_range.end))
                 };
-                cnf.extend(local_cnf);
-                cnf
+                cnf.join(local_cnf)
             }
         }
     }
 
-    /// Reserves variables this node might need between `min_enc` and `max_enc`
-    fn reserve_vars_from_till(
-        &mut self,
-        min_enc: usize,
-        max_enc: usize,
-        var_manager: &mut dyn ManageVars,
-    ) {
+    /// Reserves variables this node might need in a given range
+    fn reserve_vars_range(&mut self, mut range: Range<usize>, var_manager: &mut dyn ManageVars) {
         match self {
             Node::Leaf { .. } => (),
             Node::Internal {
                 out_lits,
                 left,
                 right,
+                max_val,
                 ..
             } => {
+                if range.end - 1 > *max_val {
+                    range.end = *max_val + 1;
+                }
+                if range.is_empty() {
+                    return;
+                }
                 let mut left_tmp_map = BTreeMap::new();
                 let mut right_tmp_map = BTreeMap::new();
                 let (left_lits, right_lits) =
                     Node::get_child_lit_maps(left, right, &mut left_tmp_map, &mut right_tmp_map);
                 // Reserve vars
-                for (&left_val, _) in
-                    left_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
-                {
+                for (&left_val, _) in left_lits.range(range.clone()) {
                     out_lits
                         .entry(left_val)
                         .or_insert_with(|| var_manager.new_var().pos_lit());
                 }
-                for (&right_val, _) in
-                    right_lits.range((Bound::Included(min_enc), Bound::Included(max_enc)))
-                {
+                for (&right_val, _) in right_lits.range(range.clone()) {
                     out_lits
                         .entry(right_val)
                         .or_insert_with(|| var_manager.new_var().pos_lit());
                 }
-                for (&left_val, _) in
-                    left_lits.range((Bound::Excluded(0), Bound::Excluded(max_enc)))
-                {
-                    let right_min = if min_enc > left_val {
-                        min_enc - left_val
-                    } else {
-                        0
-                    };
-                    for (&right_val, _) in right_lits.range((
-                        Bound::Included(right_min),
-                        Bound::Included(max_enc - left_val),
-                    )) {
-                        if left_val + right_val > max_enc || left_val + right_val < min_enc {
-                            continue;
+                if range.end > 1 {
+                    for (&left_val, _) in left_lits.range(1..range.end - 1) {
+                        let right_min = if range.start > left_val {
+                            range.start - left_val
+                        } else {
+                            0
+                        };
+                        for (&right_val, _) in right_lits.range(right_min..range.end - left_val) {
+                            let sum_val = left_val + right_val;
+                            if !range.contains(&sum_val) {
+                                continue;
+                            }
+                            out_lits
+                                .entry(sum_val)
+                                .or_insert_with(|| var_manager.new_var().pos_lit());
                         }
-                        out_lits
-                            .entry(left_val + right_val)
-                            .or_insert_with(|| var_manager.new_var().pos_lit());
                     }
                 }
             }
@@ -630,7 +610,7 @@ impl Node {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
         };
-        self.reserve_vars_from_till(0, max_val, var_manager);
+        self.reserve_vars_range(0..max_val + 1, var_manager);
     }
 
     /// Reserves all variables this node and the lower subtree might need. This
@@ -647,34 +627,15 @@ impl Node {
         self.reserve_all_vars(var_manager)
     }
 
-    /// Computes the required `min_enc` for a node given a requested `min_enc`
-    /// and `max_enc` of the parent and its sibling.
-    fn compute_required_min_enc(
-        min_enc_requested: usize,
-        max_enc_requested: usize,
-        sibling: &Node,
-    ) -> usize {
-        match *sibling {
-            Node::Leaf { .. } => {
-                if min_enc_requested > 2 {
-                    min_enc_requested - 1
-                } else {
-                    1
-                }
-            }
-            Node::Internal { max_val, .. } => {
-                if max_enc_requested < max_val {
-                    if min_enc_requested > max_enc_requested {
-                        min_enc_requested - max_enc_requested
-                    } else {
-                        1
-                    }
-                } else if min_enc_requested > max_val {
-                    min_enc_requested - max_val
-                } else {
-                    1
-                }
-            }
+    /// Computes the required encoding range for a node given a requested range
+    /// for the parent and the maximum value of the sibling.
+    fn compute_required_min_enc(requested_range: Range<usize>, max_sibling: usize) -> Range<usize> {
+        if requested_range.is_empty() {
+            0..0
+        } else if requested_range.start > max_sibling {
+            requested_range.start - max_sibling..requested_range.end
+        } else {
+            0..requested_range.end
         }
     }
 }
@@ -687,7 +648,7 @@ mod tests {
     use crate::{
         encodings::{
             card,
-            pb::{BoundUpperIncremental, BoundUpper},
+            pb::{BoundUpper, BoundUpperIncremental},
             EncodeStats, EncodingError,
         },
         instances::{BasicVarManager, ManageVars},
@@ -703,7 +664,7 @@ mod tests {
         let child2 = Node::new_leaf(lit![1], 3);
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let cnf = node.encode_from_till(0, 8, &mut var_manager);
+        let cnf = node.encode_range(0..9, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 3),
@@ -722,8 +683,8 @@ mod tests {
             out_lits: lits,
             depth: 1,
             n_clauses: 0,
-            max_val: 2,
-            min_max_enc: Some((0, 8)),
+            max_val: 8,
+            enc_range: 0..9,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -736,15 +697,15 @@ mod tests {
             out_lits: lits,
             depth: 1,
             n_clauses: 0,
-            max_val: 2,
-            min_max_enc: Some((0, 8)),
+            max_val: 8,
+            enc_range: 0..9,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let cnf = node.encode_from_till(0, 6, &mut var_manager);
+        let cnf = node.encode_range(0..7, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 3),
@@ -763,8 +724,8 @@ mod tests {
             out_lits: lits,
             depth: 1,
             n_clauses: 0,
-            max_val: 2,
-            min_max_enc: Some((0, 8)),
+            max_val: 8,
+            enc_range: 0..9,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -777,15 +738,15 @@ mod tests {
             out_lits: lits,
             depth: 1,
             n_clauses: 0,
-            max_val: 2,
-            min_max_enc: Some((0, 8)),
+            max_val: 8,
+            enc_range: 0..9,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let cnf = node.encode_from_till(4, 6, &mut var_manager);
+        let cnf = node.encode_range(4..7, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
@@ -804,8 +765,8 @@ mod tests {
             out_lits: lits,
             depth: 1,
             n_clauses: 0,
-            max_val: 2,
-            min_max_enc: Some((0, 8)),
+            max_val: 8,
+            enc_range: 0..9,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
@@ -818,15 +779,15 @@ mod tests {
             out_lits: lits,
             depth: 1,
             n_clauses: 0,
-            max_val: 2,
-            min_max_enc: Some((0, 8)),
+            max_val: 8,
+            enc_range: 0..9,
             // Dummy nodes for children
             left: Box::new(Node::new_leaf(lit![0], 5)),
             right: Box::new(Node::new_leaf(lit![0], 3)),
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
-        let cnf = node.encode_from_till(6, 4, &mut var_manager);
+        let cnf = node.encode_range(6..5, &mut var_manager);
         assert_eq!(cnf.n_clauses(), 0);
     }
 
@@ -842,7 +803,7 @@ mod tests {
         assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         gte.encode_ub(0..7, &mut var_manager);
-        assert_eq!(gte.get_depth(), 3);
+        assert_eq!(gte.depth(), 3);
         assert_eq!(gte.n_vars(), 10);
     }
 
