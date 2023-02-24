@@ -52,7 +52,7 @@ use crate::{
     },
 };
 
-mod totalizer;
+pub mod totalizer;
 pub use totalizer::Totalizer;
 pub mod simulators;
 

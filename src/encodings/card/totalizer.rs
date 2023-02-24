@@ -74,10 +74,10 @@ impl Totalizer {
     }
 
     /// Gets the maximum depth of the tree
-    pub fn get_depth(&mut self) -> usize {
+    pub fn depth(&mut self) -> usize {
         match &self.root {
             None => 0,
-            Some(root_node) => root_node.get_depth(),
+            Some(root_node) => root_node.depth(),
         }
     }
 
@@ -276,7 +276,9 @@ impl Extend<Lit> for Totalizer {
 
 type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 
-/// A node in the totalizer tree
+/// A node in the totalizer tree. This is only exposed publicly to be reused in
+/// more complex encodings, for using the totalizer, this should not be directly
+/// accessed but only through [`Totalizer`].
 pub enum Node {
     Leaf {
         /// The input literal to the tree
@@ -304,12 +306,12 @@ pub enum Node {
 
 impl Node {
     /// Constructs a new leaf node
-    fn new_leaf(lit: Lit) -> Node {
+    pub fn new_leaf(lit: Lit) -> Node {
         Node::Leaf { lit }
     }
 
     /// Constructs a new internal node
-    fn new_internal(left: Node, right: Node) -> Node {
+    pub fn new_internal(left: Node, right: Node) -> Node {
         let left_depth = match left {
             Node::Leaf { .. } => 1,
             Node::Internal { depth, .. } => depth,
@@ -341,10 +343,18 @@ impl Node {
     }
 
     /// Gets the maximum depth of the subtree rooted in this node
-    pub fn get_depth(&self) -> usize {
+    pub fn depth(&self) -> usize {
         match self {
             Node::Leaf { .. } => 1,
             Node::Internal { depth, .. } => *depth,
+        }
+    }
+
+    /// Gets the maximum value that the node represents
+    pub fn max_val(&self) -> usize {
+        match self {
+            Node::Leaf { .. } => 1,
+            Node::Internal { max_val, .. } => *max_val,
         }
     }
 
@@ -498,8 +508,8 @@ impl Node {
         let cnf = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal { left, right, .. } => {
-                let left_range = Node::compute_required_range(range.clone(), right);
-                let right_range = Node::compute_required_range(range.clone(), left);
+                let left_range = Node::compute_required_range(range.clone(), right.max_val());
+                let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
                 let cnf = left.rec_encode_ub(left_range, var_manager);
                 cnf.join(right.rec_encode_ub(right_range, var_manager))
@@ -530,8 +540,8 @@ impl Node {
         let cnf = match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal { left, right, .. } => {
-                let left_range = Node::compute_required_range(range.clone(), right);
-                let right_range = Node::compute_required_range(range.clone(), left);
+                let left_range = Node::compute_required_range(range.clone(), right.max_val());
+                let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
                 let cnf = left.rec_encode_lb(left_range, var_manager);
                 cnf.join(right.rec_encode_lb(right_range, var_manager))
@@ -570,8 +580,8 @@ impl Node {
                 ub_range,
                 ..
             } => {
-                let left_range = Node::compute_required_range(range.clone(), right);
-                let right_range = Node::compute_required_range(range.clone(), left);
+                let left_range = Node::compute_required_range(range.clone(), right.max_val());
+                let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
                 let mut cnf = left.rec_encode_ub_change(left_range, var_manager);
                 cnf.extend(right.rec_encode_ub_change(right_range, var_manager));
@@ -629,8 +639,8 @@ impl Node {
                 lb_range,
                 ..
             } => {
-                let left_range = Node::compute_required_range(range.clone(), right);
-                let right_range = Node::compute_required_range(range.clone(), left);
+                let left_range = Node::compute_required_range(range.clone(), right.max_val());
+                let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
                 let mut cnf = left.rec_encode_lb_change(left_range, var_manager);
                 cnf.extend(right.rec_encode_lb_change(right_range, var_manager));
@@ -731,26 +741,14 @@ impl Node {
     }
 
     /// Computes the required encoding range for a node given a requested range
-    /// for the parent and its sibling.
-    fn compute_required_range(requested_range: Range<usize>, sibling: &Node) -> Range<usize> {
+    /// for the parent and the maximum value of the sibling.
+    fn compute_required_range(requested_range: Range<usize>, max_sibling: usize) -> Range<usize> {
         if requested_range.is_empty() {
-            return 0..0;
-        }
-        match *sibling {
-            Node::Leaf { .. } => {
-                if requested_range.start > 1 {
-                    requested_range.start - 1..requested_range.end
-                } else {
-                    0..requested_range.end
-                }
-            }
-            Node::Internal { max_val, .. } => {
-                if requested_range.start > max_val {
-                    requested_range.start - max_val..requested_range.end
-                } else {
-                    0..requested_range.end
-                }
-            }
+            0..0
+        } else if requested_range.start > max_sibling {
+            requested_range.start - max_sibling..requested_range.end
+        } else {
+            0..requested_range.end
         }
     }
 }
@@ -950,7 +948,7 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         let mut cnf = tot.encode_ub(0..5, &mut var_manager);
         cnf.extend(tot.encode_lb(0..5, &mut var_manager));
-        assert_eq!(tot.get_depth(), 3);
+        assert_eq!(tot.depth(), 3);
         assert_eq!(cnf.n_clauses(), 28);
         assert_eq!(tot.n_clauses(), 28);
         assert_eq!(tot.n_vars(), 8);
@@ -964,7 +962,7 @@ mod tests {
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         let cnf = tot.encode_both(3..4, &mut var_manager);
-        assert_eq!(tot.get_depth(), 3);
+        assert_eq!(tot.depth(), 3);
         assert_eq!(cnf.n_clauses(), 12);
         assert_eq!(cnf.n_clauses(), tot.n_clauses());
     }
