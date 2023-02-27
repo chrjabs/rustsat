@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use super::{fio, BasicVarManager, ManageVars, Objective, ReindexVars, SatInstance, Cnf};
+use super::{fio, BasicVarManager, Cnf, ManageVars, Objective, ReindexVars, SatInstance};
 
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.

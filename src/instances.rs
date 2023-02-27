@@ -14,7 +14,7 @@ use crate::{
 };
 
 mod sat;
-pub use sat::{SatInstance, Cnf};
+pub use sat::{Cnf, SatInstance};
 
 #[cfg(feature = "optimization")]
 mod opt;

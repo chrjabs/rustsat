@@ -5,13 +5,14 @@ use rustsat::{
     encodings::{
         card::Totalizer,
         pb::{
-            simulators::Card, BoundBoth, DoubleGeneralizedTotalizer, GeneralizedTotalizer, BoundBothIncremental,
-            BoundUpperIncremental, InvertedGeneralizedTotalizer, BoundLower, BoundUpper,
+            simulators::Card, BoundBoth, BoundBothIncremental, BoundLower, BoundUpper,
+            BoundUpperIncremental, DoubleGeneralizedTotalizer, GeneralizedTotalizer,
+            InvertedGeneralizedTotalizer,
         },
     },
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{new_default_inc_solver, SolveIncremental, Solve, SolverResult},
+    solvers::{new_default_inc_solver, Solve, SolveIncremental, SolverResult},
     types::{Clause, Lit, RsHashMap, Var},
     var,
 };

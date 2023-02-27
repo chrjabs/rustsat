@@ -27,7 +27,7 @@ enum IntObj {
     },
 }
 
-use super::{fio, BasicVarManager, ManageVars, ReindexVars, SatInstance, Cnf};
+use super::{fio, BasicVarManager, Cnf, ManageVars, ReindexVars, SatInstance};
 
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.

@@ -215,7 +215,7 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
         let cnf = match &mut self.root {
             None => Cnf::new(),
             Some(root) => {
-                root.encode_change_rec(range.start..range.end + self.max_leaf_weight, var_manager)
+                root.rec_encode_change(range.start..range.end + self.max_leaf_weight, var_manager)
             }
         };
         self.n_clauses += cnf.n_clauses();
@@ -329,30 +329,12 @@ impl Node {
 
     /// Constructs a new internal node
     pub fn new_internal(left: Node, right: Node) -> Node {
-        let left_depth = match left {
-            Node::Leaf { .. } => 1,
-            Node::Internal { depth, .. } => depth,
-        };
-        let right_depth = match right {
-            Node::Leaf { .. } => 1,
-            Node::Internal { depth, .. } => depth,
-        };
         Node::Internal {
             out_lits: BTreeMap::new(),
-            depth: if left_depth > right_depth {
-                left_depth + 1
-            } else {
-                right_depth + 1
-            },
+            depth: cmp::max(left.depth() + 1, right.depth() + 1),
             n_clauses: 0,
             enc_range: 0..0,
-            max_val: match left {
-                Node::Leaf { weight, .. } => weight,
-                Node::Internal { max_val, .. } => max_val,
-            } + match right {
-                Node::Leaf { weight, .. } => weight,
-                Node::Internal { max_val, .. } => max_val,
-            },
+            max_val: left.max_val() + right.max_val(),
             left: Box::new(left),
             right: Box::new(right),
         }
@@ -403,24 +385,22 @@ impl Node {
     /// Encodes the output literals for this node in a given range. This method
     /// only produces the encoding and does _not_ change any of the stats of the
     /// node.
-    fn encode_range(&mut self, mut range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_range(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
         // Reserve vars if needed
         self.reserve_vars_range(range.clone(), var_manager);
         match &*self {
             Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
                 out_lits,
-                max_val,
                 left,
                 right,
                 ..
             } => {
-                if range.end - 1 > *max_val {
-                    range.end = *max_val + 1;
-                }
-                if range.is_empty() {
-                    return Cnf::new();
-                }
                 let mut left_tmp_map = BTreeMap::new();
                 let mut right_tmp_map = BTreeMap::new();
                 let (left_lits, right_lits) =
@@ -465,30 +445,26 @@ impl Node {
     /// Encodes the output literals from the children to this node in a given
     /// range. Recurses depth first. Always encodes the full requested CNF
     /// encoding.
-    fn rec_encode(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    pub fn rec_encode(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
         // Ignore all previous encoding and encode from scratch
-        let cnf = match self {
+        match self {
             Node::Leaf { .. } => return Cnf::new(),
             Node::Internal { left, right, .. } => {
                 let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
                 let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
                 // Recurse
-                let cnf = left.rec_encode(left_range, var_manager);
-                cnf.join(right.rec_encode(right_range, var_manager))
-            }
-        };
-        let local_cnf = self.encode_range(range.clone(), var_manager);
-        match self {
-            Node::Leaf { .. } => local_cnf,
-            Node::Internal {
-                enc_range,
-                max_val,
-                n_clauses,
-                ..
-            } => {
-                // Update stats
-                *enc_range = range.start..cmp::min(*max_val + 1, range.end);
-                *n_clauses += local_cnf.n_clauses();
+                let mut cnf = left.rec_encode(left_range, var_manager);
+                cnf.extend(right.rec_encode(right_range, var_manager));
+
+                // Encode current node
+                let local_cnf = self.encode_range(range.clone(), var_manager);
+
+                self.update_stats(range, local_cnf.n_clauses());
                 cnf.join(local_cnf)
             }
         }
@@ -496,76 +472,70 @@ impl Node {
 
     /// Encodes the output literals from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
-    fn encode_change_rec(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let (cnf, old_range) = match self {
-            Node::Leaf { .. } => return Cnf::new(),
+    pub fn rec_encode_change(
+        &mut self,
+        range: Range<usize>,
+        var_manager: &mut dyn ManageVars,
+    ) -> Cnf {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
+        match self {
+            Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
                 left,
                 right,
                 enc_range,
                 ..
             } => {
+                // Copy to avoid borrow checker
+                let enc_range = enc_range.clone();
+
                 let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
                 let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.encode_change_rec(left_range, var_manager);
-                cnf.extend(right.encode_change_rec(right_range, var_manager));
-                (cnf, enc_range.clone())
-            }
-        };
-        // Encode changes for current node
-        let local_cnf = if old_range.is_empty() {
-            // First time encoding this node
-            self.encode_range(range.clone(), var_manager)
-        } else {
-            // Part already encoded
-            let mut local_cnf = Cnf::new();
-            if range.start < old_range.start {
-                local_cnf.extend(self.encode_range(range.start..old_range.start, var_manager));
-            };
-            if range.end > old_range.end {
-                local_cnf.extend(self.encode_range(old_range.end..range.end, var_manager));
-            };
-            local_cnf
-        };
-        match self {
-            Node::Leaf { .. } => local_cnf,
-            Node::Internal {
-                enc_range,
-                max_val,
-                n_clauses,
-                ..
-            } => {
-                // Update stats
-                *n_clauses += local_cnf.n_clauses();
-                *enc_range = if (*enc_range).is_empty() {
-                    range.start..cmp::min(*max_val + 1, range.end)
+                let mut cnf = left.rec_encode_change(left_range, var_manager);
+                cnf.extend(right.rec_encode_change(right_range, var_manager));
+
+                // Encode changes for current node
+                let local_cnf = if enc_range.is_empty() {
+                    // First time encoding this node
+                    self.encode_range(range.clone(), var_manager)
                 } else {
-                    cmp::min(range.start, enc_range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(range.end, old_range.end))
+                    // Partially encoded
+                    let mut local_cnf = Cnf::new();
+                    if range.start < enc_range.start {
+                        local_cnf
+                            .extend(self.encode_range(range.start..enc_range.start, var_manager));
+                    };
+                    if range.end > enc_range.end {
+                        local_cnf.extend(self.encode_range(enc_range.end..range.end, var_manager));
+                    };
+                    local_cnf
                 };
+
+                self.update_stats(range, local_cnf.n_clauses());
                 cnf.join(local_cnf)
             }
         }
     }
 
     /// Reserves variables this node might need in a given range
-    fn reserve_vars_range(&mut self, mut range: Range<usize>, var_manager: &mut dyn ManageVars) {
+    fn reserve_vars_range(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return;
+        }
         match self {
             Node::Leaf { .. } => (),
             Node::Internal {
                 out_lits,
                 left,
                 right,
-                max_val,
                 ..
             } => {
-                if range.end - 1 > *max_val {
-                    range.end = *max_val + 1;
-                }
-                if range.is_empty() {
-                    return;
-                }
                 let mut left_tmp_map = BTreeMap::new();
                 let mut right_tmp_map = BTreeMap::new();
                 let (left_lits, right_lits) =
@@ -605,7 +575,7 @@ impl Node {
 
     /// Reserves all variables this node might need. This is used if variables
     /// in the totalizer should have consecutive indices.
-    fn reserve_all_vars(&mut self, var_manager: &mut dyn ManageVars) {
+    pub fn reserve_all_vars(&mut self, var_manager: &mut dyn ManageVars) {
         let max_val = match self {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
@@ -615,7 +585,7 @@ impl Node {
 
     /// Reserves all variables this node and the lower subtree might need. This
     /// is used if variables in the totalizer should have consecutive indices.
-    fn reserve_all_vars_rec(&mut self, var_manager: &mut dyn ManageVars) {
+    pub fn reserve_all_vars_rec(&mut self, var_manager: &mut dyn ManageVars) {
         match self {
             Node::Leaf { .. } => return,
             Node::Internal { left, right, .. } => {
@@ -636,6 +606,36 @@ impl Node {
             requested_range.start - max_sibling..requested_range.end
         } else {
             0..requested_range.end
+        }
+    }
+
+    /// Limits a range by the maximum of the node
+    fn limit_range(&self, range: Range<usize>) -> Range<usize> {
+        match self {
+            Node::Leaf { .. } => range.start..cmp::min(2, range.end),
+            Node::Internal { max_val, .. } => range.start..cmp::min(*max_val + 1, range.end),
+        }
+    }
+
+    /// Updates the statistics of the node by increasing the number of clauses
+    /// and updating the encoded range
+    fn update_stats(&mut self, new_enc_range: Range<usize>, new_n_clauses: usize) {
+        match self {
+            Node::Leaf { .. } => debug_assert_eq!(new_n_clauses, 0),
+            Node::Internal {
+                n_clauses,
+                enc_range,
+                max_val,
+                ..
+            } => {
+                *n_clauses += new_n_clauses;
+                *enc_range = if (*enc_range).is_empty() {
+                    new_enc_range.start..cmp::min(*max_val + 1, new_enc_range.end)
+                } else {
+                    cmp::min(new_enc_range.start, enc_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(new_enc_range.end, enc_range.end))
+                };
+            }
         }
     }
 }
