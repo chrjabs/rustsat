@@ -11,7 +11,7 @@
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
 use crate::{
-    instances::{ManageVars, SatInstance, Cnf},
+    instances::{Cnf, ManageVars, SatInstance},
     types::{Clause, Lit, Var},
 };
 use nom::{
@@ -665,7 +665,7 @@ mod tests {
     };
     use crate::{
         clause,
-        instances::{SatInstance, Cnf},
+        instances::{Cnf, SatInstance},
         ipasir_lit,
         types::{Clause, Lit, Var},
         var,

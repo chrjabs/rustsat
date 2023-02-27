@@ -6,7 +6,7 @@
 
 use rustsat::{
     instances::{ManageVars, SatInstance},
-    solvers::{self, SolveIncremental, Solve},
+    solvers::{self, Solve, SolveIncremental},
     types::{Assignment, Var},
 };
 

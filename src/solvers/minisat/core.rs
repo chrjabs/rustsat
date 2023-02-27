@@ -7,7 +7,7 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    SolveIncremental, InternalSolverState, Solve, SolveMightFail, SolveStats, SolverError,
+    InternalSolverState, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError,
     SolverResult, SolverState, SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};

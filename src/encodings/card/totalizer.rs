@@ -312,31 +312,13 @@ impl Node {
 
     /// Constructs a new internal node
     pub fn new_internal(left: Node, right: Node) -> Node {
-        let left_depth = match left {
-            Node::Leaf { .. } => 1,
-            Node::Internal { depth, .. } => depth,
-        };
-        let right_depth = match right {
-            Node::Leaf { .. } => 1,
-            Node::Internal { depth, .. } => depth,
-        };
         Node::Internal {
             out_lits: vec![],
-            depth: if left_depth > right_depth {
-                left_depth + 1
-            } else {
-                right_depth + 1
-            },
+            depth: cmp::max(left.depth() + 1, right.depth() + 1),
             n_clauses: 0,
             ub_range: 0..0,
             lb_range: 0..0,
-            max_val: match left {
-                Node::Leaf { .. } => 1,
-                Node::Internal { max_val, .. } => max_val,
-            } + match right {
-                Node::Leaf { .. } => 1,
-                Node::Internal { max_val, .. } => max_val,
-            },
+            max_val: left.max_val() + right.max_val(),
             left: Box::new(left),
             right: Box::new(right),
         }
@@ -361,28 +343,22 @@ impl Node {
     /// Encodes the upper bound adder for this node in a given range. This
     /// method only produces the encoding and does _not_ change any of the stats
     /// of the node.
-    fn encode_ub_range(
-        &mut self,
-        mut range: Range<usize>,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
+    fn encode_ub_range(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
         // Reserve vars if needed
         self.reserve_vars_range(range.clone(), var_manager);
         match self {
             Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
                 out_lits,
-                max_val,
                 left,
                 right,
                 ..
             } => {
-                if range.end - 1 > *max_val {
-                    range.end = *max_val + 1;
-                }
-                if range.is_empty() {
-                    return Cnf::new();
-                }
                 // Encode adder for current node
                 let mut cnf = Cnf::new();
                 let tmp_opt_lit_l;
@@ -429,11 +405,12 @@ impl Node {
     /// Encodes the lower bound adder for this node in a given range. This
     /// method only produces the encoding and does _not_ change any of the stats
     /// of the node.
-    fn encode_lb_range(
-        &mut self,
-        mut range: Range<usize>,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
+    fn encode_lb_range(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
         // Reserve vars if needed
         self.reserve_vars_range(
             if range.start > 0 { range.start - 1 } else { 0 }..if range.end > 0 {
@@ -447,17 +424,10 @@ impl Node {
             Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
                 out_lits,
-                max_val,
                 left,
                 right,
                 ..
             } => {
-                if range.end - 1 > *max_val {
-                    range.end = *max_val + 1;
-                }
-                if range.is_empty() {
-                    return Cnf::new();
-                }
                 // Encode adder for current node
                 let mut cnf = Cnf::new();
                 let tmp_opt_lit_l;
@@ -505,29 +475,32 @@ impl Node {
     /// range. Recurses depth first. Always returns the full requested CNF
     /// encoding, i.e., non-incremental.
     pub fn rec_encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let cnf = match self {
-            Node::Leaf { .. } => return Cnf::new(),
-            Node::Internal { left, right, .. } => {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
+        match self {
+            Node::Leaf { .. } => Cnf::new(),
+            Node::Internal {
+                left,
+                right,
+                lb_range,
+                ..
+            } => {
+                // Copy to avoid borrow checker
+                let lb_range = lb_range.clone();
+
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                let cnf = left.rec_encode_ub(left_range, var_manager);
-                cnf.join(right.rec_encode_ub(right_range, var_manager))
-            }
-        };
-        // Ignore all previous encoding and encode from scratch
-        let local_cnf = self.encode_ub_range(range.clone(), var_manager);
-        match self {
-            Node::Leaf { .. } => local_cnf,
-            Node::Internal {
-                ub_range,
-                max_val,
-                n_clauses,
-                ..
-            } => {
-                // Update stats
-                *ub_range = range.start..cmp::min(*max_val + 1, range.end);
-                *n_clauses += local_cnf.n_clauses();
+                let mut cnf = left.rec_encode_ub(left_range, var_manager);
+                cnf.extend(right.rec_encode_ub(right_range, var_manager));
+
+                // Ignore all previous encoding and encode from scratch
+                let local_cnf = self.encode_ub_range(range.clone(), var_manager);
+
+                self.update_stats(range, lb_range, local_cnf.n_clauses());
                 cnf.join(local_cnf)
             }
         }
@@ -537,29 +510,32 @@ impl Node {
     /// range. Recurses depth first. Always returns the full requested CNF
     /// encoding.
     pub fn rec_encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let cnf = match self {
-            Node::Leaf { .. } => return Cnf::new(),
-            Node::Internal { left, right, .. } => {
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
+        match self {
+            Node::Leaf { .. } => Cnf::new(),
+            Node::Internal {
+                left,
+                right,
+                ub_range,
+                ..
+            } => {
+                // Copy to avoid borrow checker
+                let ub_range = ub_range.clone();
+
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                let cnf = left.rec_encode_lb(left_range, var_manager);
-                cnf.join(right.rec_encode_lb(right_range, var_manager))
-            }
-        };
-        // Ignore all previous encoding and encode from scratch
-        let local_cnf = self.encode_lb_range(range.clone(), var_manager);
-        match self {
-            Node::Leaf { .. } => local_cnf,
-            Node::Internal {
-                lb_range,
-                max_val,
-                n_clauses,
-                ..
-            } => {
-                // Update stats
-                *lb_range = range.start..cmp::min(*max_val + 1, range.end);
-                *n_clauses += local_cnf.n_clauses();
+                let mut cnf = left.rec_encode_lb(left_range, var_manager);
+                cnf.extend(right.rec_encode_lb(right_range, var_manager));
+
+                // Ignore all previous encoding and encode from scratch
+                let local_cnf = self.encode_lb_range(range.clone(), var_manager);
+
+                self.update_stats(ub_range, range, local_cnf.n_clauses());
                 cnf.join(local_cnf)
             }
         }
@@ -567,58 +543,54 @@ impl Node {
 
     /// Encodes the upper bound adder from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
-    fn rec_encode_ub_change(
+    pub fn rec_encode_ub_change(
         &mut self,
         range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) -> Cnf {
-        let (cnf, old_range) = match self {
-            Node::Leaf { .. } => return Cnf::new(),
+        let range = self.limit_range(range);
+        if range.is_empty() {
+            return Cnf::new();
+        }
+
+        match self {
+            Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
                 left,
                 right,
                 ub_range,
+                lb_range,
                 ..
             } => {
+                // Copy to avoid borrow checker
+                let lb_range = lb_range.clone();
+                let ub_range = ub_range.clone();
+
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
                 let mut cnf = left.rec_encode_ub_change(left_range, var_manager);
                 cnf.extend(right.rec_encode_ub_change(right_range, var_manager));
-                (cnf, ub_range.clone())
-            }
-        };
-        // Encode changes for current node
-        let local_cnf = if old_range.is_empty() {
-            // First time encoding this node
-            self.encode_ub_range(range.clone(), var_manager)
-        } else {
-            // Part already encoded
-            let mut local_cnf = Cnf::new();
-            if range.start < old_range.start {
-                local_cnf.extend(self.encode_ub_range(range.start..old_range.start, var_manager));
-            };
-            if range.end > old_range.end {
-                local_cnf.extend(self.encode_ub_range(old_range.end..range.end, var_manager));
-            };
-            local_cnf
-        };
-        match self {
-            Node::Leaf { .. } => local_cnf,
-            Node::Internal {
-                ub_range,
-                max_val,
-                n_clauses,
-                ..
-            } => {
-                // Update stats
-                *n_clauses += local_cnf.n_clauses();
-                *ub_range = if (*ub_range).is_empty() {
-                    range.start..cmp::min(*max_val + 1, range.end)
+
+                // Encode changes for current node
+                let local_cnf = if ub_range.is_empty() {
+                    // First time encoding this node
+                    self.encode_ub_range(range.clone(), var_manager)
                 } else {
-                    cmp::min(ub_range.start, range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(ub_range.end, range.end))
+                    // Part already encoded
+                    let mut local_cnf = Cnf::new();
+                    if range.start < ub_range.start {
+                        local_cnf
+                            .extend(self.encode_ub_range(range.start..ub_range.start, var_manager));
+                    };
+                    if range.end > ub_range.end {
+                        local_cnf
+                            .extend(self.encode_ub_range(ub_range.end..range.end, var_manager));
+                    };
+                    local_cnf
                 };
+
+                self.update_stats(range, lb_range, local_cnf.n_clauses());
                 cnf.join(local_cnf)
             }
         }
@@ -626,58 +598,49 @@ impl Node {
 
     /// Encodes the lower bound adder from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
-    fn rec_encode_lb_change(
+    pub fn rec_encode_lb_change(
         &mut self,
         range: Range<usize>,
         var_manager: &mut dyn ManageVars,
     ) -> Cnf {
-        let (cnf, old_range) = match self {
-            Node::Leaf { .. } => return Cnf::new(),
+        match self {
+            Node::Leaf { .. } => Cnf::new(),
             Node::Internal {
                 left,
                 right,
+                ub_range,
                 lb_range,
                 ..
             } => {
+                // Copy to avoid borrow checker
+                let lb_range = lb_range.clone();
+                let ub_range = ub_range.clone();
+
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
                 let mut cnf = left.rec_encode_lb_change(left_range, var_manager);
                 cnf.extend(right.rec_encode_lb_change(right_range, var_manager));
-                (cnf, lb_range.clone())
-            }
-        };
-        // Encode changes for current node
-        let local_cnf = if old_range.is_empty() {
-            // First time encoding this node
-            self.encode_lb_range(range.clone(), var_manager)
-        } else {
-            // Part already encoded
-            let mut local_cnf = Cnf::new();
-            if range.start < old_range.start {
-                local_cnf.extend(self.encode_lb_range(range.start..old_range.start, var_manager));
-            };
-            if range.end > old_range.end {
-                local_cnf.extend(self.encode_lb_range(old_range.end..range.end, var_manager));
-            };
-            local_cnf
-        };
-        match self {
-            Node::Leaf { .. } => local_cnf,
-            Node::Internal {
-                lb_range,
-                max_val,
-                n_clauses,
-                ..
-            } => {
-                // Update stats
-                *n_clauses += local_cnf.n_clauses();
-                *lb_range = if (*lb_range).is_empty() {
-                    range.start..cmp::min(*max_val + 1, range.end)
+
+                // Encode changes for current node
+                let local_cnf = if lb_range.is_empty() {
+                    // First time encoding this node
+                    self.encode_lb_range(range.clone(), var_manager)
                 } else {
-                    cmp::min(range.start, lb_range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(lb_range.end, range.end))
+                    // Part already encoded
+                    let mut local_cnf = Cnf::new();
+                    if range.start < lb_range.start {
+                        local_cnf
+                            .extend(self.encode_lb_range(range.start..lb_range.start, var_manager));
+                    };
+                    if range.end > lb_range.end {
+                        local_cnf
+                            .extend(self.encode_lb_range(lb_range.end..range.end, var_manager));
+                    };
+                    local_cnf
                 };
+
+                self.update_stats(ub_range, range, local_cnf.n_clauses());
                 cnf.join(local_cnf)
             }
         }
@@ -749,6 +712,48 @@ impl Node {
             requested_range.start - max_sibling..requested_range.end
         } else {
             0..requested_range.end
+        }
+    }
+
+    /// Limits a range by the maximum of the node
+    fn limit_range(&self, range: Range<usize>) -> Range<usize> {
+        match self {
+            Node::Leaf { .. } => range.start..cmp::min(2, range.end),
+            Node::Internal { max_val, .. } => range.start..cmp::min(*max_val + 1, range.end),
+        }
+    }
+
+    /// Updates the statistics of the node by increasing the number of clauses
+    /// and updating the encoded ranges
+    fn update_stats(
+        &mut self,
+        new_ub_range: Range<usize>,
+        new_lb_range: Range<usize>,
+        new_n_clauses: usize,
+    ) {
+        match self {
+            Node::Leaf { .. } => debug_assert_eq!(new_n_clauses, 0),
+            Node::Internal {
+                n_clauses,
+                ub_range,
+                lb_range,
+                max_val,
+                ..
+            } => {
+                *n_clauses += new_n_clauses;
+                *ub_range = if (*ub_range).is_empty() {
+                    new_ub_range.start..cmp::min(*max_val + 1, new_ub_range.end)
+                } else {
+                    cmp::min(new_ub_range.start, ub_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(new_ub_range.end, ub_range.end))
+                };
+                *lb_range = if (*lb_range).is_empty() {
+                    new_lb_range.start..cmp::min(*max_val + 1, new_lb_range.end)
+                } else {
+                    cmp::min(new_lb_range.start, lb_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(new_lb_range.end, lb_range.end))
+                };
+            }
         }
     }
 }
