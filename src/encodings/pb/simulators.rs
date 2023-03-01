@@ -13,7 +13,7 @@ use super::{
     BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{card, EncodeStats, EncodingError},
+    encodings::{card, EncodeStats, Error},
     instances::{Cnf, ManageVars},
     types::{Lit, RsHashMap},
 };
@@ -117,7 +117,7 @@ where
             .encode_lb(self.convert_encoding_range(range), var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         let lb = if self.weight_sum > ub {
             self.weight_sum - ub
         } else {
@@ -136,11 +136,11 @@ where
             .encode_ub(self.convert_encoding_range(range), var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
         let ub = if self.weight_sum > lb {
             self.weight_sum - lb
         } else {
-            return Err(EncodingError::Unsat);
+            return Err(Error::Unsat);
         };
         self.pb_enc.enforce_ub(ub)
     }
@@ -269,7 +269,7 @@ where
         self.ub_enc.encode_ub(range, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         self.ub_enc.enforce_ub(ub)
     }
 }
@@ -283,7 +283,7 @@ where
         self.lb_enc.encode_lb(range, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
         self.lb_enc.enforce_lb(lb)
     }
 }
@@ -401,7 +401,7 @@ where
         self.card_enc.encode_ub(range, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         self.card_enc.enforce_ub(ub)
     }
 }
@@ -414,7 +414,7 @@ where
         self.card_enc.encode_lb(range, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
         self.card_enc.enforce_lb(lb)
     }
 }

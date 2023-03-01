@@ -48,7 +48,7 @@
 
 use std::ops::Range;
 
-use super::{card, EncodingError};
+use super::{card, Error};
 use crate::{
     instances::{Cnf, ManageVars},
     types::{
@@ -89,19 +89,16 @@ pub trait BoundUpper: Encode {
     /// lits <= ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned.
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound pseudo-boolean constraint to CNF
-    fn encode_ub_constr(
-        constr: PBUBConstr,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    fn encode_ub_constr(constr: PBUBConstr, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
     where
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
         let ub = if ub < 0 {
-            return Err(EncodingError::Unsat);
+            return Err(Error::Unsat);
         } else {
             ub as usize
         };
@@ -129,12 +126,9 @@ pub trait BoundLower: Encode {
     /// [`EncodingError::NotEncoded`] will be returned. If `lb` is higher than
     /// the weighted sum of literals in the encoding, [`EncodingError::Unsat`]
     /// is returned.
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError>;
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound pseudo-boolean constraint to CNF
-    fn encode_lb_constr(
-        constr: PBLBConstr,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    fn encode_lb_constr(constr: PBLBConstr, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
     where
         Self: Sized,
     {
@@ -172,23 +166,20 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// [`EncodingError::NotEncoded`] will be returned. If `b` is higher than
     /// the number of literals in the encoding, [`EncodingError::Unsat`] is
     /// returned.
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
         Ok(assumps)
     }
     /// Encodes an equality pseudo-boolean constraint to CNF
-    fn encode_eq_constr(
-        constr: PBEQConstr,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    fn encode_eq_constr(constr: PBEQConstr, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
     where
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, b) = constr.decompose();
         let b = if b < 0 {
-            return Err(EncodingError::Unsat);
+            return Err(Error::Unsat);
         } else {
             b as usize
         };
@@ -201,10 +192,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Ok(cnf)
     }
     /// Encodes any pseudo-boolean constraint to CNF
-    fn encode_constr(
-        constr: PBConstraint,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    fn encode_constr(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
     where
         Self: Sized,
     {

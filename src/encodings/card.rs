@@ -43,7 +43,7 @@
 
 use std::ops::Range;
 
-use super::EncodingError;
+use super::Error;
 use crate::{
     instances::{Cnf, ManageVars},
     types::{
@@ -79,12 +79,12 @@ pub trait BoundUpper: Encode {
     /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned.
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound cardinality constraint to CNF
     fn encode_ub_constr(
         constr: CardUBConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    ) -> Result<Cnf, Error>
     where
         Self: Sized,
     {
@@ -114,12 +114,12 @@ pub trait BoundLower: Encode {
     /// [`EncodingError::NotEncoded`] will be returned. If `lb` is higher than
     /// the number of literals in the encoding, [`EncodingError::Unsat`] is
     /// returned.
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError>;
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound cardinality constraint to CNF
     fn encode_lb_constr(
         constr: CardLBConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    ) -> Result<Cnf, Error>
     where
         Self: Sized,
     {
@@ -152,7 +152,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// [`EncodingError::NotEncoded`] will be returned. If `b` is higher than
     /// the number of literals in the encoding, [`EncodingError::Unsat`] is
     /// returned.
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
         Ok(assumps)
@@ -161,7 +161,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     fn encode_eq_constr(
         constr: CardEQConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    ) -> Result<Cnf, Error>
     where
         Self: Sized,
     {
@@ -176,10 +176,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Ok(cnf)
     }
     /// Encodes any cardinality constraint to CNF
-    fn encode_constr(
-        constr: CardConstraint,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, EncodingError>
+    fn encode_constr(constr: CardConstraint, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
     where
         Self: Sized,
     {

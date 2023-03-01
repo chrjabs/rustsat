@@ -11,7 +11,7 @@ use super::{
     BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{EncodeStats, EncodingError},
+    encodings::{EncodeStats, Error},
     instances::{Cnf, ManageVars},
     types::Lit,
 };
@@ -114,7 +114,7 @@ where
             .encode_lb(self.convert_encoding_range(range), var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         let lb = if self.n_lits > ub {
             self.n_lits - ub
         } else {
@@ -133,11 +133,11 @@ where
             .encode_ub(self.convert_encoding_range(range), var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
         let ub = if self.n_lits > lb {
             self.n_lits - lb
         } else {
-            return Err(EncodingError::Unsat);
+            return Err(Error::Unsat);
         };
         self.card_enc.enforce_ub(ub)
     }
@@ -263,7 +263,7 @@ where
         self.ub_enc.encode_ub(range, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         self.ub_enc.enforce_ub(ub)
     }
 }
@@ -277,7 +277,7 @@ where
         self.lb_enc.encode_lb(range, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
         self.lb_enc.enforce_lb(lb)
     }
 }

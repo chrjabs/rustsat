@@ -7,7 +7,7 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Clause, ClsIter, Lit, LitIter, RsHashMap, Var, WClsIter, WLitIter,
+        Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
     },
 };
 
@@ -179,6 +179,66 @@ impl Objective {
     /// Gets the minimum weight of any soft
     pub fn min_weight(&self) -> usize {
         cmp::min(self.min_lit_weight(), self.min_clause_weight())
+    }
+
+    /// Evaluates the objective under an assignment. Only clauses _falsified_
+    /// and literals _set_ incur cost.
+    pub fn evaluate(&self, sol: &Assignment) -> isize {
+        self.evaluate_no_offset(sol) as isize + self.offset()
+    }
+
+    /// Evaluates the objective under and assignment without considering the
+    /// offset. Only clauses _falsified_ and literals _set_ incur cost.
+    pub fn evaluate_no_offset(&self, sol: &Assignment) -> usize {
+        match &self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                let cost = soft_lits.iter().fold(0, |c, (l, w)| {
+                    if sol.lit_value(*l) == TernaryVal::True {
+                        c + w
+                    } else {
+                        c
+                    }
+                });
+                soft_clauses.iter().fold(cost, |c, (cl, w)| {
+                    if cl.evaluate(sol) == TernaryVal::False {
+                        c + w
+                    } else {
+                        c
+                    }
+                })
+            }
+            IntObj::Unweighted {
+                unit_weight,
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                let cost = soft_lits.iter().fold(0, |c, l| {
+                    if sol.lit_value(*l) == TernaryVal::True {
+                        c + 1
+                    } else {
+                        c
+                    }
+                });
+                let cost = soft_clauses.iter().fold(cost, |c, cl| {
+                    if cl.evaluate(sol) == TernaryVal::False {
+                        c + 1
+                    } else {
+                        c
+                    }
+                });
+                if let Some(unit_weight) = unit_weight {
+                    cost * unit_weight
+                } else {
+                    debug_assert_eq!(cost, 0);
+                    0
+                }
+            }
+        }
     }
 
     /// Sets the value offset
