@@ -8,11 +8,20 @@ pub mod pb;
 
 /// Errors from encodings
 #[derive(Debug, PartialEq, Eq)]
-pub enum EncodingError {
+pub enum Error {
     /// Encode was not called before using the encoding
     NotEncoded,
     /// The requested encoding is unsatisfiable
     Unsat,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::NotEncoded => write!(f, "not encoded to enforce bound"),
+            Error::Unsat => write!(f, "encoding is unsat"),
+        }
+    }
 }
 
 /// Trait for encodings that track statistics.

@@ -8,7 +8,7 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental, EncodingError};
+use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental, Error};
 use crate::{
     encodings::EncodeStats,
     instances::{Cnf, ManageVars},
@@ -153,13 +153,13 @@ impl BoundUpper for GeneralizedTotalizer {
         cnf
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         let mut assumps = vec![];
         // Assume literals that have higher weight than `ub`
         assumps.reserve(self.lit_buffer.len());
         self.lit_buffer.iter().try_for_each(|(_, &w)| {
             if w <= ub {
-                Err(EncodingError::NotEncoded)
+                Err(Error::NotEncoded)
             } else {
                 Ok(())
             }
@@ -196,7 +196,7 @@ impl BoundUpper for GeneralizedTotalizer {
                             .map(|(_, &l)| !l)
                             .collect()
                     } else {
-                        return Err(EncodingError::NotEncoded);
+                        return Err(Error::NotEncoded);
                     }
                 }
             },
@@ -453,7 +453,7 @@ impl Node {
 
         // Ignore all previous encoding and encode from scratch
         match self {
-            Node::Leaf { .. } => return Cnf::new(),
+            Node::Leaf { .. } => Cnf::new(),
             Node::Internal { left, right, .. } => {
                 let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
                 let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
@@ -649,7 +649,7 @@ mod tests {
         encodings::{
             card,
             pb::{BoundUpper, BoundUpperIncremental},
-            EncodeStats, EncodingError,
+            EncodeStats, Error,
         },
         instances::{BasicVarManager, ManageVars},
         lit,
@@ -800,7 +800,7 @@ mod tests {
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
         gte.extend(lits);
-        assert_eq!(gte.enforce_ub(4), Err(EncodingError::NotEncoded));
+        assert_eq!(gte.enforce_ub(4), Err(Error::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         gte.encode_ub(0..7, &mut var_manager);
         assert_eq!(gte.depth(), 3);

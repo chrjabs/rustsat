@@ -9,7 +9,7 @@ use std::{
     ops::{self, Not},
 };
 
-use super::{IWLitIter, Lit, LitIter, WLitIter};
+use super::{Assignment, IWLitIter, Lit, LitIter, TernaryVal, WLitIter};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -77,6 +77,22 @@ impl Clause {
             self.lits.remove(*i);
         }
         !idxs.is_empty()
+    }
+
+    /// Evaluates a clause under a given assignment
+    pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
+        self.iter()
+            .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
+                TernaryVal::True => TernaryVal::True,
+                TernaryVal::DontCare => {
+                    if val == TernaryVal::False {
+                        TernaryVal::DontCare
+                    } else {
+                        val
+                    }
+                }
+                TernaryVal::False => val,
+            })
     }
 
     /// Gets an iterator over the clause
