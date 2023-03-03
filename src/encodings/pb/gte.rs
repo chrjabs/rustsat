@@ -356,30 +356,16 @@ impl Node {
         }
     }
 
-    /// Gets references to both children's output literals. The temporary maps
-    /// are needed in case the child is a leaf.
-    fn get_child_lit_maps<'a>(
-        left: &'a Node,
-        right: &'a Node,
-        tmp_map_1: &'a mut BTreeMap<usize, Lit>,
-        tmp_map_2: &'a mut BTreeMap<usize, Lit>,
-    ) -> (&'a BTreeMap<usize, Lit>, &'a BTreeMap<usize, Lit>) {
-        (
-            match left {
-                Node::Leaf { lit, weight } => {
-                    tmp_map_1.insert(*weight, *lit);
-                    tmp_map_1
-                }
-                Node::Internal { out_lits, .. } => out_lits,
-            },
-            match right {
-                Node::Leaf { lit, weight } => {
-                    tmp_map_2.insert(*weight, *lit);
-                    tmp_map_2
-                }
-                Node::Internal { out_lits, .. } => out_lits,
-            },
-        )
+    /// Gets a reference to the output literals. The temporary map is needed in
+    /// case the node is not internal.
+    fn lit_map<'a>(&'a self, tmp_map: &'a mut BTreeMap<usize, Lit>) -> &'a BTreeMap<usize, Lit> {
+        match &self {
+            Node::Leaf { lit, weight } => {
+                tmp_map.insert(*weight, *lit);
+                tmp_map
+            }
+            Node::Internal { out_lits, .. } => out_lits,
+        }
     }
 
     /// Encodes the output literals for this node in a given range. This method
@@ -403,8 +389,8 @@ impl Node {
             } => {
                 let mut left_tmp_map = BTreeMap::new();
                 let mut right_tmp_map = BTreeMap::new();
-                let (left_lits, right_lits) =
-                    Node::get_child_lit_maps(left, right, &mut left_tmp_map, &mut right_tmp_map);
+                let left_lits = left.lit_map(&mut left_tmp_map);
+                let right_lits = right.lit_map(&mut right_tmp_map);
                 // Encode adder for current node
                 let mut cnf = Cnf::new();
                 // Propagate left value
@@ -538,8 +524,8 @@ impl Node {
             } => {
                 let mut left_tmp_map = BTreeMap::new();
                 let mut right_tmp_map = BTreeMap::new();
-                let (left_lits, right_lits) =
-                    Node::get_child_lit_maps(left, right, &mut left_tmp_map, &mut right_tmp_map);
+                let left_lits = left.lit_map(&mut left_tmp_map);
+                let right_lits = right.lit_map(&mut right_tmp_map);
                 // Reserve vars
                 for (&left_val, _) in left_lits.range(range.clone()) {
                     out_lits
