@@ -564,7 +564,7 @@ impl Assignment {
 
     /// Truncates a solution to only include assignments up to a maximum variable
     pub fn truncate(mut self, max_var: Var) -> Self {
-        self.assignment.truncate(max_var.idx());
+        self.assignment.truncate(max_var.idx() + 1);
         self
     }
 }
