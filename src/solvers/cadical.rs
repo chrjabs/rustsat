@@ -6,9 +6,9 @@ use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
-    ControlSignal, InternalSolverState, Learn, OptLearnCallbackStore, OptTermCallbackStore,
-    PhaseLit, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult,
-    SolverState, SolverStats, Terminate,
+    ControlSignal, InternalSolverState, Learn, LimitConflicts, LimitDecisions,
+    OptLearnCallbackStore, OptTermCallbackStore, PhaseLit, Solve, SolveIncremental, SolveMightFail,
+    SolveStats, SolverError, SolverResult, SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -604,6 +604,26 @@ impl PhaseLit for CaDiCaL<'_, '_> {
     fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
         unsafe { ffi::ccadical_unphase(self.handle, var.to_ipasir()) };
         Ok(())
+    }
+}
+
+impl LimitConflicts for CaDiCaL<'_, '_> {
+    fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+        self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
+            limit as c_int
+        } else {
+            -1
+        }))
+    }
+}
+
+impl LimitDecisions for CaDiCaL<'_, '_> {
+    fn limit_decisions(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+        self.set_limit(Limit::Decisions(if let Some(limit) = limit {
+            limit as c_int
+        } else {
+            -1
+        }))
     }
 }
 
