@@ -7,8 +7,8 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    InternalSolverState, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError,
-    SolverResult, SolverState, SolverStats,
+    InternalSolverState, LimitConflicts, LimitPropagations, Solve, SolveIncremental,
+    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -230,6 +230,28 @@ impl SolveIncremental for MinisatSimp {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
             other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
         }
+    }
+}
+
+impl LimitConflicts for MinisatSimp {
+    fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+        Ok(self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
+            limit as i64
+        } else {
+            -1
+        })))
+    }
+}
+
+impl LimitPropagations for MinisatSimp {
+    fn limit_propagations(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+        Ok(
+            self.set_limit(Limit::Propagations(if let Some(limit) = limit {
+                limit as i64
+            } else {
+                -1
+            })),
+        )
     }
 }
 

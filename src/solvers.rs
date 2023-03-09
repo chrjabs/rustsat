@@ -244,7 +244,7 @@ pub trait Learn<'learn> {
     fn detach_learner(&mut self);
 }
 
-/// Trait for all solver that can force a face for a literal
+/// Trait for all solvers that can force a face for a literal
 pub trait PhaseLit {
     /// Forces the default decision phase of a variable to a certain value
     fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError>;
@@ -254,6 +254,24 @@ pub trait PhaseLit {
     fn unphase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
         self.unphase_var(lit.var())
     }
+}
+
+/// Trait for all solvers that can limit the number of conflicts
+pub trait LimitConflicts {
+    /// Sets or removes a limit on the number of conflicts
+    fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
+}
+
+/// Trait for all solvers that can limit the number of decisions
+pub trait LimitDecisions {
+    /// Sets or removes a limit on the number of decisions
+    fn limit_decisions(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
+}
+
+/// Trait for all solvers that can limit the number of propagations
+pub trait LimitPropagations {
+    /// Sets or removes a limit on the number of propagations
+    fn limit_propagations(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
 }
 
 /// Return type of solver calls that don't return but might fail
