@@ -20,6 +20,7 @@ clap = { optional = true, version = "4.0", features = ["derive", "cargo"] }
 concolor-clap = { optional = true, version = "0.0.13" }
 termcolor = { optional = true, version = "1.1" }
 atty = { optional = true, version = "0.2" }
+visibility = { version = "0.0.1" }
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
@@ -40,6 +41,7 @@ default = [
   "glucose4",
   "minisat",
 ]
+internals = []
 fxhash = ["dep:rustc-hash"]
 ipasir = []
 cadical = []

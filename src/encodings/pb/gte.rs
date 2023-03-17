@@ -108,6 +108,7 @@ impl GeneralizedTotalizer {
     }
 
     /// Fully builds the tree, then returns it
+    #[cfg(feature = "internals")]
     pub fn tree(mut self) -> Option<Node> {
         self.extend_tree(usize::MAX);
         self.root
@@ -291,12 +292,13 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
 ///
 /// The Totalizer nodes are _only_ for upper bounding. Lower bounding in the GTE
 /// is possible by negating input literals. This conversion entirely happens in
-/// the [`InvertedGeneralizedTotalizer`] struct. Equally, bounds given on the
+/// the [`super::InvertedGeneralizedTotalizer`] struct. Equally, bounds given on the
 /// encode methods for this type strictly refer to the output literals that
 /// should be encoded. Converting right hand sides to required encoded output
 /// literals happens in the [`GeneralizedTotalizer`] or
-/// [`InvertedGeneralizedTotalizer`] structs.
-pub enum Node {
+/// [`super::InvertedGeneralizedTotalizer`] structs.
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+enum Node {
     Leaf {
         /// The input literal to the tree
         lit: Lit,
