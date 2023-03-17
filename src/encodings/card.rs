@@ -78,7 +78,7 @@ pub trait BoundUpper: Encode {
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
     /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
-    /// [`EncodingError::NotEncoded`] will be returned.
+    /// [`Error::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound cardinality constraint to CNF
     fn encode_ub_constr(
@@ -111,8 +111,8 @@ pub trait BoundLower: Encode {
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
     /// adequately and nothing has been added afterwards, otherwise
-    /// [`EncodingError::NotEncoded`] will be returned. If `lb` is higher than
-    /// the number of literals in the encoding, [`EncodingError::Unsat`] is
+    /// [`Error::NotEncoded`] will be returned. If `lb` is higher than
+    /// the number of literals in the encoding, [`Error::Unsat`] is
     /// returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound cardinality constraint to CNF
@@ -149,8 +149,8 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// error if the encoding does not support one of the two required bound
     /// types. Make sure the adequate `encode_x` methods have been called before
     /// this method and nothing has been added afterwards, otherwise
-    /// [`EncodingError::NotEncoded`] will be returned. If `b` is higher than
-    /// the number of literals in the encoding, [`EncodingError::Unsat`] is
+    /// [`Error::NotEncoded`] will be returned. If `b` is higher than
+    /// the number of literals in the encoding, [`Error::Unsat`] is
     /// returned.
     fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
         let mut assumps = self.enforce_ub(b)?;

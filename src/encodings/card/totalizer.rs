@@ -43,7 +43,9 @@ pub struct Totalizer {
 }
 
 impl Totalizer {
-    /// Recursively builds the tree data structure
+    /// Recursively builds the tree data structure. Attention, low level
+    /// interface, might change!
+    #[cfg_attr(feature = "internals", visibility::make(pub))]
     fn build_tree(lits: &[Lit]) -> Node {
         debug_assert_ne!(lits.len(), 0);
 
@@ -82,6 +84,7 @@ impl Totalizer {
     }
 
     /// Fully builds the tree, then returns it
+    #[cfg(feature = "internals")]
     pub fn tree(mut self) -> Option<Node> {
         self.extend_tree();
         self.root
@@ -279,7 +282,8 @@ type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 /// A node in the totalizer tree. This is only exposed publicly to be reused in
 /// more complex encodings, for using the totalizer, this should not be directly
 /// accessed but only through [`Totalizer`].
-pub enum Node {
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+enum Node {
     Leaf {
         /// The input literal to the tree
         lit: Lit,
