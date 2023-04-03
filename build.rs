@@ -285,17 +285,20 @@ fn update_repo(path: &Path, url: &str, branch: &str, commit: &str) -> bool {
                     return changed;
                 }
             };
-            // Fetch repo
-            let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
-                panic!("Expected remote \"origin\" in git repo {:?}: {}", path, e)
-            });
-            remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
-                panic!(
-                    "Could not fetch \"origin/{}\" for git repo {:?}: {}",
-                    branch, path, e
-                )
-            });
-            drop(remote);
+            // Check if commit needs to be fetched
+            if repo.find_commit(target_oid).is_err() {
+                // Fetch repo
+                let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
+                    panic!("Expected remote \"origin\" in git repo {:?}: {}", path, e)
+                });
+                remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
+                    panic!(
+                        "Could not fetch \"origin/{}\" for git repo {:?}: {}",
+                        branch, path, e
+                    )
+                });
+                drop(remote);
+            }
             repo
         }
         Err(_) => {
