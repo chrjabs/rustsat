@@ -215,9 +215,10 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
         self.extend_tree(range.end - 1);
         let cnf = match &mut self.root {
             None => Cnf::new(),
-            Some(root) => {
-                root.rec_encode_change(range.start..range.end + self.max_leaf_weight, var_manager)
-            }
+            Some(root) => root.rec_encode_change(
+                range.start + 1..range.end + self.max_leaf_weight,
+                var_manager,
+            ),
         };
         self.n_clauses += cnf.n_clauses();
         self.n_vars += var_manager.n_used() - n_vars_before;
