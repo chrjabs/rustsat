@@ -6,7 +6,7 @@ use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
-    ControlSignal, InternalSolverState, Learn, LimitConflicts, LimitDecisions,
+    ControlSignal, GetInternalStats, InternalSolverState, Learn, LimitConflicts, LimitDecisions,
     OptLearnCallbackStore, OptTermCallbackStore, PhaseLit, Solve, SolveIncremental, SolveMightFail,
     SolveStats, SolverError, SolverResult, SolverState, SolverStats, Terminate,
 };
@@ -627,6 +627,26 @@ impl LimitDecisions for CaDiCaL<'_, '_> {
     }
 }
 
+impl GetInternalStats for CaDiCaL<'_, '_> {
+    fn propagations(&self) -> usize {
+        unsafe { ffi::ccadical_propagations(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn decisions(&self) -> usize {
+        unsafe { ffi::ccadical_decisions(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn conflicts(&self) -> usize {
+        unsafe { ffi::ccadical_conflicts(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+}
+
 impl SolveStats for CaDiCaL<'_, '_> {
     fn stats(&self) -> SolverStats {
         let max_var_idx = unsafe { ffi::ccadical_vars(self.handle) };
@@ -944,6 +964,9 @@ mod ffi {
         pub fn ccadical_unphase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_vars(solver: *mut CaDiCaLHandle) -> c_int;
         pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int);
+        pub fn ccadical_propagations(solver: *mut CaDiCaLHandle) -> i64;
+        pub fn ccadical_decisions(solver: *mut CaDiCaLHandle) -> i64;
+        pub fn ccadical_conflicts(solver: *mut CaDiCaLHandle) -> i64;
     }
 
     // Raw callbacks forwarding to user callbacks

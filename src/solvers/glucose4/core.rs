@@ -8,8 +8,9 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    InternalSolverState, LimitConflicts, LimitPropagations, Solve, SolveIncremental,
-    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats,
+    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, Solve,
+    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
+    SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -239,6 +240,26 @@ impl LimitPropagations for GlucoseCore4 {
     }
 }
 
+impl GetInternalStats for GlucoseCore4 {
+    fn propagations(&self) -> usize {
+        unsafe { ffi::cglucose4_propagations(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn decisions(&self) -> usize {
+        unsafe { ffi::cglucose4_decisions(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn conflicts(&self) -> usize {
+        unsafe { ffi::cglucose4_conflicts(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+}
+
 impl SolveStats for GlucoseCore4 {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
@@ -361,5 +382,8 @@ mod ffi {
         pub fn cglucose4_set_prop_limit(solver: *mut Glucose4Handle, limit: i64);
         pub fn cglucose4_set_no_limit(solver: *mut Glucose4Handle);
         pub fn cglucose4_interrupt(solver: *mut Glucose4Handle);
+        pub fn cglucose4_propagations(solver: *mut Glucose4Handle) -> u64;
+        pub fn cglucose4_decisions(solver: *mut Glucose4Handle) -> u64;
+        pub fn cglucose4_conflicts(solver: *mut Glucose4Handle) -> u64;
     }
 }
