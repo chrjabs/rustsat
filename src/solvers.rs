@@ -274,6 +274,16 @@ pub trait LimitPropagations {
     fn limit_propagations(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
 }
 
+/// Trait for all solvers allowing access to internal search statistics
+pub trait GetInternalStats {
+    /// Gets the number of propagations
+    fn propagations(&self) -> usize;
+    /// Gets the number of decisions
+    fn decisions(&self) -> usize;
+    /// Gets the number of conflicts
+    fn conflicts(&self) -> usize;
+}
+
 /// Return type of solver calls that don't return but might fail
 pub type SolveMightFail = Result<(), SolverError>;
 

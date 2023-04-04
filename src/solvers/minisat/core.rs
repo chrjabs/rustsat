@@ -7,8 +7,9 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    InternalSolverState, LimitConflicts, LimitPropagations, Solve, SolveIncremental,
-    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats,
+    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, Solve,
+    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
+    SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -238,6 +239,26 @@ impl LimitPropagations for MinisatCore {
     }
 }
 
+impl GetInternalStats for MinisatCore {
+    fn propagations(&self) -> usize {
+        unsafe { ffi::cminisat_propagations(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn decisions(&self) -> usize {
+        unsafe { ffi::cminisat_decisions(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn conflicts(&self) -> usize {
+        unsafe { ffi::cminisat_conflicts(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+}
+
 impl SolveStats for MinisatCore {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
@@ -360,5 +381,8 @@ mod ffi {
         pub fn cminisat_set_prop_limit(solver: *mut MinisatHandle, limit: i64);
         pub fn cminisat_set_no_limit(solver: *mut MinisatHandle);
         pub fn cminisat_interrupt(solver: *mut MinisatHandle);
+        pub fn cminisat_propagations(solver: *mut MinisatHandle) -> u64;
+        pub fn cminisat_decisions(solver: *mut MinisatHandle) -> u64;
+        pub fn cminisat_conflicts(solver: *mut MinisatHandle) -> u64;
     }
 }

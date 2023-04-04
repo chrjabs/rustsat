@@ -33,7 +33,7 @@ fn main() {
     build_cadical(
         "https://github.com/chrjabs/cadical.git",
         "master",
-        "02d8231b6dbefdba6292c06ddea83b9892cdaf10",
+        "fa75b442e9b0d52668e0f5d75bd026ba39cde2fa",
     );
     build_kissat(
         "https://github.com/arminbiere/kissat.git",
@@ -43,12 +43,12 @@ fn main() {
     build_glucose4(
         "https://github.com/chrjabs/glucose4",
         "main",
-        "35a008f1b64da2235c4ea469446d7a046ea24fbc",
+        "1caa4889060d6bfa2812d2839e69a25f17b0181c",
     );
     build_minisat(
         "https://github.com/chrjabs/minisat",
         "main",
-        "7b20f5002b169715a9d2d834e39b2b6c744136eb",
+        "c315a7a363da4e7cef4745438d29fe4eebdb8942",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();

@@ -7,8 +7,9 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    InternalSolverState, LimitConflicts, LimitPropagations, Solve, SolveIncremental,
-    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats,
+    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, Solve,
+    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
+    SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -255,6 +256,26 @@ impl LimitPropagations for MinisatSimp {
     }
 }
 
+impl GetInternalStats for MinisatSimp {
+    fn propagations(&self) -> usize {
+        unsafe { ffi::cminisatsimp_propagations(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn decisions(&self) -> usize {
+        unsafe { ffi::cminisatsimp_decisions(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+
+    fn conflicts(&self) -> usize {
+        unsafe { ffi::cminisatsimp_conflicts(self.handle) }
+            .try_into()
+            .unwrap()
+    }
+}
+
 impl SolveStats for MinisatSimp {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
@@ -379,5 +400,8 @@ mod ffi {
         pub fn cminisatsimp_interrupt(solver: *mut MinisatHandle);
         pub fn cminisatsimp_set_frozen(solver: *mut MinisatHandle, var: c_int, frozen: bool);
         pub fn cminisatsimp_is_eliminated(solver: *mut MinisatHandle, var: c_int);
+        pub fn cminisatsimp_propagations(solver: *mut MinisatHandle) -> u64;
+        pub fn cminisatsimp_decisions(solver: *mut MinisatHandle) -> u64;
+        pub fn cminisatsimp_conflicts(solver: *mut MinisatHandle) -> u64;
     }
 }
