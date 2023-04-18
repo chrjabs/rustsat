@@ -6,8 +6,8 @@ use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
 use super::{
-    ControlSignal, InternalSolverState, OptTermCallbackStore, Solve, SolveMightFail, SolveStats,
-    SolverError, SolverResult, SolverState, SolverStats, Terminate,
+    ControlSignal, InternalSolverState, Interrupt, InterruptSolver, OptTermCallbackStore, Solve,
+    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -127,11 +127,6 @@ impl Kissat<'_> {
             Limit::Conflicts(val) => unsafe { ffi::kissat_set_conflict_limit(self.handle, val) },
             Limit::Decisions(val) => unsafe { ffi::kissat_set_decision_limit(self.handle, val) },
         }
-    }
-
-    /// Asynchronously force the solver to terminate
-    pub fn terminate(&mut self) {
-        unsafe { ffi::kissat_terminate(self.handle) }
     }
 
     /// Prints the solver statistics from the Kissat backend
@@ -305,6 +300,31 @@ impl<'term> Terminate<'term> for Kissat<'term> {
         let null_cb: extern "C" fn(*const c_void) -> c_int =
             unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
         unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null(), null_cb) }
+    }
+}
+
+impl Interrupt for Kissat<'_> {
+    type Interrupter = Interrupter;
+
+    fn interrupter(&mut self) -> Self::Interrupter {
+        Interrupter {
+            handle: self.handle,
+        }
+    }
+}
+
+/// An Interrupter for the Kissat solver
+pub struct Interrupter {
+    /// The C API handle
+    handle: *mut KissatHandle,
+}
+
+unsafe impl Send for Interrupter {}
+unsafe impl Sync for Interrupter {}
+
+impl InterruptSolver for Interrupter {
+    fn interrupt(&mut self) {
+        unsafe { ffi::kissat_terminate(self.handle) }
     }
 }
 
