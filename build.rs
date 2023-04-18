@@ -43,12 +43,12 @@ fn main() {
     build_glucose4(
         "https://github.com/chrjabs/glucose4",
         "main",
-        "1caa4889060d6bfa2812d2839e69a25f17b0181c",
+        "73448d20a857251290918e67b4b291f166cb36fd",
     );
     build_minisat(
         "https://github.com/chrjabs/minisat",
-        "main",
-        "c315a7a363da4e7cef4745438d29fe4eebdb8942",
+        "master",
+        "7767e6587e28d8c4f844dc018ffcbfdf49937514",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();

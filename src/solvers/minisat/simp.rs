@@ -7,7 +7,7 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, Solve,
+    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, PhaseLit, Solve,
     SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
     SolverStats,
 };
@@ -234,6 +234,20 @@ impl SolveIncremental for MinisatSimp {
     }
 }
 
+impl PhaseLit for MinisatSimp {
+    /// Forces the default decision phase of a variable to a certain value
+    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+        unsafe { ffi::cminisatsimp_phase(self.handle, lit.to_ipasir()) };
+        Ok(())
+    }
+
+    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
+    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
+        unsafe { ffi::cminisatsimp_unphase(self.handle, var.to_ipasir()) };
+        Ok(())
+    }
+}
+
 impl LimitConflicts for MinisatSimp {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
         Ok(self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
@@ -390,6 +404,8 @@ mod ffi {
         pub fn cminisatsimp_solve(solver: *mut MinisatHandle) -> c_int;
         pub fn cminisatsimp_val(solver: *mut MinisatHandle, lit: c_int) -> c_int;
         pub fn cminisatsimp_failed(solver: *mut MinisatHandle, lit: c_int) -> c_int;
+        pub fn cminisatsimp_phase(solver: *mut MinisatHandle, lit: c_int);
+        pub fn cminisatsimp_unphase(solver: *mut MinisatHandle, lit: c_int);
         pub fn cminisatsimp_n_assigns(solver: *mut MinisatHandle) -> c_int;
         pub fn cminisatsimp_n_clauses(solver: *mut MinisatHandle) -> c_int;
         pub fn cminisatsimp_n_learnts(solver: *mut MinisatHandle) -> c_int;
