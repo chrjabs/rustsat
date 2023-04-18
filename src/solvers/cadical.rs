@@ -6,9 +6,10 @@ use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
-    ControlSignal, GetInternalStats, InternalSolverState, Learn, LimitConflicts, LimitDecisions,
-    OptLearnCallbackStore, OptTermCallbackStore, PhaseLit, Solve, SolveIncremental, SolveMightFail,
-    SolveStats, SolverError, SolverResult, SolverState, SolverStats, Terminate,
+    ControlSignal, GetInternalStats, InternalSolverState, Interrupt, InterruptSolver, Learn,
+    LimitConflicts, LimitDecisions, OptLearnCallbackStore, OptTermCallbackStore, PhaseLit, Solve,
+    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
+    SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -224,11 +225,6 @@ impl CaDiCaL<'_, '_> {
             Ordering::Less => TernaryVal::False,
             Ordering::Equal => TernaryVal::DontCare,
         }
-    }
-
-    /// Asynchronously force the solver to terminate
-    pub fn terminate(&mut self) {
-        unsafe { ffi::ccadical_terminate(self.handle) }
     }
 
     /// Freezes a literal. See CaDiCaL documentation for more details.
@@ -590,6 +586,30 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
         let null_cb: extern "C" fn(*const c_void, *const c_int) =
             unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
         unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null(), 0, null_cb) }
+    }
+}
+
+impl Interrupt for CaDiCaL<'_, '_> {
+    type Interrupter = Interrupter;
+    fn interrupter(&mut self) -> Self::Interrupter {
+        Interrupter {
+            handle: self.handle,
+        }
+    }
+}
+
+/// An Interrupter for the CaDiCaL solver
+pub struct Interrupter {
+    /// The C API handle
+    handle: *mut CaDiCaLHandle,
+}
+
+unsafe impl Send for Interrupter {}
+unsafe impl Sync for Interrupter {}
+
+impl InterruptSolver for Interrupter {
+    fn interrupt(&mut self) {
+        unsafe { ffi::ccadical_terminate(self.handle) }
     }
 }
 

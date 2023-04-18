@@ -8,9 +8,9 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, PhaseLit, Solve,
-    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
-    SolverStats,
+    GetInternalStats, InternalSolverState, Interrupt, InterruptSolver, LimitConflicts,
+    LimitPropagations, PhaseLit, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError,
+    SolverResult, SolverState, SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
@@ -71,11 +71,6 @@ impl GlucoseCore4 {
     /// Gets the current number of learnt clauses
     pub fn n_learnts(&self) -> c_int {
         unsafe { ffi::cglucose4_n_learnts(self.handle) }
-    }
-
-    /// Asynchronously force the solver to terminate
-    pub fn terminate(&mut self) {
-        unsafe { ffi::cglucose4_interrupt(self.handle) }
     }
 }
 
@@ -215,6 +210,30 @@ impl SolveIncremental for GlucoseCore4 {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
             other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
         }
+    }
+}
+
+impl Interrupt for GlucoseCore4 {
+    type Interrupter = Interrupter;
+    fn interrupter(&mut self) -> Self::Interrupter {
+        Interrupter {
+            handle: self.handle,
+        }
+    }
+}
+
+/// An Interrupter for the Glucose 4 Core solver
+pub struct Interrupter {
+    /// The C API handle
+    handle: *mut Glucose4Handle,
+}
+
+unsafe impl Send for Interrupter {}
+unsafe impl Sync for Interrupter {}
+
+impl InterruptSolver for Interrupter {
+    fn interrupt(&mut self) {
+        unsafe { ffi::cglucose4_interrupt(self.handle) }
     }
 }
 

@@ -244,6 +244,19 @@ pub trait Learn<'learn> {
     fn detach_learner(&mut self);
 }
 
+/// Trait for all solvers that can be asynchronously interrupt.
+pub trait Interrupt {
+    type Interrupter: InterruptSolver;
+    /// Gets a thread safe interrupter object that can be used to terminate the solver
+    fn interrupter(&mut self) -> Self::Interrupter;
+}
+
+/// A thread safe interrupter for a solver
+pub trait InterruptSolver: Sync {
+    /// Interrupts the solver asynchronously
+    fn interrupt(&mut self);
+}
+
 /// Trait for all solvers that can force a face for a literal
 pub trait PhaseLit {
     /// Forces the default decision phase of a variable to a certain value
