@@ -8,7 +8,7 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, Solve,
+    GetInternalStats, InternalSolverState, LimitConflicts, LimitPropagations, PhaseLit, Solve,
     SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
     SolverStats,
 };
@@ -235,6 +235,20 @@ impl SolveIncremental for GlucoseSimp4 {
     }
 }
 
+impl PhaseLit for GlucoseSimp4 {
+    /// Forces the default decision phase of a variable to a certain value
+    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+        unsafe { ffi::cglucosesimp4_phase(self.handle, lit.to_ipasir()) };
+        Ok(())
+    }
+
+    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
+    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
+        unsafe { ffi::cglucosesimp4_unphase(self.handle, var.to_ipasir()) };
+        Ok(())
+    }
+}
+
 impl LimitConflicts for GlucoseSimp4 {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
         Ok(self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
@@ -391,6 +405,8 @@ mod ffi {
         pub fn cglucosesimp4_solve(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
         pub fn cglucosesimp4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
+        pub fn cglucosesimp4_phase(solver: *mut Glucose4Handle, lit: c_int);
+        pub fn cglucosesimp4_unphase(solver: *mut Glucose4Handle, lit: c_int);
         pub fn cglucosesimp4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_n_learnts(solver: *mut Glucose4Handle) -> c_int;
