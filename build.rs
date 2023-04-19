@@ -43,7 +43,7 @@ fn main() {
     build_glucose4(
         "https://github.com/chrjabs/glucose4",
         "main",
-        "73448d20a857251290918e67b4b291f166cb36fd",
+        "e06dbf6d9b17b68794767617cf453b31e72a3226",
     );
     build_minisat(
         "https://github.com/chrjabs/minisat",
