@@ -10,7 +10,7 @@ use rustsat::{
 
 fn phase_saving<S: Solve + PhaseLit>(mut solver: S) {
     let inst: SatInstance<BasicVarManager> =
-        SatInstance::from_dimacs_path("/home/christoph/Git/sat-rs/rustsat/data/small.cnf").unwrap();
+        SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
     solver.add_cnf(inst.as_cnf().0);
     solver.phase_lit(lit![0]);
     solver.phase_lit(!lit![1]);
