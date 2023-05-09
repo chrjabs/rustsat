@@ -1,6 +1,6 @@
 //! # Satsifiability Instance Representations
 
-use std::{io, path::Path};
+use std::{collections::TryReserveError, io, path::Path};
 
 use crate::{
     clause,
@@ -21,12 +21,38 @@ pub struct Cnf {
 }
 
 impl Cnf {
-    /// Creates a new CNF
+    /// Creates a new [`Cnf`]
     pub fn new() -> Cnf {
         Cnf::default()
     }
 
+    /// Creates a new [`Cnf`] with a given capacity of clauses
+    pub fn with_capacity(capacity: usize) -> Cnf {
+        Cnf {
+            clauses: Vec::with_capacity(capacity),
+        }
+    }
+
+    /// Tries to reserve memory for at least `additional` new clauses
+    #[inline]
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.clauses.try_reserve(additional)
+    }
+
+    /// Shrinks the allocated memory of the [`Cnf`] to fit the number of clauses
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.clauses.shrink_to_fit()
+    }
+
+    /// Gets the capacity of the [`Cnf`]
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.clauses.capacity()
+    }
+
     /// Adds a clause to the CNF
+    #[inline]
     pub fn add_clause(&mut self, clause: Clause) {
         self.clauses.push(clause);
     }
@@ -47,16 +73,19 @@ impl Cnf {
     }
 
     /// Checks if the CNF is empty
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.clauses.is_empty()
     }
 
     /// Returns the number of clauses in the instance
+    #[inline]
     pub fn len(&self) -> usize {
         self.clauses.len()
     }
 
     /// Returns the number of clauses in the instance
+    #[inline]
     pub fn n_clauses(&self) -> usize {
         self.clauses.len()
     }
@@ -126,11 +155,6 @@ impl Cnf {
         }
     }
 
-    /// Extends the CNF by another CNF
-    pub fn extend(&mut self, mut other: Cnf) {
-        self.clauses.append(&mut other.clauses);
-    }
-
     /// Joins the current CNF with another one. Like [`Cnf::extend`] but
     /// consumes the object and returns a new object.
     pub fn join(mut self, other: Cnf) -> Cnf {
@@ -187,6 +211,12 @@ impl FromIterator<Clause> for Cnf {
         Self {
             clauses: iter.into_iter().collect(),
         }
+    }
+}
+
+impl Extend<Clause> for Cnf {
+    fn extend<Iter: IntoIterator<Item = Clause>>(&mut self, iter: Iter) {
+        self.clauses.extend(iter)
     }
 }
 
