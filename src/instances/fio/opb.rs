@@ -19,9 +19,9 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{anychar, i64, line_ending, space0, space1, u64},
-    combinator::{map_res, opt, recognize},
+    combinator::{eof, map_res, recognize},
     error::Error as NomError,
-    multi::{many0, many1, many_till},
+    multi::{many0, many_till},
     sequence::{pair, tuple},
     IResult,
 };
@@ -270,20 +270,23 @@ fn weighted_literal(input: &str, opts: Options) -> IResult<&str, (Lit, isize)> {
 
 /// Parses an OPB sum
 fn weighted_lit_sum(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
-    many1(|i| weighted_literal(i, opts))(input)
+    many0(|i| weighted_literal(i, opts))(input)
 }
 
 /// Leniently parses OPB constraint or objective ending as ';' or a line ending
 fn opb_ending(input: &str) -> IResult<&str, &str> {
     recognize(pair(
         space0,
-        opt(pair(
-            alt((
-                recognize(tuple((tag(";"), space0, line_ending))),
-                line_ending,
-                tag(";"),
+        alt((
+            recognize(pair(
+                alt((
+                    recognize(tuple((tag(";"), space0, line_ending))),
+                    line_ending,
+                    tag(";"),
+                )),
+                space0,
             )),
-            space0,
+            eof,
         )),
     ))(input)
 }
@@ -839,7 +842,15 @@ mod test {
         }
         match objective("min: x0;", Options::default()) {
             Ok(_) => panic!(),
-            Err(err) => assert_eq!(err, nom::Err::Error(NomError::new("x0;", ErrorKind::Digit))),
+            Err(err) => assert_eq!(err, nom::Err::Error(NomError::new("x0;", ErrorKind::Eof))),
+        }
+        match objective("min:;", Options::default()) {
+            Ok((rest, obj)) => {
+                assert_eq!(rest, "");
+                let should_be_obj = Objective::new();
+                assert_eq!(obj, should_be_obj);
+            }
+            Err(_) => panic!(),
         }
     }
 
@@ -876,7 +887,7 @@ mod test {
             );
             assert_eq!(
                 opb_data("min: x0;", Options::default()),
-                Err(nom::Err::Error(NomError::new("x0;", ErrorKind::Digit)))
+                Err(nom::Err::Error(NomError::new("x0;", ErrorKind::Eof)))
             );
         }
     }

@@ -145,7 +145,7 @@ impl BoundUpper for GeneralizedTotalizer {
         let cnf = match &mut self.root {
             None => Cnf::new(),
             Some(root) => root.rec_encode(
-                range.start + 1..range.end + self.max_leaf_weight,
+                range.start + 1..range.end + self.max_leaf_weight + 1,
                 var_manager,
             ),
         };
