@@ -26,6 +26,16 @@ fn main() {
     let inst: MultiOptInstance = MultiOptInstance::from_opb_path(args.in_path, opb_opts)
         .expect("error parsing the input file");
 
+    let (constrs, objs) = inst.decompose();
+    let constrs = constrs.sanitize();
+
+    println!("{} clauses", constrs.n_clauses());
+    println!("{} cards", constrs.n_cards());
+    println!("{} pbs", constrs.n_pbs());
+    println!("{} objectives", objs.len());
+
+    let inst = MultiOptInstance::compose(constrs, objs);
+
     inst.to_dimacs_path(args.out_path)
         .expect("io error writing the output file");
 }

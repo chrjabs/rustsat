@@ -5,6 +5,7 @@ use std::{collections::TryReserveError, io, path::Path};
 use crate::{
     clause,
     encodings::{card, pb},
+    lit,
     types::{
         constraints::{CardConstraint, PBConstraint},
         Clause, Lit,
@@ -186,6 +187,14 @@ impl Cnf {
         }
     }
 
+    /// Sanitizes the CNF by removing tautologies, removing redundant literals,
+    /// etc.
+    pub fn sanitize(self) -> Self {
+        Self {
+            clauses: self.into_iter().filter_map(|cl| cl.sanitize()).collect(),
+        }
+    }
+
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of clauses in the CNF
     pub fn shuffle(mut self) -> Self {
@@ -244,6 +253,16 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Returns the number of clauses in the instance
     pub fn n_clauses(&self) -> usize {
         self.cnf.n_clauses()
+    }
+
+    /// Returns the number of cardinality constraints in the instance
+    pub fn n_cards(&self) -> usize {
+        self.cards.len()
+    }
+
+    /// Returns the number of PB constraints in the instance
+    pub fn n_pbs(&self) -> usize {
+        self.pbs.len()
     }
 
     /// Adds a clause to the instance
@@ -509,6 +528,76 @@ impl<VM: ManageVars> SatInstance<VM> {
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         fio::opb::write_sat(writer, self, opts)
+    }
+
+    /// Sanitizes the constraints, i.e., for example a cardinality
+    /// constraint of form `x + y >= 0` will be converted to a clause and
+    /// tautologies will be removed.
+    pub fn sanitize(self) -> Self {
+        let mut unsat = false;
+        let mut cnf = self.cnf;
+        let mut cards: Vec<_> = self
+            .cards
+            .into_iter()
+            .filter_map(|card| {
+                if card.is_tautology() {
+                    return None;
+                }
+                if card.is_unsat() {
+                    unsat = true;
+                    return None;
+                }
+                if card.is_assignment() {
+                    // Add unit clauses
+                    card.into_lits().into_iter().for_each(|l| cnf.add_unit(l));
+                    return None;
+                }
+                if card.is_clause() {
+                    cnf.add_clause(card.into_clause().unwrap());
+                    return None;
+                }
+                return Some(card);
+            })
+            .collect();
+        let pbs = self
+            .pbs
+            .into_iter()
+            .filter_map(|pb| {
+                if pb.is_tautology() {
+                    return None;
+                }
+                if pb.is_unsat() {
+                    unsat = true;
+                    return None;
+                }
+                if pb.is_assignment() {
+                    // Add unit clauses
+                    pb.into_lits()
+                        .into_iter()
+                        .for_each(|(l, _)| cnf.add_unit(l));
+                    return None;
+                }
+                if pb.is_card() {
+                    cards.push(pb.as_card_constr().unwrap());
+                    return None;
+                }
+                return Some(pb);
+            })
+            .collect();
+        if unsat {
+            return Self {
+                cnf: Cnf::from_iter(vec![clause![lit![0]], clause![!lit![0]]]),
+                cards: vec![],
+                pbs: vec![],
+                var_manager: self.var_manager,
+            };
+        }
+        Self {
+            cnf: Cnf::from_iter(cnf.into_iter().filter_map(|cl| cl.sanitize())),
+            cards,
+            pbs,
+            var_manager: self.var_manager,
+        }
     }
 }
 

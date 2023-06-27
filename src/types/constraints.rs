@@ -9,7 +9,7 @@ use std::{
     ops::{self, Not},
 };
 
-use super::{Assignment, IWLitIter, Lit, LitIter, TernaryVal, WLitIter};
+use super::{Assignment, IWLitIter, Lit, LitIter, TernaryVal, WLitIter, RsHashSet};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -132,6 +132,31 @@ impl Clause {
             return None;
         }
         Some(self)
+    }
+    
+    /// Sanitizes the clause. This includes removing duplicates and removing the
+    /// entire clause if it is a tautology. This preserves the order of the
+    /// literals in the clause.
+    pub fn sanitize(mut self) -> Option<Self> {
+        if self.len() <= 1 {
+            return Some(self);
+        }
+        let mut lset = RsHashSet::default();
+        let mut idx = 0;
+        while idx < self.len() {
+            let l = self[idx];
+            if lset.contains(&!l) {
+                // Tautology
+                return None;
+            }
+            if lset.contains(&l) {
+                self.lits.remove(idx);
+            } else {
+                lset.insert(l);
+                idx += 1;
+            }
+        }
+        return Some(self)
     }
 }
 

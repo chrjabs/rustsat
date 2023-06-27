@@ -26,6 +26,15 @@ fn main() {
     let inst: OptInstance =
         OptInstance::from_opb_path(args.in_path, opb_opts).expect("error parsing the input file");
 
+    let (constrs, obj) = inst.decompose();
+    let constrs = constrs.sanitize();
+
+    println!("{} clauses", constrs.n_clauses());
+    println!("{} cards", constrs.n_cards());
+    println!("{} pbs", constrs.n_pbs());
+
+    let inst = OptInstance::compose(constrs, obj);
+
     inst.to_dimacs_path(args.out_path)
         .expect("io error writing the output file");
 }

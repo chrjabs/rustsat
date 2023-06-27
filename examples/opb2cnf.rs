@@ -26,6 +26,10 @@ fn main() {
     let inst: SatInstance =
         SatInstance::from_opb_path(args.in_path, opb_opts).expect("error parsing the input file");
 
+    println!("{} clauses", inst.n_clauses());
+    println!("{} cards", inst.n_cards());
+    println!("{} pbs", inst.n_pbs());
+
     inst.to_dimacs_path(args.out_path)
         .expect("io error writing the output file");
 }
