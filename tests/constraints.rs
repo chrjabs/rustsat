@@ -171,3 +171,8 @@ fn pb_eq() {
         vec![!lit![0], lit![1], !lit![2]]
     );
 }
+
+#[test]
+fn card_is_clause() {
+    assert!(CardConstraint::new_lb(vec![lit![0], lit![1]], 1).is_clause());
+}
