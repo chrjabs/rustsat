@@ -990,14 +990,14 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ///
     /// If a DIMACS MCNF file is passed to this function, all objectives but the
     /// first are ignored.
-    pub fn from_dimacs_reader<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
-        Self::from_dimacs_reader_with_idx(reader, 0)
+    pub fn from_dimacs<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
+        Self::from_dimacs_with_idx(reader, 0)
     }
 
     /// Parses a DIMACS instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`OptInstance::from_dimacs_reader`].
-    pub fn from_dimacs_reader_with_idx<R: io::Read>(
+    /// For more details see [`OptInstance::from_dimacs`].
+    pub fn from_dimacs_with_idx<R: io::Read>(
         reader: R,
         obj_idx: usize,
     ) -> Result<Self, fio::ParsingError> {
@@ -1005,17 +1005,17 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// [`OptInstance::from_dimacs`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_dimacs_reader(reader),
+            Ok(reader) => OptInstance::from_dimacs(reader),
         }
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader_with_idx`]. With feature `compression` supports
+    /// [`OptInstance::from_dimacs_with_idx`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path_with_idx<P: AsRef<Path>>(
         path: P,
@@ -1023,7 +1023,7 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_dimacs_reader_with_idx(reader, obj_idx),
+            Ok(reader) => OptInstance::from_dimacs_with_idx(reader, obj_idx),
         }
     }
 
@@ -1034,17 +1034,17 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean optimization instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: io::Read>(
+    pub fn from_opb<R: io::Read>(
         reader: R,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::ParsingError> {
-        OptInstance::from_opb_reader_with_idx(reader, 0, opts)
+        OptInstance::from_opb_with_idx(reader, 0, opts)
     }
 
     /// Parses an OPB instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`OptInstance::from_opb_reader`].
-    pub fn from_opb_reader_with_idx<R: io::Read>(
+    /// For more details see [`OptInstance::from_opb`].
+    pub fn from_opb_with_idx<R: io::Read>(
         reader: R,
         obj_idx: usize,
         opts: fio::opb::Options,
@@ -1053,7 +1053,7 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     }
 
     /// Parses an OPB instance from a file path. For more details see
-    /// [`OptInstance::from_opb_reader`]. With feature `compression` supports
+    /// [`OptInstance::from_opb`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_opb_path<P: AsRef<Path>>(
         path: P,
@@ -1061,13 +1061,13 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_opb_reader(reader, opts),
+            Ok(reader) => OptInstance::from_opb(reader, opts),
         }
     }
 
     /// Parses an OPB instance from a file path, selecting the objective with
     /// index `obj_idx` if multiple are available. The index starts at 0. For
-    /// more details see [`OptInstance::from_opb_reader`]. With feature
+    /// more details see [`OptInstance::from_opb`]. With feature
     /// `compression` supports bzip2 and gzip compression, detected by the file
     /// extension.
     pub fn from_opb_path_with_idx<P: AsRef<Path>>(
@@ -1077,7 +1077,7 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => OptInstance::from_opb_reader_with_idx(reader, obj_idx, opts),
+            Ok(reader) => OptInstance::from_opb_with_idx(reader, obj_idx, opts),
         }
     }
 }

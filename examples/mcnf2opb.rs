@@ -4,15 +4,15 @@
 
 use clap::Parser;
 use rustsat::instances::{fio::opb::Options as OpbOptions, MultiOptInstance};
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// The DIMACS MCNF input file
-    in_path: PathBuf,
-    /// The OPB output path
-    out_path: PathBuf,
+    /// The DIMACS MCNF input file. Reads from `stdin` if not given.
+    in_path: Option<PathBuf>,
+    /// The OPB output path. Writes to `stdout` if not given.
+    out_path: Option<PathBuf>,
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 0)]
     first_var_idx: usize,
@@ -27,9 +27,17 @@ fn main() {
     opb_opts.first_var_idx = args.first_var_idx;
     opb_opts.no_negated_lits = args.avoid_negated_lits;
 
-    let inst: MultiOptInstance =
-        MultiOptInstance::from_dimacs_path(args.in_path).expect("error parsing the input file");
+    let inst: MultiOptInstance = if let Some(in_path) = args.in_path {
+        MultiOptInstance::from_dimacs_path(in_path).expect("error parsing the input file")
+    } else {
+        MultiOptInstance::from_dimacs(io::stdin()).expect("error parsing input")
+    };
 
-    inst.to_opb_path(args.out_path, opb_opts)
-        .expect("io error writing the output file");
+    if let Some(out_path) = args.out_path {
+        inst.to_opb_path(out_path, opb_opts)
+            .expect("io error writing the output file");
+    } else {
+        inst.to_opb(&mut io::stdout(), opb_opts)
+            .expect("io error writing the output file");
+    }
 }
