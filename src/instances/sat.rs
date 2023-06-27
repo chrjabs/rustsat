@@ -617,17 +617,17 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     ///
     /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
     /// are ignored and only the constraints returned.
-    pub fn from_dimacs_reader<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
+    pub fn from_dimacs<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
         Ok(fio::dimacs::parse_cnf(reader)?)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`SatInstance::from_dimacs_reader`]. With feature `compression` supports
+    /// [`SatInstance::from_dimacs`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => SatInstance::from_dimacs_reader(reader),
+            Ok(reader) => SatInstance::from_dimacs(reader),
         }
     }
 
@@ -638,7 +638,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean satisfaction instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb_reader<R: io::Read>(
+    pub fn from_opb<R: io::Read>(
         reader: R,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::ParsingError> {
@@ -646,7 +646,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     }
 
     /// Parses an OPB instance from a file path. For more details see
-    /// [`SatInstance::from_opb_reader`]. With feature `compression` supports
+    /// [`SatInstance::from_opb`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
     pub fn from_opb_path<P: AsRef<Path>>(
         path: P,
@@ -654,7 +654,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     ) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => SatInstance::from_opb_reader(reader, opts),
+            Ok(reader) => SatInstance::from_opb(reader, opts),
         }
     }
 }
