@@ -531,34 +531,12 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Sanitizes the constraints, i.e., for example a cardinality
-    /// constraint of form `x + y >= 0` will be converted to a clause and
+    /// constraint of form `x + y >= 1` will be converted to a clause and
     /// tautologies will be removed.
     pub fn sanitize(self) -> Self {
         let mut unsat = false;
         let mut cnf = self.cnf;
-        let mut cards: Vec<_> = self
-            .cards
-            .into_iter()
-            .filter_map(|card| {
-                if card.is_tautology() {
-                    return None;
-                }
-                if card.is_unsat() {
-                    unsat = true;
-                    return None;
-                }
-                if card.is_assignment() {
-                    // Add unit clauses
-                    card.into_lits().into_iter().for_each(|l| cnf.add_unit(l));
-                    return None;
-                }
-                if card.is_clause() {
-                    cnf.add_clause(card.into_clause().unwrap());
-                    return None;
-                }
-                return Some(card);
-            })
-            .collect();
+        let mut cards = self.cards;
         let pbs = self
             .pbs
             .into_iter()
@@ -582,6 +560,28 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 return Some(pb);
+            })
+            .collect();
+        let cards = cards
+            .into_iter()
+            .filter_map(|card| {
+                if card.is_tautology() {
+                    return None;
+                }
+                if card.is_unsat() {
+                    unsat = true;
+                    return None;
+                }
+                if card.is_assignment() {
+                    // Add unit clauses
+                    card.into_lits().into_iter().for_each(|l| cnf.add_unit(l));
+                    return None;
+                }
+                if card.is_clause() {
+                    cnf.add_clause(card.into_clause().unwrap());
+                    return None;
+                }
+                return Some(card);
             })
             .collect();
         if unsat {
