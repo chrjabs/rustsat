@@ -555,6 +555,10 @@ impl<VM: ManageVars> SatInstance<VM> {
                         .for_each(|(l, _)| cnf.add_unit(l));
                     return None;
                 }
+                if pb.is_clause() {
+                    cnf.add_clause(pb.as_clause().unwrap());
+                    return None;
+                }
                 if pb.is_card() {
                     cards.push(pb.as_card_constr().unwrap());
                     return None;
@@ -578,7 +582,7 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if card.is_clause() {
-                    cnf.add_clause(card.into_clause().unwrap());
+                    cnf.add_clause(card.as_clause().unwrap());
                     return None;
                 }
                 return Some(card);

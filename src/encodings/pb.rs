@@ -320,6 +320,11 @@ pub fn encode_pb_constraint<PBE: BoundBoth>(
         lits.into_iter().for_each(|(l, _)| cnf.add_unit(l));
         return cnf;
     }
+    if constr.is_clause() {
+        let mut cnf = Cnf::new();
+        cnf.add_clause(constr.as_clause().unwrap());
+        return cnf;
+    }
     if constr.is_card() {
         let card = constr.as_card_constr().unwrap();
         return card::default_encode_cardinality_constraint(card, var_manager);

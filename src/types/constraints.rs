@@ -9,7 +9,7 @@ use std::{
     ops::{self, Not},
 };
 
-use super::{Assignment, IWLitIter, Lit, LitIter, TernaryVal, WLitIter, RsHashSet};
+use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -133,7 +133,7 @@ impl Clause {
         }
         Some(self)
     }
-    
+
     /// Sanitizes the clause. This includes removing duplicates and removing the
     /// entire clause if it is a tautology. This preserves the order of the
     /// literals in the clause.
@@ -156,7 +156,7 @@ impl Clause {
                 idx += 1;
             }
         }
-        return Some(self)
+        return Some(self);
     }
 }
 
@@ -375,7 +375,7 @@ impl CardConstraint {
     }
 
     /// Converts the constraint into a clause, if possible
-    pub fn into_clause(self) -> Option<Clause> {
+    pub fn as_clause(self) -> Option<Clause> {
         if !self.is_clause() {
             return None;
         }
@@ -620,6 +620,15 @@ impl PBConstraint {
         }
     }
 
+    /// Checks if the constraint is a clause
+    pub fn is_clause(&self) -> bool {
+        match self {
+            PBConstraint::UB(constr) => constr.is_clause(),
+            PBConstraint::LB(constr) => constr.is_clause(),
+            PBConstraint::EQ(_) => false,
+        }
+    }
+
     /// Normalizes the constraint. This sorts the literal and merges duplicates.
     /// Comparing two normalized constraints checks their logical equivalence.
     pub fn normalize(self) -> Self {
@@ -712,6 +721,22 @@ impl PBConstraint {
         })
     }
 
+    /// Converts the constraint into a clause, if possible
+    pub fn as_clause(self) -> Option<Clause> {
+        if !self.is_clause() {
+            return None;
+        }
+        match self {
+            PBConstraint::UB(constr) => Some(Clause::from_iter(
+                constr.lits.into_iter().map(|(lit, _)| !lit),
+            )),
+            PBConstraint::LB(constr) => Some(Clause::from_iter(
+                constr.lits.into_iter().map(|(lit, _)| lit),
+            )),
+            PBConstraint::EQ(_) => panic!(),
+        }
+    }
+
     /// Gets the (positively) weighted literals that are in the constraint
     pub fn into_lits(self) -> impl WLitIter {
         match self {
@@ -784,6 +809,21 @@ impl PBUBConstr {
         }
         unit_weight
     }
+
+    /// Checks if the constraint is a clause
+    pub fn is_clause(&self) -> bool {
+        if self.is_tautology() {
+            return false;
+        }
+        if self.is_unsat() {
+            return false;
+        }
+        let min_coeff: usize = self
+            .lits
+            .iter()
+            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+        self.weight_sum <= self.b as usize + min_coeff && self.weight_sum > self.b as usize
+    }
 }
 
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
@@ -836,6 +876,21 @@ impl PBLBConstr {
             }
         }
         unit_weight
+    }
+
+    /// Checks if the constraint is a clause
+    pub fn is_clause(&self) -> bool {
+        if self.is_tautology() {
+            return false;
+        }
+        if self.is_unsat() {
+            return false;
+        }
+        let min_coeff: usize = self
+            .lits
+            .iter()
+            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+        (self.b as usize) <= min_coeff
     }
 }
 
@@ -1012,6 +1067,17 @@ mod tests {
         let lits = vec![(lit![0], 2), (lit![1], 1), (lit![2], 2)];
         assert!(!PBConstraint::new_ub(lits.clone(), 1).is_card());
         assert!(!PBConstraint::new_lb(lits.clone(), 3).is_card());
+        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_card());
+    }
+
+    #[test]
+    fn pb_is_clause() {
+        let lits = vec![(lit![0], 2), (lit![1], 3), (lit![2], 2)];
+        assert!(PBConstraint::new_ub(lits.clone(), 6).is_clause());
+        assert!(PBConstraint::new_lb(lits.clone(), 2).is_clause());
+        assert!(!PBConstraint::new_ub(lits.clone(), 7).is_clause());
+        assert!(!PBConstraint::new_ub(lits.clone(), 4).is_clause());
+        assert!(!PBConstraint::new_lb(lits.clone(), 3).is_clause());
         assert!(!PBConstraint::new_eq(lits.clone(), 2).is_card());
     }
 }

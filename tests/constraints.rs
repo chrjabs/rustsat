@@ -173,6 +173,34 @@ fn pb_eq() {
 }
 
 #[test]
-fn card_is_clause() {
-    assert!(CardConstraint::new_lb(vec![lit![0], lit![1]], 1).is_clause());
+fn card_clause() {
+    let lits = vec![lit![0], lit![1], lit![2]];
+    test_card!(
+        CardConstraint::new_lb(lits.clone(), 1),
+        vec![lit![0], lit![1], !lit![2]],
+        vec![!lit![0], !lit![1], !lit![2]]
+    );
+    test_card!(
+        CardConstraint::new_ub(lits.clone(), 2),
+        vec![!lit![0], lit![1], lit![2]],
+        vec![lit![0], lit![1], lit![2]]
+    );
+}
+
+#[test]
+fn pb_clause() {
+    let mut lits = RsHashMap::default();
+    lits.insert(lit![0], 2);
+    lits.insert(lit![1], 3);
+    lits.insert(lit![2], 2);
+    test_pb!(
+        PBConstraint::new_ub(lits.clone(), 6),
+        vec![lit![0], !lit![1], !lit![2]],
+        vec![lit![0], lit![1], lit![2]]
+    );
+    test_pb!(
+        PBConstraint::new_lb(lits.clone(), 2),
+        vec![lit![0], lit![1], !lit![2]],
+        vec![!lit![0], !lit![1], !lit![2]]
+    );
 }
