@@ -308,7 +308,7 @@ pub fn encode_cardinality_constraint<CE: BoundBoth>(
     }
     if constr.is_clause() {
         let mut cnf = Cnf::new();
-        cnf.add_clause(constr.into_clause().unwrap());
+        cnf.add_clause(constr.as_clause().unwrap());
         return cnf;
     }
     CE::encode_constr(constr, var_manager).unwrap()
