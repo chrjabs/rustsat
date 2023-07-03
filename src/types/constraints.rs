@@ -330,12 +330,21 @@ impl CardConstraint {
         }
     }
 
-    /// Checks if the constraint is an assignment
-    pub fn is_assignment(&self) -> bool {
+    /// Checks if the constraint assigns all literals to true
+    pub fn is_positive_assignment(&self) -> bool {
         match self {
             CardConstraint::UB(_) => false,
-            CardConstraint::LB(constr) => constr.is_assignment(),
-            CardConstraint::EQ(constr) => constr.is_assignment(),
+            CardConstraint::LB(constr) => constr.is_positive_assignment(),
+            CardConstraint::EQ(constr) => constr.is_positive_assignment(),
+        }
+    }
+
+    /// Checks if the constraint assigns all literals to false
+    pub fn is_negative_assignment(&self) -> bool {
+        match self {
+            CardConstraint::UB(constr) => constr.is_negative_assignment(),
+            CardConstraint::LB(_) => false,
+            CardConstraint::EQ(constr) => constr.is_negative_assignment(),
         }
     }
 
@@ -427,6 +436,11 @@ impl CardUBConstr {
         self.b >= self.lits.len()
     }
 
+    /// Checks if the constraint assigns all literals to false
+    pub fn is_negative_assignment(&self) -> bool {
+        self.b == 0
+    }
+
     /// Checks if the constraint is a clause
     pub fn is_clause(&self) -> bool {
         self.b + 1 == self.lits.len()
@@ -456,8 +470,8 @@ impl CardLBConstr {
         self.b > self.lits.len()
     }
 
-    /// Checks if the constraint is an assignment
-    pub fn is_assignment(&self) -> bool {
+    /// Checks if the constraint assigns all literals to true
+    pub fn is_positive_assignment(&self) -> bool {
         self.b == self.lits.len()
     }
 
@@ -485,9 +499,14 @@ impl CardEQConstr {
         self.b > self.lits.len()
     }
 
-    /// Checks if the constraint is an assignment
-    pub fn is_assignment(&self) -> bool {
+    /// Checks if the constraint assigns all literals to true
+    pub fn is_positive_assignment(&self) -> bool {
         self.b == self.lits.len()
+    }
+
+    /// Checks if the constraint assigns all literals to false
+    pub fn is_negative_assignment(&self) -> bool {
+        self.b == 0
     }
 }
 
@@ -602,12 +621,21 @@ impl PBConstraint {
         }
     }
 
-    /// Checks if the constraint is an assignment
-    pub fn is_assignment(&self) -> bool {
+    /// Checks if the constraint assigns all literals to true
+    pub fn is_positive_assignment(&self) -> bool {
         match self {
             PBConstraint::UB(_) => false,
-            PBConstraint::LB(constr) => constr.is_assignment(),
-            PBConstraint::EQ(constr) => constr.is_assignment(),
+            PBConstraint::LB(constr) => constr.is_positive_assignment(),
+            PBConstraint::EQ(constr) => constr.is_positive_assignment(),
+        }
+    }
+
+    /// Checks if the constraint assigns all literals to false
+    pub fn is_negative_assignment(&self) -> bool {
+        match self {
+            PBConstraint::UB(constr) => constr.is_negative_assignment(),
+            PBConstraint::LB(_) => false,
+            PBConstraint::EQ(constr) => constr.is_negative_assignment(),
         }
     }
 
@@ -784,15 +812,26 @@ impl PBUBConstr {
     /// Checks if the constraint is always satisfied
     pub fn is_tautology(&self) -> bool {
         if self.b < 0 {
-            false
-        } else {
-            self.b as usize >= self.weight_sum
+            return false;
         }
+        self.b as usize >= self.weight_sum
     }
 
     /// Checks if the constraint is unsatisfiable
     pub fn is_unsat(&self) -> bool {
         self.b < 0
+    }
+
+    /// Checks if the constraint assigns all literals to false
+    pub fn is_negative_assignment(&self) -> bool {
+        if self.is_unsat() {
+            return false;
+        }
+        let min_coeff: usize = self
+            .lits
+            .iter()
+            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+        min_coeff > self.b as usize
     }
 
     /// Gets the unit weight of the constraint, if it exists
@@ -848,19 +887,22 @@ impl PBLBConstr {
     /// Checks if the constraint is unsatisfiable
     pub fn is_unsat(&self) -> bool {
         if self.b < 0 {
-            false
-        } else {
-            self.b as usize > self.weight_sum
+            return false;
         }
+        self.b as usize > self.weight_sum
     }
 
-    /// Checks if the constraint is an assignment
-    pub fn is_assignment(&self) -> bool {
-        if self.b < 0 {
-            false
-        } else {
-            self.b as usize == self.weight_sum
+    /// Checks if the constraint assigns all literals to true
+    pub fn is_positive_assignment(&self) -> bool {
+        if self.b < 0 || self.is_unsat() {
+            return false;
         }
+        let min_coeff: usize = self
+            .lits
+            .iter()
+            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+        // note: self.b <= self.weight_sum is checked in is_unsat
+        self.b as usize + min_coeff > self.weight_sum
     }
 
     /// Gets the unit weight of the constraint, if it exists
@@ -911,19 +953,25 @@ impl PBEQConstr {
     /// Checks if the constraint is unsatisfiable
     pub fn is_unsat(&self) -> bool {
         if self.b < 0 {
-            true
-        } else {
-            self.b as usize > self.weight_sum
+            return true;
         }
+        self.b as usize > self.weight_sum
     }
 
-    /// Checks if the constraint is an assignment
-    pub fn is_assignment(&self) -> bool {
+    /// Checks if the constraint assigns all literals to true
+    pub fn is_positive_assignment(&self) -> bool {
         if self.b < 0 {
-            false
-        } else {
-            self.b as usize == self.weight_sum
+            return false;
         }
+        self.b as usize == self.weight_sum
+    }
+
+    /// Checks if the constraint assigns all literals to false
+    pub fn is_negative_assignment(&self) -> bool {
+        if self.b < 0 {
+            return false;
+        }
+        self.b as usize == 0
     }
 
     /// Gets the unit weight of the constraint, if it exists
@@ -1010,13 +1058,23 @@ mod tests {
     }
 
     #[test]
-    fn card_is_assignment() {
+    fn card_is_positive_assignment() {
         let lits = vec![lit![0], lit![1], lit![2]];
-        assert!(!CardConstraint::new_ub(lits.clone(), 1).is_assignment());
-        assert!(CardConstraint::new_lb(lits.clone(), 3).is_assignment());
-        assert!(!CardConstraint::new_lb(lits.clone(), 2).is_assignment());
-        assert!(CardConstraint::new_eq(lits.clone(), 3).is_assignment());
-        assert!(!CardConstraint::new_eq(lits.clone(), 2).is_assignment());
+        assert!(!CardConstraint::new_ub(lits.clone(), 1).is_positive_assignment());
+        assert!(CardConstraint::new_lb(lits.clone(), 3).is_positive_assignment());
+        assert!(!CardConstraint::new_lb(lits.clone(), 2).is_positive_assignment());
+        assert!(CardConstraint::new_eq(lits.clone(), 3).is_positive_assignment());
+        assert!(!CardConstraint::new_eq(lits.clone(), 2).is_positive_assignment());
+    }
+
+    #[test]
+    fn card_is_negative_assignment() {
+        let lits = vec![lit![0], lit![1], lit![2]];
+        assert!(CardConstraint::new_ub(lits.clone(), 0).is_negative_assignment());
+        assert!(!CardConstraint::new_ub(lits.clone(), 1).is_negative_assignment());
+        assert!(!CardConstraint::new_lb(lits.clone(), 2).is_negative_assignment());
+        assert!(CardConstraint::new_eq(lits.clone(), 0).is_negative_assignment());
+        assert!(!CardConstraint::new_eq(lits.clone(), 1).is_negative_assignment());
     }
 
     #[test]
@@ -1049,13 +1107,23 @@ mod tests {
     }
 
     #[test]
-    fn pb_is_assignment() {
+    fn pb_is_positive_assignment() {
         let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
-        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_assignment());
-        assert!(PBConstraint::new_lb(lits.clone(), 6).is_assignment());
-        assert!(!PBConstraint::new_lb(lits.clone(), 2).is_assignment());
-        assert!(PBConstraint::new_eq(lits.clone(), 6).is_assignment());
-        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_assignment());
+        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_positive_assignment());
+        assert!(PBConstraint::new_lb(lits.clone(), 6).is_positive_assignment());
+        assert!(!PBConstraint::new_lb(lits.clone(), 2).is_positive_assignment());
+        assert!(PBConstraint::new_eq(lits.clone(), 6).is_positive_assignment());
+        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_positive_assignment());
+    }
+
+    #[test]
+    fn pb_is_negative_assignment() {
+        let lits = vec![(lit![0], 2), (lit![1], 2), (lit![2], 3)];
+        assert!(PBConstraint::new_ub(lits.clone(), 1).is_negative_assignment());
+        assert!(!PBConstraint::new_ub(lits.clone(), 2).is_negative_assignment());
+        assert!(!PBConstraint::new_lb(lits.clone(), 2).is_negative_assignment());
+        assert!(PBConstraint::new_eq(lits.clone(), 0).is_negative_assignment());
+        assert!(!PBConstraint::new_eq(lits.clone(), 1).is_negative_assignment());
     }
 
     #[test]
