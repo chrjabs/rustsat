@@ -300,10 +300,16 @@ pub fn encode_cardinality_constraint<CE: BoundBoth>(
         cnf.add_clause(Clause::new());
         return cnf;
     }
-    if constr.is_assignment() {
+    if constr.is_positive_assignment() {
         let mut cnf = Cnf::new();
         let lits = constr.into_lits();
         lits.into_iter().for_each(|l| cnf.add_unit(l));
+        return cnf;
+    }
+    if constr.is_negative_assignment() {
+        let mut cnf = Cnf::new();
+        let lits = constr.into_lits();
+        lits.into_iter().for_each(|l| cnf.add_unit(!l));
         return cnf;
     }
     if constr.is_clause() {

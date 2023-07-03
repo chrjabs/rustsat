@@ -548,11 +548,18 @@ impl<VM: ManageVars> SatInstance<VM> {
                     unsat = true;
                     return None;
                 }
-                if pb.is_assignment() {
+                if pb.is_positive_assignment() {
                     // Add unit clauses
                     pb.into_lits()
                         .into_iter()
                         .for_each(|(l, _)| cnf.add_unit(l));
+                    return None;
+                }
+                if pb.is_negative_assignment() {
+                    // Add unit clauses
+                    pb.into_lits()
+                        .into_iter()
+                        .for_each(|(l, _)| cnf.add_unit(!l));
                     return None;
                 }
                 if pb.is_clause() {
@@ -576,9 +583,14 @@ impl<VM: ManageVars> SatInstance<VM> {
                     unsat = true;
                     return None;
                 }
-                if card.is_assignment() {
+                if card.is_positive_assignment() {
                     // Add unit clauses
                     card.into_lits().into_iter().for_each(|l| cnf.add_unit(l));
+                    return None;
+                }
+                if card.is_negative_assignment() {
+                    // Add unit clauses
+                    card.into_lits().into_iter().for_each(|l| cnf.add_unit(!l));
                     return None;
                 }
                 if card.is_clause() {
