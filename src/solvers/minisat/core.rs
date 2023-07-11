@@ -7,9 +7,9 @@ use core::ffi::{c_int, CStr};
 
 use super::Limit;
 use crate::solvers::{
-    GetInternalStats, InternalSolverState, Interrupt, LimitConflicts, LimitPropagations, PhaseLit,
-    Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
-    SolverStats, InterruptSolver,
+    GetInternalStats, InternalSolverState, Interrupt, InterruptSolver, LimitConflicts,
+    LimitPropagations, PhaseLit, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError,
+    SolverResult, SolverState, SolverStats,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
 use cpu_time::ProcessTime;
