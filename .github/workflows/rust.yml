@@ -16,17 +16,11 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - name: Run cargo check
         uses: actions-rs/cargo@v1
         with:
           command: check
-          args: --verbose --features=all-non-conflicting
+          args: --features=all-non-conflicting
           
   test:
     name: Test suite
@@ -34,37 +28,30 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - name: Run cargo test suite
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --verbose --features=all-non-conflicting
+          args: --features=all-non-conflicting
   
-  lints:
-    name: Lints
+  fmt:
+    name: Formatting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
+          
+  clippy:
+    name: Lints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - uses: actions-rs/clippy-check@v1
         with:
-          command: clippy
-          args: --verbose --features=all-non-conflicting -- -D warnings
+          args: --features=all-non-conflicting
