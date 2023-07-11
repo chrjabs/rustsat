@@ -27,7 +27,7 @@ enum IntObj {
     },
 }
 
-use super::{fio, BasicVarManager, ManageVars, ReindexVars, SatInstance, CNF};
+use super::{fio, BasicVarManager, ManageVars, ReindexVars, SatInstance, Cnf};
 
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
@@ -528,7 +528,7 @@ impl Objective {
     }
 
     /// Converts the objective to a set of hard clauses, soft literals and an offset
-    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (CNF, (impl WLitIter, isize))
+    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
     where
         VM: ManageVars,
     {
@@ -540,7 +540,7 @@ impl Objective {
                 soft_clauses,
                 offset,
             } => {
-                let mut cnf = CNF::new();
+                let mut cnf = Cnf::new();
                 cnf.clauses.reserve(soft_clauses.len());
                 soft_lits.reserve(soft_clauses.len());
                 for (mut cl, w) in soft_clauses {
@@ -565,7 +565,7 @@ impl Objective {
     pub fn as_unweighted_soft_lits<VM>(
         self,
         var_manager: &mut VM,
-    ) -> (CNF, impl LitIter, usize, isize)
+    ) -> (Cnf, impl LitIter, usize, isize)
     where
         VM: ManageVars,
     {
@@ -586,7 +586,7 @@ impl Objective {
                 soft_clauses,
             } => {
                 if let Some(unit_weight) = unit_weight {
-                    let mut cnf = CNF::new();
+                    let mut cnf = Cnf::new();
                     cnf.clauses.reserve(soft_clauses.len());
                     soft_lits.reserve(soft_clauses.len());
                     for mut cl in soft_clauses {
@@ -602,7 +602,7 @@ impl Objective {
                     }
                     (cnf, soft_lits, unit_weight, offset)
                 } else {
-                    (CNF::new(), vec![], 1, offset)
+                    (Cnf::new(), vec![], 1, offset)
                 }
             }
         }
@@ -811,14 +811,14 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Converts the instance to a set of hard and soft clauses, an objective
     /// offset and a variable manager
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, (impl WClsIter, isize), VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (Cnf, (impl WClsIter, isize), VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals, an
     /// objective offset and a variable manager
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, (impl WLitIter, isize), VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (Cnf, (impl WLitIter, isize), VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let (hard_softs, softs) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
@@ -881,8 +881,8 @@ impl<VM: ManageVars> OptInstance<VM> {
     ) -> Result<(), io::Error>
     where
         W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
     {
         let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.obj.as_soft_cls();

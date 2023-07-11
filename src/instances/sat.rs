@@ -16,14 +16,14 @@ use super::{fio, BasicVarManager, ManageVars, ReindexVars};
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct CNF {
+pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
 }
 
-impl CNF {
+impl Cnf {
     /// Creates a new CNF
-    pub fn new() -> CNF {
-        CNF::default()
+    pub fn new() -> Cnf {
+        Cnf::default()
     }
 
     /// Adds a clause to the CNF
@@ -127,13 +127,13 @@ impl CNF {
     }
 
     /// Extends the CNF by another CNF
-    pub fn extend(&mut self, mut other: CNF) {
+    pub fn extend(&mut self, mut other: Cnf) {
         self.clauses.append(&mut other.clauses);
     }
 
-    /// Joins the current CNF with another one. Like [`CNF::extend`] but
+    /// Joins the current CNF with another one. Like [`Cnf::extend`] but
     /// consumes the object and returns a new object.
-    pub fn join(mut self, other: CNF) -> CNF {
+    pub fn join(mut self, other: Cnf) -> Cnf {
         self.extend(other);
         self
     }
@@ -172,7 +172,7 @@ impl CNF {
     }
 }
 
-impl IntoIterator for CNF {
+impl IntoIterator for Cnf {
     type Item = Clause;
 
     type IntoIter = std::vec::IntoIter<Clause>;
@@ -182,7 +182,7 @@ impl IntoIterator for CNF {
     }
 }
 
-impl FromIterator<Clause> for CNF {
+impl FromIterator<Clause> for Cnf {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
         Self {
             clauses: iter.into_iter().collect(),
@@ -194,7 +194,7 @@ impl FromIterator<Clause> for CNF {
 /// clauses, cardinality constraints and pseudo-boolean constraints.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SatInstance<VM: ManageVars = BasicVarManager> {
-    pub(super) cnf: CNF,
+    pub(super) cnf: Cnf,
     pub(super) cards: Vec<CardConstraint>,
     pub(super) pbs: Vec<PBConstraint>,
     pub(super) var_manager: VM,
@@ -204,7 +204,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Creates a new satisfiability instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
         SatInstance {
-            cnf: CNF::new(),
+            cnf: Cnf::new(),
             cards: vec![],
             pbs: vec![],
             var_manager,
@@ -366,7 +366,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Converts the instance to a set of clauses.
     /// Uses the default encoders from the `encodings` module.
-    pub fn as_cnf(self) -> (CNF, VM) {
+    pub fn as_cnf(self) -> (Cnf, VM) {
         self.as_cnf_with_encoders(
             card::default_encode_cardinality_constraint,
             pb::default_encode_pb_constraint,
@@ -379,10 +379,10 @@ impl<VM: ManageVars> SatInstance<VM> {
         mut self,
         mut card_encoder: CardEnc,
         mut pb_encoder: PBEnc,
-    ) -> (CNF, VM)
+    ) -> (Cnf, VM)
     where
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
     {
         self.cards
             .into_iter()
@@ -455,8 +455,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     ) -> Result<(), io::Error>
     where
         W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
     {
         let (cnf, vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
         fio::dimacs::write_cnf(writer, cnf, vm.max_var())

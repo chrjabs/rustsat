@@ -4,16 +4,16 @@ use rustsat::{
     clause,
     encodings::card::{
         simulators::{Double, Inverted},
-        BothB, IncBothB, Totalizer,
+        BoundBoth, BoundBothIncremental, Totalizer,
     },
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{new_default_inc_solver, IncrementalSolve, Solve, SolverResult},
+    solvers::{new_default_inc_solver, SolveIncremental, Solve, SolverResult},
     types::{Clause, Lit, Var},
     var,
 };
 
-fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
+fn test_inc_both_card<CE: BoundBothIncremental>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -33,7 +33,7 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
     var_manager.increase_next_free(var![11]);
 
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     enc.extend(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
@@ -42,18 +42,18 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
         .unwrap();
     let assumps = enc.enforce_lb(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     solver
         .add_cnf(enc.encode_both_change(0..4, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     enc.extend(vec![lit![5]]);
 
@@ -62,14 +62,14 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
         .unwrap();
     let assumps = enc.enforce_ub(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     solver
         .add_cnf(enc.encode_both_change(0..5, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     enc.extend(vec![lit![6], lit![7], lit![8], lit![9], lit![10]]);
 
@@ -78,17 +78,17 @@ fn test_inc_both_card<CE: IncBothB>(mut enc: CE) {
         .unwrap();
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     solver
         .add_cnf(enc.encode_both_change(0..8, &mut var_manager))
         .unwrap();
     let assumps = enc.enforce_ub(7).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_both_card<CE: BothB>(mut enc: CE) {
+fn test_both_card<CE: BoundBoth>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -101,7 +101,7 @@ fn test_both_card<CE: BothB>(mut enc: CE) {
     var_manager.increase_next_free(var![5]);
 
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     // Set up totalizer
     enc.extend(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
@@ -111,19 +111,19 @@ fn test_both_card<CE: BothB>(mut enc: CE) {
         .unwrap();
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let assumps = enc.enforce_lb(3).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let assumps = enc.enforce_lb(2).unwrap();
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 }
 
 /// Requires a cardinality encoding with upper and lower bounding functionality
-fn test_both_card_min_enc<CE: BothB>(mut enc: CE) {
+fn test_both_card_min_enc<CE: BoundBoth>(mut enc: CE) {
     // Set up instance
     let mut solver = new_default_inc_solver();
     let mut var_manager = BasicVarManager::default();
@@ -137,52 +137,52 @@ fn test_both_card_min_enc<CE: BothB>(mut enc: CE) {
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2], !lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], lit![1], !lit![2], lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], !lit![1], lit![2], lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![!lit![0], lit![1], lit![2], lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![!lit![0], !lit![1], lit![2], lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![!lit![0], lit![1], !lit![2], lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![!lit![0], lit![1], lit![2], !lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], !lit![1], !lit![2], lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], !lit![1], lit![2], !lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let mut assumps = enc.enforce_eq(3).unwrap();
     assumps.extend(vec![lit![0], lit![1], !lit![2], !lit![3]]);
     let res = solver.solve_assumps(assumps).unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 }
 
 #[test]

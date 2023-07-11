@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-use super::{fio, BasicVarManager, ManageVars, Objective, ReindexVars, SatInstance, CNF};
+use super::{fio, BasicVarManager, ManageVars, Objective, ReindexVars, SatInstance, Cnf};
 
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
@@ -79,14 +79,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    pub fn as_hard_cls_soft_cls(self) -> (CNF, Vec<(impl WClsIter, isize)>, VM) {
+    pub fn as_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
         let (cnf, vm) = self.constrs.as_cnf();
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
-    pub fn as_hard_cls_soft_lits(self) -> (CNF, Vec<(impl WLitIter, isize)>, VM) {
+    pub fn as_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
         let soft_lits = self
             .objs
@@ -160,8 +160,8 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ) -> Result<(), io::Error>
     where
         W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> CNF,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> CNF,
+        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
+        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
     {
         let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
@@ -229,7 +229,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_reader`].
+    /// [`OptInstance::from_dimacs_reader`](super::OptInstance::from_dimacs_reader).
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::ParsingError> {
         match fio::open_compressed_uncompressed_read(path) {
             Err(why) => Err(fio::ParsingError::IO(why)),

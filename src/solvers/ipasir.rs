@@ -6,9 +6,9 @@
 use core::ffi::{c_int, c_void, CStr};
 
 use super::{
-    ControlSignal, IncrementalSolve, InternalSolverState, Learn, OptLearnCallbackStore,
-    OptTermCallbackStore, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
-    SolverState, SolverStats, Terminate,
+    ControlSignal, InternalSolverState, Learn, OptLearnCallbackStore, OptTermCallbackStore, Solve,
+    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
+    SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal};
 use cpu_time::ProcessTime;
@@ -44,7 +44,7 @@ impl IpasirSolver<'_, '_> {
                 0 => (),
                 1 => core.push(!*a),
                 invalid => {
-                    return Err(SolverError::API(format!(
+                    return Err(SolverError::Api(format!(
                         "ipasir_failed returned invalid value: {}",
                         invalid
                     )))
@@ -67,10 +67,10 @@ impl Solve for IpasirSolver<'_, '_> {
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
-            return Ok(SolverResult::SAT);
+            return Ok(SolverResult::Sat);
         } else if let InternalSolverState::Unsat(core) = &self.state {
             if core.is_empty() {
-                return Ok(SolverResult::UNSAT);
+                return Ok(SolverResult::Unsat);
             }
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
@@ -91,14 +91,14 @@ impl Solve for IpasirSolver<'_, '_> {
             10 => {
                 self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(vec![]);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "ipasir_solve returned invalid value: {}",
                 invalid
             ))),
@@ -113,13 +113,13 @@ impl Solve for IpasirSolver<'_, '_> {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(SolverError::API(format!(
+                    invalid => Err(SolverError::Api(format!(
                         "ipasir_val returned invalid value: {}",
                         invalid
                     ))),
                 }
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::SAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
         }
     }
 
@@ -154,7 +154,7 @@ impl Solve for IpasirSolver<'_, '_> {
     }
 }
 
-impl IncrementalSolve for IpasirSolver<'_, '_> {
+impl SolveIncremental for IpasirSolver<'_, '_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -180,14 +180,14 @@ impl IncrementalSolve for IpasirSolver<'_, '_> {
             10 => {
                 self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "ipasir_solve returned invalid value: {}",
                 invalid
             ))),
@@ -197,7 +197,7 @@ impl IncrementalSolve for IpasirSolver<'_, '_> {
     fn core(&mut self) -> Result<Vec<Lit>, SolverError> {
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
-            other => Err(SolverError::State(other.to_external(), SolverState::UNSAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
         }
     }
 }
@@ -337,7 +337,7 @@ mod test {
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::SAT),
+            Ok(res) => assert_eq!(res, SolverResult::Sat),
         }
     }
 
@@ -351,7 +351,7 @@ mod test {
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
         }
     }
 
@@ -417,7 +417,7 @@ mod test {
 
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
         }
     }
 }

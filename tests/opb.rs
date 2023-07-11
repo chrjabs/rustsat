@@ -29,12 +29,12 @@ macro_rules! opb_test {
 
 #[test]
 fn opb_tiny_sat() {
-    opb_test!("./data/tiny-sat.opb", SolverResult::SAT);
+    opb_test!("./data/tiny-sat.opb", SolverResult::Sat);
 }
 
 #[test]
 fn opb_tiny_unsat() {
-    opb_test!("./data/tiny-unsat.opb", SolverResult::UNSAT);
+    opb_test!("./data/tiny-unsat.opb", SolverResult::Unsat);
 }
 
 #[cfg(feature = "optimization")]

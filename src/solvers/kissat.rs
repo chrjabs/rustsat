@@ -75,7 +75,7 @@ impl Kissat<'_> {
             if ret != 0 {
                 Ok(())
             } else {
-                Err(SolverError::API("kissat_configure returned 0".to_string()))
+                Err(SolverError::Api("kissat_configure returned 0".to_string()))
             }
         } else {
             Err(SolverError::State(
@@ -91,7 +91,7 @@ impl Kissat<'_> {
         let c_name = match CString::new(name) {
             Ok(cstr) => cstr,
             Err(_) => {
-                return Err(SolverError::API(format!(
+                return Err(SolverError::Api(format!(
                     "Kissat option {} cannot be converted to a C string",
                     name
                 )))
@@ -100,7 +100,7 @@ impl Kissat<'_> {
         if unsafe { ffi::kissat_set_option(self.handle, c_name.as_ptr(), value) } != 0 {
             Ok(())
         } else {
-            Err(SolverError::API(format!(
+            Err(SolverError::Api(format!(
                 "kissat_set_option returned false for option {}",
                 name
             )))
@@ -112,7 +112,7 @@ impl Kissat<'_> {
         let c_name = match CString::new(name) {
             Ok(cstr) => cstr,
             Err(_) => {
-                return Err(SolverError::API(format!(
+                return Err(SolverError::Api(format!(
                     "Kissat option {} cannot be converted to a C string",
                     name
                 )))
@@ -166,9 +166,9 @@ impl Solve for Kissat<'_> {
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
-            return Ok(SolverResult::SAT);
+            return Ok(SolverResult::Sat);
         } else if let InternalSolverState::Unsat(_) = self.state {
-            return Ok(SolverResult::UNSAT);
+            return Ok(SolverResult::Unsat);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
                 SolverState::Error(desc.clone()),
@@ -188,14 +188,14 @@ impl Solve for Kissat<'_> {
             10 => {
                 self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(vec![]);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "kissat_solve returned invalid value: {}",
                 invalid
             ))),
@@ -210,13 +210,13 @@ impl Solve for Kissat<'_> {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(SolverError::API(format!(
+                    invalid => Err(SolverError::Api(format!(
                         "kissat_val returned invalid value: {}",
                         invalid
                     ))),
                 }
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::SAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
         }
     }
 
@@ -393,7 +393,7 @@ mod test {
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::SAT),
+            Ok(res) => assert_eq!(res, SolverResult::Sat),
         }
     }
 
@@ -407,7 +407,7 @@ mod test {
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
         }
     }
 

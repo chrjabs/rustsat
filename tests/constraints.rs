@@ -3,7 +3,7 @@
 use rustsat::{
     instances::SatInstance,
     lit, solvers,
-    solvers::{IncrementalSolve, Solve, SolverResult},
+    solvers::{SolveIncremental, Solve, SolverResult},
     types::{
         constraints::{CardConstraint, PBConstraint},
         Lit, RsHashMap,
@@ -20,11 +20,11 @@ macro_rules! test_card {
         solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),
-            SolverResult::SAT
+            SolverResult::Sat
         );
         assert_eq!(
             solver.solve_assumps($unsat_assump).unwrap(),
-            SolverResult::UNSAT
+            SolverResult::Unsat
         );
     }};
 }
@@ -39,11 +39,11 @@ macro_rules! test_pb {
         solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),
-            SolverResult::SAT
+            SolverResult::Sat
         );
         assert_eq!(
             solver.solve_assumps($unsat_assump).unwrap(),
-            SolverResult::UNSAT
+            SolverResult::Unsat
         );
     }};
 }

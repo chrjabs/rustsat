@@ -7,7 +7,7 @@
 use super::Encode;
 use crate::{
     encodings::{EncodeStats, EncodingError},
-    instances::{ManageVars, CNF},
+    instances::{ManageVars, Cnf},
     types::Lit,
 };
 
@@ -35,9 +35,9 @@ impl Encode for Pairwise {
         self.in_lits.len()
     }
 
-    fn encode(&mut self, _var_manager: &mut dyn ManageVars) -> Result<CNF, EncodingError> {
+    fn encode(&mut self, _var_manager: &mut dyn ManageVars) -> Result<Cnf, EncodingError> {
         self.n_clauses = 0;
-        let mut cnf = CNF::new();
+        let mut cnf = Cnf::new();
         for first in 0..self.in_lits.len() {
             for second in first + 1..self.in_lits.len() {
                 cnf.add_binary(!self.in_lits[first], !self.in_lits[second]);

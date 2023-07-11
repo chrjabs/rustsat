@@ -13,7 +13,7 @@ fn small_sat_instance_gzip() {
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0).unwrap();
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 }
 
 #[test]
@@ -25,7 +25,7 @@ fn small_unsat_instance_gzip() {
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0).unwrap();
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn small_sat_instance_bz2() {
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0).unwrap();
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 }
 
 #[test]
@@ -47,5 +47,5 @@ fn small_unsat_instance_bz2() {
     let mut solver = solvers::new_default_solver();
     solver.add_cnf(inst.as_cnf().0).unwrap();
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 }

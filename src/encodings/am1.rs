@@ -10,7 +10,7 @@
 //!     encodings::am1::{self, Encode},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit,
-//!     solvers::{self, IncrementalSolve, Solve, SolverResult},
+//!     solvers::{self, SolveIncremental, Solve, SolverResult},
 //!     types::{Lit, Var},
 //!     var,
 //! };
@@ -24,15 +24,15 @@
 //! solver.add_cnf(encoder.encode(&mut var_manager).unwrap()).unwrap();
 //!  
 //! let res = solver.solve_assumps(vec![!lit![0], lit![1], lit![2]]).unwrap();
-//! assert_eq!(res, SolverResult::UNSAT);
+//! assert_eq!(res, SolverResult::Unsat);
 //!
 //! let res = solver.solve_assumps(vec![!lit![0], lit![1], !lit![2]]).unwrap();
-//! assert_eq!(res, SolverResult::SAT);
+//! assert_eq!(res, SolverResult::Sat);
 //! ```
 
 use super::EncodingError;
 use crate::{
-    instances::{ManageVars, CNF},
+    instances::{ManageVars, Cnf},
     types::Lit,
 };
 
@@ -49,7 +49,7 @@ pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
     /// Gets the number of literals in the encoding
     fn n_lits(&self) -> usize;
     /// Encodes and enforces the at-most-1 constraint
-    fn encode(&mut self, var_manager: &mut dyn ManageVars) -> Result<CNF, EncodingError>;
+    fn encode(&mut self, var_manager: &mut dyn ManageVars) -> Result<Cnf, EncodingError>;
 }
 
 /// The default at-most-1 encoding. For now this is a [`Pairwise`] encoding.
