@@ -269,23 +269,23 @@ impl PhaseLit for MinisatSimp {
 
 impl LimitConflicts for MinisatSimp {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
-        Ok(self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
+        self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
             limit as i64
         } else {
             -1
-        })))
+        }));
+        Ok(())
     }
 }
 
 impl LimitPropagations for MinisatSimp {
     fn limit_propagations(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
-        Ok(
-            self.set_limit(Limit::Propagations(if let Some(limit) = limit {
-                limit as i64
-            } else {
-                -1
-            })),
-        )
+        self.set_limit(Limit::Propagations(if let Some(limit) = limit {
+            limit as i64
+        } else {
+            -1
+        }));
+        Ok(())
     }
 }
 

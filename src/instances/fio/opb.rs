@@ -541,7 +541,7 @@ fn write_card<W: Write>(
                 write!(writer, "-1 x{} ", l.vidx() + opts.first_var_idx)
             }
         })?;
-        writeln!(writer, "{} {};", op, bound as isize - offset)
+        writeln!(writer, "{} {};", op, bound - offset)
     } else {
         let (lits, bound, op) = match card {
             CardConstraint::UB(constr) => {

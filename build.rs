@@ -90,7 +90,6 @@ fn build_cadical(repo: &str, branch: &str, commit: &str) -> bool {
             // We specify the build manually here instead of calling make for better portability
             let src_files = glob(&format!("{}/src/*.cpp", cadical_dir_str))
                 .unwrap()
-                .into_iter()
                 .filter_map(|res| {
                     if let Ok(p) = res {
                         if let Some(name) = p.file_name() {
@@ -166,7 +165,6 @@ fn build_kissat(repo: &str, branch: &str, commit: &str) -> bool {
             // We specify the build manually here instead of calling make for better portability
             let src_files = glob(&format!("{}/src/*.c", kissat_dir_str))
                 .unwrap()
-                .into_iter()
                 .filter_map(|res| {
                     if let Ok(p) = res {
                         if let Some(name) = p.file_name() {

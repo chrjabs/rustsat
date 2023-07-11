@@ -156,7 +156,7 @@ impl Clause {
                 idx += 1;
             }
         }
-        return Some(self);
+        Some(self)
     }
 }
 
