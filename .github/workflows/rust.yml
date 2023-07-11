@@ -16,11 +16,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features=all-non-conflicting
+        run: cargo check --verbose --features=all-non-conflicting
           
   test:
     name: Test suite
@@ -28,11 +27,10 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
       - name: Run cargo test suite
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features=all-non-conflicting
+        run: cargo test --verbose --features=all-non-conflicting
   
   fmt:
     name: Formatting
@@ -40,11 +38,12 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          command: fmt
-          args: --all -- --check
+          components: rustfmt
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
           
   clippy:
     name: Lints
@@ -52,6 +51,12 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-      - uses: actions-rs/clippy-check@v1
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          args: --features=all-non-conflicting
+          components: clippy
+      - name: Lints
+        uses: giraffate/clippy-action@v1
+        with:
+          reporter: 'github-pr-review'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
