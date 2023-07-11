@@ -570,7 +570,7 @@ impl<VM: ManageVars> SatInstance<VM> {
                     cards.push(pb.as_card_constr().unwrap());
                     return None;
                 }
-                return Some(pb);
+                Some(pb)
             })
             .collect();
         let cards = cards
@@ -597,7 +597,7 @@ impl<VM: ManageVars> SatInstance<VM> {
                     cnf.add_clause(card.as_clause().unwrap());
                     return None;
                 }
-                return Some(card);
+                Some(card)
             })
             .collect();
         if unsat {

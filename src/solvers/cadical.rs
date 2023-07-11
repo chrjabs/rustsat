@@ -529,14 +529,14 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
-        unsafe { ffi::ccadical_set_terminate(self.handle, cb_ptr, ffi::ccadical_terminate_cb) }
+        unsafe {
+            ffi::ccadical_set_terminate(self.handle, cb_ptr, Some(ffi::ccadical_terminate_cb))
+        }
     }
 
     fn detach_terminator(&mut self) {
         self.terminate_cb = None;
-        let null_cb: extern "C" fn(*const c_void) -> c_int =
-            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
-        unsafe { ffi::ccadical_set_terminate(self.handle, std::ptr::null(), null_cb) }
+        unsafe { ffi::ccadical_set_terminate(self.handle, std::ptr::null(), None) }
     }
 }
 
@@ -576,16 +576,14 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
                 self.handle,
                 cb_ptr,
                 max_len.try_into().unwrap(),
-                ffi::ccadical_learn_cb,
+                Some(ffi::ccadical_learn_cb),
             )
         }
     }
 
     fn detach_learner(&mut self) {
         self.terminate_cb = None;
-        let null_cb: extern "C" fn(*const c_void, *const c_int) =
-            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
-        unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null(), 0, null_cb) }
+        unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null(), 0, None) }
     }
 }
 
@@ -948,13 +946,13 @@ mod ffi {
         pub fn ccadical_set_terminate(
             solver: *mut CaDiCaLHandle,
             state: *const c_void,
-            terminate: extern "C" fn(state: *const c_void) -> c_int,
+            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
         );
         pub fn ccadical_set_learn(
             solver: *mut CaDiCaLHandle,
             state: *const c_void,
             max_length: c_int,
-            learn: extern "C" fn(state: *const c_void, clause: *const c_int),
+            learn: Option<extern "C" fn(state: *const c_void, clause: *const c_int)>,
         );
         pub fn ccadical_constrain(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_constraint_failed(solver: *mut CaDiCaLHandle) -> c_int;

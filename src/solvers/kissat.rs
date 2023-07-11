@@ -292,14 +292,12 @@ impl<'term> Terminate<'term> for Kissat<'term> {
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
-        unsafe { ffi::kissat_set_terminate(self.handle, cb_ptr, ffi::kissat_terminate_cb) }
+        unsafe { ffi::kissat_set_terminate(self.handle, cb_ptr, Some(ffi::kissat_terminate_cb)) }
     }
 
     fn detach_terminator(&mut self) {
         self.terminate_cb = None;
-        let null_cb: extern "C" fn(*const c_void) -> c_int =
-            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
-        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null(), null_cb) }
+        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null(), None) }
     }
 }
 
@@ -484,7 +482,7 @@ mod ffi {
         pub fn kissat_set_terminate(
             solver: *mut KissatHandle,
             state: *const c_void,
-            terminate: extern "C" fn(state: *const c_void) -> c_int,
+            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
         );
         pub fn kissat_terminate(solver: *mut KissatHandle);
         pub fn kissat_reserve(solver: *mut KissatHandle, max_var: c_int);
