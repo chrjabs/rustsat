@@ -30,9 +30,9 @@
 //! assert_eq!(res, SolverResult::Sat);
 //! ```
 
-use super::EncodingError;
+use super::Error;
 use crate::{
-    instances::{ManageVars, Cnf},
+    instances::{Cnf, ManageVars},
     types::Lit,
 };
 
@@ -49,7 +49,7 @@ pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
     /// Gets the number of literals in the encoding
     fn n_lits(&self) -> usize;
     /// Encodes and enforces the at-most-1 constraint
-    fn encode(&mut self, var_manager: &mut dyn ManageVars) -> Result<Cnf, EncodingError>;
+    fn encode(&mut self, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>;
 }
 
 /// The default at-most-1 encoding. For now this is a [`Pairwise`] encoding.

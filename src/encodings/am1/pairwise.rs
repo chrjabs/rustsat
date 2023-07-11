@@ -6,8 +6,8 @@
 
 use super::Encode;
 use crate::{
-    encodings::{EncodeStats, EncodingError},
-    instances::{ManageVars, Cnf},
+    encodings::{EncodeStats, Error},
+    instances::{Cnf, ManageVars},
     types::Lit,
 };
 
@@ -35,7 +35,7 @@ impl Encode for Pairwise {
         self.in_lits.len()
     }
 
-    fn encode(&mut self, _var_manager: &mut dyn ManageVars) -> Result<Cnf, EncodingError> {
+    fn encode(&mut self, _var_manager: &mut dyn ManageVars) -> Result<Cnf, Error> {
         self.n_clauses = 0;
         let mut cnf = Cnf::new();
         for first in 0..self.in_lits.len() {
