@@ -3,6 +3,11 @@ name = "rustsat"
 version = "0.1.0"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+license = "MIT"
+description = "A rust library for Boolean satisfiabyility (SAT). Contains bindings to SAT solvers, encodings, file parsers and more."
+keywords = ["sat", "satisfiability", "encodings"]
+repository = "https://github.com/chrjabs/rustsat"
+readme = "README.md"
 
 build = "build.rs"
 
