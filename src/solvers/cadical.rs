@@ -6,8 +6,8 @@ use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use super::{
-    ControlSignal, IncrementalSolve, InternalSolverState, Learn, OptLearnCallbackStore,
-    OptTermCallbackStore, PhaseLit, Solve, SolveMightFail, SolveStats, SolverError, SolverResult,
+    ControlSignal, InternalSolverState, Learn, OptLearnCallbackStore, OptTermCallbackStore,
+    PhaseLit, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult,
     SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal, Var};
@@ -47,7 +47,7 @@ impl CaDiCaL<'_, '_> {
                 0 => (),
                 1 => core.push(!*a),
                 invalid => {
-                    return Err(SolverError::API(format!(
+                    return Err(SolverError::Api(format!(
                         "ccadical_failed returned invalid value: {}",
                         invalid
                     )))
@@ -60,7 +60,7 @@ impl CaDiCaL<'_, '_> {
     /// Adds a clause that only exists for the next solver call. Only one such
     /// clause can exist, a new new clause replaces the old one.
     ///
-    /// _Note_: If this is used, in addition to [`IncrementalSolve::core`],
+    /// _Note_: If this is used, in addition to [`SolveIncremental::core`],
     /// [`CaDiCaL::tmp_clause_in_core`] needs to be checked to determine if the
     /// temporary clause is part of the core.
     pub fn add_tmp_clause(&mut self, clause: Clause) {
@@ -83,13 +83,13 @@ impl CaDiCaL<'_, '_> {
 
     /// Checks whether the temporary clause is part of the core if in
     /// unsatisfiable state. This needs to always be checked in addition to
-    /// [`IncrementalSolve::core`] if a [`CaDiCaL::add_tmp_clause`] is used.
+    /// [`SolveIncremental::core`] if a [`CaDiCaL::add_tmp_clause`] is used.
     pub fn tmp_clause_in_core(&mut self) -> Result<bool, SolverError> {
         match &self.state {
             InternalSolverState::Unsat(_) => unsafe {
                 Ok(ffi::ccadical_constraint_failed(self.handle) != 0)
             },
-            state => Err(SolverError::State(state.to_external(), SolverState::UNSAT)),
+            state => Err(SolverError::State(state.to_external(), SolverState::Unsat)),
         }
     }
 
@@ -106,7 +106,7 @@ impl CaDiCaL<'_, '_> {
             if ret {
                 Ok(())
             } else {
-                Err(SolverError::API(
+                Err(SolverError::Api(
                     "ccadical_configure returned false".to_string(),
                 ))
             }
@@ -131,7 +131,7 @@ impl CaDiCaL<'_, '_> {
         let c_name = match CString::new(name) {
             Ok(cstr) => cstr,
             Err(_) => {
-                return Err(SolverError::API(format!(
+                return Err(SolverError::Api(format!(
                     "CaDiCaL option {} cannot be converted to a C string",
                     name
                 )))
@@ -140,7 +140,7 @@ impl CaDiCaL<'_, '_> {
         if unsafe { ffi::ccadical_set_option_ret(self.handle, c_name.as_ptr(), value) } {
             Ok(())
         } else {
-            Err(SolverError::API(format!(
+            Err(SolverError::Api(format!(
                 "ccadical_set_option_ret returned false for option {}",
                 name
             )))
@@ -157,7 +157,7 @@ impl CaDiCaL<'_, '_> {
         let c_name = match CString::new(name) {
             Ok(cstr) => cstr,
             Err(_) => {
-                return Err(SolverError::API(format!(
+                return Err(SolverError::Api(format!(
                     "CaDiCaL option {} cannot be converted to a C string",
                     name
                 )))
@@ -194,7 +194,7 @@ impl CaDiCaL<'_, '_> {
         if unsafe { ffi::ccadical_limit_ret(self.handle, name.as_ptr(), val) } {
             Ok(())
         } else {
-            Err(SolverError::API(format!(
+            Err(SolverError::Api(format!(
                 "ccadical_limit_ret returned false for limit {}",
                 limit
             )))
@@ -254,9 +254,9 @@ impl CaDiCaL<'_, '_> {
     pub fn simplify(&mut self, rounds: u32) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
-            return Ok(SolverResult::SAT);
+            return Ok(SolverResult::Sat);
         } else if let InternalSolverState::Unsat(_) = self.state {
-            return Ok(SolverResult::UNSAT);
+            return Ok(SolverResult::Unsat);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
                 SolverState::Error(desc.clone()),
@@ -266,7 +266,7 @@ impl CaDiCaL<'_, '_> {
         let rounds: c_int = match rounds.try_into() {
             Ok(val) => val,
             Err(_) => {
-                return Err(SolverError::API(format!(
+                return Err(SolverError::Api(format!(
                     "rounds value {} does not fit into c_int",
                     rounds
                 )))
@@ -280,13 +280,13 @@ impl CaDiCaL<'_, '_> {
             }
             10 => {
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.state = InternalSolverState::Unsat(vec![]);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "ccadical_simplify returned invalid value: {}",
                 invalid
             ))),
@@ -300,9 +300,9 @@ impl CaDiCaL<'_, '_> {
     ) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
-            return Ok(SolverResult::SAT);
+            return Ok(SolverResult::Sat);
         } else if let InternalSolverState::Unsat(_) = self.state {
-            return Ok(SolverResult::UNSAT);
+            return Ok(SolverResult::Unsat);
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
                 SolverState::Error(desc.clone()),
@@ -312,7 +312,7 @@ impl CaDiCaL<'_, '_> {
         let rounds: c_int = match rounds.try_into() {
             Ok(val) => val,
             Err(_) => {
-                return Err(SolverError::API(format!(
+                return Err(SolverError::Api(format!(
                     "rounds value {} does not fit into c_int",
                     rounds
                 )))
@@ -329,13 +329,13 @@ impl CaDiCaL<'_, '_> {
             }
             10 => {
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.state = InternalSolverState::Unsat(vec![]);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "ccadical_simplify returned invalid value: {}",
                 invalid
             ))),
@@ -369,10 +369,10 @@ impl Solve for CaDiCaL<'_, '_> {
     fn solve(&mut self) -> Result<SolverResult, SolverError> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
-            return Ok(SolverResult::SAT);
+            return Ok(SolverResult::Sat);
         } else if let InternalSolverState::Unsat(core) = &self.state {
             if core.is_empty() {
-                return Ok(SolverResult::UNSAT);
+                return Ok(SolverResult::Unsat);
             }
         } else if let InternalSolverState::Error(desc) = &self.state {
             return Err(SolverError::State(
@@ -393,14 +393,14 @@ impl Solve for CaDiCaL<'_, '_> {
             10 => {
                 self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(vec![]);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "ccadical_solve returned invalid value: {}",
                 invalid
             ))),
@@ -417,13 +417,13 @@ impl Solve for CaDiCaL<'_, '_> {
                     n if n == -lit => Ok(TernaryVal::False),
                     // CaDiCaL returns -1 if variable is higher than max var
                     dc if dc == -1 => Ok(TernaryVal::DontCare),
-                    invalid => Err(SolverError::API(format!(
+                    invalid => Err(SolverError::Api(format!(
                         "ccadical_val returned invalid value: {}",
                         invalid
                     ))),
                 }
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::SAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
         }
     }
 
@@ -450,7 +450,7 @@ impl Solve for CaDiCaL<'_, '_> {
     }
 }
 
-impl IncrementalSolve for CaDiCaL<'_, '_> {
+impl SolveIncremental for CaDiCaL<'_, '_> {
     fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
@@ -476,14 +476,14 @@ impl IncrementalSolve for CaDiCaL<'_, '_> {
             10 => {
                 self.stats.n_sat += 1;
                 self.state = InternalSolverState::Sat;
-                Ok(SolverResult::SAT)
+                Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
-                Ok(SolverResult::UNSAT)
+                Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::API(format!(
+            invalid => Err(SolverError::Api(format!(
                 "ccadical_solve returned invalid value: {}",
                 invalid
             ))),
@@ -493,7 +493,7 @@ impl IncrementalSolve for CaDiCaL<'_, '_> {
     fn core(&mut self) -> Result<Vec<Lit>, SolverError> {
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
-            other => Err(SolverError::State(other.to_external(), SolverState::UNSAT)),
+            other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
         }
     }
 }
@@ -715,7 +715,7 @@ mod test {
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::SAT),
+            Ok(res) => assert_eq!(res, SolverResult::Sat),
         }
     }
 
@@ -729,7 +729,7 @@ mod test {
         let ret = solver.solve();
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
         }
     }
 
@@ -795,7 +795,7 @@ mod test {
 
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::UNSAT),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
         }
     }
 

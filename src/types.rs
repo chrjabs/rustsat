@@ -519,7 +519,7 @@ impl Assignment {
         }
     }
 
-    /// Same as [`Solution::var_value`], but for literals.
+    /// Same as [`Assignment::var_value`], but for literals.
     pub fn lit_value(&self, lit: Lit) -> TernaryVal {
         if lit.is_neg() {
             match self.var_value(lit.var()) {

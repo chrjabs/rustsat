@@ -11,7 +11,7 @@
 //! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
 use crate::{
-    instances::{ManageVars, SatInstance, CNF},
+    instances::{ManageVars, SatInstance, Cnf},
     types::{Clause, Lit, Var},
 };
 use nom::{
@@ -558,7 +558,7 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str, Error> {
 /// Writes a CNF to a DIMACS CNF file
 pub fn write_cnf<W: Write>(
     writer: &mut W,
-    cnf: CNF,
+    cnf: Cnf,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
@@ -581,7 +581,7 @@ pub fn write_cnf<W: Write>(
 /// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
 pub fn write_wcnf<W: Write, CI: WClsIter>(
     writer: &mut W,
-    cnf: CNF,
+    cnf: Cnf,
     softs: (CI, isize),
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
@@ -609,7 +609,7 @@ pub fn write_wcnf<W: Write, CI: WClsIter>(
 /// Writes a CNF and multiple objectives as sets of soft clauses to a DIMACS MCNF file
 pub fn write_mcnf<W: Write, CI: WClsIter>(
     writer: &mut W,
-    cnf: CNF,
+    cnf: Cnf,
     softs: Vec<(CI, isize)>,
     max_var: Option<Var>,
 ) -> Result<(), io::Error> {
@@ -665,7 +665,7 @@ mod tests {
     };
     use crate::{
         clause,
-        instances::{SatInstance, CNF},
+        instances::{SatInstance, Cnf},
         ipasir_lit,
         types::{Clause, Lit, Var},
         var,
@@ -1110,7 +1110,7 @@ mod tests {
 
     #[test]
     fn write_parse_cnf() {
-        let mut true_cnf = CNF::new();
+        let mut true_cnf = Cnf::new();
         true_cnf.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_cnf.add_clause(clause![ipasir_lit![2], ipasir_lit![1]]);
 

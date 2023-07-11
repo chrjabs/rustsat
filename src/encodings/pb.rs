@@ -9,10 +9,10 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::{pb, pb::{BothB, Encode}},
+//!     encodings::{pb, pb::{BoundBoth, Encode}},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
-//!     solvers::{SolverResult, Solve, IncrementalSolve},
+//!     solvers::{SolverResult, Solve, SolveIncremental},
 //!     types::{Clause, Lit, Var, RsHashMap},
 //!     var,
 //! };
@@ -34,12 +34,12 @@
 //! let mut assumps = enc.enforce_eq(4).unwrap();
 //! assumps.extend(vec![!lit![0], lit![1], lit![2], !lit![3]]);
 //! let res = solver.solve_assumps(assumps).unwrap();
-//! assert_eq!(res, SolverResult::SAT);
+//! assert_eq!(res, SolverResult::Sat);
 //!
 //! let mut assumps = enc.enforce_eq(4).unwrap();
 //! assumps.extend(vec![!lit![0], !lit![1], lit![2], lit![3]]);
 //! let res = solver.solve_assumps(assumps).unwrap();
-//! assert_eq!(res, SolverResult::UNSAT);
+//! assert_eq!(res, SolverResult::Unsat);
 //! ```
 //!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
@@ -50,7 +50,7 @@ use std::ops::Range;
 
 use super::{card, EncodingError};
 use crate::{
-    instances::{ManageVars, CNF},
+    instances::{Cnf, ManageVars},
     types::{
         constraints::{PBConstraint, PBEQConstr, PBLBConstr, PBUBConstr},
         Clause, Lit, RsHashMap,
@@ -79,14 +79,14 @@ pub trait Encode:
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait UB: Encode {
+pub trait BoundUpper: Encode {
     /// Lazily builds the pseudo-boolean encoding to enable upper bounds within
     /// a given range. `var_manager` is the variable manager to use for tracking
-    /// new variables. A specific encoding might ignore `min_ub` or `max_ub`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// new variables. A specific encoding might ignore the upper or lower end
+    /// of the range.
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
     /// Returns assumptions/units for enforcing an upper bound (`weighted sum of
-    /// lits <= ub`). Make sure that [`UBPB::encode_ub`] has been called
+    /// lits <= ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
@@ -94,7 +94,7 @@ pub trait UB: Encode {
     fn encode_ub_constr(
         constr: PBUBConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -117,15 +117,15 @@ pub trait UB: Encode {
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait LB: Encode {
+pub trait BoundLower: Encode {
     /// Lazily builds the pseudo-boolean encoding to enable lower bounds in a
     /// given range. `var_manager` is the variable manager to use for tracking
-    /// new variables. A specific encoding might ignore `min_lb` or `max_lb`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// new variables. A specific encoding might ignore the upper or lower end
+    /// of the range.
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
-    /// lb`). Make sure that [`LBPB::encode_lb`] has been called adequately and
-    /// nothing has been added afterwards, otherwise
+    /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
+    /// adequately and nothing has been added afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned. If `lb` is higher than
     /// the weighted sum of literals in the encoding, [`EncodingError::Unsat`]
     /// is returned.
@@ -134,14 +134,14 @@ pub trait LB: Encode {
     fn encode_lb_constr(
         constr: PBLBConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
         let lb = if lb < 0 {
-            return Ok(CNF::new()); // tautology
+            return Ok(Cnf::new()); // tautology
         } else {
             lb as usize
         };
@@ -156,12 +156,12 @@ pub trait LB: Encode {
 }
 
 /// Trait for pseudo-boolean encodings that allow upper and lower bounding
-pub trait BothB: UB + LB {
+pub trait BoundBoth: BoundUpper + BoundLower {
     /// Lazily builds the pseudo-boolean encoding to enable both bounds in a
     /// given range. `var_manager` is the variable manager to use for tracking
-    /// new variables. A specific encoding might ignore `min_lb` or `max_lb`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    /// new variables. A specific encoding might ignore the upper or lower end
+    /// of the range.
+    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         let cnf = self.encode_ub(range.clone(), var_manager);
         cnf.join(self.encode_lb(range, var_manager))
     }
@@ -181,7 +181,7 @@ pub trait BothB: UB + LB {
     fn encode_eq_constr(
         constr: PBEQConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -204,7 +204,7 @@ pub trait BothB: UB + LB {
     fn encode_constr(
         constr: PBConstraint,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -216,121 +216,118 @@ pub trait BothB: UB + LB {
     }
 }
 
-/// Default implementation of [`BothBPB`] for every encoding that does upper
+/// Default implementation of [`BoundBoth`] for every encoding that does upper
 /// and lower bounding
-impl<PBE> BothB for PBE where PBE: UB + LB {}
+impl<PBE> BoundBoth for PBE where PBE: BoundUpper + BoundLower {}
 
 /// Trait for all pseudo-boolean encodings of form `sum of lits <> rhs`
-pub trait IncEncode: Encode {
+pub trait EncodeIncremental: Encode {
     /// Reserves all variables this encoding might need
     fn reserve(&mut self, var_manager: &mut dyn ManageVars);
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncUB: UB + IncEncode {
+pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable upper
     /// bounds from within the range. A change might be added literals or
     /// changed bounds. `var_manager` is the variable manager to use for
-    /// tracking new variables. A specific encoding might ignore `min_ub` or
-    /// `max_ub`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// tracking new variables. A specific encoding might ignore the lower or
+    /// upper end of the range.
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncLB: LB + IncEncode {
+pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable lower
     /// bounds within the range. `var_manager` is the variable manager to use
-    /// for tracking new variables. A specific encoding might ignore `min_lb` or
-    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// for tracking new variables. A specific encoding might ignore the lower
+    /// or upper end of the range.
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
-pub trait IncBothB: IncUB + IncLB {
-    /// Lazily builds the _change in_ pseudo-boolean encoding to enable both bounds
-    /// from `min_b` to `max_b`. `var_manager` is the variable manager to use
-    /// for tracking new variables. A specific encoding might ignore `min_lb` or
-    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
+    /// Lazily builds the _change in_ pseudo-boolean encoding to enable both
+    /// bounds from `min_b` to `max_b`. `var_manager` is the variable manager to
+    /// use for tracking new variables. A specific encoding might ignore the
+    /// lower or upper end of the range.
+    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         let cnf = self.encode_ub_change(range.clone(), var_manager);
         cnf.join(self.encode_lb_change(range, var_manager))
     }
 }
 
-/// Default implementation of [`IncBothBPB`] for every encoding that does
-/// incremental upper and lower bounding
-impl<PBE> IncBothB for PBE where PBE: IncUB + IncLB {}
+/// Default implementation of [`BoundBothIncremental`] for every encoding that
+/// does incremental upper and lower bounding
+impl<PBE> BoundBothIncremental for PBE where PBE: BoundUpperIncremental + BoundLowerIncremental {}
 
 /// The default upper bound encoding. For now this is a [`GeneralizedTotalizer`].
-pub type DefUB = GeneralizedTotalizer;
+pub type DefUpperBounding = GeneralizedTotalizer;
 /// The default lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
-pub type DefLB = InvertedGeneralizedTotalizer;
+pub type DefLowerBounding = InvertedGeneralizedTotalizer;
 /// The default encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
-pub type DefBothB = DoubleGeneralizedTotalizer;
+pub type DefBothBounding = DoubleGeneralizedTotalizer;
 /// The default incremental upper bound encoding. For now this is a [`GeneralizedTotalizer`].
-pub type DefIncUB = GeneralizedTotalizer;
+pub type DefIncUpperBounding = GeneralizedTotalizer;
 /// The default incremental lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
-pub type DefIncLB = InvertedGeneralizedTotalizer;
+pub type DefIncLowerBounding = InvertedGeneralizedTotalizer;
 /// The default incremental encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
-pub type DefIncBothB = DoubleGeneralizedTotalizer;
+pub type DefIncBothBounding = DoubleGeneralizedTotalizer;
 
 /// Constructs a default upper bounding pseudo-boolean encoding.
-pub fn new_default_ub() -> impl UB {
-    DefUB::default()
+pub fn new_default_ub() -> impl BoundUpper {
+    DefUpperBounding::default()
 }
 
 /// Constructs a default lower bounding pseudo-boolean encoding.
-pub fn new_default_lb() -> impl LB {
-    DefLB::default()
+pub fn new_default_lb() -> impl BoundLower {
+    DefLowerBounding::default()
 }
 
 /// Constructs a default double bounding pseudo-boolean encoding.
-pub fn new_default_both() -> impl BothB {
-    DefBothB::default()
+pub fn new_default_both() -> impl BoundBoth {
+    DefBothBounding::default()
 }
 
 /// Constructs a default incremental upper bounding pseudo-boolean encoding.
-pub fn new_default_inc_ub() -> impl IncUB {
-    DefIncUB::default()
+pub fn new_default_inc_ub() -> impl BoundUpperIncremental {
+    DefIncUpperBounding::default()
 }
 
 /// Constructs a default incremental lower bounding pseudo-boolean encoding.
-pub fn new_default_inc_lb() -> impl LB {
-    DefIncLB::default()
+pub fn new_default_inc_lb() -> impl BoundLower {
+    DefIncLowerBounding::default()
 }
 
 /// Constructs a default incremental double bounding pseudo-boolean encoding.
-pub fn new_default_inc_both() -> impl BothB {
-    DefIncBothB::default()
+pub fn new_default_inc_both() -> impl BoundBoth {
+    DefIncBothBounding::default()
 }
 
 /// A default encoder for any pseudo-boolean constraint. This uses a
-/// [`DefBothB`] to encode true pseudo-boolean constraints and
+/// [`DefBothBounding`] to encode true pseudo-boolean constraints and
 /// [`card::default_encode_cardinality_constraint`] for cardinality constraints.
-pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> CNF {
-    encode_pb_constraint::<DefBothB>(constr, var_manager)
+pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> Cnf {
+    encode_pb_constraint::<DefBothBounding>(constr, var_manager)
 }
 
 /// An encoder for any pseudo-boolean constraint with an encoding of choice
-pub fn encode_pb_constraint<PBE: BothB>(
+pub fn encode_pb_constraint<PBE: BoundBoth>(
     constr: PBConstraint,
     var_manager: &mut dyn ManageVars,
-) -> CNF {
+) -> Cnf {
     if constr.is_tautology() {
-        return CNF::new();
+        return Cnf::new();
     }
     if constr.is_unsat() {
-        let mut cnf = CNF::new();
+        let mut cnf = Cnf::new();
         cnf.add_clause(Clause::new());
         return cnf;
     }
     if constr.is_assignment() {
-        let mut cnf = CNF::new();
+        let mut cnf = Cnf::new();
         let lits = constr.into_lits();
         lits.into_iter().for_each(|(l, _)| cnf.add_unit(l));
         return cnf;

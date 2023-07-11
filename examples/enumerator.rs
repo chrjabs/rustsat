@@ -6,7 +6,7 @@
 
 use rustsat::{
     instances::{ManageVars, SatInstance},
-    solvers::{self, IncrementalSolve, Solve},
+    solvers::{self, SolveIncremental, Solve},
     types::{Assignment, Var},
 };
 
@@ -17,17 +17,17 @@ macro_rules! print_usage {
     }};
 }
 
-struct Enumerator<S: IncrementalSolve> {
+struct Enumerator<S: SolveIncremental> {
     solver: S,
     max_var: Var,
 }
 
-impl<S: IncrementalSolve> Iterator for Enumerator<S> {
+impl<S: SolveIncremental> Iterator for Enumerator<S> {
     type Item = Assignment;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.solver.solve().expect("error while solving") {
-            solvers::SolverResult::SAT => {
+            solvers::SolverResult::Sat => {
                 let sol = self
                     .solver
                     .solution(self.max_var)
@@ -39,7 +39,7 @@ impl<S: IncrementalSolve> Iterator for Enumerator<S> {
                     .expect("error adding blocking clause to solver");
                 Some(sol)
             }
-            solvers::SolverResult::UNSAT => None,
+            solvers::SolverResult::Unsat => None,
             solvers::SolverResult::Interrupted => panic!("solver interrupted without limits"),
         }
     }

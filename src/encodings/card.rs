@@ -9,10 +9,10 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::{card, card::{BothB, Encode}},
+//!     encodings::{card, card::{BoundBoth, Encode}},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
-//!     solvers::{SolverResult, Solve, IncrementalSolve},
+//!     solvers::{SolverResult, Solve, SolveIncremental},
 //!     types::{Clause, Lit, Var},
 //!     var,
 //! };
@@ -29,12 +29,12 @@
 //! let mut assumps = enc.enforce_eq(3).unwrap();
 //! assumps.extend(vec![lit![0], lit![1], lit![2], !lit![3]]);
 //! let res = solver.solve_assumps(assumps).unwrap();
-//! assert_eq!(res, SolverResult::SAT);
+//! assert_eq!(res, SolverResult::Sat);
 //!
 //! let mut assumps = enc.enforce_eq(3).unwrap();
 //! assumps.extend(vec![!lit![0], !lit![1], lit![2], lit![3]]);
 //! let res = solver.solve_assumps(assumps).unwrap();
-//! assert_eq!(res, SolverResult::UNSAT);
+//! assert_eq!(res, SolverResult::Unsat);
 //! ```
 //!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
@@ -45,7 +45,7 @@ use std::ops::Range;
 
 use super::EncodingError;
 use crate::{
-    instances::{ManageVars, CNF},
+    instances::{Cnf, ManageVars},
     types::{
         constraints::{CardConstraint, CardEQConstr, CardLBConstr, CardUBConstr},
         Clause, Lit,
@@ -69,22 +69,22 @@ pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
 
 /// Trait for cardinality encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait UB: Encode {
+pub trait BoundUpper: Encode {
     /// Lazily builds the cardinality encoding to enable upper bounds in a given
     /// range. `var_manager` is the variable manager to use for tracking new
-    /// variables. A specific encoding might ignore `min_ub` or `max_ub`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// variables. A specific encoding might ignore the lower or upper end of
+    /// the range.
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
-    /// ub`). Make sure that [`UB::encode_ub`] has been called adequately
-    /// and nothing has been called afterwards, otherwise
+    /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
+    /// adequately and nothing has been called afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EncodingError>;
     /// Encodes an upper bound cardinality constraint to CNF
     fn encode_ub_constr(
         constr: CardUBConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -102,15 +102,15 @@ pub trait UB: Encode {
 
 /// Trait for cardinality encodings that allow upper bounding of the form `sum
 /// of lits <= ub`
-pub trait LB: Encode {
+pub trait BoundLower: Encode {
     /// Lazily builds the cardinality encoding to enable lower bounds in a given
     /// range. `var_manager` is the variable manager to use for tracking new
-    /// variables. A specific encoding might ignore `min_lb` or `max_lb`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// variables. A specific encoding might ignore the lower or upper end of
+    /// the range.
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
-    /// lb`). Make sure that [`LB::encode_lb`] has been called adequately
-    /// and nothing has been added afterwards, otherwise
+    /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
+    /// adequately and nothing has been added afterwards, otherwise
     /// [`EncodingError::NotEncoded`] will be returned. If `lb` is higher than
     /// the number of literals in the encoding, [`EncodingError::Unsat`] is
     /// returned.
@@ -119,7 +119,7 @@ pub trait LB: Encode {
     fn encode_lb_constr(
         constr: CardLBConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -136,12 +136,12 @@ pub trait LB: Encode {
 }
 
 /// Trait for cardinality encodings that allow upper and lower bounding
-pub trait BothB: UB + LB {
+pub trait BoundBoth: BoundUpper + BoundLower {
     /// Lazily builds the cardinality encoding to enable both bounds in a given
     /// range. `var_manager` is the variable manager to use for tracking new
-    /// variables. A specific encoding might ignore `min_lb` or `max_lb`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    /// variables. A specific encoding might ignore the lower or upper end of
+    /// the range.
+    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         let cnf = self.encode_ub(range.clone(), var_manager);
         cnf.join(self.encode_lb(range, var_manager))
     }
@@ -161,7 +161,7 @@ pub trait BothB: UB + LB {
     fn encode_eq_constr(
         constr: CardEQConstr,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -179,7 +179,7 @@ pub trait BothB: UB + LB {
     fn encode_constr(
         constr: CardConstraint,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<CNF, EncodingError>
+    ) -> Result<Cnf, EncodingError>
     where
         Self: Sized,
     {
@@ -191,128 +191,126 @@ pub trait BothB: UB + LB {
     }
 }
 
-/// Default implementation of [`BothB`] for every encoding that does upper
+/// Default implementation of [`BoundBoth`] for every encoding that does upper
 /// and lower bounding
-impl<CE> BothB for CE where CE: UB + LB {}
+impl<CE> BoundBoth for CE where CE: BoundUpper + BoundLower {}
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
-pub trait IncEncode: Encode {
+pub trait EncodeIncremental: Encode {
     /// Reserves all variables this encoding might need
     fn reserve(&mut self, var_manager: &mut dyn ManageVars);
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncUB: UB + IncEncode {
+pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     /// Lazily builds the _change in_ cardinality encoding to enable upper
     /// bounds in a given range. A change might be added literals or changed
     /// bounds. `var_manager` is the variable manager to use for tracking new
-    /// variables. A specific encoding might ignore `min_ub` or `max_ub`.
-    /// Returns [`EncodingError::InvalidLimits`] if the bounds are invalid.
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// variables. A specific encoding might ignore the lower or upper end of
+    /// the range.
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
 /// form `sum of lits <= ub`
-pub trait IncLB: LB + IncEncode {
+pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// Lazily builds the _change in_ cardinality encoding to enable lower
     /// bounds in a given range. `var_manager` is the variable manager to use
-    /// for tracking new variables. A specific encoding might ignore `min_lb` or
-    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF;
+    /// for tracking new variables. A specific encoding might ignore the lower
+    /// or upper end of the range.
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
-pub trait IncBothB: IncUB + IncLB {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     /// Lazily builds the _change in_ cardinality encoding to enable both bounds
     /// in a given range. `var_manager` is the variable manager to use for
-    /// tracking new variables. A specific encoding might ignore `min_lb` or
-    /// `max_lb`. Returns [`EncodingError::InvalidLimits`] if the bounds are
-    /// invalid.
-    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    /// tracking new variables. A specific encoding might ignore the lower or
+    /// upper end of the range.
+    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         let cnf = self.encode_ub_change(range.clone(), var_manager);
         cnf.join(self.encode_lb_change(range, var_manager))
     }
 }
 
-/// Default implementation of [`IncBothB`] for every encoding that does
-/// incremental upper and lower bounding
-impl<CE> IncBothB for CE where CE: IncUB + IncLB {}
+/// Default implementation of [`BoundBothIncremental`] for every encoding that
+/// does incremental upper and lower bounding
+impl<CE> BoundBothIncremental for CE where CE: BoundUpperIncremental + BoundLowerIncremental {}
 
 /// The default upper bound encoding. For now this is a [`Totalizer`].
-pub type DefUB = Totalizer;
+pub type DefUpperBounding = Totalizer;
 /// The default lower bound encoding. For now this is a [`Totalizer`].
-pub type DefLB = Totalizer;
+pub type DefLowerBounding = Totalizer;
 /// The default encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefBothB = Totalizer;
+pub type DefBothBounding = Totalizer;
 /// The default incremental upper bound encoding. For now this is a [`Totalizer`].
-pub type DefIncUB = Totalizer;
+pub type DefIncUpperBounding = Totalizer;
 /// The default incremental lower bound encoding. For now this is a [`Totalizer`].
-pub type DefIncLB = Totalizer;
+pub type DefIncLowerBounding = Totalizer;
 /// The default incremental encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefIncBothB = Totalizer;
+pub type DefIncBothBounding = Totalizer;
 
 /// Constructs a default upper bounding cardinality encoding.
-pub fn new_default_ub() -> impl UB {
-    DefUB::default()
+pub fn new_default_ub() -> impl BoundUpper {
+    DefUpperBounding::default()
 }
 
 /// Constructs a default lower bounding cardinality encoding.
-pub fn new_default_lb() -> impl LB {
-    DefLB::default()
+pub fn new_default_lb() -> impl BoundLower {
+    DefLowerBounding::default()
 }
 
 /// Constructs a default double bounding cardinality encoding.
-pub fn new_default_both() -> impl BothB {
-    DefBothB::default()
+pub fn new_default_both() -> impl BoundBoth {
+    DefBothBounding::default()
 }
 
 /// Constructs a default incremental upper bounding cardinality encoding.
-pub fn new_default_inc_ub() -> impl IncUB {
-    DefIncUB::default()
+pub fn new_default_inc_ub() -> impl BoundUpperIncremental {
+    DefIncUpperBounding::default()
 }
 
 /// Constructs a default incremental lower bounding cardinality encoding.
-pub fn new_default_inc_lb() -> impl LB {
-    DefIncLB::default()
+pub fn new_default_inc_lb() -> impl BoundLower {
+    DefIncLowerBounding::default()
 }
 
 /// Constructs a default incremental double bounding cardinality encoding.
-pub fn new_default_inc_both() -> impl BothB {
-    DefIncBothB::default()
+pub fn new_default_inc_both() -> impl BoundBoth {
+    DefIncBothBounding::default()
 }
 
-/// A default encoder for any cardinality constraint.
-/// This uses a [`DefBothB`] to encode non-trivial constraints.
+/// A default encoder for any cardinality constraint. This uses a
+/// [`DefBothBounding`] to encode non-trivial constraints.
 pub fn default_encode_cardinality_constraint(
     constr: CardConstraint,
     var_manager: &mut dyn ManageVars,
-) -> CNF {
-    encode_cardinality_constraint::<DefBothB>(constr, var_manager)
+) -> Cnf {
+    encode_cardinality_constraint::<DefBothBounding>(constr, var_manager)
 }
 
 /// An encoder for any cardinality constraint with an encoding of choice
-pub fn encode_cardinality_constraint<CE: BothB>(
+pub fn encode_cardinality_constraint<CE: BoundBoth>(
     constr: CardConstraint,
     var_manager: &mut dyn ManageVars,
-) -> CNF {
+) -> Cnf {
     if constr.is_tautology() {
-        return CNF::new();
+        return Cnf::new();
     }
     if constr.is_unsat() {
-        let mut cnf = CNF::new();
+        let mut cnf = Cnf::new();
         cnf.add_clause(Clause::new());
         return cnf;
     }
     if constr.is_assignment() {
-        let mut cnf = CNF::new();
+        let mut cnf = Cnf::new();
         let lits = constr.into_lits();
         lits.into_iter().for_each(|l| cnf.add_unit(l));
         return cnf;
     }
     if constr.is_clause() {
-        let mut cnf = CNF::new();
+        let mut cnf = Cnf::new();
         cnf.add_clause(constr.into_clause().unwrap());
         return cnf;
     }

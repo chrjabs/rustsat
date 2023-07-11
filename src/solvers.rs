@@ -101,7 +101,7 @@
 
 use crate::{
     clause,
-    instances::CNF,
+    instances::Cnf,
     types::{Assignment, Clause, ClsIter, Lit, TernaryVal, Var},
 };
 use core::time::Duration;
@@ -200,8 +200,8 @@ pub trait Solve {
     fn add_clauses<CI: ClsIter>(&mut self, cls: CI) -> SolveMightFail {
         cls.into_iter().try_for_each(|cl| self.add_clause(cl))
     }
-    /// Adds all clauses from a [`CNF`] instance.
-    fn add_cnf(&mut self, cnf: CNF) -> SolveMightFail {
+    /// Adds all clauses from a [`Cnf`] instance.
+    fn add_cnf(&mut self, cnf: Cnf) -> SolveMightFail {
         self.add_clauses(cnf)
     }
 }
@@ -209,7 +209,7 @@ pub trait Solve {
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
-pub trait IncrementalSolve: Solve {
+pub trait SolveIncremental: Solve {
     /// Solves the internal CNF formula under assumptions.
     /// Even though assumptions should be unique and theoretically the order shouldn't matter,
     /// in practice it does for some solvers, therefore the assumptions are a vector rather than a set.
@@ -354,8 +354,8 @@ impl InternalSolverState {
         match self {
             InternalSolverState::Configuring => SolverState::Configuring,
             InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::Sat => SolverState::SAT,
-            InternalSolverState::Unsat(_) => SolverState::UNSAT,
+            InternalSolverState::Sat => SolverState::Sat,
+            InternalSolverState::Unsat(_) => SolverState::Unsat,
             InternalSolverState::Error(desc) => SolverState::Error(desc.clone()),
         }
     }
@@ -369,9 +369,9 @@ pub enum SolverState {
     /// Input state, while adding clauses.
     Input,
     /// The query was found satisfiable.
-    SAT,
+    Sat,
     /// The query was found unsatisfiable.
-    UNSAT,
+    Unsat,
     /// Solver is in error state.
     /// For example after trying to add a clause to a non-incremental solver after solving.
     Error(String),
@@ -382,8 +382,8 @@ impl fmt::Display for SolverState {
         match self {
             SolverState::Configuring => write!(f, "CONFIGURING"),
             SolverState::Input => write!(f, "INPUT"),
-            SolverState::SAT => write!(f, "SAT"),
-            SolverState::UNSAT => write!(f, "UNSAT"),
+            SolverState::Sat => write!(f, "SAT"),
+            SolverState::Unsat => write!(f, "UNSAT"),
             SolverState::Error(desc) => write!(f, "Error: {}", desc),
         }
     }
@@ -393,9 +393,9 @@ impl fmt::Display for SolverState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SolverResult {
     /// The query was found satisfiable.
-    SAT,
+    Sat,
     /// The query was found unsatisfiable.
-    UNSAT,
+    Unsat,
     /// The query was prematurely interrupted.
     Interrupted,
 }
@@ -403,8 +403,8 @@ pub enum SolverResult {
 impl fmt::Display for SolverResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SolverResult::SAT => write!(f, "SAT"),
-            SolverResult::UNSAT => write!(f, "UNSAT"),
+            SolverResult::Sat => write!(f, "SAT"),
+            SolverResult::Unsat => write!(f, "UNSAT"),
             SolverResult::Interrupted => write!(f, "Interrupted"),
         }
     }
@@ -423,7 +423,7 @@ pub enum ControlSignal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverError {
     /// An API with a description
-    API(String),
+    Api(String),
     /// The solver was expected to be in the second [`SolverState`], but it is in the first.
     State(SolverState, SolverState),
 }
@@ -431,7 +431,7 @@ pub enum SolverError {
 impl fmt::Display for SolverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SolverError::API(desc) => write!(f, "API error: {}", desc),
+            SolverError::Api(desc) => write!(f, "API error: {}", desc),
             SolverError::State(true_state, required_state) => write!(
                 f,
                 "Solver needs to be in state {} but was in {}",
@@ -446,22 +446,58 @@ impl fmt::Display for SolverError {
 ///
 /// 1. [`Kissat`]
 /// 2. [`CaDiCaL`]
-/// 3. [`IpasirSolver`]
+/// 3. [`GlucoseSimp4`]
+/// 4. [`MinisatSimp`]
+/// 5. [`IpasirSolver`]
 #[cfg(feature = "kissat")]
 pub type DefSolver<'term, 'learn> = Kissat<'term>;
 #[cfg(all(not(feature = "kissat"), feature = "cadical"))]
 pub type DefSolver<'term, 'learn> = CaDiCaL<'term, 'learn>;
-#[cfg(all(not(feature = "kissat"), not(feature = "cadical"), feature = "ipasir"))]
+#[cfg(all(
+    not(feature = "kissat"),
+    not(feature = "cadical"),
+    feature = "glucose4"
+))]
+pub type DefSolver<'term, 'learn> = GlucoseSimp4;
+#[cfg(all(
+    not(feature = "kissat"),
+    not(feature = "cadical"),
+    not(feature = "glucose4"),
+    feature = "minisat"
+))]
+pub type DefSolver<'term, 'learn> = MinisatSimp;
+#[cfg(all(
+    not(feature = "kissat"),
+    not(feature = "cadical"),
+    not(feature = "glucose4"),
+    not(feature = "minisat"),
+    feature = "ipasir"
+))]
 pub type DefSolver<'term, 'learn> = IpasirSolver<'term, 'learn>;
 
 /// The default incremental solver, depending on the library configuration.
 /// Solvers are ordered by the following priority:
 ///
 /// 1. [`CaDiCaL`]
-/// 2. [`IpasirSolver`]
+/// 2. [`GlucoseSimp4`]
+/// 3. [`MinisatSimp`]
+/// 4. [`IpasirSolver`]
 #[cfg(feature = "cadical")]
 pub type DefIncSolver<'term, 'learn> = CaDiCaL<'term, 'learn>;
-#[cfg(all(not(feature = "cadical"), feature = "ipasir"))]
+#[cfg(all(not(feature = "cadical"), feature = "glucose4"))]
+pub type DefIncSolver<'term, 'learn> = GlucoseSimp4;
+#[cfg(all(
+    not(feature = "cadical"),
+    not(feature = "glucose4"),
+    feature = "minisat"
+))]
+pub type DefIncSolver<'term, 'learn> = MinisatSimp;
+#[cfg(all(
+    not(feature = "cadical"),
+    not(feature = "glucose4"),
+    not(feature = "minisat"),
+    feature = "ipasir"
+))]
 pub type DefIncSolver<'term, 'learn> = IpasirSolver<'term, 'learn>;
 
 #[cfg(solver)]
@@ -476,6 +512,6 @@ pub fn new_default_solver() -> impl Solve {
 /// Constructs a default incremental solver. Since the return value cannot be
 /// upcast, it might be necessary to directly instantiate a solver. For now the
 /// default is an instance of CaDiCaL.
-pub fn new_default_inc_solver() -> impl IncrementalSolve {
+pub fn new_default_inc_solver() -> impl SolveIncremental {
     DefIncSolver::default()
 }

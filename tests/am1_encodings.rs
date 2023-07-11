@@ -4,7 +4,7 @@ use rustsat::{
     encodings::am1::{Encode, Pairwise},
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{self, IncrementalSolve, Solve, SolverResult},
+    solvers::{self, Solve, SolveIncremental, SolverResult},
     types::{Lit, Var},
     var,
 };
@@ -22,42 +22,42 @@ fn test_am1<AM1: Encode>(mut enc: AM1) {
     let res = solver
         .solve_assumps(vec![lit![0], lit![1], lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let res = solver
         .solve_assumps(vec![lit![0], lit![1], !lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let res = solver
         .solve_assumps(vec![lit![0], !lit![1], lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let res = solver
         .solve_assumps(vec![lit![0], !lit![1], !lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let res = solver
         .solve_assumps(vec![!lit![0], lit![1], lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 
     let res = solver
         .solve_assumps(vec![!lit![0], lit![1], !lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let res = solver
         .solve_assumps(vec![!lit![0], !lit![1], lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 
     let res = solver
         .solve_assumps(vec![!lit![0], !lit![1], !lit![2]])
         .unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 }
 
 #[test]

@@ -11,7 +11,7 @@ fn small_sat_instance<S: Solve>(mut solver: S) {
         SatInstance::from_dimacs_path("./data/AProVE11-12.cnf").unwrap();
     solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::SAT);
+    assert_eq!(res, SolverResult::Sat);
 }
 
 fn small_unsat_instance<S: Solve>(mut solver: S) {
@@ -20,7 +20,7 @@ fn small_unsat_instance<S: Solve>(mut solver: S) {
             .unwrap();
     solver.add_cnf(inst.as_cnf().0);
     let res = solver.solve().unwrap();
-    assert_eq!(res, SolverResult::UNSAT);
+    assert_eq!(res, SolverResult::Unsat);
 }
 
 #[test]

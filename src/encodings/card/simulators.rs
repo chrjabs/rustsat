@@ -7,10 +7,10 @@
 
 use std::ops::{Not, Range};
 
-use super::{Encode, IncEncode, IncLB, IncUB, LB, UB};
+use super::{Encode, EncodeIncremental, BoundLowerIncremental, BoundUpperIncremental, BoundLower, BoundUpper};
 use crate::{
     encodings::{EncodeStats, EncodingError},
-    instances::{ManageVars, CNF},
+    instances::{ManageVars, Cnf},
     types::Lit,
 };
 
@@ -94,20 +94,20 @@ where
     }
 }
 
-impl<CE> IncEncode for Inverted<CE>
+impl<CE> EncodeIncremental for Inverted<CE>
 where
-    CE: IncEncode,
+    CE: EncodeIncremental,
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.card_enc.reserve(var_manager)
     }
 }
 
-impl<CE> UB for Inverted<CE>
+impl<CE> BoundUpper for Inverted<CE>
 where
-    CE: LB,
+    CE: BoundLower,
 {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.card_enc
             .encode_lb(self.convert_encoding_range(range), var_manager)
     }
@@ -122,11 +122,11 @@ where
     }
 }
 
-impl<CE> LB for Inverted<CE>
+impl<CE> BoundLower for Inverted<CE>
 where
-    CE: UB,
+    CE: BoundUpper,
 {
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.card_enc
             .encode_ub(self.convert_encoding_range(range), var_manager)
     }
@@ -141,21 +141,21 @@ where
     }
 }
 
-impl<CE> IncUB for Inverted<CE>
+impl<CE> BoundUpperIncremental for Inverted<CE>
 where
-    CE: IncLB,
+    CE: BoundLowerIncremental,
 {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.card_enc
             .encode_lb_change(self.convert_encoding_range(range), var_manager)
     }
 }
 
-impl<CE> IncLB for Inverted<CE>
+impl<CE> BoundLowerIncremental for Inverted<CE>
 where
-    CE: IncUB,
+    CE: BoundUpperIncremental,
 {
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.card_enc
             .encode_ub_change(self.convert_encoding_range(range), var_manager)
     }
@@ -182,8 +182,8 @@ type InvertedIter<ICE> = std::iter::Map<ICE, fn(Lit) -> Lit>;
 #[derive(Default)]
 pub struct Double<UBE, LBE>
 where
-    UBE: UB + 'static,
-    LBE: LB + 'static,
+    UBE: BoundUpper + 'static,
+    LBE: BoundLower + 'static,
 {
     ub_enc: UBE,
     lb_enc: LBE,
@@ -191,8 +191,8 @@ where
 
 impl<UBE, LBE> From<Vec<Lit>> for Double<UBE, LBE>
 where
-    UBE: UB + 'static,
-    LBE: LB + 'static,
+    UBE: BoundUpper + 'static,
+    LBE: BoundLower + 'static,
 {
     fn from(lits: Vec<Lit>) -> Self {
         Self {
@@ -204,8 +204,8 @@ where
 
 impl<UBE, LBE> FromIterator<Lit> for Double<UBE, LBE>
 where
-    UBE: UB + 'static,
-    LBE: LB + 'static,
+    UBE: BoundUpper + 'static,
+    LBE: BoundLower + 'static,
 {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         let lits: Vec<Lit> = iter.into_iter().collect();
@@ -215,8 +215,8 @@ where
 
 impl<UBE, LBE> Extend<Lit> for Double<UBE, LBE>
 where
-    UBE: UB + 'static,
-    LBE: LB + 'static,
+    UBE: BoundUpper + 'static,
+    LBE: BoundLower + 'static,
 {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         let lits: Vec<Lit> = iter.into_iter().collect();
@@ -227,8 +227,8 @@ where
 
 impl<UBE, LBE> Encode for Double<UBE, LBE>
 where
-    UBE: UB,
-    LBE: LB,
+    UBE: BoundUpper,
+    LBE: BoundLower,
 {
     type Iter<'a> = UBE::Iter<'a>;
 
@@ -241,10 +241,10 @@ where
     }
 }
 
-impl<UBE, LBE> IncEncode for Double<UBE, LBE>
+impl<UBE, LBE> EncodeIncremental for Double<UBE, LBE>
 where
-    UBE: IncUB,
-    LBE: IncLB,
+    UBE: BoundUpperIncremental,
+    LBE: BoundLowerIncremental,
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.ub_enc.reserve(var_manager);
@@ -252,12 +252,12 @@ where
     }
 }
 
-impl<UBE, LBE> UB for Double<UBE, LBE>
+impl<UBE, LBE> BoundUpper for Double<UBE, LBE>
 where
-    UBE: UB,
-    LBE: LB,
+    UBE: BoundUpper,
+    LBE: BoundLower,
 {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.ub_enc.encode_ub(range, var_manager)
     }
 
@@ -266,12 +266,12 @@ where
     }
 }
 
-impl<UBE, LBE> LB for Double<UBE, LBE>
+impl<UBE, LBE> BoundLower for Double<UBE, LBE>
 where
-    UBE: UB,
-    LBE: LB,
+    UBE: BoundUpper,
+    LBE: BoundLower,
 {
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.lb_enc.encode_lb(range, var_manager)
     }
 
@@ -280,30 +280,30 @@ where
     }
 }
 
-impl<UBE, LBE> IncUB for Double<UBE, LBE>
+impl<UBE, LBE> BoundUpperIncremental for Double<UBE, LBE>
 where
-    UBE: IncUB,
-    LBE: IncLB,
+    UBE: BoundUpperIncremental,
+    LBE: BoundLowerIncremental,
 {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.ub_enc.encode_ub_change(range, var_manager)
     }
 }
 
-impl<UBE, LBE> IncLB for Double<UBE, LBE>
+impl<UBE, LBE> BoundLowerIncremental for Double<UBE, LBE>
 where
-    UBE: IncUB,
-    LBE: IncLB,
+    UBE: BoundUpperIncremental,
+    LBE: BoundLowerIncremental,
 {
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> CNF {
+    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         self.lb_enc.encode_lb_change(range, var_manager)
     }
 }
 
 impl<UBE, LBE> EncodeStats for Double<UBE, LBE>
 where
-    UBE: EncodeStats + UB,
-    LBE: EncodeStats + LB,
+    UBE: EncodeStats + BoundUpper,
+    LBE: EncodeStats + BoundLower,
 {
     fn n_clauses(&self) -> usize {
         self.ub_enc.n_clauses() + self.lb_enc.n_clauses()

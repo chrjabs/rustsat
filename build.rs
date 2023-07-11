@@ -58,10 +58,21 @@ fn main() {
     println!("cargo:rustc-link-search={}/lib", out_dir);
 
     // Configuration has a solver
-    #[cfg(any(feature = "kissat", feature = "cadical", feature = "ipasir"))]
+    #[cfg(any(
+        feature = "kissat",
+        feature = "cadical",
+        feature = "glucose4",
+        feature = "minisat",
+        feature = "ipasir"
+    ))]
     println!("cargo:rustc-cfg=solver");
     // Configuration has an incremental solver
-    #[cfg(any(feature = "cadical", feature = "ipasir"))]
+    #[cfg(any(
+        feature = "cadical",
+        feature = "glucose4",
+        feature = "minisat",
+        feature = "ipasir"
+    ))]
     println!("cargo:rustc-cfg=incsolver");
 }
 
