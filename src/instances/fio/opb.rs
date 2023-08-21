@@ -357,7 +357,7 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
         #[cfg(feature = "optimization")]
         map_res(|i| objective(i, opts), |obj| Ok::<_, ()>(OpbData::Obj(obj))),
         #[cfg(not(feature = "optimization"))]
-        map_res(objective, |obj| {
+        map_res(|i| objective(i, opts), |obj| {
             Ok::<_, ()>(OpbData::Obj(String::from(obj)))
         }),
     ))(input)
