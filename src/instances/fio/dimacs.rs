@@ -71,9 +71,9 @@ where
     VM: ManageVars + Default,
 {
     let reader = BufReader::new(reader);
-    let (constrs, objs) = parse_dimacs(reader)?;
+    let (constrs, mut objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
-        return Err(Error::InvalidInstanceType);
+        objs.push(Objective::default());
     } else if obj_idx >= objs.len() {
         return Err(Error::ObjNoExist(objs.len()));
     }
