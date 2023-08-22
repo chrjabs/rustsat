@@ -33,7 +33,7 @@ fn main() {
     build_cadical(
         "https://github.com/chrjabs/cadical.git",
         "master",
-        "fa75b442e9b0d52668e0f5d75bd026ba39cde2fa",
+        "e7433d7b68c2f173b9ea4dc968c4784c8e7a4887",
     );
     build_kissat(
         "https://github.com/arminbiere/kissat.git",
