@@ -1,6 +1,6 @@
 [package]
 name = "rustsat"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
@@ -35,73 +35,20 @@ chrono = "0.4.24"
 cmake = "0.1.50"
 
 [features]
-default-but-solvers = [
+default = [
   "optimization",
   "fxhash"
-]
-default = [
-  "default-but-solvers",
-  "cadical",
-  "kissat",
-  "glucose4",
-  "minisat",
 ]
 internals = []
 fxhash = ["dep:rustc-hash"]
 ipasir = []
-cadical = []
-kissat = []
-glucose4 = []
-minisat = []
 optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
-all-non-conflicting = [
-  "cadical",
-  "kissat",
-  "glucose4",
-  "minisat",
-  "optimization",
+all = [
   "multiopt",
   "compression",
   "rand",
   "fxhash"
 ]
-cli = ["dep:clap", "dep:concolor-clap", "dep:termcolor", "dep:atty"]
-
-[[example]]
-name = "enumerator"
-required-features = ["compression"]
-
-[[example]]
-name = "cnf2opb"
-required-features = ["compression", "cli"]
-
-[[example]]
-name = "opb2cnf"
-required-features = ["compression", "cli"]
-
-[[example]]
-name = "wcnf2opb"
-required-features = ["compression", "optimization", "cli"]
-
-[[example]]
-name = "opb2wcnf"
-required-features = ["compression", "optimization", "cli"]
-
-[[example]]
-name = "mcnf2opb"
-required-features = ["compression", "multiopt", "cli"]
-
-[[example]]
-name = "opb2mcnf"
-required-features = ["compression", "multiopt", "cli"]
-
-[[example]]
-name = "shuffledimacs"
-required-features = ["compression", "rand", "cli"]
-
-[[example]]
-name = "gbmosplit"
-required-features = ["compression", "multiopt", "cli"]

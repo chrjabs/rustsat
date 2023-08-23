@@ -1,0 +1,47 @@
+[package]
+name = "rustsat-tools"
+version = "0.1.0"
+edition = "2021"
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+license = "MIT"
+description = "Tools and examples built on the RustSAT library"
+keywords = ["rustsat", "sat", "satisfiability"]
+repository = "https://github.com/chrjabs/rustsat"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rustsat = { version = "0.2.0", path = "..", features = ["compression", "multiopt", "rand"] }
+rustsat-cadical = { version = "0.1.0", path = "../cadical" }
+clap = { version = "4.2.4", features = ["derive", "cargo"] }
+concolor-clap = { version = "0.1.0" }
+termcolor = { version = "1.2.0" }
+atty = { version = "0.2.14" }
+
+[[bin]]
+name = "enumerator"
+
+[[bin]]
+name = "cnf2opb"
+
+[[bin]]
+name = "opb2cnf"
+
+[[bin]]
+name = "wcnf2opb"
+
+[[bin]]
+name = "opb2wcnf"
+
+[[bin]]
+name = "mcnf2opb"
+
+[[bin]]
+name = "opb2mcnf"
+
+[[bin]]
+name = "shuffledimacs"
+
+[[bin]]
+name = "gbmosplit"

@@ -6,13 +6,36 @@
 use core::ffi::{c_int, c_void, CStr};
 
 use super::{
-    ControlSignal, InternalSolverState, Learn, OptLearnCallbackStore, OptTermCallbackStore, Solve,
-    SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult, SolverState,
-    SolverStats, Terminate,
+    ControlSignal, Learn, OptLearnCallbackStore, OptTermCallbackStore, Solve, SolveIncremental,
+    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats, Terminate,
 };
 use crate::types::{Clause, Lit, TernaryVal};
 use cpu_time::ProcessTime;
 use ffi::IpasirHandle;
+
+#[derive(Debug, PartialEq, Eq, Default)]
+#[allow(dead_code)] // Not all solvers use all states
+enum InternalSolverState {
+    #[default]
+    Configuring,
+    Input,
+    Sat,
+    Unsat(Vec<Lit>),
+    Error(String),
+}
+
+impl InternalSolverState {
+    #[cfg(solver)]
+    fn to_external(&self) -> SolverState {
+        match self {
+            InternalSolverState::Configuring => SolverState::Configuring,
+            InternalSolverState::Input => SolverState::Input,
+            InternalSolverState::Sat => SolverState::Sat,
+            InternalSolverState::Unsat(_) => SolverState::Unsat,
+            InternalSolverState::Error(desc) => SolverState::Error(desc.clone()),
+        }
+    }
+}
 
 /// Type for an IPASIR solver.
 pub struct IpasirSolver<'term, 'learn> {
