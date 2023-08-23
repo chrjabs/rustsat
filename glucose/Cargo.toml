@@ -18,7 +18,7 @@ glucose4-1 = []
 
 [dependencies]
 cpu-time = "1.0.0"
-rustsat = { version = ">= 0.2.0", path = "../rustsat", default-features = false }
+rustsat = { version = "0.2", path = "../rustsat", default-features = false }
 
 [build-dependencies]
 cc = { version = "1.0.79", features = ["parallel"] }
