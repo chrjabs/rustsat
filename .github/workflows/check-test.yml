@@ -19,7 +19,7 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run cargo check
-        run: cargo check --verbose --features=all-non-conflicting
+        run: cargo check --workspace --verbose --features=all
           
   test:
     name: Test suite
@@ -30,4 +30,4 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run cargo test suite
-        run: cargo test --verbose --features=all-non-conflicting
+        run: cargo test --workspace --verbose
