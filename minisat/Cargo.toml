@@ -6,6 +6,7 @@ authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
 description = "Interface to the SAT solver Minisat for the RustSAT library."
 keywords = ["sat solver", "rustsat"]
+repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 
 build = "build.rs"
