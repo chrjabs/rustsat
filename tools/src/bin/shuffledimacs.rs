@@ -5,7 +5,7 @@
 //!
 //! Usage: shuffledimacs [dimacs [m,w]cnf file] [output path]
 
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 use rustsat::instances::{self, BasicVarManager, ManageVars, RandReindVarManager};
 
