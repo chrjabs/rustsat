@@ -10,24 +10,16 @@
 //!     encodings::am1::{self, Encode},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit,
-//!     solvers::{self, SolveIncremental, Solve, SolverResult},
 //!     types::{Lit, Var},
 //!     var,
 //! };
 //!
-//! let mut solver = solvers::new_default_inc_solver();
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![3]);
 //!
 //! let mut encoder = am1::new_default_am1();
 //! encoder.extend(vec![lit![0], lit![1], lit![2]]);
-//! solver.add_cnf(encoder.encode(&mut var_manager).unwrap()).unwrap();
-//!  
-//! let res = solver.solve_assumps(vec![!lit![0], lit![1], lit![2]]).unwrap();
-//! assert_eq!(res, SolverResult::Unsat);
-//!
-//! let res = solver.solve_assumps(vec![!lit![0], lit![1], !lit![2]]).unwrap();
-//! assert_eq!(res, SolverResult::Sat);
+//! let encoding = encoder.encode(&mut var_manager).unwrap();
 //! ```
 
 use super::Error;

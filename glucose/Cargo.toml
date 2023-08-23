@@ -1,0 +1,27 @@
+[package]
+name = "rustsat-glucose"
+version = "0.1.0"
+edition = "2021"
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+license = "MIT"
+description = "Interface to the SAT solver Glucose for the RustSAT library."
+keywords = ["sat solver", "rustsat"]
+readme = "README.md"
+
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+glucose4-1 = []
+
+[dependencies]
+cpu-time = "1.0.0"
+rustsat = { version = ">= 0.2.0", path = "..", default-features = false }
+
+[build-dependencies]
+cc = { version = "1.0.79", features = ["parallel"] }
+git2 = "0.17.1"
+glob = "0.3.1"
+chrono = "0.4.24"
+cmake = "0.1.50"

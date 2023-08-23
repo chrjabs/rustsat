@@ -12,13 +12,10 @@
 //!     encodings::{pb, pb::{BoundBoth, Encode}},
 //!     instances::{BasicVarManager, ManageVars},
 //!     lit, solvers,
-//!     solvers::{SolverResult, Solve, SolveIncremental},
 //!     types::{Clause, Lit, Var, RsHashMap},
 //!     var,
 //! };
 //!
-//! let mut solver = solvers::new_default_inc_solver();
-//! solver.add_clause(clause![lit![0], lit![1], lit![2], lit![3]]);
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![4]);
 //!
@@ -29,17 +26,7 @@
 //! lits.insert(lit![2], 2);
 //! lits.insert(lit![3], 6);
 //! enc.extend(lits);
-//! solver.add_cnf(enc.encode_both(4..5, &mut var_manager));
-//!
-//! let mut assumps = enc.enforce_eq(4).unwrap();
-//! assumps.extend(vec![!lit![0], lit![1], lit![2], !lit![3]]);
-//! let res = solver.solve_assumps(assumps).unwrap();
-//! assert_eq!(res, SolverResult::Sat);
-//!
-//! let mut assumps = enc.enforce_eq(4).unwrap();
-//! assumps.extend(vec![!lit![0], !lit![1], lit![2], lit![3]]);
-//! let res = solver.solve_assumps(assumps).unwrap();
-//! assert_eq!(res, SolverResult::Unsat);
+//! let encoding = enc.encode_both(4..5, &mut var_manager);
 //! ```
 //!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is

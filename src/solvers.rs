@@ -6,17 +6,14 @@
 //!
 //! ## Available Solvers
 //!
+//! Solvers are available through separate crates.
+//!
 //! ### CaDiCaL
 //!
 //! [CaDiCaL](https://github.com/arminbiere/cadical) is a fully incremental SAT
 //! solver by Armin Biere implemented in C++. It includes incremental
-//! inprocessing. CaDiCaL is the default incremental solver for RustSAT. The
-//! actual version used in RustSAT is from a fork of CaDiCaL available
-//! [here](https://github.com/chrjabs/cadical/). This fork extends CaDiCaL's C
-//! interface to make all functionality of the C++ interface available.
-//!
-//! Including CaDiCaL in a build of RustSAT is controlled by the `cadical`
-//! feature.
+//! inprocessing. It is available through the
+//! [`rustsat-cadical`](https://crates.io/crates/rustsat-cadical) crate.
 //!
 //! #### References
 //!
@@ -25,17 +22,14 @@
 //!   Entering the SAT Competition 2020_, SAT Competition 2020.
 //! - Original Repository:
 //!   [https://github.com/arminbiere/cadical](https://github.com/arminbiere/cadical)
-//! - Fork used in RustSAT:
-//!   [https://github.com/chrjabs/cadical](https://github.com/chrjabs/cadical)
+//! - Solver crate:
+//!   [https://crates.io/crates/rustsat-cadical](https://crates.io/crates/rustsat-cadical)
 //!
 //! ### Kissat
 //!
 //! [Kissat](https://github.com/arminbiere/kissat) is a non-incremental SAT
-//! solver by Armin Biere implemented in C. Kissat is the default
-//! non-incremental solver for RustSAT.
-//!
-//! Including Kissat in a build of RustSAT is controlled by the `kissat`
-//! feature.
+//! solver by Armin Biere implemented in C. It is available through the
+//! [`rustsat-kissat`](https://crates.io/crates/rustsat-kissat) crate.
 //!
 //! #### References
 //!
@@ -44,14 +38,14 @@
 //!   Entering the SAT Competition 2020_, SAT Competition 2020.
 //! - Repository:
 //!   [https://github.com/arminbiere/kissat](https://github.com/arminbiere/kissat)
+//! - Solver crate:
+//!   [https://github.com/chrjabs/rustsat-kissat](https://github.com/chrjabs/rustsat-kissat)
 //!
 //! ### Minisat
 //!
 //! [Minisat](https://github.com/niklasso/minisat) is an incremental SAT solver
-//! by Niklas Een and Niklas Sörensson.
-//!
-//! Including Minisat in a build of RustSAT is controlled by the `minisat`
-//! feature.
+//! by Niklas Een and Niklas Sörensson. It is available through the
+//! [`rustsat-minisat`](https://crates.io/crates/rustsat-minisat) crate.
 //!
 //! #### References
 //!
@@ -59,13 +53,17 @@
 //!   2003.
 //! - Repository:
 //!   [https://github.com/niklasso/minisat](https://github.com/niklasso/minisat)
+//! - Solver crate:
+//!   [https://crates.io/crates/rustsat-minisat](https://crates.io/crates/rustsat-minisat)
+//! - Fork used in solver crate:
+//!   [https://github.com/chrjabs/minisat](https://github.com/chrjabs/minisat)
 //!
 //! ### Glucose
 //!
 //! [Glucose](https://www.labri.fr/perso/lsimon/research/glucose/) is a SAT
 //! solver based on Minisat and developed by Gilles Audemard and Laurent Simon.
-//! Currently only Glucose version 4 (4.2.1) is included in RustSAT, controlled
-//! by the feature `glucose4`.
+//! It is available through the
+//! [`rustsat-glucose`](https://crates.io/crates/rustsat-glucose) crate.
 //!
 //! #### References
 //!
@@ -73,6 +71,10 @@
 //!   Modern SAT Solvers_, IJCAI 2009.
 //! - More references at the [Glucose
 //!   webpage](https://www.labri.fr/perso/lsimon/research/glucose/)
+//! - Solver crate:
+//!   [https://crates.io/crates/rustsat-glucose](https://crates.io/crates/rustsat-glucose)
+//! - Fork used in solver crate:
+//!   [https://github.com/chrjabs/glucose4](https://github.com/chrjabs/glucose4)
 //!
 //! ### IPASIR
 //!
@@ -80,10 +82,10 @@
 //! solvers. RustSAT's IPASIR interface is disabled by default since linking to
 //! multiple solvers implementing IPASIR at the same time is not possible. The
 //! main reason for including the IPASIR interface in RustSAT is to make it
-//! easier to include solvers not natively supported by RustSAT. For this,
-//! disable the default features of RustSAT to disable potentially conflicting
-//! solvers. Then enable the `ipasir` feature and modify the following lines in
-//! the build script `build.rs` accordingly.
+//! easier to include solvers that don't have Rust interface crates. For this,
+//! make sure to not depend on any other SAT solver crate to avoid potential
+//! namespace conflicts. Then enable the `ipasir` feature and modify the
+//! following lines in the build script `build.rs` accordingly.
 //!
 //! ```text
 //! // Link to custom IPASIR solver
@@ -111,34 +113,6 @@ use std::fmt;
 mod ipasir;
 #[cfg(feature = "ipasir")]
 pub use ipasir::IpasirSolver;
-
-#[cfg(feature = "cadical")]
-pub mod cadical;
-#[cfg(feature = "cadical")]
-pub use cadical::CaDiCaL;
-
-#[cfg(feature = "kissat")]
-pub mod kissat;
-#[cfg(feature = "kissat")]
-pub use kissat::Kissat;
-
-#[cfg(feature = "glucose4")]
-pub mod glucose4;
-#[cfg(feature = "glucose4")]
-pub use glucose4::GlucoseCore4;
-#[cfg(feature = "glucose4")]
-pub use glucose4::GlucoseSimp4;
-#[cfg(feature = "glucose4")]
-pub use glucose4::GlucoseSimp4 as Glucose4;
-
-#[cfg(feature = "minisat")]
-pub mod minisat;
-#[cfg(feature = "minisat")]
-pub use minisat::MinisatCore;
-#[cfg(feature = "minisat")]
-pub use minisat::MinisatSimp;
-#[cfg(feature = "minisat")]
-pub use minisat::MinisatSimp as Minisat;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
@@ -269,6 +243,14 @@ pub trait PhaseLit {
     }
 }
 
+/// Trait for all solvers that can flip a literal in the current assignment
+pub trait FlipLit {
+    /// Attempts flipping the literal in the given assignment and returns `true` if successful
+    fn flip_lit(&mut self, lit: Lit) -> Result<bool, SolverError>;
+    /// Checks if the literal can be flipped in the given assignment without flipping it
+    fn is_flippable(&mut self, lit: Lit) -> Result<bool, SolverError>;
+}
+
 /// Trait for all solvers that can limit the number of conflicts
 pub trait LimitConflicts {
     /// Sets or removes a limit on the number of conflicts
@@ -378,30 +360,6 @@ pub trait SolveStats {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Default)]
-#[allow(dead_code)] // Not all solvers use all states
-enum InternalSolverState {
-    #[default]
-    Configuring,
-    Input,
-    Sat,
-    Unsat(Vec<Lit>),
-    Error(String),
-}
-
-impl InternalSolverState {
-    #[cfg(solver)]
-    fn to_external(&self) -> SolverState {
-        match self {
-            InternalSolverState::Configuring => SolverState::Configuring,
-            InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::Sat => SolverState::Sat,
-            InternalSolverState::Unsat(_) => SolverState::Unsat,
-            InternalSolverState::Error(desc) => SolverState::Error(desc.clone()),
-        }
-    }
-}
-
 /// States that the solver can be in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SolverState {
@@ -480,79 +438,4 @@ impl fmt::Display for SolverError {
             ),
         }
     }
-}
-
-/// The default solver, depending on the library configuration.
-/// Solvers are ordered by the following priority:
-///
-/// 1. [`Kissat`]
-/// 2. [`CaDiCaL`]
-/// 3. [`GlucoseSimp4`]
-/// 4. [`MinisatSimp`]
-/// 5. [`IpasirSolver`]
-#[cfg(feature = "kissat")]
-pub type DefSolver<'term, 'learn> = Kissat<'term>;
-#[cfg(all(not(feature = "kissat"), feature = "cadical"))]
-pub type DefSolver<'term, 'learn> = CaDiCaL<'term, 'learn>;
-#[cfg(all(
-    not(feature = "kissat"),
-    not(feature = "cadical"),
-    feature = "glucose4"
-))]
-pub type DefSolver<'term, 'learn> = GlucoseSimp4;
-#[cfg(all(
-    not(feature = "kissat"),
-    not(feature = "cadical"),
-    not(feature = "glucose4"),
-    feature = "minisat"
-))]
-pub type DefSolver<'term, 'learn> = MinisatSimp;
-#[cfg(all(
-    not(feature = "kissat"),
-    not(feature = "cadical"),
-    not(feature = "glucose4"),
-    not(feature = "minisat"),
-    feature = "ipasir"
-))]
-pub type DefSolver<'term, 'learn> = IpasirSolver<'term, 'learn>;
-
-/// The default incremental solver, depending on the library configuration.
-/// Solvers are ordered by the following priority:
-///
-/// 1. [`CaDiCaL`]
-/// 2. [`GlucoseSimp4`]
-/// 3. [`MinisatSimp`]
-/// 4. [`IpasirSolver`]
-#[cfg(feature = "cadical")]
-pub type DefIncSolver<'term, 'learn> = CaDiCaL<'term, 'learn>;
-#[cfg(all(not(feature = "cadical"), feature = "glucose4"))]
-pub type DefIncSolver<'term, 'learn> = GlucoseSimp4;
-#[cfg(all(
-    not(feature = "cadical"),
-    not(feature = "glucose4"),
-    feature = "minisat"
-))]
-pub type DefIncSolver<'term, 'learn> = MinisatSimp;
-#[cfg(all(
-    not(feature = "cadical"),
-    not(feature = "glucose4"),
-    not(feature = "minisat"),
-    feature = "ipasir"
-))]
-pub type DefIncSolver<'term, 'learn> = IpasirSolver<'term, 'learn>;
-
-#[cfg(solver)]
-/// Constructs a default non-incremental solver. Since the return value cannot
-/// be upcast, it might be necessary to directly instantiate a solver. For now
-/// the default is an instance of CaDiCaL.
-pub fn new_default_solver() -> impl Solve {
-    DefSolver::default()
-}
-
-#[cfg(incsolver)]
-/// Constructs a default incremental solver. Since the return value cannot be
-/// upcast, it might be necessary to directly instantiate a solver. For now the
-/// default is an instance of CaDiCaL.
-pub fn new_default_inc_solver() -> impl SolveIncremental {
-    DefIncSolver::default()
 }
