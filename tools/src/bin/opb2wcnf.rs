@@ -20,7 +20,10 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let opb_opts = OpbOptions { first_var_idx: 0, ..Default::default() };
+    let opb_opts = OpbOptions {
+        first_var_idx: 0,
+        ..Default::default()
+    };
 
     let inst: OptInstance = if let Some(in_path) = args.in_path {
         OptInstance::from_opb_path(in_path, opb_opts).expect("error parsing the input file")
