@@ -1,54 +1,9 @@
-[package]
-name = "rustsat"
-version = "0.2.0"
-edition = "2021"
-authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
-license = "MIT"
-description = "This library aims to provide implementations of elements commonly used in the development on software in the area of satisfiability solving. The focus of the library is to provide as much ease of use without giving up on performance."
-keywords = ["sat", "satisfiability", "encodings"]
-repository = "https://github.com/chrjabs/rustsat"
-readme = "README.md"
-
-build = "build.rs"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-nom = "7.1.1"
-bzip2 = { version = "0.4.4", optional = true }
-flate2 = { version = "1.0.25", optional = true, features = ["zlib-ng"], default-features = false }
-xz2 = { version = "0.1.7", optional = true }
-rustc-hash = { version = "1.1.0", optional = true }
-cpu-time = "1.0.0"
-rand = { version = "0.8.5", optional = true }
-clap = { optional = true, version = "4.2.4", features = ["derive", "cargo"] }
-concolor-clap = { optional = true, version = "0.1.0" }
-termcolor = { optional = true, version = "1.2.0" }
-atty = { optional = true, version = "0.2.14" }
-visibility = { version = "0.0.1" }
-
-[build-dependencies]
-cc = { version = "1.0.79", features = ["parallel"] }
-git2 = "0.17.1"
-glob = "0.3.1"
-chrono = "0.4.24"
-cmake = "0.1.50"
-
-[features]
-default = [
-  "optimization",
-  "fxhash"
-]
-internals = []
-fxhash = ["dep:rustc-hash"]
-ipasir = []
-optimization = []
-multiopt = ["optimization"]
-compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
-rand = ["dep:rand"]
-all = [
-  "multiopt",
-  "compression",
-  "rand",
-  "fxhash"
+[workspace]
+members = [
+  "rustsat",
+  "tools",
+  "cadical",
+  "kissat",
+  "glucose",
+  "minisat"
 ]
