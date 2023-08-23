@@ -5,7 +5,7 @@
 //!
 //! Usage: shuffledimacs [dimacs [m,w]cnf file] [output path]
 
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 use rustsat::instances::{self, BasicVarManager, ManageVars, RandReindVarManager};
 
@@ -17,9 +17,9 @@ macro_rules! print_usage {
 }
 
 enum FileType {
-    CNF,
-    WCNF,
-    MCNF,
+    Cnf,
+    Wcnf,
+    Mcnf,
 }
 
 fn main() {
@@ -27,7 +27,7 @@ fn main() {
     let out_path = PathBuf::from(&std::env::args().nth(2).unwrap_or_else(|| print_usage!()));
 
     match determine_file_type(&in_path) {
-        FileType::CNF => {
+        FileType::Cnf => {
             let mut inst = instances::SatInstance::<BasicVarManager>::from_dimacs_path(in_path)
                 .expect("Could not parse CNF");
             let n_vars = inst.var_manager().n_used();
@@ -37,7 +37,7 @@ fn main() {
                 .to_dimacs_path(out_path)
                 .expect("Could not write CNF");
         }
-        FileType::WCNF => {
+        FileType::Wcnf => {
             let mut inst = instances::OptInstance::<BasicVarManager>::from_dimacs_path(in_path)
                 .expect("Could not parse WCNF");
             let n_vars = inst.get_constraints().var_manager().n_used();
@@ -47,7 +47,7 @@ fn main() {
                 .to_dimacs_path(out_path)
                 .expect("Could not write WCNF");
         }
-        FileType::MCNF => {
+        FileType::Mcnf => {
             let mut inst =
                 instances::MultiOptInstance::<BasicVarManager>::from_dimacs_path(in_path)
                     .expect("Could not parse MCNF");
@@ -67,25 +67,25 @@ macro_rules! is_one_of {
     }
 }
 
-fn determine_file_type(in_path: &PathBuf) -> FileType {
+fn determine_file_type(in_path: &Path) -> FileType {
     if let Some(ext) = in_path.extension() {
         let path_without_compr = in_path.with_extension("");
         let ext = if is_one_of!(ext, "gz", "bz2") {
             // Strip compression extension
             match path_without_compr.extension() {
                 Some(ext) => ext,
-                None => return FileType::CNF, // Fallback default
+                None => return FileType::Cnf, // Fallback default
             }
         } else {
             ext
         };
         if "wcnf" == ext {
-            return FileType::WCNF;
+            return FileType::Wcnf;
         };
         if "mcnf" == ext {
-            return FileType::MCNF;
+            return FileType::Mcnf;
         };
-        return FileType::CNF; // Fallback default
+        return FileType::Cnf; // Fallback default
     };
-    FileType::CNF // Fallback default
+    FileType::Cnf // Fallback default
 }

@@ -23,9 +23,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let mut opb_opts = OpbOptions::default();
-    opb_opts.first_var_idx = args.first_var_idx;
-    opb_opts.no_negated_lits = args.avoid_negated_lits;
+    let opb_opts = OpbOptions { first_var_idx: args.first_var_idx, no_negated_lits: args.avoid_negated_lits };
 
     let inst: SatInstance = if let Some(in_path) = args.in_path {
         SatInstance::from_dimacs_path(in_path).expect("error parsing the input file")
