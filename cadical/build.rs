@@ -39,7 +39,7 @@ fn main() {
         "https://github.com/arminbiere/cadical.git",
         "master",
         tag,
-        &patch,
+        patch,
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();

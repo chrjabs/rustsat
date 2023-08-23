@@ -179,7 +179,7 @@ struct Args {
     /// results will be printed.
     out_path: Option<PathBuf>,
     /// The splitting algorithm to use
-    #[arg(long, default_value_t = SplitAlg::GBMO)]
+    #[arg(long, default_value_t = SplitAlg::Gbmo)]
     split_alg: SplitAlg,
     /// The maximum number of weight combinations to check when thoroughly checking GBMO
     #[arg(long, default_value_t = 100000)]
@@ -195,24 +195,24 @@ struct Args {
 enum SplitAlg {
     /// Only detect non-generalized boolean multilevel optimization. (This
     /// detects lexicographic optimization of unweighted MO instances.)
-    BMO,
+    Bmo,
     /// Detect generalized boolean multilevel optimization, but only with the
     /// gcd method. (This detects lexicographic optimization of weighted MO
     /// instances.)
-    GCD,
+    Gcd,
     /// Full generalized boolean multilevel optimization detection. (With this
     /// detection, weights of higher ranked objectives can potentially not be
     /// divided/normalized.)
     #[default]
-    GBMO,
+    Gbmo,
 }
 
 impl fmt::Display for SplitAlg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SplitAlg::BMO => write!(f, "bmo"),
-            SplitAlg::GCD => write!(f, "gcd"),
-            SplitAlg::GBMO => write!(f, "gbmo"),
+            SplitAlg::Bmo => write!(f, "bmo"),
+            SplitAlg::Gcd => write!(f, "gcd"),
+            SplitAlg::Gbmo => write!(f, "gbmo"),
         }
     }
 }
@@ -265,9 +265,9 @@ fn split<VM: ManageVars>(
     sorted_clauses.sort_by(|wc1, wc2| wc1.1.cmp(&wc2.1));
 
     let (mut objs, split_stats) = match cli.split_alg {
-        SplitAlg::BMO => split_bmo(sorted_clauses),
-        SplitAlg::GCD => split_gbmo(sorted_clauses, cli),
-        SplitAlg::GBMO => split_gbmo(sorted_clauses, cli),
+        SplitAlg::Bmo => split_bmo(sorted_clauses),
+        SplitAlg::Gcd => split_gbmo(sorted_clauses, cli),
+        SplitAlg::Gbmo => split_gbmo(sorted_clauses, cli),
     };
 
     // add offset of original objective to last objective
@@ -337,14 +337,12 @@ fn split_bmo(sorted_clauses: Vec<(Clause, usize)>) -> (Vec<Objective>, SplitStat
 }
 
 fn gcd(mut a: usize, mut b: usize) -> usize {
-    // Euclid's algorithm with XOR swap
+    // Euclid's algorithm
     while b != 0 {
         a %= b;
-        a ^= b;
-        b ^= a;
-        a ^= b;
+        std::mem::swap(&mut a, &mut b);
     }
-    return a;
+    a
 }
 
 fn get_sums_pot_splits_gcds(
@@ -446,7 +444,7 @@ fn split_gbmo(sorted_clauses: Vec<(Clause, usize)>, cli: &Cli) -> (Vec<Objective
     for split_end in pot_split_ends {
         // checking strictly for truly separate objectives
         if sums[split_end] < gcds[split_end + 1]
-            || (cli.split_alg == SplitAlg::GBMO
+            || (cli.split_alg == SplitAlg::Gbmo
                 && check_split_thorough_gbmo(
                     &sorted_clauses[split_end + 1..],
                     sums[split_end],
