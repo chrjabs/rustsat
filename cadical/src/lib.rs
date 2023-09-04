@@ -627,10 +627,22 @@ impl PhaseLit for CaDiCaL<'_, '_> {
 ))]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> Result<bool, SolverError> {
+        if self.state != InternalSolverState::Sat {
+            return Err(SolverError::State(
+                self.state.to_external(),
+                SolverState::Sat,
+            ));
+        }
         Ok(unsafe { ffi::ccadical_flip(self.handle, lit.to_ipasir()) })
     }
 
     fn is_flippable(&mut self, lit: Lit) -> Result<bool, SolverError> {
+        if self.state != InternalSolverState::Sat {
+            return Err(SolverError::State(
+                self.state.to_external(),
+                SolverState::Sat,
+            ));
+        }
         Ok(unsafe { ffi::ccadical_flippable(self.handle, lit.to_ipasir()) })
     }
 }
