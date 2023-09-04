@@ -11,7 +11,9 @@ use std::{
 
 fn main() {
     // Select commit based on features. If conflict, always choose newest release
-    let (tag, patch) = if cfg!(feature = "v1-7-0") {
+    let (tag, patch) = if cfg!(feature = "v1-7-1") {
+        ("refs/tags/rel-1.7.1", "patches/v171.patch")
+    } else if cfg!(feature = "v1-7-0") {
         ("refs/tags/rel-1.7.0", "patches/v170.patch")
     } else if cfg!(feature = "v1-6-0") {
         ("refs/tags/rel-1.6.0", "patches/v160.patch")
@@ -31,7 +33,7 @@ fn main() {
         ("refs/tags/rel-1.5.0", "patches/v150.patch")
     } else {
         // default to newest version
-        ("refs/tags/rel-1.7.0", "patches/v170.patch")
+        ("refs/tags/rel-1.7.1", "patches/v171.patch")
     };
 
     // Build C++ library

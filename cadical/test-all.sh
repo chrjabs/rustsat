@@ -39,3 +39,7 @@ echo "v1.6.0 test returned: $?"
 echo "Testing v1.7.0"
 cargo test --features=v1-7-0 &> v170-test.log
 echo "v1.7.0 test returned: $?"
+
+echo "Testing v1.7.1"
+cargo test --features=v1-7-1 &> v170-test.log
+echo "v1.7.1 test returned: $?"

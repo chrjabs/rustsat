@@ -49,3 +49,8 @@ echo "Building v1.7.0"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
 cargo build --features=v1-7-0 &> v170-build.log
 echo "v1.7.0 build returned: $?"
+
+echo "Building v1.7.1"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=v1-7-1 &> v170-build.log
+echo "v1.7.1 build returned: $?"
