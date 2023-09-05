@@ -125,6 +125,39 @@ impl Encode for GeneralizedTotalizer {
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
+
+    fn next_higher(&self, val: usize) -> usize {
+        if let Some(root) = &self.root {
+            if let Node::Internal { out_lits, .. } = root {
+                if let Some((&next, _)) = out_lits
+                    .range((Bound::Excluded(val), Bound::Unbounded))
+                    .next()
+                {
+                    return next;
+                }
+            }
+        }
+        val + 1
+    }
+
+    fn next_lower(&self, val: usize) -> usize {
+        if val == 0 {
+            return 0;
+        }
+        if let Some(root) = &self.root {
+            if let Node::Internal { out_lits, .. } = root {
+                if let Some((&next, _)) = out_lits
+                    .range((Bound::Unbounded, Bound::Excluded(val)))
+                    .next_back()
+                {
+                    return next;
+                } else {
+                    return 0;
+                }
+            }
+        }
+        val - 1
+    }
 }
 
 impl EncodeIncremental for GeneralizedTotalizer {

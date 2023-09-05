@@ -62,6 +62,12 @@ pub trait Encode:
     fn iter(&self) -> Self::Iter<'_>;
     /// Get the sum of weights in the encoding
     fn weight_sum(&self) -> usize;
+    /// Gets the next higher value possible to be achieved by the weighted sum.
+    /// Might simply return `val + 1` if no stronger value can be inferred.
+    fn next_higher(&self, val: usize) -> usize;
+    /// Gets the next lower value possible to be achieved by the weighted sum.
+    /// Might simply return `val - 1` if no stronger value can be inferred.
+    fn next_lower(&self, val: usize) -> usize;
 }
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum

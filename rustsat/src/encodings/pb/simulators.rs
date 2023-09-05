@@ -97,6 +97,14 @@ where
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
+
+    fn next_higher(&self, val: usize) -> usize {
+        self.weight_sum - self.pb_enc.next_lower(self.weight_sum - val)
+    }
+
+    fn next_lower(&self, val: usize) -> usize {
+        self.weight_sum - self.pb_enc.next_higher(self.weight_sum - val)
+    }
 }
 
 impl<PBE> EncodeIncremental for Inverted<PBE>
@@ -247,6 +255,14 @@ where
     fn weight_sum(&self) -> usize {
         self.ub_enc.weight_sum()
     }
+
+    fn next_higher(&self, val: usize) -> usize {
+        self.ub_enc.next_higher(val)
+    }
+
+    fn next_lower(&self, val: usize) -> usize {
+        self.lb_enc.next_lower(val)
+    }
 }
 
 impl<UBE, LBE> EncodeIncremental for Double<UBE, LBE>
@@ -381,6 +397,17 @@ where
 
     fn weight_sum(&self) -> usize {
         self.card_enc.n_lits()
+    }
+
+    fn next_higher(&self, val: usize) -> usize {
+        val + 1
+    }
+
+    fn next_lower(&self, val: usize) -> usize {
+        if val == 0 {
+            return 0;
+        }
+        val - 1
     }
 }
 

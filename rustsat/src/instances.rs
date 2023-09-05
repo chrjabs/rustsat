@@ -137,13 +137,13 @@ impl Default for BasicVarManager {
 
 /// Manager for reindexing an existing instance
 #[derive(PartialEq, Eq)]
-pub struct ReindexingVarManager {
+pub struct ReinducingVarManager {
     next_var: Var,
     in_map: RsHashMap<Var, Var>,
     out_map: RsHashMap<Var, Var>,
 }
 
-impl ReindexingVarManager {
+impl ReinducingVarManager {
     /// Creates a new variable manager from a next free variable
     pub fn from_next_free(next_var: Var) -> Self {
         Self {
@@ -154,7 +154,7 @@ impl ReindexingVarManager {
     }
 }
 
-impl ReindexVars for ReindexingVarManager {
+impl ReindexVars for ReinducingVarManager {
     fn reindex(&mut self, in_var: Var) -> Var {
         match self.in_map.get(&in_var) {
             Some(v) => *v,
@@ -172,7 +172,7 @@ impl ReindexVars for ReindexingVarManager {
     }
 }
 
-impl Default for ReindexingVarManager {
+impl Default for ReinducingVarManager {
     fn default() -> Self {
         Self {
             next_var: Var::new(0),
@@ -182,7 +182,7 @@ impl Default for ReindexingVarManager {
     }
 }
 
-impl ManageVars for ReindexingVarManager {
+impl ManageVars for ReinducingVarManager {
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
         self.next_var = Var::new(v.idx() + 1);
