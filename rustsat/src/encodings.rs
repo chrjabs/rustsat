@@ -6,6 +6,8 @@ pub mod am1;
 pub mod card;
 pub mod pb;
 
+mod nodedb;
+
 /// Errors from encodings
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {

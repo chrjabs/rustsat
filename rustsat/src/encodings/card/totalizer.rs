@@ -4,6 +4,9 @@
 //! The implementation is incremental as extended in \[2\].
 //! The implementation is recursive.
 //!
+//! For an alternative implementation based on a node database, see
+//! [`rustsat::encodings::card::DbTotalizer`].
+//!
 //! ## References
 //!
 //! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
@@ -277,7 +280,7 @@ impl Extend<Lit> for Totalizer {
     }
 }
 
-type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
+pub(super) type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 
 /// A node in the totalizer tree. This is only exposed publicly to be reused in
 /// more complex encodings, for using the totalizer, this should not be directly

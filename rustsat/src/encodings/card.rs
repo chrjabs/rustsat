@@ -41,7 +41,11 @@ use crate::{
 
 pub mod totalizer;
 pub use totalizer::Totalizer;
+
 pub mod simulators;
+
+pub mod dbtotalizer;
+pub use dbtotalizer::DbTotalizer;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
