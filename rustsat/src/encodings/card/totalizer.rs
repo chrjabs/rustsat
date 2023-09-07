@@ -79,7 +79,7 @@ impl Totalizer {
     }
 
     /// Gets the maximum depth of the tree
-    pub fn depth(&mut self) -> usize {
+    pub fn depth(&self) -> usize {
         match &self.root {
             None => 0,
             Some(root_node) => root_node.depth(),
@@ -775,9 +775,10 @@ mod tests {
             },
             EncodeStats, Error,
         },
-        instances::BasicVarManager,
+        instances::{BasicVarManager, ManageVars},
         lit,
-        types::Lit,
+        types::{Lit, Var},
+        var,
     };
 
     #[test]
@@ -787,6 +788,7 @@ mod tests {
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![2]);
         let mut cnf = node.encode_ub_range(0..3, &mut var_manager);
         cnf.extend(node.encode_lb_range(0..3, &mut var_manager));
         match &node {
@@ -823,6 +825,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![5]);
         let mut cnf = node.encode_ub_range(0..5, &mut var_manager);
         cnf.extend(node.encode_lb_range(0..5, &mut var_manager));
         match &node {
@@ -839,6 +842,7 @@ mod tests {
         let child2 = Node::new_leaf(lit![1]);
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![2]);
         let cnf = node.encode_lb_range(0..2, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
@@ -874,6 +878,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![7]);
         let mut cnf = node.encode_ub_range(0..4, &mut var_manager);
         cnf.extend(node.encode_lb_range(0..4, &mut var_manager));
         match &node {
@@ -910,6 +915,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![7]);
         let mut cnf = node.encode_ub_range(3..3, &mut var_manager);
         cnf.extend(node.encode_lb_range(3..3, &mut var_manager));
         assert_eq!(cnf.n_clauses(), 0);
@@ -942,6 +948,7 @@ mod tests {
         };
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![7]);
         let mut cnf = node.encode_ub_range(2..4, &mut var_manager);
         cnf.extend(node.encode_lb_range(2..4, &mut var_manager));
         match &node {
@@ -958,6 +965,7 @@ mod tests {
         assert_eq!(tot.enforce_ub(2), Err(Error::NotEncoded));
         assert_eq!(tot.enforce_lb(2), Err(Error::NotEncoded));
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
         let mut cnf = tot.encode_ub(0..5, &mut var_manager);
         cnf.extend(tot.encode_lb(0..5, &mut var_manager));
         assert_eq!(tot.depth(), 3);
@@ -973,6 +981,7 @@ mod tests {
         let mut tot = Totalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
         let cnf = tot.encode_both(3..4, &mut var_manager);
         assert_eq!(tot.depth(), 3);
         assert_eq!(cnf.n_clauses(), 12);
@@ -984,10 +993,12 @@ mod tests {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
         let cnf1 = tot1.encode_ub(0..5, &mut var_manager);
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
         let mut cnf2 = tot2.encode_ub(0..3, &mut var_manager);
         cnf2.extend(tot2.encode_ub_change(0..5, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
@@ -1000,10 +1011,12 @@ mod tests {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
         let cnf1 = tot1.encode_lb(0..5, &mut var_manager);
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
         let mut cnf2 = tot2.encode_lb(0..3, &mut var_manager);
         cnf2.extend(tot2.encode_lb_change(0..5, &mut var_manager));
         assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());

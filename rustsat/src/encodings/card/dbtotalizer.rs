@@ -5,7 +5,7 @@
 
 use std::{
     cmp,
-    ops::{Index, IndexMut},
+    ops::{Index, IndexMut, Range},
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
     types::Lit,
 };
 
-use super::{BoundUpper, Encode, EncodeIncremental, BoundUpperIncremental};
+use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
@@ -53,12 +53,21 @@ impl DbTotalizer {
         let new_tree = self.db.lit_tree(new_lits);
         self.root = Some(match self.root {
             Some(old_root) => {
-                self.db.merge(&[NodeCon::full(old_root), NodeCon::full(new_tree)])
+                self.db
+                    .merge(&[NodeCon::full(old_root), NodeCon::full(new_tree)])
                     .id
             }
             None => new_tree,
         });
         self.not_enc_idx = self.in_lits.len();
+    }
+
+    /// Gets the maximum depth of the tree
+    pub fn depth(&self) -> usize {
+        match &self.root {
+            None => 0,
+            Some(root) => self.db[*root].depth(),
+        }
     }
 }
 
@@ -83,28 +92,9 @@ impl EncodeIncremental for DbTotalizer {
 }
 
 impl BoundUpper for DbTotalizer {
-    fn encode_ub(
-        &mut self,
-        range: std::ops::Range<usize>,
-        var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
-        if range.is_empty() {
-            return Cnf::new();
-        }
-        self.extend_tree();
-        match self.root {
-            Some(id) => {
-                let n_vars_before = var_manager.n_used();
-                let mut cnf = Cnf::new();
-                for val in range {
-                    self.db.define_pos(id, val + 1, &mut cnf, var_manager, true);
-                }
-                self.n_clauses += cnf.n_clauses();
-                self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
-            }
-            None => Cnf::new(),
-        }
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        self.db.reset_encoded();
+        self.encode_ub_change(range, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -122,7 +112,7 @@ impl BoundUpper for DbTotalizer {
 }
 
 impl BoundUpperIncremental for DbTotalizer {
-    fn encode_ub_change(&mut self, range: std::ops::Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
         if range.is_empty() {
             return Cnf::new();
         }
@@ -131,10 +121,12 @@ impl BoundUpperIncremental for DbTotalizer {
             Some(id) => {
                 let n_vars_before = var_manager.n_used();
                 let mut cnf = Cnf::new();
-                for val in range {
-                    self.db.define_pos(id, val + 1, &mut cnf, var_manager, false);
+                for idx in range {
+                    if idx < self.db[id].len() {
+                        self.db.define_pos(id, idx, &mut cnf, var_manager);
+                    }
                 }
-                self.n_clauses += cnf.n_clauses();
+                self.n_clauses += cnf.len();
                 self.n_vars += var_manager.n_used() - n_vars_before;
                 cnf
             }
@@ -213,8 +205,15 @@ impl NodeLike for Node {
         }
     }
 
-    fn internal(len: usize, left: NodeCon, right: NodeCon) -> Self {
-        Self::Internal(INode::new(len, left, right))
+    fn depth(&self) -> usize {
+        match self {
+            Node::Leaf(_) => 1,
+            Node::Internal(node) => node.depth,
+        }
+    }
+
+    fn internal(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self {
+        Self::Internal(INode::new(len, depth, left, right))
     }
 
     fn leaf(lit: Lit) -> Self {
@@ -224,7 +223,7 @@ impl NodeLike for Node {
 
 impl Node {
     /// Panic-safe version of literal indexing
-    fn lit(&self, index: usize) -> Option<&Lit> {
+    pub fn lit(&self, index: usize) -> Option<&Lit> {
         match self {
             Node::Leaf(lit) => {
                 if index != 0 {
@@ -237,7 +236,7 @@ impl Node {
     }
 
     /// Returns the internal node and panics if the node is a leaf
-    fn unwrap(&mut self) -> &mut INode {
+    pub fn unwrap(&mut self) -> &mut INode {
         match self {
             Node::Leaf(_) => panic!("called unwrap on leaf node"),
             Node::Internal(node) => node,
@@ -257,17 +256,23 @@ impl Index<usize> for Node {
 /// An internal node of the totalizer
 pub struct INode {
     pub(super) lits: Vec<LitData>,
+    pub(super) depth: usize,
     pub(super) left: NodeCon,
     pub(super) right: NodeCon,
 }
 
 impl INode {
-    fn new(len: usize, left: NodeCon, right: NodeCon) -> Self {
+    fn new(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self {
         // Length of node can never change, therefore make sure that the
         let mut lits = vec![];
         lits.reserve_exact(len);
         (0..len).for_each(|_| lits.push(LitData::default()));
-        Self { lits, left, right }
+        Self {
+            lits,
+            depth,
+            left,
+            right,
+        }
     }
 }
 
@@ -356,24 +361,21 @@ impl Index<NodeId> for TotDb {
 }
 
 impl TotDb {
-    /// Generates the encoding to define the  output literal encoding that
-    /// `val` input literals of node `node_id` are set, if it is not
-    /// already defined. Recurses down the tree. The returned literal is the
-    /// output literal and the encoding is added to the [`Cnf`]. The encoding is
-    /// not returned in order to save on memory allocations.
-    fn define_pos(
+    /// Generates the encoding to define the positive output literal with index `idx`, if it is not
+    /// already defined. Recurses down the tree. The returned literal is the output literal and the
+    /// encoding is added to the [`Cnf`]. The encoding is not returned in order to save on memory
+    /// allocations.
+    pub fn define_pos(
         &mut self,
         id: NodeId,
-        val: usize,
+        idx: usize,
         encoding: &mut Cnf,
         var_manager: &mut dyn ManageVars,
-        ignore_encoded: bool,
     ) -> Lit {
         let node = &self[id];
-        debug_assert!(val <= node.len());
-        debug_assert_ne!(val, 0);
+        debug_assert!(idx < node.len());
         if node.is_leaf() {
-            debug_assert_eq!(val, 1);
+            debug_assert_eq!(idx, 0);
             return node[0];
         }
         let lcon = node.left().unwrap();
@@ -384,36 +386,46 @@ impl TotDb {
         };
 
         // Check if already encoded
-        if let LitData::Lit { lit, enc_pos, .. } = node.lits[val - 1] {
-            if enc_pos && !ignore_encoded {
+        if let LitData::Lit { lit, enc_pos, .. } = node.lits[idx] {
+            if enc_pos {
                 return lit;
             }
         }
 
-        // Maximum values that left and right will contribute
-        let l_max_val = cmp::min(self.max_value(lcon), val);
-        let r_max_val = cmp::min(self.max_value(rcon), val);
+        let con_idx = |idx: usize, con: NodeCon| ((idx + 1) * con.divisor) - 1 + con.offset;
+
+        // The maximum indices of left and right that influence the current literal (ignoring
+        // offset and divisor)
+        let l_max_idx = cmp::min(self.con_len(lcon) - 1, idx);
+        let r_max_idx = cmp::min(self.con_len(rcon) - 1, idx);
+
+        // The minimum indices of left and right that influence the current literal (ignoring
+        // offset and divisor)
+        let l_min_idx = if idx == r_max_idx {
+            0
+        } else {
+            idx - r_max_idx - 1
+        };
+        let r_min_idx = if idx == l_max_idx {
+            0
+        } else {
+            idx - l_max_idx - 1
+        };
 
         // Encode children (recurse)
-        for lval in (cmp::max(val + lcon.offset - r_max_val, 1) * lcon.divisor
-            ..(l_max_val * lcon.divisor) + 1)
-            .step_by(lcon.divisor)
-        {
-            self.define_pos(lcon.id, lval, encoding, var_manager, ignore_encoded);
+        for lidx in l_min_idx..=l_max_idx {
+            self.define_pos(lcon.id, con_idx(lidx, lcon), encoding, var_manager);
         }
-        for rval in (cmp::max(val + rcon.offset - l_max_val, 1) * rcon.divisor
-            ..(r_max_val * rcon.divisor) + 1)
-            .step_by(rcon.divisor)
-        {
-            self.define_pos(rcon.id, rval, encoding, var_manager, ignore_encoded);
+        for ridx in r_min_idx..=r_max_idx {
+            self.define_pos(rcon.id, con_idx(ridx, rcon), encoding, var_manager);
         }
 
         // Reserve variable for this node, if needed
-        let olit = if let Some(&olit) = self[id].lit(val - 1) {
+        let olit = if let Some(&olit) = self[id].lit(idx) {
             olit
         } else {
             let olit = var_manager.new_var().pos_lit();
-            self[id].unwrap().lits[val - 1] = LitData::new_lit(olit);
+            self[id].unwrap().lits[idx] = LitData::new_lit(olit);
             olit
         };
 
@@ -424,7 +436,7 @@ impl TotDb {
                 tmp_olit_l = LitData::new_lit(*lit);
                 std::slice::from_ref(&tmp_olit_l)
             }
-            Node::Internal(node) => &node.lits[lcon.offset..],
+            Node::Internal(INode { lits, .. }) => lits,
         };
         let tmp_olit_r;
         let rlits = match &self[rcon.id] {
@@ -432,28 +444,26 @@ impl TotDb {
                 tmp_olit_r = LitData::new_lit(*lit);
                 std::slice::from_ref(&tmp_olit_r)
             }
-            Node::Internal(node) => &node.lits[rcon.offset..],
+            Node::Internal(INode { lits, .. }) => lits,
         };
 
         // Encode this node
-        if l_max_val == val {
-            encoding.add_lit_impl_lit(*llits[(val * lcon.divisor) - 1].lit().unwrap(), olit);
+        if l_max_idx == idx {
+            encoding.add_lit_impl_lit(*llits[con_idx(idx, lcon)].lit().unwrap(), olit);
         }
-        if r_max_val == val {
-            encoding.add_lit_impl_lit(*rlits[(val * rcon.divisor) - 1].lit().unwrap(), olit);
+        if r_max_idx == idx {
+            encoding.add_lit_impl_lit(*rlits[con_idx(idx, rcon)].lit().unwrap(), olit);
         }
-        let pairs_l_min = cmp::max(val - r_max_val, 1);
-        let pairs_l_max = cmp::min(l_max_val + 1, val);
-        for lval in pairs_l_min..pairs_l_max {
-            let rval = val - lval;
-            debug_assert!(rval <= r_max_val);
-            let llit = *llits[(lval * lcon.divisor) - 1].lit().unwrap();
-            let rlit = *rlits[(rval * rcon.divisor) - 1].lit().unwrap();
+        for lidx in l_min_idx..cmp::min(l_max_idx + 1, idx) {
+            let ridx = idx - lidx - 1;
+            debug_assert!(ridx <= r_max_idx);
+            let llit = *llits[con_idx(lidx, lcon)].lit().unwrap();
+            let rlit = *rlits[con_idx(ridx, rcon)].lit().unwrap();
             encoding.add_cube_impl_lit(vec![llit, rlit], olit);
         }
 
         // Mark positive literal as encoded
-        match &mut self[id].unwrap().lits[val - 1] {
+        match &mut self[id].unwrap().lits[idx] {
             LitData::None => panic!(),
             LitData::Lit { enc_pos, .. } => *enc_pos = true,
         };
@@ -462,7 +472,7 @@ impl TotDb {
     }
 
     /// Recursively reserves all variables in the subtree rooted at the given node
-    fn reserve_vars(&mut self, id: NodeId, var_manager: &mut dyn ManageVars) {
+    pub fn reserve_vars(&mut self, id: NodeId, var_manager: &mut dyn ManageVars) {
         if self[id].is_leaf() {
             return;
         }
@@ -476,5 +486,108 @@ impl TotDb {
                 *olit = LitData::new_lit(var_manager.new_var().pos_lit())
             }
         }
+    }
+
+    /// Resets the status of what has already been encoded
+    pub fn reset_encoded(&mut self) {
+        for node in &mut self.nodes {
+            if let Node::Internal(INode { lits, .. }) = node {
+                for lit in lits {
+                    if let LitData::Lit { enc_pos, .. } = lit {
+                        *enc_pos = false;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DbTotalizer, TotDb};
+    use crate::{
+        encodings::{
+            card::{BoundUpper, BoundUpperIncremental},
+            nodedb::{NodeById, NodeLike},
+            EncodeStats, Error,
+        },
+        instances::{BasicVarManager, Cnf, ManageVars},
+        lit,
+        types::{Lit, Var},
+        var,
+    };
+
+    #[test]
+    fn tot_db() {
+        let mut db = TotDb::default();
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 0, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 6);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 1, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 9);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 2, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 8);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 3, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 3);
+    }
+
+    #[test]
+    fn functions() {
+        let mut tot = DbTotalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        assert_eq!(tot.enforce_ub(2), Err(Error::NotEncoded));
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let cnf = tot.encode_ub(0..5, &mut var_manager);
+        assert_eq!(tot.depth(), 3);
+        println!("len: {}, {:?}", cnf.len(), cnf);
+        assert_eq!(cnf.n_clauses(), 14);
+        assert_eq!(tot.n_clauses(), 14);
+        assert_eq!(tot.n_vars(), 8);
+        assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn functions_min_rhs() {
+        let mut tot = DbTotalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let cnf = tot.encode_ub(3..4, &mut var_manager);
+        assert_eq!(tot.depth(), 3);
+        assert_eq!(cnf.n_clauses(), 3);
+        assert_eq!(cnf.n_clauses(), tot.n_clauses());
+    }
+
+    #[test]
+    fn incremental_building_ub() {
+        let mut tot1 = DbTotalizer::default();
+        tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let cnf1 = tot1.encode_ub(0..5, &mut var_manager);
+        let mut tot2 = DbTotalizer::default();
+        tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let mut cnf2 = tot2.encode_ub(0..3, &mut var_manager);
+        cnf2.extend(tot2.encode_ub_change(0..5, &mut var_manager));
+        assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
+        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
+        assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
     }
 }

@@ -33,8 +33,11 @@ pub trait NodeLike {
     /// Gets the connection to the left child
     fn left(&self) -> Option<NodeCon>;
 
+    /// Gets the distance to the leaf furthest away in the subtree
+    fn depth(&self) -> usize;
+
     /// Creates a new internal node
-    fn internal(len: usize, left: NodeCon, right: NodeCon) -> Self;
+    fn internal(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self;
 
     /// Creates a new leaf
     fn leaf(lit: Lit) -> Self;
@@ -85,8 +88,8 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// Getss the number of node in the database
     fn len(&self) -> usize;
 
-    /// Gets the maximum value that a [`NodeCon`] can transmit
-    fn max_value(&self, con: NodeCon) -> usize {
+    /// Gets the number of literals that a [`NodeCon`] transmits
+    fn con_len(&self, con: NodeCon) -> usize {
         (self[con.id].len() - con.offset) / con.divisor
     }
 
@@ -102,9 +105,11 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let split = lits.len() / 2;
         let lid = self.lit_tree(&lits[..split]);
         let rid = self.lit_tree(&lits[split..]);
+        let depth = std::cmp::max(self[lid].depth(), self[rid].depth()) + 1;
 
         self.insert(Self::Node::internal(
             lits.len(),
+            depth,
             NodeCon::full(lid),
             NodeCon::full(rid),
         ))
@@ -125,9 +130,10 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let lcon = self.merge(&cons[..split]);
         let rcon = self.merge(&cons[split..]);
 
-        let len = self.max_value(lcon) + self.max_value(rcon);
+        let len = self.con_len(lcon) + self.con_len(rcon);
+        let depth = std::cmp::max(self[lcon.id].depth(), self[rcon.id].depth()) + 1;
 
-        NodeCon::full(self.insert(Self::Node::internal(len, lcon, rcon)))
+        NodeCon::full(self.insert(Self::Node::internal(len, depth, lcon, rcon)))
     }
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
@@ -144,19 +150,20 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
             return cons[0];
         }
 
-        let total_sum = cons.iter().fold(0, |sum, &con| sum + self.max_value(con));
+        let total_sum = cons.iter().fold(0, |sum, &con| sum + self.con_len(con));
         let mut split = 1;
-        let mut lsum = self.max_value(cons[0]);
-        while lsum + self.max_value(cons[split]) < total_sum / 2 {
-            lsum += self.max_value(cons[split]);
+        let mut lsum = self.con_len(cons[0]);
+        while lsum + self.con_len(cons[split]) < total_sum / 2 {
+            lsum += self.con_len(cons[split]);
             split += 1;
         }
 
         let lcon = self.merge(&cons[..split]);
         let rcon = self.merge(&cons[split..]);
 
-        let len = self.max_value(lcon) + self.max_value(rcon);
+        let len = self.con_len(lcon) + self.con_len(rcon);
+        let depth = std::cmp::max(self[lcon.id].depth(), self[rcon.id].depth()) + 1;
 
-        NodeCon::full(self.insert(Self::Node::internal(len, lcon, rcon)))
+        NodeCon::full(self.insert(Self::Node::internal(len, depth, lcon, rcon)))
     }
 }
