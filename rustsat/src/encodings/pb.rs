@@ -46,10 +46,14 @@ use crate::{
 
 pub mod gte;
 pub use gte::GeneralizedTotalizer;
+
 pub mod simulators;
 pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
 pub type DoubleGeneralizedTotalizer =
     simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
+    
+pub mod dpw;
+pub use dpw::DynamicPolyWatchdog;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode:

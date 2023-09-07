@@ -317,7 +317,7 @@ impl LitData {
 
 /// A totalizer database
 #[derive(Default)]
-pub(super) struct TotDb {
+pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
     nodes: Vec<Node>,
 }
