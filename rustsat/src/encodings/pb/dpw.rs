@@ -13,19 +13,20 @@
 //! - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 //!   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Range};
 
 use crate::{
     encodings::{
         card::dbtotalizer::{Node, TotDb},
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
+        EncodeStats, Error,
     },
-    instances::ManageVars,
+    instances::{Cnf, ManageVars},
     types::{Lit, RsHashMap},
     utils,
 };
 
-use super::Encode;
+use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 
 /// Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
 ///
@@ -46,7 +47,7 @@ pub struct DynamicPolyWatchdog {
     /// Flag to know when new literals where added and the encoding needs to be reconstructed
     lits_added: bool,
     /// The encoding root and the tares
-    encoding: Option<Encoding>,
+    structure: Option<Structure>,
     /// Sum of all input weight
     weight_sum: usize,
     /// The number of variables
@@ -62,7 +63,7 @@ impl DynamicPolyWatchdog {
     fn build_tree(&mut self, var_manager: &mut dyn ManageVars) {
         // Reset totalizer db and encoding
         self.db = Default::default();
-        self.encoding = Default::default();
+        self.structure = Default::default();
 
         // Initialize weight queue
         let mut weight_queue: BTreeMap<usize, Vec<NodeCon>> = BTreeMap::new();
@@ -103,7 +104,7 @@ impl DynamicPolyWatchdog {
 
         if basis_len == 1 {
             debug_assert_eq!(top_buckets[0].len(), 1);
-            self.encoding = Some(Encoding {
+            self.structure = Some(Structure {
                 root: top_buckets[0][0].id,
                 tares: vec![],
             });
@@ -112,7 +113,7 @@ impl DynamicPolyWatchdog {
         }
 
         // Prepare tares
-        let tares: Vec<_> = (0..basis_len)
+        let tares: Vec<_> = (0..basis_len - 1)
             .map(|_| var_manager.new_var().pos_lit())
             .collect();
         let tare_nodes: Vec<_> = tares
@@ -120,28 +121,24 @@ impl DynamicPolyWatchdog {
             .map(|&lit| self.db.insert(Node::Leaf(lit)))
             .collect();
 
-        // Prepare lowest top bucket
-        top_buckets[0].push(NodeCon::full(tare_nodes[0]));
-        top_buckets[0].sort_unstable_by_key(|&con| self.db.max_value(con));
-
         // Merge top buckets and merge with bottom buckets
-        let mut next_right = None;
+        let mut last_bottom_bucket = None;
         for (idx, mut cons) in top_buckets.into_iter().enumerate() {
-            if !idx == basis_len - 1 {
+            if idx != basis_len - 1 {
                 // Merge top bucket (except for last) with tare
                 cons.push(NodeCon::full(tare_nodes[idx]));
             }
-            cons.sort_unstable_by_key(|&con| self.db.max_value(con));
+            cons.sort_unstable_by_key(|&con| self.db.con_len(con));
             let top_bucket = self.db.merge_balanced(&cons);
-            if next_right.is_none() {
+            if last_bottom_bucket.is_none() {
                 // special case: lowest bucket does not need bottom buckets
-                if self.db.max_value(top_bucket) == 1 {
+                if self.db.con_len(top_bucket) == 1 {
                     // top bucket is empty (except for tare), tare can be
                     // omitted: shift to next layer
                     continue;
                 }
                 debug_assert_eq!(top_bucket.divisor, 1);
-                next_right = Some(NodeCon {
+                last_bottom_bucket = Some(NodeCon {
                     id: top_bucket.id,
                     offset: top_bucket.offset,
                     divisor: 2,
@@ -149,24 +146,41 @@ impl DynamicPolyWatchdog {
                 continue;
             }
 
-            let right = next_right.unwrap();
-            let len = self.db.max_value(top_bucket) + self.db.max_value(right);
-            let bottom = self.db.insert(Node::internal(len, top_bucket, right));
-            next_right = Some(NodeCon {
+            let right = last_bottom_bucket.unwrap();
+            let len = self.db.con_len(top_bucket) + self.db.con_len(right);
+            let depth =
+                std::cmp::max(self.db[top_bucket.id].depth(), self.db[right.id].depth()) + 1;
+            let bottom = self
+                .db
+                .insert(Node::internal(len, depth, top_bucket, right));
+            last_bottom_bucket = Some(NodeCon {
                 id: bottom,
                 offset: 0,
                 divisor: 2,
             });
         }
-        
-        // TODO: safe encoding
 
+        let root = last_bottom_bucket.unwrap();
+        debug_assert_eq!(root.offset, 0);
+        debug_assert_eq!(root.divisor, 2);
+        self.structure = Some(Structure {
+            root: root.id,
+            tares,
+        });
         self.lits_added = false;
+    }
+
+    /// Gets the maximum depth of the tree
+    pub fn depth(&self) -> usize {
+        match &self.structure {
+            Some(Structure { root, .. }) => self.db[*root].depth(),
+            None => 0,
+        }
     }
 }
 
-struct Encoding {
-    /// The root of the encoding
+struct Structure {
+    /// The root of the structure
     root: NodeId,
     /// The tare variables needed to enforce specific bounds. First in vector is
     /// the tare to the second largest top bucket, then decreasing.
@@ -193,13 +207,101 @@ impl Encode for DynamicPolyWatchdog {
     }
 }
 
+impl EncodeIncremental for DynamicPolyWatchdog {
+    fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        if let Some(Structure { root, .. }) = &self.structure {
+            self.db.reserve_vars(*root, var_manager);
+        }
+    }
+}
+
+impl BoundUpper for DynamicPolyWatchdog {
+    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        self.db.reset_encoded();
+        self.encode_ub_change(range, var_manager)
+    }
+
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        match &self.structure {
+            Some(Structure { root, tares }) => {
+                let output_weight = 1 << (tares.len());
+                let oidx = ub / output_weight;
+                if oidx >= self.db[*root].len() {
+                    return Ok(vec![]);
+                }
+                let olit = match self.db[*root].lit(oidx) {
+                    Some(&lit) => lit,
+                    None => return Err(Error::NotEncoded),
+                };
+                let mut assumps = vec![!olit];
+                // inputs <= enforced_weight at this stage
+                let mut enforced_weight = (oidx + 1) * output_weight - 1;
+                // Set needed tares
+                for power in (0..tares.len()).rev() {
+                    let weight = 1 << power;
+                    if ub + weight <= enforced_weight {
+                        enforced_weight -= weight;
+                        assumps.push(tares[power]);
+                    }
+                    if ub == enforced_weight {
+                        break;
+                    }
+                }
+                debug_assert!(ub == enforced_weight);
+
+                Ok(assumps)
+            }
+            None => Ok(vec![]),
+        }
+    }
+}
+
+impl BoundUpperIncremental for DynamicPolyWatchdog {
+    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+        if range.is_empty() {
+            return Cnf::new();
+        }
+        if self.lits_added {
+            self.build_tree(var_manager);
+        }
+        match &self.structure {
+            Some(Structure { root, tares }) => {
+                let n_vars_before = var_manager.n_used();
+                let output_weight = 1 << (tares.len());
+                let output_range =
+                    range.start / output_weight..(range.end - 1) / output_weight + 1;
+                let mut cnf = Cnf::new();
+                for oidx in output_range {
+                    if oidx < self.db[*root].len() {
+                        self.db.define_pos(*root, oidx, &mut cnf, var_manager);
+                    }
+                }
+                self.n_clauses += cnf.len();
+                self.n_vars += var_manager.n_used() - n_vars_before;
+                cnf
+            }
+            None => Cnf::new(),
+        }
+    }
+}
+
+impl EncodeStats for DynamicPolyWatchdog {
+    fn n_clauses(&self) -> usize {
+        self.n_clauses
+    }
+
+    fn n_vars(&self) -> usize {
+        self.n_vars
+    }
+}
+
 impl From<RsHashMap<Lit, usize>> for DynamicPolyWatchdog {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
         Self {
             in_lits: lits.clone(),
             lits_added: true,
-            encoding: Default::default(),
+            structure: Default::default(),
             weight_sum,
             n_vars: Default::default(),
             n_clauses: Default::default(),

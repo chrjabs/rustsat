@@ -4,13 +4,16 @@ use rustsat::{
         card::Totalizer,
         pb::{
             simulators::Card, BoundBoth, BoundBothIncremental, BoundLower, BoundUpper,
-            BoundUpperIncremental, DoubleGeneralizedTotalizer, GeneralizedTotalizer,
-            InvertedGeneralizedTotalizer,
+            BoundUpperIncremental, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
+            GeneralizedTotalizer, InvertedGeneralizedTotalizer,
         },
     },
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{Solve, SolveIncremental, SolverResult},
+    solvers::{
+        Solve, SolveIncremental,
+        SolverResult::{self, Sat, Unsat},
+    },
     types::{Clause, Lit, RsHashMap, Var},
     var,
 };
@@ -280,4 +283,267 @@ fn gte_eq() {
 fn tot_pb_sim_eq() {
     let sim: Card<Totalizer> = Card::default();
     test_pb_eq(sim);
+}
+
+#[test]
+fn dpw_ub() {
+    let dpw = DynamicPolyWatchdog::default();
+    test_inc_pb_ub(dpw);
+}
+
+#[test]
+fn dpw_min_enc() {
+    let dpw = DynamicPolyWatchdog::default();
+    test_pb_ub_min_enc(dpw);
+}
+
+use rustsat_tools::{test_all, test_assignment};
+
+fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
+    let mut solver = CaDiCaL::default();
+    let mut lits = RsHashMap::default();
+    lits.insert(lit![0], 5);
+    lits.insert(lit![1], 5);
+    lits.insert(lit![2], 3);
+    lits.insert(lit![3], 3);
+    enc.extend(lits);
+    let mut var_manager = BasicVarManager::default();
+    var_manager.increase_next_free(var![4]);
+
+    solver
+        .add_cnf(enc.encode_ub(0..1, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(0).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Unsat,   // 1100
+        Unsat,   // 1011
+        Unsat,   // 1010
+        Unsat,   // 1001
+        Unsat,   // 1000
+        Unsat,   // 0111
+        Unsat,   // 0110
+        Unsat,   // 0101
+        Unsat,   // 0100
+        Unsat,   // 0011
+        Unsat,   // 0010
+        Unsat,   // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(3..4, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(3).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Unsat,   // 1100
+        Unsat,   // 1011
+        Unsat,   // 1010
+        Unsat,   // 1001
+        Unsat,   // 1000
+        Unsat,   // 0111
+        Unsat,   // 0110
+        Unsat,   // 0101
+        Unsat,   // 0100
+        Unsat,   // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(5..6, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(5).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Unsat,   // 1100
+        Unsat,   // 1011
+        Unsat,   // 1010
+        Unsat,   // 1001
+        Sat,     // 1000
+        Unsat,   // 0111
+        Unsat,   // 0110
+        Unsat,   // 0101
+        Sat,     // 0100
+        Unsat,   // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(6..7, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(6).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Unsat,   // 1100
+        Unsat,   // 1011
+        Unsat,   // 1010
+        Unsat,   // 1001
+        Sat,     // 1000
+        Unsat,   // 0111
+        Unsat,   // 0110
+        Unsat,   // 0101
+        Sat,     // 0100
+        Sat,     // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(8..9, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(8).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Unsat,   // 1100
+        Unsat,   // 1011
+        Sat,     // 1010
+        Sat,     // 1001
+        Sat,     // 1000
+        Unsat,   // 0111
+        Sat,     // 0110
+        Sat,     // 0101
+        Sat,     // 0100
+        Sat,     // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(10..11, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(10).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Sat,     // 1100
+        Unsat,   // 1011
+        Sat,     // 1010
+        Sat,     // 1001
+        Sat,     // 1000
+        Unsat,   // 0111
+        Sat,     // 0110
+        Sat,     // 0101
+        Sat,     // 0100
+        Sat,     // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(11..12, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(11).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Unsat,   // 1110
+        Unsat,   // 1101
+        Sat,     // 1100
+        Sat,     // 1011
+        Sat,     // 1010
+        Sat,     // 1001
+        Sat,     // 1000
+        Sat,     // 0111
+        Sat,     // 0110
+        Sat,     // 0101
+        Sat,     // 0100
+        Sat,     // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(13..14, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(13).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Unsat,   // 1111
+        Sat,     // 1110
+        Sat,     // 1101
+        Sat,     // 1100
+        Sat,     // 1011
+        Sat,     // 1010
+        Sat,     // 1001
+        Sat,     // 1000
+        Sat,     // 0111
+        Sat,     // 0110
+        Sat,     // 0101
+        Sat,     // 0100
+        Sat,     // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+
+    solver
+        .add_cnf(enc.encode_ub_change(16..17, &mut var_manager))
+        .unwrap();
+    let assumps = enc.enforce_ub(16).unwrap();
+
+    test_all!(
+        solver, assumps, //
+        Sat,     // 1111
+        Sat,     // 1110
+        Sat,     // 1101
+        Sat,     // 1100
+        Sat,     // 1011
+        Sat,     // 1010
+        Sat,     // 1001
+        Sat,     // 1000
+        Sat,     // 0111
+        Sat,     // 0110
+        Sat,     // 0101
+        Sat,     // 0100
+        Sat,     // 0011
+        Sat,     // 0010
+        Sat,     // 0001
+        Sat      // 0000
+    );
+}
+
+#[test]
+fn gte_exhaustive() {
+    let gte = GeneralizedTotalizer::default();
+    test_ub_exhaustive(gte)
+}
+
+#[test]
+fn dpw_exhaustive() {
+    let dpw = DynamicPolyWatchdog::default();
+    test_ub_exhaustive(dpw)
 }

@@ -2,11 +2,16 @@ use rustsat::{
     encodings::am1::{Encode, Pairwise},
     instances::{BasicVarManager, ManageVars},
     lit,
-    solvers::{Solve, SolveIncremental, SolverResult},
+    solvers::{
+        Solve, SolveIncremental,
+        SolverResult::{Sat, Unsat},
+    },
     types::{Lit, Var},
     var,
 };
 use rustsat_cadical::CaDiCaL;
+
+use rustsat_tools::{test_all, test_assignment};
 
 fn test_am1<AM1: Encode>(mut enc: AM1) {
     let mut solver = CaDiCaL::default();
@@ -18,45 +23,18 @@ fn test_am1<AM1: Encode>(mut enc: AM1) {
         .add_cnf(enc.encode(&mut var_manager).unwrap())
         .unwrap();
 
-    let res = solver
-        .solve_assumps(vec![lit![0], lit![1], lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Unsat);
-
-    let res = solver
-        .solve_assumps(vec![lit![0], lit![1], !lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Unsat);
-
-    let res = solver
-        .solve_assumps(vec![lit![0], !lit![1], lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Unsat);
-
-    let res = solver
-        .solve_assumps(vec![lit![0], !lit![1], !lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Sat);
-
-    let res = solver
-        .solve_assumps(vec![!lit![0], lit![1], lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Unsat);
-
-    let res = solver
-        .solve_assumps(vec![!lit![0], lit![1], !lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Sat);
-
-    let res = solver
-        .solve_assumps(vec![!lit![0], !lit![1], lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Sat);
-
-    let res = solver
-        .solve_assumps(vec![!lit![0], !lit![1], !lit![2]])
-        .unwrap();
-    assert_eq!(res, SolverResult::Sat);
+    test_all!(
+        solver,
+        Vec::<Lit>::new(),
+        Unsat,
+        Unsat,
+        Unsat,
+        Sat,
+        Unsat,
+        Sat,
+        Sat,
+        Sat
+    );
 }
 
 #[test]
