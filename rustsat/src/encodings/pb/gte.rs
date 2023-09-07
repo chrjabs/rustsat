@@ -275,12 +275,13 @@ type GTEIter<'a> = std::iter::Map<
 
 impl From<RsHashMap<Lit, usize>> for GeneralizedTotalizer {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
         Self {
             in_lits: lits.clone(),
             lit_buffer: lits,
             root: Default::default(),
             max_leaf_weight: Default::default(),
-            weight_sum: Default::default(),
+            weight_sum,
             n_vars: Default::default(),
             n_clauses: Default::default(),
         }
