@@ -301,7 +301,7 @@ impl SolveStats for Minisat {
     fn max_var(&self) -> Option<Var> {
         let max_var_idx = unsafe { ffi::cminisatsimp_n_vars(self.handle) };
         if max_var_idx > 0 {
-            Some(Var::new((max_var_idx - 1) as usize))
+            Some(Var::new((max_var_idx - 1) as u32))
         } else {
             None
         }

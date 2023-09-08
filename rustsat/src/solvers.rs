@@ -135,8 +135,8 @@ pub trait Solve {
     /// - A specific implementation might return other errors
     fn solution(&self, high_var: Var) -> Result<Assignment, SolverError> {
         let mut assignment = Vec::new();
-        let len = high_var.idx() + 1;
-        assignment.reserve(len);
+        let len = high_var.idx32() + 1;
+        assignment.reserve(len as usize);
         for idx in 0..len {
             let lit = Lit::positive(idx);
             assignment.push(self.lit_val(lit)?);

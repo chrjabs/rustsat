@@ -30,7 +30,7 @@ pub trait EncodeStats {
     fn n_clauses(&self) -> usize;
 
     /// Gets the number of variables in the encoding
-    fn n_vars(&self) -> usize;
+    fn n_vars(&self) -> u32;
 }
 
 #[path = "encodings/nodedb.rs"]

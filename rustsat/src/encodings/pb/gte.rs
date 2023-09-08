@@ -43,7 +43,7 @@ pub struct GeneralizedTotalizer {
     /// Sum of all input weight
     weight_sum: usize,
     /// The number of variables in the GTE
-    n_vars: usize,
+    n_vars: u32,
     /// The number of clauses in the GTE
     n_clauses: usize,
 }
@@ -260,7 +260,7 @@ impl EncodeStats for GeneralizedTotalizer {
         self.n_clauses
     }
 
-    fn n_vars(&self) -> usize {
+    fn n_vars(&self) -> u32 {
         self.n_vars
     }
 }

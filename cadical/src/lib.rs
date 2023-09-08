@@ -690,7 +690,7 @@ impl SolveStats for CaDiCaL<'_, '_> {
     fn stats(&self) -> SolverStats {
         let max_var_idx = unsafe { ffi::ccadical_vars(self.handle) };
         let max_var = if max_var_idx > 0 {
-            Some(Var::new((max_var_idx - 1) as usize))
+            Some(Var::new((max_var_idx - 1) as u32))
         } else {
             None
         };
@@ -702,7 +702,7 @@ impl SolveStats for CaDiCaL<'_, '_> {
     fn max_var(&self) -> Option<Var> {
         let max_var_idx = unsafe { ffi::ccadical_vars(self.handle) };
         if max_var_idx > 0 {
-            Some(Var::new((max_var_idx - 1) as usize))
+            Some(Var::new((max_var_idx - 1) as u32))
         } else {
             None
         }

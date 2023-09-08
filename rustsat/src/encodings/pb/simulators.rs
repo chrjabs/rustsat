@@ -182,7 +182,7 @@ where
         self.pb_enc.n_clauses()
     }
 
-    fn n_vars(&self) -> usize {
+    fn n_vars(&self) -> u32 {
         self.pb_enc.n_vars()
     }
 }
@@ -333,7 +333,7 @@ where
         self.ub_enc.n_clauses() + self.lb_enc.n_clauses()
     }
 
-    fn n_vars(&self) -> usize {
+    fn n_vars(&self) -> u32 {
         self.ub_enc.n_vars() + self.lb_enc.n_vars()
     }
 }

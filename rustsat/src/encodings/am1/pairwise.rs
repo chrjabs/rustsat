@@ -53,7 +53,7 @@ impl EncodeStats for Pairwise {
         self.n_clauses
     }
 
-    fn n_vars(&self) -> usize {
+    fn n_vars(&self) -> u32 {
         0
     }
 }
