@@ -66,9 +66,8 @@ impl Default for CaDiCaL<'_, '_> {
 }
 
 impl CaDiCaL<'_, '_> {
-    fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
+    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
-        core.reserve(assumps.len());
         for a in assumps {
             match unsafe { ffi::ccadical_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
@@ -439,10 +438,10 @@ impl Solve for CaDiCaL<'_, '_> {
 }
 
 impl SolveIncremental for CaDiCaL<'_, '_> {
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError> {
         let start = ProcessTime::now();
         // Solve with CaDiCaL backend
-        for a in &assumps {
+        for a in assumps {
             unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
         }
         let res = unsafe { ffi::ccadical_solve(self.handle) };
@@ -460,7 +459,7 @@ impl SolveIncremental for CaDiCaL<'_, '_> {
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
+                self.state = InternalSolverState::Unsat(self.get_core_assumps(assumps)?);
                 Ok(SolverResult::Unsat)
             }
             invalid => Err(SolverError::Api(format!(

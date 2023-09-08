@@ -35,9 +35,8 @@ impl Default for Minisat {
 }
 
 impl Minisat {
-    fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
+    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, SolverError> {
         let mut core = Vec::new();
-        core.reserve(assumps.len());
         for a in assumps {
             match unsafe { ffi::cminisat_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
@@ -155,10 +154,10 @@ impl Solve for Minisat {
 }
 
 impl SolveIncremental for Minisat {
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError> {
         let start = ProcessTime::now();
         // Solve with minisat backend
-        for a in &assumps {
+        for a in assumps {
             unsafe { ffi::cminisat_assume(self.handle, a.to_ipasir()) }
         }
         let res = unsafe { ffi::cminisat_solve(self.handle) };
@@ -176,7 +175,7 @@ impl SolveIncremental for Minisat {
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
+                self.state = InternalSolverState::Unsat(self.get_core_assumps(assumps)?);
                 Ok(SolverResult::Unsat)
             }
             invalid => Err(SolverError::Api(format!(
