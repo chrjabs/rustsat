@@ -6,8 +6,6 @@ pub mod am1;
 pub mod card;
 pub mod pb;
 
-mod nodedb;
-
 /// Errors from encodings
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
@@ -33,4 +31,23 @@ pub trait EncodeStats {
 
     /// Gets the number of variables in the encoding
     fn n_vars(&self) -> usize;
+}
+
+#[path = "encodings/nodedb.rs"]
+mod nodedbimpl;
+
+// Module defined inline to be able to dynamically change visibility
+// (non-inline modules in proc macro input are unstable)
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+mod nodedb {
+    //! # Node Database Functionality For Universal Tree-Like Encodings
+    //!
+    //! Encodings with a tree-like structure where each node contains a sorted
+    //! version of its childrens' literals. The leafs are input literals.
+    //!
+    //! This is used as the basis for the dynamic polynomial watchdog encoding.
+    //! (Note that the DPW encoding is not technically tree-like since it might
+    //! share substructures, but close enough.)
+
+    pub use super::nodedbimpl::{NodeById, NodeCon, NodeId, NodeLike};
 }

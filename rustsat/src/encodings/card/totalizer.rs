@@ -400,7 +400,7 @@ impl Node {
                         }
                         if !lhs.is_empty() {
                             // (left > x) & (right > y) -> (out > x+y)
-                            cnf.add_cube_impl_lit(lhs, out_lits[sum_val - 1].unwrap());
+                            cnf.add_cube_impl_lit(&lhs, out_lits[sum_val - 1].unwrap());
                         }
                     }
                 }
@@ -469,7 +469,7 @@ impl Node {
                         }
                         if !lhs.is_empty() {
                             // (left <= x) & (right <= y) -> (out <= x+y)
-                            cnf.add_cube_impl_lit(lhs, !out_lits[sum_val].unwrap());
+                            cnf.add_cube_impl_lit(&lhs, !out_lits[sum_val].unwrap());
                         }
                     }
                 }

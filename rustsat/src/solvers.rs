@@ -185,9 +185,7 @@ pub trait Solve {
 /// use them with this library.
 pub trait SolveIncremental: Solve {
     /// Solves the internal CNF formula under assumptions.
-    /// Even though assumptions should be unique and theoretically the order shouldn't matter,
-    /// in practice it does for some solvers, therefore the assumptions are a vector rather than a set.
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError>;
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError>;
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted
     /// literals of the assumptions.

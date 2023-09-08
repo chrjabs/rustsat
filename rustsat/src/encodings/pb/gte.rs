@@ -450,7 +450,7 @@ impl Node {
                                 continue;
                             }
                             cnf.add_cube_impl_lit(
-                                vec![left_lit, right_lit],
+                                &[left_lit, right_lit],
                                 *out_lits.get(&sum_val).unwrap(),
                             );
                         }

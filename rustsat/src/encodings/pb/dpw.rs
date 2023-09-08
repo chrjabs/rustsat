@@ -59,117 +59,6 @@ pub struct DynamicPolyWatchdog {
 }
 
 impl DynamicPolyWatchdog {
-    /// Resets the totalizer database and builds a new tree structure over the input literals
-    fn build_tree(&mut self, var_manager: &mut dyn ManageVars) {
-        // Reset totalizer db and encoding
-        self.db = Default::default();
-        self.structure = Default::default();
-
-        // Initialize weight queue
-        let mut weight_queue: BTreeMap<usize, Vec<NodeCon>> = BTreeMap::new();
-        for (&lit, &weight) in self.in_lits.iter() {
-            let node = self.db.insert(Node::Leaf(lit));
-            if let Some(cons) = weight_queue.get_mut(&weight) {
-                cons.push(NodeCon::full(node));
-            } else {
-                weight_queue.insert(weight, vec![NodeCon::full(node)]);
-            }
-        }
-        let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
-
-        // Children to be merged to a given top bucket
-        let mut top_buckets = vec![vec![]; basis_len];
-        // Converts a digit number to a corresponding index in the
-        // `top_buckets`. Top buckets are ordered from smallest to highest.
-        let tb_idx = |digits: u32| (digits - 1) as usize;
-
-        // Loop while there are new weights that need to be added and distribute
-        // them to relevant top buckets
-        while !weight_queue.is_empty() {
-            let (weight, cons) = weight_queue.pop_last().unwrap();
-            let merged = self.db.merge_balanced(&cons);
-            let digits = utils::digits(weight, 2);
-            let current_weight = 1 << (digits - 1);
-            top_buckets[tb_idx(digits)].push(merged);
-            // Insert remainder of totalizer as new child
-            let remaining_weight = weight & !current_weight;
-            if remaining_weight > 0 {
-                if let Some(cons) = weight_queue.get_mut(&remaining_weight) {
-                    cons.push(merged);
-                } else {
-                    weight_queue.insert(remaining_weight, vec![merged]);
-                }
-            }
-        }
-
-        if basis_len == 1 {
-            debug_assert_eq!(top_buckets[0].len(), 1);
-            self.structure = Some(Structure {
-                root: top_buckets[0][0].id,
-                tares: vec![],
-            });
-            self.lits_added = false;
-            return;
-        }
-
-        // Prepare tares
-        let tares: Vec<_> = (0..basis_len - 1)
-            .map(|_| var_manager.new_var().pos_lit())
-            .collect();
-        let tare_nodes: Vec<_> = tares
-            .iter()
-            .map(|&lit| self.db.insert(Node::Leaf(lit)))
-            .collect();
-
-        // Merge top buckets and merge with bottom buckets
-        let mut last_bottom_bucket = None;
-        for (idx, mut cons) in top_buckets.into_iter().enumerate() {
-            if idx != basis_len - 1 {
-                // Merge top bucket (except for last) with tare
-                cons.push(NodeCon::full(tare_nodes[idx]));
-            }
-            cons.sort_unstable_by_key(|&con| self.db.con_len(con));
-            let top_bucket = self.db.merge_balanced(&cons);
-            if last_bottom_bucket.is_none() {
-                // special case: lowest bucket does not need bottom buckets
-                if self.db.con_len(top_bucket) == 1 {
-                    // top bucket is empty (except for tare), tare can be
-                    // omitted: shift to next layer
-                    continue;
-                }
-                debug_assert_eq!(top_bucket.divisor, 1);
-                last_bottom_bucket = Some(NodeCon {
-                    id: top_bucket.id,
-                    offset: top_bucket.offset,
-                    divisor: 2,
-                });
-                continue;
-            }
-
-            let right = last_bottom_bucket.unwrap();
-            let len = self.db.con_len(top_bucket) + self.db.con_len(right);
-            let depth =
-                std::cmp::max(self.db[top_bucket.id].depth(), self.db[right.id].depth()) + 1;
-            let bottom = self
-                .db
-                .insert(Node::internal(len, depth, top_bucket, right));
-            last_bottom_bucket = Some(NodeCon {
-                id: bottom,
-                offset: 0,
-                divisor: 2,
-            });
-        }
-
-        let root = last_bottom_bucket.unwrap();
-        debug_assert_eq!(root.offset, 0);
-        debug_assert_eq!(root.divisor, 2);
-        self.structure = Some(Structure {
-            root: root.id,
-            tares,
-        });
-        self.lits_added = false;
-    }
-
     /// Gets the maximum depth of the tree
     pub fn depth(&self) -> usize {
         match &self.structure {
@@ -179,12 +68,21 @@ impl DynamicPolyWatchdog {
     }
 }
 
+#[cfg_attr(feature = "internals", visibility::make(pub))]
 struct Structure {
     /// The root of the structure
-    root: NodeId,
+    pub root: NodeId,
     /// The tare variables needed to enforce specific bounds. First in vector is
     /// the tare to the second largest top bucket, then decreasing.
-    tares: Vec<Lit>,
+    pub tares: Vec<Lit>,
+}
+
+impl Structure {
+    /// Gets the power of the output literals (they represent a weight of
+    /// 2^power)
+    pub fn output_power(&self) -> usize {
+        self.tares.len()
+    }
 }
 
 impl Encode for DynamicPolyWatchdog {
@@ -223,34 +121,7 @@ impl BoundUpper for DynamicPolyWatchdog {
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         match &self.structure {
-            Some(Structure { root, tares }) => {
-                let output_weight = 1 << (tares.len());
-                let oidx = ub / output_weight;
-                if oidx >= self.db[*root].len() {
-                    return Ok(vec![]);
-                }
-                let olit = match self.db[*root].lit(oidx) {
-                    Some(&lit) => lit,
-                    None => return Err(Error::NotEncoded),
-                };
-                let mut assumps = vec![!olit];
-                // inputs <= enforced_weight at this stage
-                let mut enforced_weight = (oidx + 1) * output_weight - 1;
-                // Set needed tares
-                for power in (0..tares.len()).rev() {
-                    let weight = 1 << power;
-                    if ub + weight <= enforced_weight {
-                        enforced_weight -= weight;
-                        assumps.push(tares[power]);
-                    }
-                    if ub == enforced_weight {
-                        break;
-                    }
-                }
-                debug_assert!(ub == enforced_weight);
-
-                Ok(assumps)
-            }
+            Some(structure) => enforce_ub(structure, ub, &self.db),
             None => Ok(vec![]),
         }
     }
@@ -262,19 +133,22 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
             return Cnf::new();
         }
         if self.lits_added {
-            self.build_tree(var_manager);
+            // reset current totalizer database
+            self.db = Default::default();
+            self.structure = Some(build_structure(
+                self.in_lits.iter().map(|(&l, &w)| (l, w)),
+                &mut self.db,
+                var_manager,
+            ));
         }
         match &self.structure {
-            Some(Structure { root, tares }) => {
+            Some(structure) => {
                 let n_vars_before = var_manager.n_used();
-                let output_weight = 1 << (tares.len());
-                let output_range =
-                    range.start / output_weight..(range.end - 1) / output_weight + 1;
+                let output_weight = 1 << (structure.output_power());
+                let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
                 let mut cnf = Cnf::new();
                 for oidx in output_range {
-                    if oidx < self.db[*root].len() {
-                        self.db.define_pos(*root, oidx, &mut cnf, var_manager);
-                    }
+                    encode_output(&structure, oidx, &mut self.db, var_manager, &mut cnf);
                 }
                 self.n_clauses += cnf.len();
                 self.n_vars += var_manager.n_used() - n_vars_before;
@@ -340,3 +214,152 @@ type DpwIter<'a> = std::iter::Map<
     std::collections::hash_map::Iter<'a, Lit, usize>,
     fn((&Lit, &usize)) -> (Lit, usize),
 >;
+
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+fn build_structure<LI: Iterator<Item = (Lit, usize)>>(
+    lits: LI,
+    tot_db: &mut TotDb,
+    var_manager: &mut dyn ManageVars,
+) -> Structure {
+    // Initialize weight queue
+    let mut weight_queue: BTreeMap<usize, Vec<NodeCon>> = BTreeMap::new();
+    for (lit, weight) in lits {
+        let node = tot_db.insert(Node::Leaf(lit));
+        if let Some(cons) = weight_queue.get_mut(&weight) {
+            cons.push(NodeCon::full(node));
+        } else {
+            weight_queue.insert(weight, vec![NodeCon::full(node)]);
+        }
+    }
+    let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
+
+    // Children to be merged to a given top bucket
+    let mut top_buckets = vec![vec![]; basis_len];
+    // Converts a digit number to a corresponding index in the
+    // `top_buckets`. Top buckets are ordered from smallest to highest.
+    let tb_idx = |digits: u32| (digits - 1) as usize;
+
+    // Loop while there are new weights that need to be added and distribute
+    // them to relevant top buckets
+    while !weight_queue.is_empty() {
+        let (weight, cons) = weight_queue.pop_last().unwrap();
+        let merged = tot_db.merge_balanced(&cons);
+        let digits = utils::digits(weight, 2);
+        let current_weight = 1 << (digits - 1);
+        top_buckets[tb_idx(digits)].push(merged);
+        // Insert remainder of totalizer as new child
+        let remaining_weight = weight & !current_weight;
+        if remaining_weight > 0 {
+            if let Some(cons) = weight_queue.get_mut(&remaining_weight) {
+                cons.push(merged);
+            } else {
+                weight_queue.insert(remaining_weight, vec![merged]);
+            }
+        }
+    }
+
+    if basis_len == 1 {
+        debug_assert_eq!(top_buckets[0].len(), 1);
+        return Structure {
+            root: top_buckets[0][0].id,
+            tares: vec![],
+        };
+    }
+
+    // Prepare tares
+    let tares: Vec<_> = (0..basis_len - 1)
+        .map(|_| var_manager.new_var().pos_lit())
+        .collect();
+    let tare_nodes: Vec<_> = tares
+        .iter()
+        .map(|&lit| tot_db.insert(Node::Leaf(lit)))
+        .collect();
+
+    // Merge top buckets and merge with bottom buckets
+    let mut last_bottom_bucket = None;
+    for (idx, mut cons) in top_buckets.into_iter().enumerate() {
+        if idx != basis_len - 1 {
+            // Merge top bucket (except for last) with tare
+            cons.push(NodeCon::full(tare_nodes[idx]));
+        }
+        cons.sort_unstable_by_key(|&con| tot_db.con_len(con));
+        let top_bucket = tot_db.merge_balanced(&cons);
+        if last_bottom_bucket.is_none() {
+            // special case: lowest bucket does not need bottom buckets
+            if tot_db.con_len(top_bucket) == 1 {
+                // top bucket is empty (except for tare), tare can be
+                // omitted: shift to next layer
+                continue;
+            }
+            debug_assert_eq!(top_bucket.divisor, 1);
+            last_bottom_bucket = Some(NodeCon {
+                id: top_bucket.id,
+                offset: top_bucket.offset,
+                divisor: 2,
+            });
+            continue;
+        }
+
+        let right = last_bottom_bucket.unwrap();
+        let len = tot_db.con_len(top_bucket) + tot_db.con_len(right);
+        let depth = std::cmp::max(tot_db[top_bucket.id].depth(), tot_db[right.id].depth()) + 1;
+        let bottom = tot_db.insert(Node::internal(len, depth, top_bucket, right));
+        last_bottom_bucket = Some(NodeCon {
+            id: bottom,
+            offset: 0,
+            divisor: 2,
+        });
+    }
+
+    let root = last_bottom_bucket.unwrap();
+    debug_assert_eq!(root.offset, 0);
+    debug_assert_eq!(root.divisor, 2);
+    Structure {
+        root: root.id,
+        tares,
+    }
+}
+
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+fn encode_output(
+    dpw: &Structure,
+    oidx: usize,
+    tot_db: &mut TotDb,
+    var_manager: &mut dyn ManageVars,
+    encoding: &mut Cnf,
+) {
+    if oidx >= tot_db[dpw.root].len() {
+        return;
+    }
+    tot_db.define_pos(dpw.root, oidx, encoding, var_manager);
+}
+
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Error> {
+    let output_weight = 1 << (dpw.output_power());
+    let oidx = ub / output_weight;
+    if oidx >= tot_db[dpw.root].len() {
+        return Ok(vec![]);
+    }
+    let olit = match tot_db[dpw.root].lit(oidx) {
+        Some(&lit) => lit,
+        None => return Err(Error::NotEncoded),
+    };
+    let mut assumps = vec![!olit];
+    // inputs <= enforced_weight at this stage
+    let mut enforced_weight = (oidx + 1) * output_weight - 1;
+    // Set needed tares
+    for power in (0..dpw.output_power()).rev() {
+        let weight = 1 << power;
+        if ub + weight <= enforced_weight {
+            enforced_weight -= weight;
+            assumps.push(dpw.tares[power]);
+        }
+        if ub == enforced_weight {
+            break;
+        }
+    }
+    debug_assert!(ub == enforced_weight);
+
+    Ok(assumps)
+}

@@ -322,6 +322,7 @@ impl LitData {
 
 /// A totalizer database
 #[derive(Default)]
+#[cfg_attr(feature = "internals", visibility::make(pub))]
 pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
     nodes: Vec<Node>,
@@ -459,7 +460,7 @@ impl TotDb {
             debug_assert!(ridx <= r_max_idx);
             let llit = *llits[con_idx(lidx, lcon)].lit().unwrap();
             let rlit = *rlits[con_idx(ridx, rcon)].lit().unwrap();
-            encoding.add_cube_impl_lit(vec![llit, rlit], olit);
+            encoding.add_cube_impl_lit(&[llit, rlit], olit);
         }
 
         // Mark positive literal as encoded

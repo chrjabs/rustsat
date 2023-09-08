@@ -52,13 +52,13 @@ fn card_ub() {
     let lits = vec![lit![0], lit![1], lit![2]];
     test_card!(
         CardConstraint::new_ub(lits.clone(), 1),
-        vec![!lit![0], lit![1], !lit![2]],
-        vec![lit![0], lit![1], !lit![2]]
+        &[!lit![0], lit![1], !lit![2]],
+        &[lit![0], lit![1], !lit![2]]
     );
     test_card!(
         CardConstraint::new_ub(lits.clone(), 2),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![lit![0], lit![1], lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[lit![0], lit![1], lit![2]]
     );
 }
 
@@ -67,18 +67,18 @@ fn card_lb() {
     let lits = vec![lit![0], lit![1], lit![2]];
     test_card!(
         CardConstraint::new_lb(lits.clone(), 1),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
     test_card!(
         CardConstraint::new_lb(lits.clone(), 2),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
     test_card!(
         CardConstraint::new_lb(lits.clone(), 3),
-        vec![lit![0], lit![1], lit![2]],
-        vec![!lit![0], lit![1], !lit![2]]
+        &[lit![0], lit![1], lit![2]],
+        &[!lit![0], lit![1], !lit![2]]
     );
 }
 
@@ -87,18 +87,18 @@ fn card_eq() {
     let lits = vec![lit![0], lit![1], lit![2]];
     test_card!(
         CardConstraint::new_eq(lits.clone(), 1),
-        vec![lit![0], !lit![1], !lit![2]],
-        vec![!lit![0], lit![1], lit![2]]
+        &[lit![0], !lit![1], !lit![2]],
+        &[!lit![0], lit![1], lit![2]]
     );
     test_card!(
         CardConstraint::new_eq(lits.clone(), 2),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
     test_card!(
         CardConstraint::new_eq(lits.clone(), 3),
-        vec![lit![0], lit![1], lit![2]],
-        vec![!lit![0], lit![1], !lit![2]]
+        &[lit![0], lit![1], lit![2]],
+        &[!lit![0], lit![1], !lit![2]]
     );
 }
 
@@ -110,18 +110,18 @@ fn pb_ub() {
     lits.insert(lit![2], 3);
     test_pb!(
         PBConstraint::new_eq(lits.clone(), 1),
-        vec![lit![0], !lit![1], !lit![2]],
-        vec![!lit![0], lit![1], !lit![2]]
+        &[lit![0], !lit![1], !lit![2]],
+        &[!lit![0], lit![1], !lit![2]]
     );
     test_pb!(
         PBConstraint::new_eq(lits.clone(), 2),
-        vec![!lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], lit![2]]
+        &[!lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], lit![2]]
     );
     test_pb!(
         PBConstraint::new_eq(lits.clone(), 3),
-        vec![!lit![0], !lit![1], lit![2]],
-        vec![lit![0], !lit![1], lit![2]]
+        &[!lit![0], !lit![1], lit![2]],
+        &[lit![0], !lit![1], lit![2]]
     );
 }
 
@@ -133,18 +133,18 @@ fn pb_lb() {
     lits.insert(lit![2], 3);
     test_pb!(
         PBConstraint::new_lb(lits.clone(), 1),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
     test_pb!(
         PBConstraint::new_lb(lits.clone(), 2),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[lit![0], !lit![1], !lit![2]]
     );
     test_pb!(
         PBConstraint::new_lb(lits.clone(), 3),
-        vec![!lit![0], !lit![1], lit![2]],
-        vec![!lit![0], lit![1], !lit![2]]
+        &[!lit![0], !lit![1], lit![2]],
+        &[!lit![0], lit![1], !lit![2]]
     );
 }
 
@@ -156,18 +156,18 @@ fn pb_eq() {
     lits.insert(lit![2], 3);
     test_pb!(
         PBConstraint::new_eq(lits.clone(), 1),
-        vec![lit![0], !lit![1], !lit![2]],
-        vec![!lit![0], lit![1], lit![2]]
+        &[lit![0], !lit![1], !lit![2]],
+        &[!lit![0], lit![1], lit![2]]
     );
     test_pb!(
         PBConstraint::new_eq(lits.clone(), 2),
-        vec![!lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[!lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
     test_pb!(
         PBConstraint::new_eq(lits.clone(), 3),
-        vec![!lit![0], !lit![1], lit![2]],
-        vec![!lit![0], lit![1], !lit![2]]
+        &[!lit![0], !lit![1], lit![2]],
+        &[!lit![0], lit![1], !lit![2]]
     );
 }
 
@@ -176,13 +176,13 @@ fn card_clause() {
     let lits = vec![lit![0], lit![1], lit![2]];
     test_card!(
         CardConstraint::new_lb(lits.clone(), 1),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
     test_card!(
         CardConstraint::new_ub(lits.clone(), 2),
-        vec![!lit![0], lit![1], lit![2]],
-        vec![lit![0], lit![1], lit![2]]
+        &[!lit![0], lit![1], lit![2]],
+        &[lit![0], lit![1], lit![2]]
     );
 }
 
@@ -194,12 +194,12 @@ fn pb_clause() {
     lits.insert(lit![2], 2);
     test_pb!(
         PBConstraint::new_ub(lits.clone(), 6),
-        vec![lit![0], !lit![1], !lit![2]],
-        vec![lit![0], lit![1], lit![2]]
+        &[lit![0], !lit![1], !lit![2]],
+        &[lit![0], lit![1], lit![2]]
     );
     test_pb!(
         PBConstraint::new_lb(lits.clone(), 2),
-        vec![lit![0], lit![1], !lit![2]],
-        vec![!lit![0], !lit![1], !lit![2]]
+        &[lit![0], lit![1], !lit![2]],
+        &[!lit![0], !lit![1], !lit![2]]
     );
 }

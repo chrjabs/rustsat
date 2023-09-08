@@ -97,60 +97,60 @@ impl Cnf {
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
-    pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+    pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
         let mut cl = clause![!a];
-        b.into_iter().for_each(|bi| cl.add(bi));
+        b.into_iter().for_each(|bi| cl.add(*bi));
         self.add_clause(cl)
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
-    pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+    pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
         b.into_iter()
-            .for_each(|bi| self.add_clause(clause![!a, bi]));
+            .for_each(|bi| self.add_clause(clause![!a, *bi]));
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
-    pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
         let mut cl = clause![b];
-        a.into_iter().for_each(|ai| cl.add(!ai));
+        a.into_iter().for_each(|ai| cl.add(!*ai));
         self.add_clause(cl)
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
-    pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        for ai in &a {
+    pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
+        for ai in a {
             self.add_clause(clause![!*ai, b]);
         }
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
-    pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         let mut cl = Clause::new();
-        a.into_iter().for_each(|ai| cl.add(!ai));
-        b.into_iter().for_each(|bi| cl.add(bi));
+        a.into_iter().for_each(|ai| cl.add(!*ai));
+        b.into_iter().for_each(|bi| cl.add(*bi));
         self.add_clause(cl)
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
-    pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         for ai in a {
-            let mut cl = clause![!ai];
+            let mut cl = clause![!*ai];
             b.iter().for_each(|bi| cl.add(*bi));
             self.add_clause(cl)
         }
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
-    pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        for ai in &a {
+    pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
+        for ai in a {
             b.iter().for_each(|bi| self.add_clause(clause![!*ai, *bi]));
         }
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
-    pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         for bi in b {
-            let mut cl = clause![bi];
+            let mut cl = clause![*bi];
             a.iter().for_each(|ai| cl.add(!*ai));
             self.add_clause(cl)
         }
@@ -296,7 +296,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
-    pub fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+    pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
         self.var_manager.mark_used(a.var());
         b.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
@@ -305,7 +305,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
-    pub fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+    pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
         self.var_manager.mark_used(a.var());
         b.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
@@ -314,7 +314,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
-    pub fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
         a.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
         });
@@ -323,7 +323,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
-    pub fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
         a.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
         });
@@ -332,7 +332,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
-    pub fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         a.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
         });
@@ -343,7 +343,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
-    pub fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         a.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
         });
@@ -354,7 +354,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
-    pub fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         a.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
         });
@@ -365,7 +365,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
-    pub fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         a.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
         });

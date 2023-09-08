@@ -5,9 +5,9 @@ macro_rules! test_assignment {
     ($solver:expr, $base_assumps:expr, $assumps:expr, $result:expr) => {{
         let mut assumps = $base_assumps.clone();
         assumps.extend($assumps);
-        let res = $solver.solve_assumps(assumps.clone()).unwrap();
+        let res = $solver.solve_assumps(&assumps).unwrap();
         if res == rustsat::solvers::SolverResult::Sat && res != $result {
-            let mut max_var = var![0];
+            let mut max_var = rustsat::var![0];
             for a in assumps {
                 max_var = std::cmp::max(a.var(), max_var);
             }
