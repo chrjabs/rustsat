@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-cadical"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
@@ -27,7 +27,7 @@ v1-7-1 = []
 
 [dependencies]
 cpu-time = "1.0.0"
-rustsat = { version = "0.2", path = "../rustsat", default-features = false }
+rustsat = { version = "0.3", path = "../rustsat", default-features = false }
 
 [build-dependencies]
 cc = { version = "1.0.79", features = ["parallel"] }
