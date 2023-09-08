@@ -51,7 +51,7 @@ pub struct DynamicPolyWatchdog {
     /// Sum of all input weight
     weight_sum: usize,
     /// The number of variables
-    n_vars: usize,
+    n_vars: u32,
     /// The number of clauses
     n_clauses: usize,
     /// The node database of the totalizer
@@ -164,7 +164,7 @@ impl EncodeStats for DynamicPolyWatchdog {
         self.n_clauses
     }
 
-    fn n_vars(&self) -> usize {
+    fn n_vars(&self) -> u32 {
         self.n_vars
     }
 }

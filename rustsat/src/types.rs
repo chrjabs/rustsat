@@ -27,23 +27,23 @@ pub type RsHasher = rustc_hash::FxHasher;
 pub type RsHasher = std::collections::hash_map::DefaultHasher;
 
 /// Type representing boolean variables in a SAT problem. Variables indexing in
-/// RustSAT starts from 0 and the maximum index is `(usize::MAX - 1) / 2`. This is
-/// because literals are represented as a single `usize` as well. The memory
-/// representation of this is a single `usize`.
+/// RustSAT starts from 0 and the maximum index is `(u32::MAX - 1) / 2`. This is
+/// because literals are represented as a single `u32` as well. The memory
+/// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord, Debug)]
 #[repr(transparent)]
 pub struct Var {
-    idx: usize,
+    idx: u32,
 }
 
 impl Var {
     /// The maximum index that can be represented.
-    pub const MAX_IDX: usize = (usize::MAX - 1) / 2;
+    pub const MAX_IDX: u32 = (u32::MAX - 1) / 2;
 
     /// Creates a new variables with a given index.
     /// Indices start from 0.
     /// Panics if `idx > Var::MAX_IDX`.
-    pub fn new(idx: usize) -> Var {
+    pub fn new(idx: u32) -> Var {
         if idx > Var::MAX_IDX {
             panic!("variable index too high")
         }
@@ -54,7 +54,7 @@ impl Var {
     /// Indices start from 0.
     /// Returns `Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX)` if
     /// `idx > Var::MAX_IDX`.
-    pub fn new_with_error(idx: usize) -> Result<Var, TypeError> {
+    pub fn new_with_error(idx: u32) -> Result<Var, TypeError> {
         if idx > Var::MAX_IDX {
             return Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX));
         }
@@ -66,7 +66,7 @@ impl Var {
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     #[inline]
-    pub fn new_unchecked(idx: usize) -> Var {
+    pub fn new_unchecked(idx: u32) -> Var {
         Var { idx }
     }
 
@@ -104,7 +104,10 @@ impl Var {
         Lit::negative_unchecked(self.idx)
     }
 
-    /// Returns the index of the variable.
+    /// Returns the index of the variable. This is a `usize` to enable easier
+    /// indexing of data structures like vectors, even though the internal
+    /// representation of a variable is `u32`. For the 32 bit index use
+    /// [`Var::idx32`].
     ///
     /// # Examples
     ///
@@ -117,6 +120,22 @@ impl Var {
     /// ```
     #[inline]
     pub fn idx(&self) -> usize {
+        self.idx as usize
+    }
+
+    /// Returns the 32 bit index of the variable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustsat::types::Var;
+    ///
+    /// let var = Var::new(5);
+    ///
+    /// assert_eq!(5, var.idx32());
+    /// ```
+    #[inline]
+    pub fn idx32(&self) -> u32 {
         self.idx
     }
 
@@ -130,35 +149,35 @@ impl Var {
 }
 
 /// Incrementing variables
-impl ops::Add<usize> for Var {
+impl ops::Add<u32> for Var {
     type Output = Var;
 
-    fn add(self, rhs: usize) -> Self::Output {
+    fn add(self, rhs: u32) -> Self::Output {
         Var {
             idx: self.idx + rhs,
         }
     }
 }
 
-impl ops::AddAssign<usize> for Var {
-    fn add_assign(&mut self, rhs: usize) {
+impl ops::AddAssign<u32> for Var {
+    fn add_assign(&mut self, rhs: u32) {
         self.idx += rhs
     }
 }
 
 /// Decrementing variables
-impl ops::Sub<usize> for Var {
+impl ops::Sub<u32> for Var {
     type Output = Var;
 
-    fn sub(self, rhs: usize) -> Self::Output {
+    fn sub(self, rhs: u32) -> Self::Output {
         Var {
             idx: self.idx - rhs,
         }
     }
 }
 
-impl ops::SubAssign<usize> for Var {
-    fn sub_assign(&mut self, rhs: usize) {
+impl ops::SubAssign<u32> for Var {
+    fn sub_assign(&mut self, rhs: u32) {
         self.idx -= rhs
     }
 }
@@ -194,19 +213,19 @@ pub struct Lit {
     /// whether the literal is negated or not. This way the literal can directly
     /// be used to index data structures with the two literals of a variable
     /// being close together.
-    lidx: usize,
+    lidx: u32,
 }
 
 impl Lit {
     /// Represents a literal in memory
     #[inline]
-    fn represent(idx: usize, negated: bool) -> usize {
-        (idx << 1) + (negated as usize)
+    fn represent(idx: u32, negated: bool) -> u32 {
+        (idx << 1) + (negated as u32)
     }
 
     /// Creates a new (negated or not) literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
-    pub fn new(idx: usize, negated: bool) -> Lit {
+    pub fn new(idx: u32, negated: bool) -> Lit {
         if idx > Var::MAX_IDX {
             panic!("variable index too high")
         }
@@ -218,7 +237,7 @@ impl Lit {
     /// Creates a new (negated or not) literal with a given index.
     /// Returns `Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX)` if
     /// `idx > Var::MAX_IDX`.
-    pub fn new_with_error(idx: usize, negated: bool) -> Result<Lit, TypeError> {
+    pub fn new_with_error(idx: u32, negated: bool) -> Result<Lit, TypeError> {
         if idx > Var::MAX_IDX {
             return Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX));
         }
@@ -230,7 +249,7 @@ impl Lit {
     /// Creates a new (negated or not) literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
-    pub fn new_unchecked(idx: usize, negated: bool) -> Lit {
+    pub fn new_unchecked(idx: u32, negated: bool) -> Lit {
         Lit {
             lidx: Lit::represent(idx, negated),
         }
@@ -239,28 +258,28 @@ impl Lit {
     /// Creates a new positive literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
-    pub fn positive(idx: usize) -> Lit {
+    pub fn positive(idx: u32) -> Lit {
         Lit::new(idx, false)
     }
 
     /// Creates a new negated literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
-    pub fn negative(idx: usize) -> Lit {
+    pub fn negative(idx: u32) -> Lit {
         Lit::new(idx, true)
     }
 
     /// Creates a new positive literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
-    pub fn positive_with_error(idx: usize) -> Result<Lit, TypeError> {
+    pub fn positive_with_error(idx: u32) -> Result<Lit, TypeError> {
         Lit::new_with_error(idx, false)
     }
 
     /// Creates a new negated literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
-    pub fn negative_with_error(idx: usize) -> Result<Lit, TypeError> {
+    pub fn negative_with_error(idx: u32) -> Result<Lit, TypeError> {
         Lit::new_with_error(idx, true)
     }
 
@@ -268,7 +287,7 @@ impl Lit {
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     #[inline]
-    pub fn positive_unchecked(idx: usize) -> Lit {
+    pub fn positive_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, false)
     }
 
@@ -276,7 +295,7 @@ impl Lit {
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     #[inline]
-    pub fn negative_unchecked(idx: usize) -> Lit {
+    pub fn negative_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, true)
     }
 
@@ -287,23 +306,19 @@ impl Lit {
             return Err(TypeError::IpasirZero);
         }
         let negated = val < 0;
-        let idx: usize = if val > 0 {
-            val.try_into().unwrap()
-        } else {
-            (-val).try_into().unwrap()
-        };
+        let idx = val.abs() as u32;
         Lit::new_with_error(idx - 1, negated)
     }
 
     /// Gets the variable index of the literal
     #[inline]
-    pub fn vidx(&self) -> usize {
+    pub fn vidx(&self) -> u32 {
         self.lidx >> 1
     }
 
     /// Gets a literal representation for indexing data structures
     #[inline]
-    pub fn lidx(&self) -> usize {
+    pub fn lidx(&self) -> u32 {
         self.lidx
     }
 
@@ -327,13 +342,13 @@ impl Lit {
     /// True if the literal is positive.
     #[inline]
     pub fn is_pos(&self) -> bool {
-        (self.lidx & 1usize) == 0
+        (self.lidx & 1u32) == 0
     }
 
     /// True if the literal is negated.
     #[inline]
     pub fn is_neg(&self) -> bool {
-        (self.lidx & 1usize) == 1
+        (self.lidx & 1u32) == 1
     }
 
     /// Converts the literal to an integer as accepted by the IPASIR API and
@@ -359,7 +374,7 @@ impl Lit {
         let negated = self.is_neg();
         let idx: c_int = match (self.vidx() + 1).try_into() {
             Ok(idx) => idx,
-            Err(_) => return Err(TypeError::IdxTooHigh(self.vidx() + 1, c_int::MAX as usize)),
+            Err(_) => return Err(TypeError::IdxTooHigh(self.vidx() + 1, c_int::MAX as u32)),
         };
         Ok(if negated { -idx } else { idx })
     }
@@ -372,7 +387,7 @@ impl ops::Not for Lit {
     #[inline]
     fn not(self) -> Lit {
         Lit {
-            lidx: self.lidx ^ 1usize,
+            lidx: self.lidx ^ 1u32,
         }
     }
 }
@@ -384,16 +399,16 @@ impl ops::Neg for Lit {
     #[inline]
     fn neg(self) -> Lit {
         Lit {
-            lidx: self.lidx ^ 1usize,
+            lidx: self.lidx ^ 1u32,
         }
     }
 }
 
 /// Incrementing literals. This preserves the sign of the literal.
-impl ops::Add<usize> for Lit {
+impl ops::Add<u32> for Lit {
     type Output = Lit;
 
-    fn add(self, rhs: usize) -> Self::Output {
+    fn add(self, rhs: u32) -> Self::Output {
         Lit {
             lidx: self.lidx + 2 * rhs,
         }
@@ -401,10 +416,10 @@ impl ops::Add<usize> for Lit {
 }
 
 /// Decrementing literals. This preserves the sign of the literal.
-impl ops::Sub<usize> for Lit {
+impl ops::Sub<u32> for Lit {
     type Output = Lit;
 
-    fn sub(self, rhs: usize) -> Self::Output {
+    fn sub(self, rhs: u32) -> Self::Output {
         Lit {
             lidx: self.lidx - 2 * rhs,
         }
@@ -512,10 +527,10 @@ impl Assignment {
     /// Get the value that the solution assigns to a variable.
     /// If the variable is not included in the solution, will return `TernaryVal::DontCare`.
     pub fn var_value(&self, var: Var) -> TernaryVal {
-        if var.idx >= self.assignment.len() {
+        if var.idx() >= self.assignment.len() {
             TernaryVal::DontCare
         } else {
-            self.assignment[var.idx]
+            self.assignment[var.idx()]
         }
     }
 
@@ -546,10 +561,10 @@ impl Assignment {
 
     /// Assigns a variable in the assignment
     pub fn assign_var(&mut self, var: Var, val: TernaryVal) {
-        if self.assignment.len() < var.idx + 1 {
-            self.assignment.resize(var.idx + 1, TernaryVal::DontCare);
+        if self.assignment.len() < var.idx() + 1 {
+            self.assignment.resize(var.idx() + 1, TernaryVal::DontCare);
         }
-        self.assignment[var.idx] = val;
+        self.assignment[var.idx()] = val;
     }
 
     /// Assigns a literal to true
@@ -599,8 +614,8 @@ impl IntoIterator for Assignment {
             .into_iter()
             .enumerate()
             .filter_map(|(idx, tv)| match tv {
-                TernaryVal::True => Some(Var::new(idx).pos_lit()),
-                TernaryVal::False => Some(Var::new(idx).neg_lit()),
+                TernaryVal::True => Some(Var::new(idx.try_into().unwrap()).pos_lit()),
+                TernaryVal::False => Some(Var::new(idx.try_into().unwrap()).neg_lit()),
                 TernaryVal::DontCare => None,
             })
     }
@@ -625,7 +640,7 @@ impl From<Vec<TernaryVal>> for Assignment {
 pub enum TypeError {
     /// The requested index is too high.
     /// Contains the requested and the maximum index.
-    IdxTooHigh(usize, usize),
+    IdxTooHigh(u32, u32),
     /// IPASIR index is zero
     IpasirZero,
 }
@@ -657,7 +672,14 @@ mod tests {
     fn var_index() {
         let idx = 5;
         let var = Var::new(idx);
-        assert_eq!(var.idx(), idx);
+        assert_eq!(var.idx(), idx as usize);
+    }
+
+    #[test]
+    fn var_index32() {
+        let idx = 5;
+        let var = Var::new(idx);
+        assert_eq!(var.idx32(), idx);
     }
 
     #[test]
@@ -816,12 +838,12 @@ mod tests {
 
     #[test]
     fn var_mem_size() {
-        assert_eq!(size_of::<Var>(), size_of::<usize>());
+        assert_eq!(size_of::<Var>(), size_of::<u32>());
     }
 
     #[test]
     fn lit_mem_size() {
-        assert_eq!(size_of::<Lit>(), size_of::<usize>());
+        assert_eq!(size_of::<Lit>(), size_of::<u32>());
     }
 
     #[test]

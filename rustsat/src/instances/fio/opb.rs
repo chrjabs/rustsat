@@ -65,7 +65,7 @@ impl fmt::Display for Error {
 pub struct Options {
     /// The variable with this index (`x<idx>`) in the OPB file will correspond to
     /// `var![0]`
-    pub first_var_idx: usize,
+    pub first_var_idx: u32,
     /// Whether to avoid negated literals (e.g., `4 ~x1`) by transforming the
     /// constraint
     pub no_negated_lits: bool,
@@ -221,7 +221,7 @@ fn comment(input: &str) -> IResult<&str, &str> {
 fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
     let (input, _) = tag("x")(input)?;
     map_res(u64, |idx| {
-        let idx = (TryInto::<usize>::try_into(idx)?) - opts.first_var_idx;
+        let idx = (TryInto::<u32>::try_into(idx)?) - opts.first_var_idx;
         Ok::<Var, TryFromIntError>(Var::new(idx))
     })(input)
 }
@@ -652,7 +652,7 @@ fn write_objective<W: Write, LI: WLitIter>(
                     (l.var(), w as isize)
                 }
             })
-            .try_for_each(|(v, w)| write!(writer, " {} x{}", w, v.idx() + opts.first_var_idx))?;
+            .try_for_each(|(v, w)| write!(writer, " {} x{}", w, v.idx32() + opts.first_var_idx))?;
     } else {
         soft_lits.into_iter().try_for_each(|(l, w)| {
             if l.is_pos() {

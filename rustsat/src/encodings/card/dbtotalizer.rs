@@ -37,7 +37,7 @@ pub struct DbTotalizer {
     /// The root of the tree, if constructed
     root: Option<NodeId>,
     /// The number of variables in the totalizer
-    n_vars: usize,
+    n_vars: u32,
     /// The number of clauses in the totalizer
     n_clauses: usize,
     /// The node database of the totalizer
@@ -140,7 +140,7 @@ impl EncodeStats for DbTotalizer {
         self.n_clauses
     }
 
-    fn n_vars(&self) -> usize {
+    fn n_vars(&self) -> u32 {
         self.n_vars
     }
 }

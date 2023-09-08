@@ -50,7 +50,7 @@ pub trait ManageVars {
         Self: Sized;
     /// Gets the number of used variables. Typically this is just the index of
     /// the next free variable.
-    fn n_used(&self) -> usize;
+    fn n_used(&self) -> u32;
 }
 
 /// Trait for variable managers reindexing an existing instance
@@ -122,8 +122,8 @@ impl ManageVars for BasicVarManager {
         };
     }
 
-    fn n_used(&self) -> usize {
-        self.next_var.idx()
+    fn n_used(&self) -> u32 {
+        self.next_var.idx32()
     }
 }
 
@@ -185,7 +185,7 @@ impl Default for ReinducingVarManager {
 impl ManageVars for ReinducingVarManager {
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
-        self.next_var = Var::new(v.idx() + 1);
+        self.next_var = v + 1;
         v
     }
 
@@ -212,8 +212,8 @@ impl ManageVars for ReinducingVarManager {
         self.in_map.extend(other.in_map);
     }
 
-    fn n_used(&self) -> usize {
-        self.next_var.idx()
+    fn n_used(&self) -> u32 {
+        self.next_var.idx32()
     }
 }
 
@@ -263,7 +263,7 @@ impl Default for ObjectVarManager {
 impl ManageVars for ObjectVarManager {
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
-        self.next_var = Var::new(v.idx() + 1);
+        self.next_var = v + 1;
         v
     }
 
@@ -290,8 +290,8 @@ impl ManageVars for ObjectVarManager {
         self.object_map.extend(other.object_map);
     }
 
-    fn n_used(&self) -> usize {
-        self.next_var.idx()
+    fn n_used(&self) -> u32 {
+        self.next_var.idx32()
     }
 }
 
@@ -307,18 +307,18 @@ pub struct RandReindVarManager {
 #[cfg(feature = "rand")]
 impl RandReindVarManager {
     /// Creates a new variable manager from a next free variable
-    pub fn init(n_vars: usize) -> Self {
+    pub fn init(n_vars: u32) -> Self {
         use rand::seq::SliceRandom;
         let mut in_map: Vec<Var> = (0..n_vars).map(Var::new).collect();
         let mut rng = rand::thread_rng();
         // Build randomly shuffled input map
         in_map[..].shuffle(&mut rng);
         // Build reverse map
-        let mut out_map = vec![Var::new(0); n_vars];
+        let mut out_map = vec![Var::new(0); n_vars as usize];
         in_map
             .iter()
             .enumerate()
-            .for_each(|(idx, v)| out_map[v.idx()] = Var::new(idx));
+            .for_each(|(idx, v)| out_map[v.idx()] = Var::new(idx as u32));
         Self {
             next_var: Var::new(n_vars),
             in_map,
@@ -354,7 +354,7 @@ impl ReindexVars for RandReindVarManager {
 impl ManageVars for RandReindVarManager {
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
-        self.next_var = Var::new(v.idx() + 1);
+        self.next_var = v + 1;
         v
     }
 
@@ -381,8 +381,8 @@ impl ManageVars for RandReindVarManager {
         self.in_map.extend(other.in_map);
     }
 
-    fn n_used(&self) -> usize {
-        self.next_var.idx()
+    fn n_used(&self) -> u32 {
+        self.next_var.idx32()
     }
 }
 

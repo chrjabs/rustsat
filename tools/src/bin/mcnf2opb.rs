@@ -15,7 +15,7 @@ struct Args {
     out_path: Option<PathBuf>,
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 0)]
-    first_var_idx: usize,
+    first_var_idx: u32,
     /// Avoid negated literals in the OPB file by transforming constraints
     #[arg(long)]
     avoid_negated_lits: bool,
