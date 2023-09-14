@@ -52,5 +52,25 @@ echo "v1.7.0 build returned: $?"
 
 echo "Building v1.7.1"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
-cargo build --features=v1-7-1 &> v170-build.log
+cargo build --features=v1-7-1 &> v171-build.log
 echo "v1.7.1 build returned: $?"
+
+echo "Building v1.7.2"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=v1-7-2 &> v172-build.log
+echo "v1.7.2 build returned: $?"
+
+echo "Building quiet"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=quiet &> quiet-build.log
+echo "quiet build returned: $?"
+
+echo "Building safe"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=safe &> safe-build.log
+echo "safe build returned: $?"
+
+echo "Building logging"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=logging &> logging-build.log
+echo "logging build returned: $?"

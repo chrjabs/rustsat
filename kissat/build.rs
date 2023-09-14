@@ -10,7 +10,9 @@ use std::{
 
 fn main() {
     // Select commit based on features. If conflict, always choose newest release
-    let tag = if cfg!(feature = "v3-1-0") {
+    let tag = if cfg!(feature = "v3-1-1") {
+        "refs/tags/rel-3.1.1"
+    } else if cfg!(feature = "v3-1-0") {
         "refs/tags/rel-3.1.0"
     } else if cfg!(feature = "v3-0-0") {
         "refs/tags/rel-3.0.0"
@@ -22,7 +24,7 @@ fn main() {
         "refs/tags/sc2022-bulky"
     } else {
         // default to newest version
-        "refs/tags/rel-3.1.0"
+        "refs/tags/rel-3.1.1"
     };
 
     // Build C library
@@ -79,6 +81,11 @@ fn build(repo: &str, branch: &str, reference: &str) {
                 .define("NDEBUG", None)
                 .warnings(false);
         }
+        #[cfg(feature = "safe")]
+        kissat_build.define("SAFE", None); // --safe
+        #[cfg(feature = "quiet")]
+        kissat_build.define("QUIET", None); // --quiet
+
         // Generate build header
         let mut build_header = File::create(kissat_dir.join("src").join("build.h"))
             .expect("Could not create kissat build header");
