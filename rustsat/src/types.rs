@@ -582,6 +582,15 @@ impl Assignment {
         self.assignment.truncate(max_var.idx() + 1);
         self
     }
+
+    /// Get the maximum variable in the assignment
+    pub fn max_var(&self) -> Option<Var> {
+        if self.assignment.is_empty() {
+            None
+        } else {
+            Some(var![self.assignment.len() as u32 - 1])
+        }
+    }
 }
 
 impl fmt::Debug for Assignment {

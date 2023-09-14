@@ -160,6 +160,12 @@ impl Clause {
     }
 }
 
+impl Extend<Lit> for Clause {
+    fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
+        self.lits.extend(iter)
+    }
+}
+
 impl ops::Index<usize> for Clause {
     type Output = Lit;
 

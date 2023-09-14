@@ -69,6 +69,7 @@ impl DynamicPolyWatchdog {
 }
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]
+#[derive(Clone)]
 struct Structure {
     /// The root of the structure
     pub root: NodeId,
@@ -135,7 +136,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         if self.lits_added {
             // reset current totalizer database
             self.db = Default::default();
-            self.structure = Some(build_structure(
+            self.structure = Some(build_lit_structure(
                 self.in_lits.iter().map(|(&l, &w)| (l, w)),
                 &mut self.db,
                 var_manager,
@@ -216,19 +217,32 @@ type DpwIter<'a> = std::iter::Map<
 >;
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]
-fn build_structure<LI: Iterator<Item = (Lit, usize)>>(
+fn build_lit_structure<LI: Iterator<Item = (Lit, usize)>>(
     lits: LI,
+    tot_db: &mut TotDb,
+    var_manager: &mut dyn ManageVars,
+) -> Structure {
+    let lit_to_con = |(lit, weight)| {
+        let node = tot_db.insert(Node::Leaf(lit));
+        (NodeCon::full(node), weight)
+    };
+    let cons: Vec<_> = lits.map(lit_to_con).collect();
+    build_structure(cons.into_iter(), tot_db, var_manager)
+}
+
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+fn build_structure<CI: Iterator<Item = (NodeCon, usize)>>(
+    cons: CI,
     tot_db: &mut TotDb,
     var_manager: &mut dyn ManageVars,
 ) -> Structure {
     // Initialize weight queue
     let mut weight_queue: BTreeMap<usize, Vec<NodeCon>> = BTreeMap::new();
-    for (lit, weight) in lits {
-        let node = tot_db.insert(Node::Leaf(lit));
+    for (con, weight) in cons {
         if let Some(cons) = weight_queue.get_mut(&weight) {
-            cons.push(NodeCon::full(node));
+            cons.push(con);
         } else {
-            weight_queue.insert(weight, vec![NodeCon::full(node)]);
+            weight_queue.insert(weight, vec![con]);
         }
     }
     let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
@@ -267,13 +281,14 @@ fn build_structure<LI: Iterator<Item = (Lit, usize)>>(
     }
 
     // Prepare tares
-    let tares: Vec<_> = (0..basis_len - 1)
+    let mut tares: Vec<_> = (0..basis_len - 1)
         .map(|_| var_manager.new_var().pos_lit())
         .collect();
     let tare_nodes: Vec<_> = tares
         .iter()
         .map(|&lit| tot_db.insert(Node::Leaf(lit)))
         .collect();
+    tares.shrink_to_fit();
 
     // Merge top buckets and merge with bottom buckets
     let mut last_bottom_bucket = None;
