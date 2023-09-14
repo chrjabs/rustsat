@@ -4,7 +4,7 @@ use std::{collections::TryReserveError, io, path::Path};
 
 use crate::{
     clause,
-    encodings::{card, pb},
+    encodings::{atomics, card, pb},
     lit,
     types::{
         constraints::{CardConstraint, PBConstraint},
@@ -91,16 +91,14 @@ impl Cnf {
         self.clauses.len()
     }
 
-    /// Adds an implication of form (a -> b) to the instance
+    /// See [`atomics::lit_impl_lit`]
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.add_clause(clause![!a, b])
+        self.add_clause(atomics::lit_impl_lit(a, b))
     }
 
-    /// Adds an implication of form a -> (b1 | b2 | ... | bm)
+    /// See [`atomics::lit_impl_clause`]
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
-        let mut cl = clause![!a];
-        b.into_iter().for_each(|bi| cl.add(*bi));
-        self.add_clause(cl)
+        self.add_clause(atomics::lit_impl_clause(a, b))
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
@@ -109,11 +107,9 @@ impl Cnf {
             .for_each(|bi| self.add_clause(clause![!a, *bi]));
     }
 
-    /// Adds an implication of form (a1 & a2 & ... & an) -> b
+    /// See [`atomics::cube_impl_lit`]
     pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        let mut cl = clause![b];
-        a.into_iter().for_each(|ai| cl.add(!*ai));
-        self.add_clause(cl)
+        self.add_clause(atomics::cube_impl_lit(a, b))
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
@@ -123,12 +119,9 @@ impl Cnf {
         }
     }
 
-    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
+    /// See [`atomics::cube_impl_clause`]
     pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        let mut cl = Clause::new();
-        a.into_iter().for_each(|ai| cl.add(!*ai));
-        b.into_iter().for_each(|bi| cl.add(*bi));
-        self.add_clause(cl)
+        self.add_clause(atomics::cube_impl_clause(a, b))
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
