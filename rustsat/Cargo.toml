@@ -21,10 +21,6 @@ xz2 = { version = "0.1.7", optional = true }
 rustc-hash = { version = "1.1.0", optional = true }
 cpu-time = "1.0.0"
 rand = { version = "0.8.5", optional = true }
-clap = { optional = true, version = "4.2.4", features = ["derive", "cargo"] }
-concolor-clap = { optional = true, version = "0.1.0" }
-termcolor = { optional = true, version = "1.2.0" }
-atty = { optional = true, version = "0.2.14" }
 visibility = { version = "0.0.1" }
 
 [build-dependencies]
