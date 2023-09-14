@@ -23,3 +23,15 @@ echo "v3.0.0 test returned: $?"
 echo "Testing v3.1.0"
 cargo test --features=v3-1-0 &> v310-test.log
 echo "v3.1.0 test returned: $?"
+
+echo "Testing v3.1.1"
+cargo test --features=v3-1-1 &> v311-test.log
+echo "v3.1.1 test returned: $?"
+
+echo "Testing quiet"
+cargo test --features=quiet &> quiet-test.log
+echo "quiet test returned: $?"
+
+echo "Testing safe"
+cargo test --features=safe &> safe-test.log
+echo "safe test returned: $?"

@@ -4,7 +4,10 @@ Armin Biere's SAT solver [CaDiCaL](https://github.com/arminbiere/cadical) to be 
 
 ## Features
 
-- `debug`: if this feature is enables, the C++ library will be built with debug functionality if the Rust project is built in debug mode
+- `debug`: if this feature is enables, the C++ library will be built with debug and check functionality if the Rust project is built in debug mode
+- `safe`: disable writing through 'popen' for more safe usage of the library in applications
+- `quiet`: exclude message and profiling code (logging too)
+- `logging`: include logging code (but disabled by default)
 
 ## CaDiCaL Versions
 
