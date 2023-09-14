@@ -1,6 +1,10 @@
 # rustsat-kissat - Interface to the kissat SAT Solver for RustSAT
 
-Armin Biere's SAT solver [Kissat](https://github.com/arminbiere/kissat) be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
+Armin Biere's SAT solver [Kissat](https://github.com/arminbiere/kissat) to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
+
+## Features
+
+- `debug`: if this feature is enables, the C library will be built with debug functionality if the Rust project is built in debug mode
 
 ## Kissat Versions
 

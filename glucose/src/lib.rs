@@ -1,8 +1,4 @@
-//! # Glucose 4 Solver Interface
-//!
-//! Interface to the [Glucose
-//! 4](https://www.labri.fr/perso/lsimon/research/glucose/#glucose-4.2.1)
-//! incremental SAT solver.
+#![doc = include_str!("../README.md")]
 
 use rustsat::{solvers::SolverState, types::Lit};
 use std::fmt;

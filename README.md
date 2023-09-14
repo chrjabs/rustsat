@@ -1,7 +1,20 @@
 # rustsat - A Comprehensive SAT Library for Rust
 
+`rustsat` is a collection of interfaces and utilities for working with the boolean satisfiability problem in Rust.
 This library aims to provide implementations of elements commonly used in the development on software in the area of satisfiability solving.
 The focus of the library is to provide as much ease of use without giving up on performance.
+
+## Features
+
+| Feature name | Description |
+| --- | --- |
+| `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
+| `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
+| `ipasir` | Include and link the IPASIR solver interface. |
+| `optimization` | Include optimization (MaxSAT) data structures etc. |
+| `multiopt` | Include data structures etc. for multi-objective optimization. |
+| `compression` | Enable parsing and writing compressed input. |
+| `rand` | Enable randomization features. (Shuffling clauses etc.) |
 
 ## Examples
 
@@ -11,10 +24,25 @@ solver](https://github.com/chrjabs/pminimal-rs).
 
 ## Versions
 
+Note that at the current state of development, releases of RustSAT are _not_ following semantic versioning, meaning the API can _change_ between minor releases.
+For a more detailed changelog including all patch versions, see [GitHub Releases](https://github.com/chrjabs/rustsat/releases).
+
+### Version 0.3.x
+
+- Alternative totalizer implementation based on a totalizer database
+- Dynamic polynomial watchdog encoing
+- Changes to public API: changed some vectores to slices
+- Changed internal variable/literal representation from `usize` to `u32`
+
+### Version 0.2.x
+
+Solver interfaces factored out into seperate crates.
+See detailed changes in [GitHub Releases](https://github.com/chrjabs/rustsat/releases).
+
 ### Version 0.1.2
 
 Updated initial version with working dependencies
 
 ### Version 0.1.0 and 0.1.1
 
-Yankes because of dependencies that don't exist anymore
+Yanked because of dependencies that don't exist anymore
