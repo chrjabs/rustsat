@@ -1,7 +1,7 @@
 //! # Totalizer Encoding Based On a Node Database
 //!
 //! This is an alternative implementation of the
-//! [`rustst::encodings::card::Totalizer`] encoding.
+//! [`crate::encodings::card::Totalizer`] encoding.
 
 use std::{
     cmp,

@@ -1,6 +1,6 @@
 # rustsat-glucose - Interface to the Glucose SAT Solver for RustSAT
 
-The Glucose SAT solver be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
+The Glucose SAT solver to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 
 ## Glucose Version
 

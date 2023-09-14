@@ -1,7 +1,4 @@
-//! # Minisat Solver Interface
-//!
-//! Interface to the [Minisat](https://github.com/niklasso/minisat) incremental
-//! SAT solver.
+#![doc = include_str!("../README.md")]
 
 use rustsat::{solvers::SolverState, types::Lit};
 use std::fmt;

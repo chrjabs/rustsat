@@ -1,6 +1,6 @@
 # rustsat-minisat - Interface to the Minisat SAT Solver for RustSAT
 
-The Minisat SAT solver be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
+The Minisat SAT solver to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 
 ## Minisat Version
 

@@ -1,6 +1,4 @@
-//! # Kissat Solver Interface
-//!
-//! Interface to the [Kissat](https://github.com/arminbiere/kissat) incremental SAT solver.
+#![doc = include_str!("../README.md")]
 
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};

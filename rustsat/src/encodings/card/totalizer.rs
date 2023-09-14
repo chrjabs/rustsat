@@ -5,7 +5,7 @@
 //! The implementation is recursive.
 //!
 //! For an alternative implementation based on a node database, see
-//! [`rustsat::encodings::card::DbTotalizer`].
+//! [`crate::encodings::card::DbTotalizer`].
 //!
 //! ## References
 //!

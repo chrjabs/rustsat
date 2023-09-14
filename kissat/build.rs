@@ -67,7 +67,7 @@ fn build(repo: &str, branch: &str, reference: &str) {
             });
         // Setup build configuration
         let mut kissat_build = cc::Build::new();
-        if env::var("PROFILE").unwrap() == "debug" {
+        if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
             kissat_build
                 .opt_level(0)
                 .define("DEBUG", None)

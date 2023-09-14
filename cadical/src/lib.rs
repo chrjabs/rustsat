@@ -1,6 +1,4 @@
-//! # CaDiCaL Solver Interface
-//!
-//! Interface to the [CaDiCaL](https://github.com/arminbiere/cadical) incremental SAT solver.
+#![doc = include_str!("../README.md")]
 
 use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
@@ -742,7 +740,7 @@ impl fmt::Display for Config {
 /// Possible CaDiCaL limits
 #[derive(Debug)]
 pub enum Limit {
-    /// The number of calls to [`CaDiCaL::terminate`] before CaDiCaL terminates
+    /// The number of calls to [`InterruptSolver::interrupt()`] before CaDiCaL terminates
     Terminate(c_int),
     /// A limit on the number of conflicts
     Conflicts(c_int),
