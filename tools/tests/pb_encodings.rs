@@ -14,7 +14,7 @@ use rustsat::{
         Solve, SolveIncremental,
         SolverResult::{self, Sat, Unsat},
     },
-    types::{Clause, Lit, RsHashMap, Var},
+    types::RsHashMap,
     var,
 };
 use rustsat_cadical::CaDiCaL;
@@ -49,23 +49,17 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental>(mut enc: PBE) {
     lits.insert(lit![4], 2);
     enc.extend(lits);
 
-    solver
-        .add_cnf(enc.encode_ub(0..3, &mut var_manager))
-        .unwrap();
+    enc.encode_ub(0..3, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    solver
-        .add_cnf(enc.encode_ub_change(0..5, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(0..5, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    solver
-        .add_cnf(enc.encode_ub_change(0..6, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(0..6, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -74,16 +68,12 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental>(mut enc: PBE) {
     lits.insert(lit![5], 4);
     enc.extend(lits);
 
-    solver
-        .add_cnf(enc.encode_ub_change(0..6, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(0..6, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    solver
-        .add_cnf(enc.encode_ub_change(0..10, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(0..10, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -96,16 +86,12 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental>(mut enc: PBE) {
     lits.insert(lit![10], 2);
     enc.extend(lits);
 
-    solver
-        .add_cnf(enc.encode_ub_change(0..10, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(0..10, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    solver
-        .add_cnf(enc.encode_ub_change(0..15, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(0..15, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(14).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -123,9 +109,7 @@ fn test_pb_eq<PBE: BoundBothIncremental>(mut enc: PBE) {
     lits.insert(lit![2], 2);
     enc.extend(lits);
 
-    solver
-        .add_cnf(enc.encode_both(4..5, &mut var_manager))
-        .unwrap();
+    enc.encode_both(4..5, &mut solver, &mut var_manager);
 
     let mut assumps = enc.enforce_eq(4).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
@@ -186,9 +170,7 @@ fn test_pb_lb<PBE: BoundLower>(mut enc: PBE) {
     lits.insert(lit![2], 3);
     enc.extend(lits);
 
-    solver
-        .add_cnf(enc.encode_lb(0..11, &mut var_manager))
-        .unwrap();
+    enc.encode_lb(0..11, &mut solver, &mut var_manager);
     let assumps = enc.enforce_lb(10).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
@@ -211,9 +193,7 @@ fn test_pb_ub_min_enc<PBE: BoundUpper>(mut enc: PBE) {
     lits.insert(lit![2], 1);
     enc.extend(lits);
 
-    solver
-        .add_cnf(enc.encode_ub(2..3, &mut var_manager))
-        .unwrap();
+    enc.encode_ub(2..3, &mut solver, &mut var_manager);
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
     let res = solver.solve_assumps(&assumps).unwrap();
@@ -310,9 +290,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
-    solver
-        .add_cnf(enc.encode_ub(0..1, &mut var_manager))
-        .unwrap();
+    enc.encode_ub(0..1, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(0).unwrap();
 
     test_all!(
@@ -335,9 +313,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(3..4, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(3..4, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(3).unwrap();
 
     test_all!(
@@ -360,9 +336,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(5..6, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(5..6, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(5).unwrap();
 
     test_all!(
@@ -385,9 +359,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(6..7, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(6..7, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(6).unwrap();
 
     test_all!(
@@ -410,9 +382,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(8..9, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(8..9, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(8).unwrap();
 
     test_all!(
@@ -435,9 +405,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(10..11, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(10..11, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(10).unwrap();
 
     test_all!(
@@ -460,9 +428,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(11..12, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(11..12, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(11).unwrap();
 
     test_all!(
@@ -485,9 +451,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(13..14, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(13..14, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(13).unwrap();
 
     test_all!(
@@ -510,9 +474,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
         Sat      // 0000
     );
 
-    solver
-        .add_cnf(enc.encode_ub_change(16..17, &mut var_manager))
-        .unwrap();
+    enc.encode_ub_change(16..17, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(16).unwrap();
 
     test_all!(

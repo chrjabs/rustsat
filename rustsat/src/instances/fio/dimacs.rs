@@ -570,7 +570,7 @@ pub fn write_cnf<W: Write>(
         } else {
             0
         },
-        cnf.n_clauses()
+        cnf.len()
     )?;
     cnf.into_iter()
         .try_for_each(|cl| write_clause(writer, cl))?;
@@ -591,7 +591,7 @@ pub fn write_wcnf<W: Write, CI: WClsIter>(
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
     }
-    writeln!(writer, "c {} hard clauses", cnf.n_clauses())?;
+    writeln!(writer, "c {} hard clauses", cnf.len())?;
     writeln!(writer, "c {} soft clauses", soft_cls.len())?;
     writeln!(writer, "c objective offset: {}", offset)?;
     cnf.into_iter().try_for_each(|cl| {
@@ -622,7 +622,7 @@ pub fn write_mcnf<W: Write, CI: WClsIter>(
     if let Some(mv) = max_var {
         writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
     }
-    writeln!(writer, "c {} hard clauses", cnf.n_clauses())?;
+    writeln!(writer, "c {} hard clauses", cnf.len())?;
     writeln!(writer, "c {} objectives", soft_cls.len())?;
     write!(writer, "c ( ")?;
     soft_cls
@@ -666,9 +666,7 @@ mod tests {
     use crate::{
         clause,
         instances::{Cnf, SatInstance},
-        ipasir_lit,
-        types::{Clause, Lit, Var},
-        var,
+        ipasir_lit, var,
     };
     use std::io::{Cursor, Seek};
 

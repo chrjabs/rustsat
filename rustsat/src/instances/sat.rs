@@ -4,7 +4,7 @@ use std::{collections::TryReserveError, io, path::Path};
 
 use crate::{
     clause,
-    encodings::{atomics, card, pb},
+    encodings::{atomics, card, pb, CollectClauses},
     lit,
     types::{
         constraints::{CardConstraint, PBConstraint},
@@ -82,12 +82,6 @@ impl Cnf {
     /// Returns the number of clauses in the instance
     #[inline]
     pub fn len(&self) -> usize {
-        self.clauses.len()
-    }
-
-    /// Returns the number of clauses in the instance
-    #[inline]
-    pub fn n_clauses(&self) -> usize {
         self.clauses.len()
     }
 
@@ -195,6 +189,12 @@ impl Cnf {
         let mut rng = rand::thread_rng();
         self.clauses[..].shuffle(&mut rng);
         self
+    }
+}
+
+impl CollectClauses for Cnf {
+    fn n_clauses(&self) -> usize {
+        self.clauses.len()
     }
 }
 
@@ -423,15 +423,15 @@ impl<VM: ManageVars> SatInstance<VM> {
         mut pb_encoder: PBEnc,
     ) -> (Cnf, VM)
     where
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         self.cards
             .into_iter()
-            .for_each(|constr| self.cnf.extend(card_encoder(constr, &mut self.var_manager)));
+            .for_each(|constr| card_encoder(constr, &mut self.cnf, &mut self.var_manager));
         self.pbs
             .into_iter()
-            .for_each(|constr| self.cnf.extend(pb_encoder(constr, &mut self.var_manager)));
+            .for_each(|constr| pb_encoder(constr, &mut self.cnf, &mut self.var_manager));
         (self.cnf, self.var_manager)
     }
 
@@ -497,8 +497,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     ) -> Result<(), io::Error>
     where
         W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         let (cnf, vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
         fio::dimacs::write_cnf(writer, cnf, vm.max_var())

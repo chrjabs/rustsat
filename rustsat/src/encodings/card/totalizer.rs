@@ -17,8 +17,8 @@ use super::{
     EncodeIncremental, Error,
 };
 use crate::{
-    encodings::EncodeStats,
-    instances::{Cnf, ManageVars},
+    encodings::{atomics, CollectClauses, EncodeStats},
+    instances::ManageVars,
     types::Lit,
 };
 use std::{cmp, ops::Range, slice};
@@ -115,19 +115,26 @@ impl EncodeIncremental for Totalizer {
 }
 
 impl BoundUpper for Totalizer {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         if range.is_empty() {
-            return Cnf::new();
+            return;
         };
         self.extend_tree();
         match &mut self.root {
-            None => Cnf::new(),
+            None => (),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.rec_encode_ub(range, var_manager);
-                self.n_clauses += cnf.n_clauses();
+                let n_clauses_before = collector.n_clauses();
+                root.rec_encode_ub(range, collector, var_manager);
+                self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
             }
         }
     }
@@ -158,19 +165,26 @@ impl BoundUpper for Totalizer {
 }
 
 impl BoundLower for Totalizer {
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         if range.is_empty() {
-            return Cnf::new();
+            return;
         };
         self.extend_tree();
         match &mut self.root {
-            None => Cnf::new(),
+            None => (),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.rec_encode_lb(range, var_manager);
-                self.n_clauses += cnf.n_clauses();
+                let n_clauses_before = collector.n_clauses();
+                root.rec_encode_lb(range, collector, var_manager);
+                self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
             }
         }
     }
@@ -203,38 +217,52 @@ impl BoundLower for Totalizer {
 }
 
 impl BoundUpperIncremental for Totalizer {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         if range.is_empty() {
-            return Cnf::new();
+            return;
         };
         self.extend_tree();
         match &mut self.root {
-            None => Cnf::new(),
+            None => (),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.rec_encode_ub_change(range, var_manager);
-                self.n_clauses += cnf.n_clauses();
+                let n_clauses_before = collector.n_clauses();
+                root.rec_encode_ub_change(range, collector, var_manager);
+                self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
             }
         }
     }
 }
 
 impl BoundLowerIncremental for Totalizer {
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_lb_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         if range.is_empty() {
-            return Cnf::new();
+            return;
         };
         self.extend_tree();
         match &mut self.root {
-            None => Cnf::new(),
+            None => (),
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
-                let cnf = root.rec_encode_lb_change(range, var_manager);
-                self.n_clauses += cnf.n_clauses();
+                let n_clauses_before = collector.n_clauses();
+                root.rec_encode_lb_change(range, collector, var_manager);
+                self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
             }
         }
     }
@@ -350,16 +378,23 @@ impl Node {
     /// Encodes the upper bound adder for this node in a given range. This
     /// method only produces the encoding and does _not_ change any of the stats
     /// of the node.
-    fn encode_ub_range(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub_range<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
 
         // Reserve vars if needed
         self.reserve_vars_range(range.clone(), var_manager);
         match self {
-            Node::Leaf { .. } => Cnf::new(),
+            Node::Leaf { .. } => (),
             Node::Internal {
                 out_lits,
                 left,
@@ -367,7 +402,6 @@ impl Node {
                 ..
             } => {
                 // Encode adder for current node
-                let mut cnf = Cnf::new();
                 let tmp_opt_lit_l;
                 let tmp_opt_lit_r;
                 let left_lits = match &**left {
@@ -385,26 +419,31 @@ impl Node {
                     Node::Internal { out_lits, .. } => &out_lits[..],
                 };
                 // Iterate through all value combinations
-                for left_val in 0..=left_lits.len() {
-                    for right_val in 0..=right_lits.len() {
-                        let sum_val = left_val + right_val;
-                        if sum_val > range.end || sum_val <= range.start {
-                            continue;
-                        }
-                        let mut lhs = vec![];
-                        if left_val != 0 {
-                            lhs.push(left_lits[left_val - 1].unwrap());
-                        }
-                        if right_val != 0 {
-                            lhs.push(right_lits[right_val - 1].unwrap());
-                        }
-                        if !lhs.is_empty() {
-                            // (left > x) & (right > y) -> (out > x+y)
-                            cnf.add_cube_impl_lit(&lhs, out_lits[sum_val - 1].unwrap());
-                        }
+                let clause_for_vals = |left_val: usize, right_val: usize| {
+                    let sum_val = left_val + right_val;
+                    if sum_val > range.end || sum_val <= range.start {
+                        return None;
                     }
-                }
-                cnf
+                    let mut lhs: Vec<Lit> = vec![];
+                    if left_val != 0 {
+                        lhs.push(left_lits[left_val - 1].unwrap());
+                    }
+                    if right_val != 0 {
+                        lhs.push(right_lits[right_val - 1].unwrap());
+                    }
+                    if !lhs.is_empty() {
+                        // (left > x) & (right > y) -> (out > x+y)
+                        return Some(atomics::cube_impl_lit(&lhs, out_lits[sum_val - 1].unwrap()));
+                    }
+                    None
+                };
+                let clause_iter = (0..=left_lits.len())
+                    .map(|left_val| {
+                        (0..=right_lits.len())
+                            .filter_map(move |right_val| clause_for_vals(left_val, right_val))
+                    })
+                    .flatten();
+                collector.extend(clause_iter);
             }
         }
     }
@@ -412,10 +451,17 @@ impl Node {
     /// Encodes the lower bound adder for this node in a given range. This
     /// method only produces the encoding and does _not_ change any of the stats
     /// of the node.
-    fn encode_lb_range(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_lb_range<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
 
         // Reserve vars if needed
@@ -428,7 +474,7 @@ impl Node {
             var_manager,
         );
         match self {
-            Node::Leaf { .. } => Cnf::new(),
+            Node::Leaf { .. } => (),
             Node::Internal {
                 out_lits,
                 left,
@@ -436,7 +482,6 @@ impl Node {
                 ..
             } => {
                 // Encode adder for current node
-                let mut cnf = Cnf::new();
                 let tmp_opt_lit_l;
                 let tmp_opt_lit_r;
                 let left_lits = match &**left {
@@ -454,26 +499,31 @@ impl Node {
                     Node::Internal { out_lits, .. } => &out_lits[..],
                 };
                 // Iterate through all value combinations
-                for left_val in 0..=left_lits.len() {
-                    for right_val in 0..=right_lits.len() {
-                        let sum_val = left_val + right_val;
-                        if sum_val + 1 >= range.end || sum_val + 1 < range.start {
-                            continue;
-                        }
-                        let mut lhs = vec![];
-                        if left_val < left_lits.len() {
-                            lhs.push(!left_lits[left_val].unwrap());
-                        }
-                        if right_val < right_lits.len() {
-                            lhs.push(!right_lits[right_val].unwrap());
-                        }
-                        if !lhs.is_empty() {
-                            // (left <= x) & (right <= y) -> (out <= x+y)
-                            cnf.add_cube_impl_lit(&lhs, !out_lits[sum_val].unwrap());
-                        }
+                let clause_for_vals = |left_val: usize, right_val: usize| {
+                    let sum_val = left_val + right_val;
+                    if sum_val + 1 >= range.end || sum_val + 1 < range.start {
+                        return None;
                     }
-                }
-                cnf
+                    let mut lhs = vec![];
+                    if left_val < left_lits.len() {
+                        lhs.push(!left_lits[left_val].unwrap());
+                    }
+                    if right_val < right_lits.len() {
+                        lhs.push(!right_lits[right_val].unwrap());
+                    }
+                    if !lhs.is_empty() {
+                        // (left <= x) & (right <= y) -> (out <= x+y)
+                        return Some(atomics::cube_impl_lit(&lhs, !out_lits[sum_val].unwrap()));
+                    }
+                    None
+                };
+                let clause_iter = (0..=left_lits.len())
+                    .map(|left_val| {
+                        (0..=right_lits.len())
+                            .filter_map(move |right_val| clause_for_vals(left_val, right_val))
+                    })
+                    .flatten();
+                collector.extend(clause_iter);
             }
         }
     }
@@ -481,14 +531,21 @@ impl Node {
     /// Encodes the upper bound adder from the children to this node in a given
     /// range. Recurses depth first. Always returns the full requested CNF
     /// encoding, i.e., non-incremental.
-    pub fn rec_encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    pub fn rec_encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
 
         match self {
-            Node::Leaf { .. } => Cnf::new(),
+            Node::Leaf { .. } => (),
             Node::Internal {
                 left,
                 right,
@@ -501,14 +558,14 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.rec_encode_ub(left_range, var_manager);
-                cnf.extend(right.rec_encode_ub(right_range, var_manager));
+                left.rec_encode_ub(left_range, collector, var_manager);
+                right.rec_encode_ub(right_range, collector, var_manager);
 
                 // Ignore all previous encoding and encode from scratch
-                let local_cnf = self.encode_ub_range(range.clone(), var_manager);
+                let n_clauses_before = collector.n_clauses();
+                self.encode_ub_range(range.clone(), collector, var_manager);
 
-                self.update_stats(range, lb_range, local_cnf.n_clauses());
-                cnf.join(local_cnf)
+                self.update_stats(range, lb_range, collector.n_clauses() - n_clauses_before);
             }
         }
     }
@@ -516,14 +573,21 @@ impl Node {
     /// Encodes the lower bound adder from the children to this node in a given
     /// range. Recurses depth first. Always returns the full requested CNF
     /// encoding.
-    pub fn rec_encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    pub fn rec_encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
 
         match self {
-            Node::Leaf { .. } => Cnf::new(),
+            Node::Leaf { .. } => (),
             Node::Internal {
                 left,
                 right,
@@ -536,32 +600,35 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.rec_encode_lb(left_range, var_manager);
-                cnf.extend(right.rec_encode_lb(right_range, var_manager));
+                left.rec_encode_lb(left_range, collector, var_manager);
+                right.rec_encode_lb(right_range, collector, var_manager);
 
                 // Ignore all previous encoding and encode from scratch
-                let local_cnf = self.encode_lb_range(range.clone(), var_manager);
+                let n_clauses_before = collector.n_clauses();
+                self.encode_lb_range(range.clone(), collector, var_manager);
 
-                self.update_stats(ub_range, range, local_cnf.n_clauses());
-                cnf.join(local_cnf)
+                self.update_stats(ub_range, range, collector.n_clauses() - n_clauses_before);
             }
         }
     }
 
     /// Encodes the upper bound adder from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
-    pub fn rec_encode_ub_change(
+    pub fn rec_encode_ub_change<Col>(
         &mut self,
         range: Range<usize>,
+        collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
+    ) where
+        Col: CollectClauses,
+    {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
 
         match self {
-            Node::Leaf { .. } => Cnf::new(),
+            Node::Leaf { .. } => (),
             Node::Internal {
                 left,
                 right,
@@ -576,42 +643,41 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.rec_encode_ub_change(left_range, var_manager);
-                cnf.extend(right.rec_encode_ub_change(right_range, var_manager));
+                left.rec_encode_ub_change(left_range, collector, var_manager);
+                right.rec_encode_ub_change(right_range, collector, var_manager);
 
                 // Encode changes for current node
-                let local_cnf = if ub_range.is_empty() {
+                let n_clauses_before = collector.n_clauses();
+                if ub_range.is_empty() {
                     // First time encoding this node
-                    self.encode_ub_range(range.clone(), var_manager)
+                    self.encode_ub_range(range.clone(), collector, var_manager)
                 } else {
                     // Part already encoded
-                    let mut local_cnf = Cnf::new();
                     if range.start < ub_range.start {
-                        local_cnf
-                            .extend(self.encode_ub_range(range.start..ub_range.start, var_manager));
+                        self.encode_ub_range(range.start..ub_range.start, collector, var_manager);
                     };
                     if range.end > ub_range.end {
-                        local_cnf
-                            .extend(self.encode_ub_range(ub_range.end..range.end, var_manager));
+                        self.encode_ub_range(ub_range.end..range.end, collector, var_manager);
                     };
-                    local_cnf
                 };
 
-                self.update_stats(range, lb_range, local_cnf.n_clauses());
-                cnf.join(local_cnf)
+                self.update_stats(range, lb_range, collector.n_clauses() - n_clauses_before);
             }
         }
     }
 
     /// Encodes the lower bound adder from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
-    pub fn rec_encode_lb_change(
+    pub fn rec_encode_lb_change<Col>(
         &mut self,
         range: Range<usize>,
+        collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Cnf {
+    ) where
+        Col: CollectClauses,
+    {
         match self {
-            Node::Leaf { .. } => Cnf::new(),
+            Node::Leaf { .. } => (),
             Node::Internal {
                 left,
                 right,
@@ -626,29 +692,25 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                let mut cnf = left.rec_encode_lb_change(left_range, var_manager);
-                cnf.extend(right.rec_encode_lb_change(right_range, var_manager));
+                left.rec_encode_lb_change(left_range, collector, var_manager);
+                right.rec_encode_lb_change(right_range, collector, var_manager);
 
                 // Encode changes for current node
-                let local_cnf = if lb_range.is_empty() {
+                let n_clauses_before = collector.n_clauses();
+                if lb_range.is_empty() {
                     // First time encoding this node
-                    self.encode_lb_range(range.clone(), var_manager)
+                    self.encode_lb_range(range.clone(), collector, var_manager)
                 } else {
                     // Part already encoded
-                    let mut local_cnf = Cnf::new();
                     if range.start < lb_range.start {
-                        local_cnf
-                            .extend(self.encode_lb_range(range.start..lb_range.start, var_manager));
+                        self.encode_lb_range(range.start..lb_range.start, collector, var_manager);
                     };
                     if range.end > lb_range.end {
-                        local_cnf
-                            .extend(self.encode_lb_range(lb_range.end..range.end, var_manager));
+                        self.encode_lb_range(lb_range.end..range.end, collector, var_manager);
                     };
-                    local_cnf
                 };
 
-                self.update_stats(ub_range, range, local_cnf.n_clauses());
-                cnf.join(local_cnf)
+                self.update_stats(ub_range, range, collector.n_clauses() - n_clauses_before);
             }
         }
     }
@@ -775,10 +837,8 @@ mod tests {
             },
             EncodeStats, Error,
         },
-        instances::{BasicVarManager, ManageVars},
-        lit,
-        types::{Lit, Var},
-        var,
+        instances::{BasicVarManager, Cnf, ManageVars},
+        lit, var,
     };
 
     #[test]
@@ -789,13 +849,14 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![2]);
-        let mut cnf = node.encode_ub_range(0..3, &mut var_manager);
-        cnf.extend(node.encode_lb_range(0..3, &mut var_manager));
+        let mut cnf = Cnf::new();
+        node.encode_ub_range(0..3, &mut cnf, &mut var_manager);
+        node.encode_lb_range(0..3, &mut cnf, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
         };
-        assert_eq!(cnf.n_clauses(), 6);
+        assert_eq!(cnf.len(), 6);
     }
 
     #[test]
@@ -826,13 +887,14 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![5]);
-        let mut cnf = node.encode_ub_range(0..5, &mut var_manager);
-        cnf.extend(node.encode_lb_range(0..5, &mut var_manager));
+        let mut cnf = Cnf::new();
+        node.encode_ub_range(0..5, &mut cnf, &mut var_manager);
+        node.encode_lb_range(0..5, &mut cnf, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
         };
-        assert_eq!(cnf.n_clauses(), 16);
+        assert_eq!(cnf.len(), 16);
     }
 
     #[test]
@@ -843,12 +905,13 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![2]);
-        let cnf = node.encode_lb_range(0..2, &mut var_manager);
+        let mut cnf = Cnf::new();
+        node.encode_lb_range(0..2, &mut cnf, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 1),
         };
-        assert_eq!(cnf.n_clauses(), 1);
+        assert_eq!(cnf.len(), 1);
     }
 
     #[test]
@@ -879,13 +942,14 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![7]);
-        let mut cnf = node.encode_ub_range(0..4, &mut var_manager);
-        cnf.extend(node.encode_lb_range(0..4, &mut var_manager));
+        let mut cnf = Cnf::new();
+        node.encode_ub_range(0..4, &mut cnf, &mut var_manager);
+        node.encode_lb_range(0..4, &mut cnf, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
         };
-        assert_eq!(cnf.n_clauses(), 18);
+        assert_eq!(cnf.len(), 18);
     }
 
     #[test]
@@ -916,9 +980,10 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![7]);
-        let mut cnf = node.encode_ub_range(3..3, &mut var_manager);
-        cnf.extend(node.encode_lb_range(3..3, &mut var_manager));
-        assert_eq!(cnf.n_clauses(), 0);
+        let mut cnf = Cnf::new();
+        node.encode_ub_range(3..3, &mut cnf, &mut var_manager);
+        node.encode_lb_range(3..3, &mut cnf, &mut var_manager);
+        assert_eq!(cnf.len(), 0);
     }
 
     #[test]
@@ -949,13 +1014,14 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![7]);
-        let mut cnf = node.encode_ub_range(2..4, &mut var_manager);
-        cnf.extend(node.encode_lb_range(2..4, &mut var_manager));
+        let mut cnf = Cnf::new();
+        node.encode_ub_range(2..4, &mut cnf, &mut var_manager);
+        node.encode_lb_range(2..4, &mut cnf, &mut var_manager);
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
         };
-        assert_eq!(cnf.n_clauses(), 12);
+        assert_eq!(cnf.len(), 12);
     }
 
     #[test]
@@ -966,10 +1032,11 @@ mod tests {
         assert_eq!(tot.enforce_lb(2), Err(Error::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let mut cnf = tot.encode_ub(0..5, &mut var_manager);
-        cnf.extend(tot.encode_lb(0..5, &mut var_manager));
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..5, &mut cnf, &mut var_manager);
+        tot.encode_lb(0..5, &mut cnf, &mut var_manager);
         assert_eq!(tot.depth(), 3);
-        assert_eq!(cnf.n_clauses(), 28);
+        assert_eq!(cnf.len(), 28);
         assert_eq!(tot.n_clauses(), 28);
         assert_eq!(tot.n_vars(), 8);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
@@ -982,10 +1049,11 @@ mod tests {
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let cnf = tot.encode_both(3..4, &mut var_manager);
+        let mut cnf = Cnf::new();
+        tot.encode_both(3..4, &mut cnf, &mut var_manager);
         assert_eq!(tot.depth(), 3);
-        assert_eq!(cnf.n_clauses(), 12);
-        assert_eq!(cnf.n_clauses(), tot.n_clauses());
+        assert_eq!(cnf.len(), 12);
+        assert_eq!(cnf.len(), tot.n_clauses());
     }
 
     #[test]
@@ -994,16 +1062,18 @@ mod tests {
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let cnf1 = tot1.encode_ub(0..5, &mut var_manager);
+        let mut cnf1 = Cnf::new();
+        tot1.encode_ub(0..5, &mut cnf1, &mut var_manager);
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let mut cnf2 = tot2.encode_ub(0..3, &mut var_manager);
-        cnf2.extend(tot2.encode_ub_change(0..5, &mut var_manager));
-        assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
-        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
-        assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
+        let mut cnf2 = Cnf::new();
+        tot2.encode_ub(0..3, &mut cnf2, &mut var_manager);
+        tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager);
+        assert_eq!(cnf1.len(), cnf2.len());
+        assert_eq!(cnf1.len(), tot1.n_clauses());
+        assert_eq!(cnf2.len(), tot2.n_clauses());
     }
 
     #[test]
@@ -1012,15 +1082,17 @@ mod tests {
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let cnf1 = tot1.encode_lb(0..5, &mut var_manager);
+        let mut cnf1 = Cnf::new();
+        tot1.encode_lb(0..5, &mut cnf1, &mut var_manager);
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let mut cnf2 = tot2.encode_lb(0..3, &mut var_manager);
-        cnf2.extend(tot2.encode_lb_change(0..5, &mut var_manager));
-        assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
-        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
-        assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
+        let mut cnf2 = Cnf::new();
+        tot2.encode_lb(0..3, &mut cnf2, &mut var_manager);
+        tot2.encode_lb_change(0..5, &mut cnf2, &mut var_manager);
+        assert_eq!(cnf1.len(), cnf2.len());
+        assert_eq!(cnf1.len(), tot1.n_clauses());
+        assert_eq!(cnf2.len(), tot2.n_clauses());
     }
 }

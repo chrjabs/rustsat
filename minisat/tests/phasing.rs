@@ -2,7 +2,7 @@ use rustsat::{
     instances::{BasicVarManager, SatInstance},
     lit,
     solvers::{PhaseLit, Solve, SolverResult},
-    types::{Lit, TernaryVal, Var},
+    types::TernaryVal,
     var,
 };
 use rustsat_minisat::{core, simp};

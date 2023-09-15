@@ -10,10 +10,11 @@ use std::{
 
 use crate::{
     encodings::{
+        atomics,
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        EncodeStats, Error,
+        CollectClauses, EncodeStats, Error,
     },
-    instances::{Cnf, ManageVars},
+    instances::ManageVars,
     types::Lit,
 };
 
@@ -92,9 +93,16 @@ impl EncodeIncremental for DbTotalizer {
 }
 
 impl BoundUpper for DbTotalizer {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         self.db.reset_encoded();
-        self.encode_ub_change(range, var_manager)
+        self.encode_ub_change(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -112,25 +120,31 @@ impl BoundUpper for DbTotalizer {
 }
 
 impl BoundUpperIncremental for DbTotalizer {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
         self.extend_tree();
         match self.root {
             Some(id) => {
                 let n_vars_before = var_manager.n_used();
-                let mut cnf = Cnf::new();
+                let n_clauses_before = collector.n_clauses();
                 for idx in range {
                     if idx < self.db[id].len() {
-                        self.db.define_pos(id, idx, &mut cnf, var_manager);
+                        self.db.define_pos(id, idx, collector, var_manager);
                     }
                 }
-                self.n_clauses += cnf.len();
+                self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
             }
-            None => Cnf::new(),
+            None => (),
         }
     }
 }
@@ -366,13 +380,16 @@ impl TotDb {
     /// already defined. Recurses down the tree. The returned literal is the output literal and the
     /// encoding is added to the [`Cnf`]. The encoding is not returned in order to save on memory
     /// allocations.
-    pub fn define_pos(
+    pub fn define_pos<Col>(
         &mut self,
         id: NodeId,
         idx: usize,
-        encoding: &mut Cnf,
+        collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Lit {
+    ) -> Lit
+    where
+        Col: CollectClauses,
+    {
         let node = &self[id];
         debug_assert!(idx < node.len());
         if node.is_leaf() {
@@ -415,10 +432,10 @@ impl TotDb {
 
         // Encode children (recurse)
         for lidx in l_min_idx..=l_max_idx {
-            self.define_pos(lcon.id, con_idx(lidx, lcon), encoding, var_manager);
+            self.define_pos(lcon.id, con_idx(lidx, lcon), collector, var_manager);
         }
         for ridx in r_min_idx..=r_max_idx {
-            self.define_pos(rcon.id, con_idx(ridx, rcon), encoding, var_manager);
+            self.define_pos(rcon.id, con_idx(ridx, rcon), collector, var_manager);
         }
 
         // Reserve variable for this node, if needed
@@ -450,18 +467,27 @@ impl TotDb {
 
         // Encode this node
         if l_max_idx == idx {
-            encoding.add_lit_impl_lit(*llits[con_idx(idx, lcon)].lit().unwrap(), olit);
+            collector.extend([atomics::lit_impl_lit(
+                *llits[con_idx(idx, lcon)].lit().unwrap(),
+                olit,
+            )]);
         }
         if r_max_idx == idx {
-            encoding.add_lit_impl_lit(*rlits[con_idx(idx, rcon)].lit().unwrap(), olit);
+            collector.extend([atomics::lit_impl_lit(
+                *rlits[con_idx(idx, rcon)].lit().unwrap(),
+                olit,
+            )]);
         }
-        for lidx in l_min_idx..cmp::min(l_max_idx + 1, idx) {
+        let clause_for_lidx = |lidx: usize| {
             let ridx = idx - lidx - 1;
             debug_assert!(ridx <= r_max_idx);
             let llit = *llits[con_idx(lidx, lcon)].lit().unwrap();
             let rlit = *rlits[con_idx(ridx, rcon)].lit().unwrap();
-            encoding.add_cube_impl_lit(&[llit, rlit], olit);
-        }
+            atomics::cube_impl_lit(&[llit, rlit], olit)
+        };
+        let clause_iter =
+            (l_min_idx..cmp::min(l_max_idx + 1, idx)).map(|lidx| clause_for_lidx(lidx));
+        collector.extend(clause_iter);
 
         // Mark positive literal as encoded
         match &mut self[id].unwrap().lits[idx] {
@@ -513,9 +539,7 @@ mod tests {
             EncodeStats, Error,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
-        lit,
-        types::{Lit, Var},
-        var,
+        lit, var,
     };
 
     #[test]
@@ -553,10 +577,11 @@ mod tests {
         assert_eq!(tot.enforce_ub(2), Err(Error::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let cnf = tot.encode_ub(0..5, &mut var_manager);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..5, &mut cnf, &mut var_manager);
         assert_eq!(tot.depth(), 3);
         println!("len: {}, {:?}", cnf.len(), cnf);
-        assert_eq!(cnf.n_clauses(), 14);
+        assert_eq!(cnf.len(), 14);
         assert_eq!(tot.n_clauses(), 14);
         assert_eq!(tot.n_vars(), 8);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
@@ -568,10 +593,11 @@ mod tests {
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let cnf = tot.encode_ub(3..4, &mut var_manager);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(3..4, &mut cnf, &mut var_manager);
         assert_eq!(tot.depth(), 3);
-        assert_eq!(cnf.n_clauses(), 3);
-        assert_eq!(cnf.n_clauses(), tot.n_clauses());
+        assert_eq!(cnf.len(), 3);
+        assert_eq!(cnf.len(), tot.n_clauses());
     }
 
     #[test]
@@ -580,15 +606,17 @@ mod tests {
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let cnf1 = tot1.encode_ub(0..5, &mut var_manager);
+        let mut cnf1 = Cnf::new();
+        tot1.encode_ub(0..5, &mut cnf1, &mut var_manager);
         let mut tot2 = DbTotalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
-        let mut cnf2 = tot2.encode_ub(0..3, &mut var_manager);
-        cnf2.extend(tot2.encode_ub_change(0..5, &mut var_manager));
-        assert_eq!(cnf1.n_clauses(), cnf2.n_clauses());
-        assert_eq!(cnf1.n_clauses(), tot1.n_clauses());
-        assert_eq!(cnf2.n_clauses(), tot2.n_clauses());
+        let mut cnf2 = Cnf::new();
+        tot2.encode_ub(0..3, &mut cnf2, &mut var_manager);
+        tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager);
+        assert_eq!(cnf1.len(), cnf2.len());
+        assert_eq!(cnf1.len(), tot1.n_clauses());
+        assert_eq!(cnf2.len(), tot2.n_clauses());
     }
 }

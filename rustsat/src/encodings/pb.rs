@@ -10,10 +10,9 @@
 //! use rustsat::{
 //!     clause,
 //!     encodings::{pb, pb::{BoundBoth, Encode}},
-//!     instances::{BasicVarManager, ManageVars},
-//!     lit, solvers,
-//!     types::{Clause, Lit, Var, RsHashMap},
-//!     var,
+//!     instances::{BasicVarManager, Cnf, ManageVars},
+//!     lit, solvers, var,
+//!     types::RsHashMap,
 //! };
 //!
 //! let mut var_manager = BasicVarManager::default();
@@ -26,7 +25,8 @@
 //! lits.insert(lit![2], 2);
 //! lits.insert(lit![3], 6);
 //! enc.extend(lits);
-//! let encoding = enc.encode_both(4..5, &mut var_manager);
+//! let mut encoding = Cnf::new();
+//! enc.encode_both(4..5, &mut encoding, &mut var_manager);
 //! ```
 //!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
@@ -35,9 +35,10 @@
 
 use std::ops::Range;
 
-use super::{card, Error};
+use super::{card, CollectClauses, Error};
 use crate::{
-    instances::{Cnf, ManageVars},
+    clause,
+    instances::ManageVars,
     types::{
         constraints::{PBConstraint, PBEQConstr, PBLBConstr, PBUBConstr},
         Clause, Lit, RsHashMap,
@@ -51,7 +52,7 @@ pub mod simulators;
 pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
 pub type DoubleGeneralizedTotalizer =
     simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
-    
+
 pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
 
@@ -81,15 +82,26 @@ pub trait BoundUpper: Encode {
     /// a given range. `var_manager` is the variable manager to use for tracking
     /// new variables. A specific encoding might ignore the upper or lower end
     /// of the range.
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
     /// Returns assumptions/units for enforcing an upper bound (`weighted sum of
     /// lits <= ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
     /// [`Error::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound pseudo-boolean constraint to CNF
-    fn encode_ub_constr(constr: PBUBConstr, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
+    fn encode_ub_constr<Col>(
+        constr: PBUBConstr,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         let mut enc = Self::default();
@@ -100,12 +112,14 @@ pub trait BoundUpper: Encode {
             ub as usize
         };
         enc.extend(lits);
-        let mut cnf = enc.encode_ub(ub..ub + 1, var_manager);
-        enc.enforce_ub(ub)
-            .unwrap()
-            .into_iter()
-            .for_each(|unit| cnf.add_unit(unit));
-        Ok(cnf)
+        enc.encode_ub(ub..ub + 1, collector, var_manager);
+        collector.extend(
+            enc.enforce_ub(ub)
+                .unwrap()
+                .into_iter()
+                .map(|unit| clause![unit]),
+        );
+        Ok(())
     }
 }
 
@@ -116,7 +130,13 @@ pub trait BoundLower: Encode {
     /// given range. `var_manager` is the variable manager to use for tracking
     /// new variables. A specific encoding might ignore the upper or lower end
     /// of the range.
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
     /// adequately and nothing has been added afterwards, otherwise
@@ -125,24 +145,31 @@ pub trait BoundLower: Encode {
     /// is returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound pseudo-boolean constraint to CNF
-    fn encode_lb_constr(constr: PBLBConstr, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
+    fn encode_lb_constr<Col>(
+        constr: PBLBConstr,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
         let lb = if lb < 0 {
-            return Ok(Cnf::new()); // tautology
+            return Ok(()); // tautology
         } else {
             lb as usize
         };
         enc.extend(lits);
-        let mut cnf = enc.encode_lb(lb..lb + 1, var_manager);
-        enc.enforce_lb(lb)
-            .unwrap()
-            .into_iter()
-            .for_each(|unit| cnf.add_unit(unit));
-        Ok(cnf)
+        enc.encode_lb(lb..lb + 1, collector, var_manager);
+        collector.extend(
+            enc.enforce_lb(lb)
+                .unwrap()
+                .into_iter()
+                .map(|unit| clause![unit]),
+        );
+        Ok(())
     }
 }
 
@@ -152,9 +179,16 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// given range. `var_manager` is the variable manager to use for tracking
     /// new variables. A specific encoding might ignore the upper or lower end
     /// of the range.
-    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let cnf = self.encode_ub(range.clone(), var_manager);
-        cnf.join(self.encode_lb(range, var_manager))
+    fn encode_both<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.encode_ub(range.clone(), collector, var_manager);
+        self.encode_lb(range, collector, var_manager);
     }
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
@@ -169,8 +203,13 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Ok(assumps)
     }
     /// Encodes an equality pseudo-boolean constraint to CNF
-    fn encode_eq_constr(constr: PBEQConstr, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
+    fn encode_eq_constr<Col>(
+        constr: PBEQConstr,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         let mut enc = Self::default();
@@ -181,22 +220,29 @@ pub trait BoundBoth: BoundUpper + BoundLower {
             b as usize
         };
         enc.extend(lits);
-        let mut cnf = enc.encode_both(b..b + 1, var_manager);
-        enc.enforce_eq(b)
-            .unwrap()
-            .into_iter()
-            .for_each(|unit| cnf.add_unit(unit));
-        Ok(cnf)
+        enc.encode_both(b..b + 1, collector, var_manager);
+        collector.extend(
+            enc.enforce_eq(b)
+                .unwrap()
+                .into_iter()
+                .map(|unit| clause![unit]),
+        );
+        Ok(())
     }
     /// Encodes any pseudo-boolean constraint to CNF
-    fn encode_constr(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
+    fn encode_constr<Col>(
+        constr: PBConstraint,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         match constr {
-            PBConstraint::UB(constr) => Self::encode_ub_constr(constr, var_manager),
-            PBConstraint::LB(constr) => Self::encode_lb_constr(constr, var_manager),
-            PBConstraint::EQ(constr) => Self::encode_eq_constr(constr, var_manager),
+            PBConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
+            PBConstraint::LB(constr) => Self::encode_lb_constr(constr, collector, var_manager),
+            PBConstraint::EQ(constr) => Self::encode_eq_constr(constr, collector, var_manager),
         }
     }
 }
@@ -219,7 +265,13 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     /// changed bounds. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore the lower or
     /// upper end of the range.
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
@@ -229,7 +281,13 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// bounds within the range. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore the lower
     /// or upper end of the range.
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_lb_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
@@ -238,9 +296,16 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     /// bounds from `min_b` to `max_b`. `var_manager` is the variable manager to
     /// use for tracking new variables. A specific encoding might ignore the
     /// lower or upper end of the range.
-    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let cnf = self.encode_ub_change(range.clone(), var_manager);
-        cnf.join(self.encode_lb_change(range, var_manager))
+    fn encode_both_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.encode_ub_change(range.clone(), collector, var_manager);
+        self.encode_lb_change(range, collector, var_manager);
     }
 }
 
@@ -294,43 +359,42 @@ pub fn new_default_inc_both() -> impl BoundBoth {
 /// A default encoder for any pseudo-boolean constraint. This uses a
 /// [`DefBothBounding`] to encode true pseudo-boolean constraints and
 /// [`card::default_encode_cardinality_constraint`] for cardinality constraints.
-pub fn default_encode_pb_constraint(constr: PBConstraint, var_manager: &mut dyn ManageVars) -> Cnf {
-    encode_pb_constraint::<DefBothBounding>(constr, var_manager)
+pub fn default_encode_pb_constraint<Col: CollectClauses>(
+    constr: PBConstraint,
+    collector: &mut Col,
+    var_manager: &mut dyn ManageVars,
+) {
+    encode_pb_constraint::<DefBothBounding, Col>(constr, collector, var_manager)
 }
 
 /// An encoder for any pseudo-boolean constraint with an encoding of choice
-pub fn encode_pb_constraint<PBE: BoundBoth>(
+pub fn encode_pb_constraint<PBE: BoundBoth, Col: CollectClauses>(
     constr: PBConstraint,
+    collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Cnf {
+) {
     if constr.is_tautology() {
-        return Cnf::new();
+        return;
     }
     if constr.is_unsat() {
-        let mut cnf = Cnf::new();
-        cnf.add_clause(Clause::new());
-        return cnf;
+        collector.extend([Clause::new()]);
+        return;
     }
     if constr.is_positive_assignment() {
-        let mut cnf = Cnf::new();
-        let lits = constr.into_lits();
-        lits.into_iter().for_each(|(l, _)| cnf.add_unit(l));
-        return cnf;
+        collector.extend(constr.into_lits().into_iter().map(|(lit, _)| clause![lit]));
+        return;
     }
     if constr.is_negative_assignment() {
-        let mut cnf = Cnf::new();
-        let lits = constr.into_lits();
-        lits.into_iter().for_each(|(l, _)| cnf.add_unit(l));
-        return cnf;
+        collector.extend(constr.into_lits().into_iter().map(|(lit, _)| clause![!lit]));
+        return;
     }
     if constr.is_clause() {
-        let mut cnf = Cnf::new();
-        cnf.add_clause(constr.as_clause().unwrap());
-        return cnf;
+        collector.extend([constr.as_clause().unwrap()]);
+        return;
     }
     if constr.is_card() {
         let card = constr.as_card_constr().unwrap();
-        return card::default_encode_cardinality_constraint(card, var_manager);
+        return card::default_encode_cardinality_constraint(card, collector, var_manager);
     }
-    PBE::encode_constr(constr, var_manager).unwrap()
+    PBE::encode_constr(constr, collector, var_manager).unwrap()
 }

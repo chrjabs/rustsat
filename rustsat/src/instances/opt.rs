@@ -941,8 +941,8 @@ impl<VM: ManageVars> OptInstance<VM> {
     ) -> Result<(), io::Error>
     where
         W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut dyn ManageVars) -> Cnf,
-        PBEnc: FnMut(PBConstraint, &mut dyn ManageVars) -> Cnf,
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.obj.as_soft_cls();

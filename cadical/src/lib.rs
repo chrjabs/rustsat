@@ -348,6 +348,13 @@ impl CaDiCaL<'_, '_> {
     }
 }
 
+impl Extend<Clause> for CaDiCaL<'_, '_> {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        iter.into_iter()
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+    }
+}
+
 impl Solve for CaDiCaL<'_, '_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ccadical_signature() };
@@ -770,7 +777,7 @@ mod test {
     use rustsat::{
         lit,
         solvers::{ControlSignal, Learn, Solve, SolverError, SolverResult, SolverState, Terminate},
-        types::{Lit, TernaryVal},
+        types::TernaryVal,
     };
 
     #[test]

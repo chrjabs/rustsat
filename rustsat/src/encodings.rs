@@ -7,6 +7,13 @@ pub mod atomics;
 pub mod card;
 pub mod pb;
 
+/// Trait for collecting clauses. Mainly used when generating encodings and implemented by
+/// [`instances::Cnf`], and solvers.
+pub trait CollectClauses: Extend<crate::types::Clause> {
+    /// Gets the number of clauses in the collection
+    fn n_clauses(&self) -> usize;
+}
+
 /// Errors from encodings
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {

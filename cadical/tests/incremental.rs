@@ -2,7 +2,6 @@ use rustsat::{
     instances::{BasicVarManager, SatInstance},
     lit,
     solvers::{SolveIncremental, SolverResult},
-    types::Lit,
 };
 use rustsat_cadical::CaDiCaL;
 

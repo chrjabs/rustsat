@@ -255,7 +255,7 @@ impl fmt::Debug for Clause {
 macro_rules! clause {
     ( $($l:expr),* ) => {
         {
-            let mut tmp_clause = Clause::new();
+            let mut tmp_clause = $crate::types::Clause::new();
             $(
                 tmp_clause.add($l);
             )*
@@ -998,8 +998,8 @@ impl PBEQConstr {
 
 #[cfg(test)]
 mod tests {
-    use super::{CardConstraint, Clause, PBConstraint};
-    use crate::{lit, types::Lit};
+    use super::{CardConstraint, PBConstraint};
+    use crate::lit;
 
     #[test]
     fn clause_remove() {

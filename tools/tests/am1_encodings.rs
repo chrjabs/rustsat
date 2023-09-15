@@ -6,7 +6,7 @@ use rustsat::{
         Solve, SolveIncremental,
         SolverResult::{Sat, Unsat},
     },
-    types::{Lit, Var},
+    types::Lit,
     var,
 };
 use rustsat_cadical::CaDiCaL;
@@ -19,9 +19,7 @@ fn test_am1<AM1: Encode>(mut enc: AM1) {
     var_manager.increase_next_free(var![3]);
 
     enc.extend(vec![lit![0], lit![1], lit![2]]);
-    solver
-        .add_cnf(enc.encode(&mut var_manager).unwrap())
-        .unwrap();
+    enc.encode(&mut solver, &mut var_manager).unwrap();
 
     test_all!(
         solver,

@@ -13,8 +13,8 @@ use super::{
     BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{card, EncodeStats, Error},
-    instances::{Cnf, ManageVars},
+    encodings::{card, CollectClauses, EncodeStats, Error},
+    instances::ManageVars,
     types::{Lit, RsHashMap},
 };
 
@@ -120,9 +120,16 @@ impl<PBE> BoundUpper for Inverted<PBE>
 where
     PBE: BoundLower,
 {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         self.pb_enc
-            .encode_lb(self.convert_encoding_range(range), var_manager)
+            .encode_lb(self.convert_encoding_range(range), collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -139,9 +146,16 @@ impl<PBE> BoundLower for Inverted<PBE>
 where
     PBE: BoundUpper,
 {
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         self.pb_enc
-            .encode_ub(self.convert_encoding_range(range), var_manager)
+            .encode_ub(self.convert_encoding_range(range), collector, var_manager)
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
@@ -158,9 +172,16 @@ impl<PBE> BoundUpperIncremental for Inverted<PBE>
 where
     PBE: BoundLowerIncremental,
 {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         self.pb_enc
-            .encode_lb_change(self.convert_encoding_range(range), var_manager)
+            .encode_lb_change(self.convert_encoding_range(range), collector, var_manager)
     }
 }
 
@@ -168,9 +189,16 @@ impl<PBE> BoundLowerIncremental for Inverted<PBE>
 where
     PBE: BoundUpperIncremental,
 {
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_lb_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         self.pb_enc
-            .encode_ub_change(self.convert_encoding_range(range), var_manager)
+            .encode_ub_change(self.convert_encoding_range(range), collector, var_manager)
     }
 }
 
@@ -281,8 +309,15 @@ where
     UBE: BoundUpper,
     LBE: BoundLower,
 {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.ub_enc.encode_ub(range, var_manager)
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.ub_enc.encode_ub(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -295,8 +330,15 @@ where
     UBE: BoundUpper,
     LBE: BoundLower,
 {
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.lb_enc.encode_lb(range, var_manager)
+    fn encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.lb_enc.encode_lb(range, collector, var_manager)
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
@@ -309,8 +351,15 @@ where
     UBE: BoundUpperIncremental,
     LBE: BoundLowerIncremental,
 {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.ub_enc.encode_ub_change(range, var_manager)
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.ub_enc.encode_ub_change(range, collector, var_manager)
     }
 }
 
@@ -319,8 +368,15 @@ where
     UBE: BoundUpperIncremental,
     LBE: BoundLowerIncremental,
 {
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.lb_enc.encode_lb_change(range, var_manager)
+    fn encode_lb_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.lb_enc.encode_lb_change(range, collector, var_manager)
     }
 }
 
@@ -424,8 +480,15 @@ impl<CE> BoundUpper for Card<CE>
 where
     CE: card::BoundUpper,
 {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.card_enc.encode_ub(range, var_manager)
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.card_enc.encode_ub(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -437,8 +500,15 @@ impl<CE> BoundLower for Card<CE>
 where
     CE: card::BoundLower,
 {
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.card_enc.encode_lb(range, var_manager)
+    fn encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.card_enc.encode_lb(range, collector, var_manager)
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
@@ -450,8 +520,16 @@ impl<CE> BoundUpperIncremental for Card<CE>
 where
     CE: card::BoundUpperIncremental,
 {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.card_enc.encode_ub_change(range, var_manager)
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.card_enc
+            .encode_ub_change(range, collector, var_manager)
     }
 }
 
@@ -459,8 +537,16 @@ impl<CE> BoundLowerIncremental for Card<CE>
 where
     CE: card::BoundLowerIncremental,
 {
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        self.card_enc.encode_lb_change(range, var_manager)
+    fn encode_lb_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.card_enc
+            .encode_lb_change(range, collector, var_manager)
     }
 }
 

@@ -201,7 +201,7 @@ impl fmt::Display for Var {
 #[macro_export]
 macro_rules! var {
     ($v:expr) => {
-        Var::new($v)
+        $crate::types::Var::new($v)
     };
 }
 
@@ -449,7 +449,7 @@ impl fmt::Display for Lit {
 #[macro_export]
 macro_rules! lit {
     ($l:expr) => {
-        Lit::positive($l)
+        $crate::types::Lit::positive($l)
     };
 }
 
@@ -467,7 +467,7 @@ macro_rules! lit {
 #[macro_export]
 macro_rules! ipasir_lit {
     ($l:expr) => {
-        Lit::from_ipasir($l).unwrap()
+        $crate::types::Lit::from_ipasir($l).unwrap()
     };
 }
 

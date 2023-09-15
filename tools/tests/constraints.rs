@@ -4,7 +4,7 @@ use rustsat::{
     solvers::{Solve, SolveIncremental, SolverResult},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Lit, RsHashMap,
+        RsHashMap,
     },
 };
 use rustsat_cadical::CaDiCaL;

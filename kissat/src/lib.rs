@@ -161,6 +161,13 @@ impl Kissat<'_> {
     }
 }
 
+impl Extend<Clause> for Kissat<'_> {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        iter.into_iter()
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+    }
+}
+
 impl Solve for Kissat<'_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::kissat_signature() };
@@ -416,7 +423,6 @@ mod test {
     use rustsat::{
         lit,
         solvers::{Solve, SolverError, SolverResult, SolverState},
-        types::Lit,
     };
 
     #[test]
