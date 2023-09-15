@@ -97,8 +97,7 @@ impl Cnf {
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
-        b.into_iter()
-            .for_each(|bi| self.add_clause(clause![!a, *bi]));
+        b.iter().for_each(|bi| self.add_clause(clause![!a, *bi]));
     }
 
     /// See [`atomics::cube_impl_lit`]

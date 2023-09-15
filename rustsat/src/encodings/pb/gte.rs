@@ -258,17 +258,15 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
         self.extend_tree(range.end - 1);
-        let cnf = match &mut self.root {
-            None => (),
-            Some(root) => root.rec_encode_change(
+        if let Some(root) = self.root.as_mut() {
+            root.rec_encode_change(
                 range.start + 1..range.end + self.max_leaf_weight,
                 collector,
                 var_manager,
-            ),
-        };
+            );
+        }
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
-        cnf
     }
 }
 
@@ -483,16 +481,16 @@ impl Node {
                             0
                         }
                     };
-                    let clause_iter = left_lits
-                        .range(1..range.end - 1)
-                        .map(|(&left_val, &left_lit)| {
-                            right_lits
-                                .range(right_min(range.start, left_val)..range.end - left_val)
-                                .filter_map(move |(&right_val, &right_lit)| {
-                                    clause_from_data(left_val, right_val, left_lit, right_lit)
-                                })
-                        })
-                        .flatten();
+                    let clause_iter =
+                        left_lits
+                            .range(1..range.end - 1)
+                            .flat_map(|(&left_val, &left_lit)| {
+                                right_lits
+                                    .range(right_min(range.start, left_val)..range.end - left_val)
+                                    .filter_map(move |(&right_val, &right_lit)| {
+                                        clause_from_data(left_val, right_val, left_lit, right_lit)
+                                    })
+                            });
                     collector.extend(clause_iter);
                 }
             }

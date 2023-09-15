@@ -437,12 +437,10 @@ impl Node {
                     }
                     None
                 };
-                let clause_iter = (0..=left_lits.len())
-                    .map(|left_val| {
-                        (0..=right_lits.len())
-                            .filter_map(move |right_val| clause_for_vals(left_val, right_val))
-                    })
-                    .flatten();
+                let clause_iter = (0..=left_lits.len()).flat_map(|left_val| {
+                    (0..=right_lits.len())
+                        .filter_map(move |right_val| clause_for_vals(left_val, right_val))
+                });
                 collector.extend(clause_iter);
             }
         }
@@ -517,12 +515,10 @@ impl Node {
                     }
                     None
                 };
-                let clause_iter = (0..=left_lits.len())
-                    .map(|left_val| {
-                        (0..=right_lits.len())
-                            .filter_map(move |right_val| clause_for_vals(left_val, right_val))
-                    })
-                    .flatten();
+                let clause_iter = (0..=left_lits.len()).flat_map(|left_val| {
+                    (0..=right_lits.len())
+                        .filter_map(move |right_val| clause_for_vals(left_val, right_val))
+                });
                 collector.extend(clause_iter);
             }
         }

@@ -163,7 +163,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
                 let output_weight = 1 << (structure.output_power());
                 let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
                 for oidx in output_range {
-                    encode_output(&structure, oidx, &mut self.db, var_manager, collector);
+                    encode_output(structure, oidx, &mut self.db, var_manager, collector);
                 }
                 self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;

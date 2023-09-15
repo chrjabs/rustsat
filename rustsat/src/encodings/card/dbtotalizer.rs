@@ -132,19 +132,16 @@ impl BoundUpperIncremental for DbTotalizer {
             return;
         }
         self.extend_tree();
-        match self.root {
-            Some(id) => {
-                let n_vars_before = var_manager.n_used();
-                let n_clauses_before = collector.n_clauses();
-                for idx in range {
-                    if idx < self.db[id].len() {
-                        self.db.define_pos(id, idx, collector, var_manager);
-                    }
+        if let Some(id) = self.root {
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                if idx < self.db[id].len() {
+                    self.db.define_pos(id, idx, collector, var_manager);
                 }
-                self.n_clauses += collector.n_clauses() - n_clauses_before;
-                self.n_vars += var_manager.n_used() - n_vars_before;
             }
-            None => (),
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         }
     }
 }
@@ -485,8 +482,7 @@ impl TotDb {
             let rlit = *rlits[con_idx(ridx, rcon)].lit().unwrap();
             atomics::cube_impl_lit(&[llit, rlit], olit)
         };
-        let clause_iter =
-            (l_min_idx..cmp::min(l_max_idx + 1, idx)).map(|lidx| clause_for_lidx(lidx));
+        let clause_iter = (l_min_idx..cmp::min(l_max_idx + 1, idx)).map(clause_for_lidx);
         collector.extend(clause_iter);
 
         // Mark positive literal as encoded
