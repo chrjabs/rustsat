@@ -9,7 +9,7 @@ use rustsat::types::RsHashMap;
 use rustsat::{
     instances::{Objective, OptInstance},
     lit,
-    types::{constraints::PBConstraint, Lit},
+    types::constraints::PBConstraint,
 };
 
 macro_rules! opb_test {

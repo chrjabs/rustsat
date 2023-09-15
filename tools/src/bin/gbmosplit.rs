@@ -490,10 +490,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use rustsat::{
-        clause, lit,
-        types::{Clause, Lit},
-    };
+    use rustsat::{clause, lit};
 
     #[test]
     fn split_bmo() {

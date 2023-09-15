@@ -91,6 +91,13 @@ impl Minisat {
     }
 }
 
+impl Extend<Clause> for Minisat {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        iter.into_iter()
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+    }
+}
+
 impl Solve for Minisat {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::cminisat_signature() };
@@ -326,7 +333,6 @@ mod test {
     use rustsat::{
         lit,
         solvers::{Solve, SolveStats, SolverResult},
-        types::{Lit, Var},
         var,
     };
 

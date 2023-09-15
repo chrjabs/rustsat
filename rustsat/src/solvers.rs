@@ -103,8 +103,9 @@
 
 use crate::{
     clause,
+    encodings::CollectClauses,
     instances::Cnf,
-    types::{Assignment, Clause, ClsIter, Lit, TernaryVal, Var},
+    types::{Assignment, Clause, Lit, TernaryVal, Var},
 };
 use core::time::Duration;
 use std::fmt;
@@ -117,7 +118,7 @@ pub use ipasir::IpasirSolver;
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
-pub trait Solve {
+pub trait Solve: Extend<Clause> {
     /// Gets a signature of the solver implementation
     fn signature(&self) -> &'static str;
     /// Reserves memory in the solver until a maximum variables, if the solver
@@ -170,13 +171,9 @@ pub trait Solve {
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> SolveMightFail {
         self.add_clause(clause![lit1, lit2, lit3])
     }
-    /// Adds clauses from an iterator to an instance
-    fn add_clauses<CI: ClsIter>(&mut self, cls: CI) -> SolveMightFail {
-        cls.into_iter().try_for_each(|cl| self.add_clause(cl))
-    }
     /// Adds all clauses from a [`Cnf`] instance.
     fn add_cnf(&mut self, cnf: Cnf) -> SolveMightFail {
-        self.add_clauses(cnf)
+        cnf.into_iter().try_for_each(|cl| self.add_clause(cl))
     }
 }
 
@@ -435,5 +432,11 @@ impl fmt::Display for SolverError {
                 required_state, true_state
             ),
         }
+    }
+}
+
+impl<S: Solve + SolveStats> CollectClauses for S {
+    fn n_clauses(&self) -> usize {
+        self.n_clauses()
     }
 }

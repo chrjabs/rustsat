@@ -19,9 +19,9 @@ use crate::{
     encodings::{
         card::dbtotalizer::{Node, TotDb},
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        EncodeStats, Error,
+        CollectClauses, EncodeStats, Error,
     },
-    instances::{Cnf, ManageVars},
+    instances::ManageVars,
     types::{Lit, RsHashMap},
     utils,
 };
@@ -115,9 +115,16 @@ impl EncodeIncremental for DynamicPolyWatchdog {
 }
 
 impl BoundUpper for DynamicPolyWatchdog {
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         self.db.reset_encoded();
-        self.encode_ub_change(range, var_manager)
+        self.encode_ub_change(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -129,9 +136,16 @@ impl BoundUpper for DynamicPolyWatchdog {
 }
 
 impl BoundUpperIncremental for DynamicPolyWatchdog {
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
         if range.is_empty() {
-            return Cnf::new();
+            return;
         }
         if self.lits_added {
             // reset current totalizer database
@@ -145,17 +159,16 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         match &self.structure {
             Some(structure) => {
                 let n_vars_before = var_manager.n_used();
+                let n_clauses_before = collector.n_clauses();
                 let output_weight = 1 << (structure.output_power());
                 let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
-                let mut cnf = Cnf::new();
                 for oidx in output_range {
-                    encode_output(&structure, oidx, &mut self.db, var_manager, &mut cnf);
+                    encode_output(&structure, oidx, &mut self.db, var_manager, collector);
                 }
-                self.n_clauses += cnf.len();
+                self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
-                cnf
             }
-            None => Cnf::new(),
+            None => (),
         }
     }
 }
@@ -336,17 +349,19 @@ fn build_structure<CI: Iterator<Item = (NodeCon, usize)>>(
 }
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]
-fn encode_output(
+fn encode_output<Col>(
     dpw: &Structure,
     oidx: usize,
     tot_db: &mut TotDb,
     var_manager: &mut dyn ManageVars,
-    encoding: &mut Cnf,
-) {
+    collector: &mut Col,
+) where
+    Col: CollectClauses,
+{
     if oidx >= tot_db[dpw.root].len() {
         return;
     }
-    tot_db.define_pos(dpw.root, oidx, encoding, var_manager);
+    tot_db.define_pos(dpw.root, oidx, collector, var_manager);
 }
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]

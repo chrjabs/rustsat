@@ -8,10 +8,8 @@
 //! ```
 //! use rustsat::{
 //!     encodings::am1::{self, Encode},
-//!     instances::{BasicVarManager, ManageVars},
-//!     lit,
-//!     types::{Lit, Var},
-//!     var,
+//!     instances::{BasicVarManager, Cnf, ManageVars},
+//!     lit, var,
 //! };
 //!
 //! let mut var_manager = BasicVarManager::default();
@@ -19,14 +17,12 @@
 //!
 //! let mut encoder = am1::new_default_am1();
 //! encoder.extend(vec![lit![0], lit![1], lit![2]]);
-//! let encoding = encoder.encode(&mut var_manager).unwrap();
+//! let mut encoding = Cnf::new();
+//! encoder.encode(&mut encoding, &mut var_manager).unwrap();
 //! ```
 
-use super::Error;
-use crate::{
-    instances::{Cnf, ManageVars},
-    types::Lit,
-};
+use super::{CollectClauses, Error};
+use crate::{instances::ManageVars, types::Lit};
 
 mod pairwise;
 pub use pairwise::Pairwise;
@@ -41,7 +37,13 @@ pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
     /// Gets the number of literals in the encoding
     fn n_lits(&self) -> usize;
     /// Encodes and enforces the at-most-1 constraint
-    fn encode(&mut self, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>;
+    fn encode<Col>(
+        &mut self,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
+    where
+        Col: CollectClauses;
 }
 
 /// The default at-most-1 encoding. For now this is a [`Pairwise`] encoding.

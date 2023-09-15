@@ -10,10 +10,8 @@
 //! use rustsat::{
 //!     clause,
 //!     encodings::{card, card::{BoundBoth, Encode}},
-//!     instances::{BasicVarManager, ManageVars},
-//!     lit, solvers,
-//!     types::{Clause, Lit, Var},
-//!     var,
+//!     instances::{BasicVarManager, Cnf, ManageVars},
+//!     lit, solvers, var,
 //! };
 //!
 //! let mut var_manager = BasicVarManager::default();
@@ -21,7 +19,8 @@
 //!
 //! let mut enc = card::new_default_inc_both();
 //! enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-//! let encoding = enc.encode_both(3..4, &mut var_manager);
+//! let mut encoding = Cnf::new();
+//! enc.encode_both(3..4, &mut encoding, &mut var_manager);
 //! ```
 //!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
@@ -30,9 +29,10 @@
 
 use std::ops::Range;
 
-use super::Error;
+use super::{CollectClauses, Error};
 use crate::{
-    instances::{Cnf, ManageVars},
+    clause,
+    instances::ManageVars,
     types::{
         constraints::{CardConstraint, CardEQConstr, CardLBConstr, CardUBConstr},
         Clause, Lit,
@@ -65,29 +65,39 @@ pub trait BoundUpper: Encode {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_ub(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_ub<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
     /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
     /// [`Error::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound cardinality constraint to CNF
-    fn encode_ub_constr(
+    fn encode_ub_constr<Col>(
         constr: CardUBConstr,
+        collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, Error>
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
         enc.extend(lits);
-        let mut cnf = enc.encode_ub(ub..ub + 1, var_manager);
-        enc.enforce_ub(ub)
-            .unwrap()
-            .into_iter()
-            .for_each(|unit| cnf.add_unit(unit));
-        Ok(cnf)
+        enc.encode_ub(ub..ub + 1, collector, var_manager);
+        collector.extend(
+            enc.enforce_ub(ub)
+                .unwrap()
+                .into_iter()
+                .map(|unit| clause![unit]),
+        );
+        Ok(())
     }
 }
 
@@ -98,7 +108,13 @@ pub trait BoundLower: Encode {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_lb(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_lb<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
     /// adequately and nothing has been added afterwards, otherwise
@@ -107,22 +123,26 @@ pub trait BoundLower: Encode {
     /// returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound cardinality constraint to CNF
-    fn encode_lb_constr(
+    fn encode_lb_constr<Col>(
         constr: CardLBConstr,
+        collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, Error>
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
         enc.extend(lits);
-        let mut cnf = enc.encode_lb(lb..lb + 1, var_manager);
-        enc.enforce_lb(lb)
-            .unwrap()
-            .into_iter()
-            .for_each(|unit| cnf.add_unit(unit));
-        Ok(cnf)
+        enc.encode_lb(lb..lb + 1, collector, var_manager);
+        collector.extend(
+            enc.enforce_lb(lb)
+                .unwrap()
+                .into_iter()
+                .map(|unit| clause![unit]),
+        );
+        Ok(())
     }
 }
 
@@ -132,9 +152,16 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_both(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let cnf = self.encode_ub(range.clone(), var_manager);
-        cnf.join(self.encode_lb(range, var_manager))
+    fn encode_both<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.encode_ub(range.clone(), collector, var_manager);
+        self.encode_lb(range, collector, var_manager);
     }
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
@@ -149,32 +176,41 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Ok(assumps)
     }
     /// Encodes an equality cardinality constraint to CNF
-    fn encode_eq_constr(
+    fn encode_eq_constr<Col>(
         constr: CardEQConstr,
+        collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<Cnf, Error>
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         let mut enc = Self::default();
         let (lits, b) = constr.decompose();
         enc.extend(lits);
-        let mut cnf = enc.encode_both(b..b + 1, var_manager);
-        enc.enforce_eq(b)
-            .unwrap()
-            .into_iter()
-            .for_each(|unit| cnf.add_unit(unit));
-        Ok(cnf)
+        enc.encode_both(b..b + 1, collector, var_manager);
+        collector.extend(
+            enc.enforce_eq(b)
+                .unwrap()
+                .into_iter()
+                .map(|unit| clause![unit]),
+        );
+        Ok(())
     }
     /// Encodes any cardinality constraint to CNF
-    fn encode_constr(constr: CardConstraint, var_manager: &mut dyn ManageVars) -> Result<Cnf, Error>
+    fn encode_constr<Col>(
+        constr: CardConstraint,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
     where
+        Col: CollectClauses,
         Self: Sized,
     {
         match constr {
-            CardConstraint::UB(constr) => Self::encode_ub_constr(constr, var_manager),
-            CardConstraint::LB(constr) => Self::encode_lb_constr(constr, var_manager),
-            CardConstraint::EQ(constr) => Self::encode_eq_constr(constr, var_manager),
+            CardConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
+            CardConstraint::LB(constr) => Self::encode_lb_constr(constr, collector, var_manager),
+            CardConstraint::EQ(constr) => Self::encode_eq_constr(constr, collector, var_manager),
         }
     }
 }
@@ -197,7 +233,13 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     /// bounds. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_ub_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_ub_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
@@ -207,7 +249,13 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// bounds in a given range. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore the lower
     /// or upper end of the range.
-    fn encode_lb_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf;
+    fn encode_lb_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses;
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
@@ -216,9 +264,16 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     /// in a given range. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore the lower or
     /// upper end of the range.
-    fn encode_both_change(&mut self, range: Range<usize>, var_manager: &mut dyn ManageVars) -> Cnf {
-        let cnf = self.encode_ub_change(range.clone(), var_manager);
-        cnf.join(self.encode_lb_change(range, var_manager))
+    fn encode_both_change<Col>(
+        &mut self,
+        range: Range<usize>,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) where
+        Col: CollectClauses,
+    {
+        self.encode_ub_change(range.clone(), collector, var_manager);
+        self.encode_lb_change(range, collector, var_manager)
     }
 }
 
@@ -271,42 +326,38 @@ pub fn new_default_inc_both() -> impl BoundBoth {
 
 /// A default encoder for any cardinality constraint. This uses a
 /// [`DefBothBounding`] to encode non-trivial constraints.
-pub fn default_encode_cardinality_constraint(
+pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
     constr: CardConstraint,
+    collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Cnf {
-    encode_cardinality_constraint::<DefBothBounding>(constr, var_manager)
+) {
+    encode_cardinality_constraint::<DefBothBounding, Col>(constr, collector, var_manager)
 }
 
 /// An encoder for any cardinality constraint with an encoding of choice
-pub fn encode_cardinality_constraint<CE: BoundBoth>(
+pub fn encode_cardinality_constraint<CE: BoundBoth, Col: CollectClauses>(
     constr: CardConstraint,
+    collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Cnf {
+) {
     if constr.is_tautology() {
-        return Cnf::new();
+        return;
     }
     if constr.is_unsat() {
-        let mut cnf = Cnf::new();
-        cnf.add_clause(Clause::new());
-        return cnf;
+        collector.extend([Clause::new()]);
+        return;
     }
     if constr.is_positive_assignment() {
-        let mut cnf = Cnf::new();
-        let lits = constr.into_lits();
-        lits.into_iter().for_each(|l| cnf.add_unit(l));
-        return cnf;
+        collector.extend(constr.into_lits().into_iter().map(|lit| clause![lit]));
+        return;
     }
     if constr.is_negative_assignment() {
-        let mut cnf = Cnf::new();
-        let lits = constr.into_lits();
-        lits.into_iter().for_each(|l| cnf.add_unit(!l));
-        return cnf;
+        collector.extend(constr.into_lits().into_iter().map(|lit| clause![!lit]));
+        return;
     }
     if constr.is_clause() {
-        let mut cnf = Cnf::new();
-        cnf.add_clause(constr.as_clause().unwrap());
-        return cnf;
+        collector.extend([constr.as_clause().unwrap()]);
+        return;
     }
-    CE::encode_constr(constr, var_manager).unwrap()
+    CE::encode_constr(constr, collector, var_manager).unwrap()
 }

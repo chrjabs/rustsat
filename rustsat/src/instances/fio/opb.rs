@@ -414,13 +414,13 @@ where
     if let Some(max_var) = vm.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
     }
-    writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
+    writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
     writeln!(
         writer,
         "* {} relaxed and hardened soft clauses",
-        hardened.n_clauses()
+        hardened.len()
     )?;
     write_objective(writer, softs, opts)?;
     hardened
@@ -460,13 +460,13 @@ where
     if let Some(max_var) = vm.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
     }
-    writeln!(writer, "* {} original hard clauses", cnf.n_clauses())?;
+    writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
     write!(writer, "* ( ")?;
     hardened
         .iter()
-        .try_for_each(|h| write!(writer, "{} ", h.n_clauses()))?;
+        .try_for_each(|h| write!(writer, "{} ", h.len()))?;
     writeln!(writer, ") relaxed and hardened soft clauses",)?;
     objs.into_iter()
         .try_for_each(|softs| write_objective(writer, softs, opts))?;
@@ -686,10 +686,7 @@ mod test {
         clause,
         instances::{BasicVarManager, SatInstance},
         lit,
-        types::{
-            constraints::{CardConstraint, PBConstraint},
-            Clause, Lit, Var,
-        },
+        types::constraints::{CardConstraint, PBConstraint},
         var,
     };
     use nom::error::{Error as NomError, ErrorKind};
@@ -939,7 +936,7 @@ mod test {
             .unwrap()
             .as_cnf();
 
-        assert_eq!(cnf.n_clauses(), 1);
+        assert_eq!(cnf.len(), 1);
         assert_eq!(cnf.into_iter().next().unwrap().normalize(), cl.normalize());
     }
 

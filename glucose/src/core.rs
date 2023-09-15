@@ -74,6 +74,13 @@ impl Glucose {
     }
 }
 
+impl Extend<Clause> for Glucose {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        iter.into_iter()
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+    }
+}
+
 impl Solve for Glucose {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::cglucose4_signature() };
@@ -309,7 +316,6 @@ mod test {
     use rustsat::{
         lit,
         solvers::{Solve, SolveStats, SolverResult},
-        types::{Lit, Var},
         var,
     };
 

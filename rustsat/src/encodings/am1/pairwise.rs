@@ -6,8 +6,9 @@
 
 use super::Encode;
 use crate::{
-    encodings::{EncodeStats, Error},
-    instances::{Cnf, ManageVars},
+    clause,
+    encodings::{CollectClauses, EncodeStats, Error},
+    instances::ManageVars,
     types::Lit,
 };
 
@@ -35,16 +36,25 @@ impl Encode for Pairwise {
         self.in_lits.len()
     }
 
-    fn encode(&mut self, _var_manager: &mut dyn ManageVars) -> Result<Cnf, Error> {
-        self.n_clauses = 0;
-        let mut cnf = Cnf::new();
-        for first in 0..self.in_lits.len() {
-            for second in first + 1..self.in_lits.len() {
-                cnf.add_binary(!self.in_lits[first], !self.in_lits[second]);
-            }
-        }
-        self.n_clauses = cnf.n_clauses();
-        Ok(cnf)
+    fn encode<Col>(
+        &mut self,
+        collector: &mut Col,
+        _var_manager: &mut dyn ManageVars,
+    ) -> Result<(), Error>
+    where
+        Col: CollectClauses,
+    {
+        let prev_clauses = collector.n_clauses();
+        let lits = &self.in_lits;
+        let clause_iter = (0..self.in_lits.len())
+            .map(|first| {
+                (first + 1..self.in_lits.len())
+                    .map(move |second| clause![!lits[first], !lits[second]])
+            })
+            .flatten();
+        collector.extend(clause_iter);
+        self.n_clauses = collector.n_clauses() - prev_clauses;
+        Ok(())
     }
 }
 
