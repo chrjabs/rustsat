@@ -306,7 +306,7 @@ impl Lit {
             return Err(TypeError::IpasirZero);
         }
         let negated = val < 0;
-        let idx = val.abs() as u32;
+        let idx = val.unsigned_abs();
         Lit::new_with_error(idx - 1, negated)
     }
 

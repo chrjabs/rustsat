@@ -13,14 +13,14 @@ pub fn digits(mut number: usize, mut basis: u8) -> u32 {
     if (basis & (basis - 1)) == 0 {
         // Base is a power of 2. Optimized version using shift operations.
         let mut pow: u8 = 0;
-        basis = basis >> 1;
+        basis >>= 1;
         while basis > 0 {
             pow += 1;
-            basis = basis >> 1;
+            basis >>= 1;
         }
         while number > 0 {
             digits += 1;
-            number = number >> pow;
+            number >>= pow;
         }
     } else {
         while number > 0 {
