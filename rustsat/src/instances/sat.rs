@@ -97,7 +97,7 @@ impl Cnf {
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
-        b.iter().for_each(|bi| self.add_clause(clause![!a, *bi]));
+        self.extend(atomics::lit_impl_cube(a, b))
     }
 
     /// See [`atomics::cube_impl_lit`]
@@ -107,9 +107,7 @@ impl Cnf {
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        for ai in a {
-            self.add_clause(clause![!*ai, b]);
-        }
+        self.extend(atomics::clause_impl_lit(a, b))
     }
 
     /// See [`atomics::cube_impl_clause`]
@@ -119,27 +117,17 @@ impl Cnf {
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        for ai in a {
-            let mut cl = clause![!*ai];
-            b.iter().for_each(|bi| cl.add(*bi));
-            self.add_clause(cl)
-        }
+        self.extend(atomics::clause_impl_clause(a, b))
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        for ai in a {
-            b.iter().for_each(|bi| self.add_clause(clause![!*ai, *bi]));
-        }
+        self.extend(atomics::clause_impl_cube(a, b))
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        for bi in b {
-            let mut cl = clause![*bi];
-            a.iter().for_each(|ai| cl.add(!*ai));
-            self.add_clause(cl)
-        }
+        self.extend(atomics::cube_impl_cube(a, b))
     }
 
     /// Joins the current CNF with another one. Like [`Cnf::extend`] but
