@@ -488,7 +488,7 @@ impl<VM: ManageVars> SatInstance<VM> {
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         let (cnf, vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
-        fio::dimacs::write_cnf(writer, cnf, vm.max_var())
+        fio::dimacs::write_cnf_annotated(writer, cnf, vm.max_var())
     }
 
     /// Writes the instance to an OPB file at a path

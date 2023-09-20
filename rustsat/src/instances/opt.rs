@@ -946,7 +946,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     {
         let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.obj.as_soft_cls();
-        fio::dimacs::write_wcnf(writer, cnf, soft_cls, vm.max_var())
+        fio::dimacs::write_wcnf_annotated(writer, cnf, soft_cls, vm.max_var())
     }
 
     /// Writes the instance to an OPB file at a path

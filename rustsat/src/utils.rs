@@ -1,7 +1,8 @@
 //! # Library-Internal Utilities
 
 /// Computes the number of digits needed to represent a number in a given base
-pub fn digits(mut number: usize, mut basis: u8) -> u32 {
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+pub(crate) fn digits(mut number: usize, mut basis: u8) -> u32 {
     debug_assert_ne!(basis, 0);
     if number == 0 {
         return 1;

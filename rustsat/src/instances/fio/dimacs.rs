@@ -448,13 +448,13 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>, 
 }
 
 #[cfg(feature = "optimization")]
-type McnfLine = Option<(Option<(usize, usize)>, Clause)>;
+type McnfDataLine = Option<(Option<(usize, usize)>, Clause)>;
 
 #[cfg(feature = "optimization")]
 /// Parses a MCNF or WCNF post 22 line, either a comment or a clause with
 /// objective index. If a line does not explicitly specify an objective index,
 /// it is assumed to be 1. This enables for also parsing mcnf lines.
-fn parse_mcnf_line(input: &str) -> IResult<&str, McnfLine, Error> {
+fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine, Error> {
     let (input, _) = multispace0(input)?;
     if input.trim().is_empty() {
         // Tolerate empty lines
@@ -556,7 +556,7 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str, Error> {
 }
 
 /// Writes a CNF to a DIMACS CNF file
-pub fn write_cnf<W: Write>(
+pub fn write_cnf_annotated<W: Write>(
     writer: &mut W,
     cnf: Cnf,
     max_var: Option<Var>,
@@ -578,8 +578,28 @@ pub fn write_cnf<W: Write>(
 }
 
 #[cfg(feature = "optimization")]
+/// Input data for writing a CNF instance
+pub enum CnfLine {
+    /// A comment line
+    Comment(String),
+    /// A clause
+    Clause(Clause),
+}
+
+/// Writes a CNF to a DIMACS CNF file
+pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
+    writer: &mut W,
+    mut data: Iter,
+) -> Result<(), io::Error> {
+    data.try_for_each(|dat| match dat {
+        CnfLine::Comment(c) => write!(writer, "c {}", c),
+        CnfLine::Clause(cl) => write_clause(writer, cl),
+    })
+}
+
+#[cfg(feature = "optimization")]
 /// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
-pub fn write_wcnf<W: Write, CI: WClsIter>(
+pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
     writer: &mut W,
     cnf: Cnf,
     softs: (CI, isize),
@@ -605,9 +625,39 @@ pub fn write_wcnf<W: Write, CI: WClsIter>(
     writer.flush()
 }
 
+#[cfg(feature = "optimization")]
+/// Input data for writing a single-objective (WCNF) instance
+pub enum WcnfLine {
+    /// A comment line
+    Comment(String),
+    /// A hard clause
+    Hard(Clause),
+    /// A soft clause and its weight
+    Soft(Clause, usize),
+}
+
+#[cfg(feature = "optimization")]
+/// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
+pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
+    writer: &mut W,
+    mut data: Iter,
+) -> Result<(), io::Error> {
+    data.try_for_each(|dat| match dat {
+        WcnfLine::Comment(c) => write!(writer, "c {}", c),
+        WcnfLine::Hard(cl) => {
+            write!(writer, "h ")?;
+            write_clause(writer, cl)
+        }
+        WcnfLine::Soft(cl, w) => {
+            write!(writer, "{} ", w)?;
+            write_clause(writer, cl)
+        }
+    })
+}
+
 #[cfg(feature = "multiopt")]
 /// Writes a CNF and multiple objectives as sets of soft clauses to a DIMACS MCNF file
-pub fn write_mcnf<W: Write, CI: WClsIter>(
+pub fn write_mcnf_annotated<W: Write, CI: WClsIter>(
     writer: &mut W,
     cnf: Cnf,
     softs: Vec<(CI, isize)>,
@@ -650,6 +700,36 @@ pub fn write_mcnf<W: Write, CI: WClsIter>(
     writer.flush()
 }
 
+#[cfg(feature = "multiopt")]
+/// Input data for writing a multi-objective (MCNF) instance
+pub enum McnfLine {
+    /// A comment line
+    Comment(String),
+    /// A hard clause
+    Hard(Clause),
+    /// A soft clause, its weight, and its objective index
+    Soft(Clause, usize, usize),
+}
+
+#[cfg(feature = "multiopt")]
+/// Writes a multi-objective instance from an iterator
+pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
+    writer: &mut W,
+    mut data: Iter,
+) -> Result<(), io::Error> {
+    data.try_for_each(|dat| match dat {
+        McnfLine::Comment(c) => write!(writer, "c {}", c),
+        McnfLine::Hard(cl) => {
+            write!(writer, "h ")?;
+            write_clause(writer, cl)
+        }
+        McnfLine::Soft(cl, w, oidx) => {
+            write!(writer, "o{} {} ", oidx + 1, w)?;
+            write_clause(writer, cl)
+        }
+    })
+}
+
 fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Error> {
     clause
         .into_iter()
@@ -661,7 +741,7 @@ fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Erro
 mod tests {
     use super::{
         parse_clause_ending, parse_cnf_body, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line,
-        parse_preamble, write_cnf, Error, Preamble,
+        parse_preamble, write_cnf_annotated, Error, Preamble,
     };
     use crate::{
         clause,
@@ -673,7 +753,7 @@ mod tests {
     #[cfg(feature = "optimization")]
     use super::{
         parse_idx, parse_mcnf_line, parse_no_pline_body, parse_wcnf_pre22_body,
-        parse_wcnf_pre22_line, parse_weight, write_wcnf,
+        parse_wcnf_pre22_line, parse_weight, write_wcnf_annotated,
     };
     #[cfg(feature = "optimization")]
     use super::{Objective, OptInstance};
@@ -1114,7 +1194,7 @@ mod tests {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_cnf(&mut cursor, true_cnf.clone(), Some(var![1])).unwrap();
+        write_cnf_annotated(&mut cursor, true_cnf.clone(), Some(var![1])).unwrap();
 
         cursor.rewind().unwrap();
 
@@ -1134,7 +1214,7 @@ mod tests {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_wcnf(
+        write_wcnf_annotated(
             &mut cursor,
             true_constrs.clone().as_cnf().0,
             true_obj.clone().as_soft_cls(),
