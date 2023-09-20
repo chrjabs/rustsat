@@ -7,4 +7,4 @@ pub mod types;
 
 pub mod capi;
 
-mod utils;
+pub mod utils;

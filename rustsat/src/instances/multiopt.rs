@@ -165,7 +165,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     {
         let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
-        fio::dimacs::write_mcnf(writer, cnf, soft_cls, vm.max_var())
+        fio::dimacs::write_mcnf_annotated(writer, cnf, soft_cls, vm.max_var())
     }
 
     /// Writes the instance to an OPB file at a path
