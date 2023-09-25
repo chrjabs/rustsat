@@ -215,7 +215,7 @@ pub trait Learn<'learn> {
 
 /// Trait for all solvers that can be asynchronously interrupt.
 pub trait Interrupt {
-    type Interrupter: InterruptSolver;
+    type Interrupter: InterruptSolver + Send + 'static;
     /// Gets a thread safe interrupter object that can be used to terminate the solver
     fn interrupter(&mut self) -> Self::Interrupter;
 }
