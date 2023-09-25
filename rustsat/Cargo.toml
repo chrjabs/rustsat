@@ -24,11 +24,7 @@ rand = { version = "0.8.5", optional = true }
 visibility = { version = "0" }
 
 [build-dependencies]
-cc = { version = "1", features = ["parallel"] }
-git2 = "0"
-glob = "0"
-chrono = "0"
-cmake = "0"
+cbindgen = "0"
 
 [features]
 default = [
@@ -48,3 +44,6 @@ all = [
   "rand",
   "fxhash"
 ]
+
+[lib]
+crate-type = ["staticlib"]
