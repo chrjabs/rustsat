@@ -245,10 +245,6 @@ pub mod encodings {
         /// A call to `var_manager` must yield a new variable. The
         /// encoding will be returned via the given callback function as
         /// 0-terminated clauses (in the same way as IPASIR's `add`).
-        ///
-        /// A call to `var_manager` must yield a new variable. The
-        /// encoding will be returned via the given callback function as
-        /// 0-terminated clauses (in the same way as IPASIR's `add`).
         #[no_mangle]
         pub extern "C" fn dpw_encode_ub(
             dpw: *mut DynamicPolyWatchdog,
