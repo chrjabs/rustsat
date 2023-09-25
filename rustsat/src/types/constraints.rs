@@ -25,6 +25,11 @@ impl Clause {
         Self::default()
     }
 
+    /// Gets the clause as a slice of literals
+    pub fn lits(&self) -> &[Lit] {
+        &self.lits
+    }
+
     /// Gets the length of the clause
     #[inline]
     pub fn len(&self) -> usize {
