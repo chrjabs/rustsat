@@ -14,7 +14,7 @@ pub mod encodings {
     use crate::{
         encodings::{self, CollectClauses},
         instances::ManageVars,
-        types::{Clause, Lit, Var},
+        types::{Clause, Var},
     };
 
     #[repr(C)]
@@ -38,7 +38,6 @@ pub mod encodings {
 
     pub type CClauseCollector = extern "C" fn(lit: c_int, data: *mut c_void);
     pub type CAssumpCollector = extern "C" fn(lit: c_int, data: *mut c_void);
-    pub type CVarManager = extern "C" fn() -> c_int;
 
     struct ClauseCollector {
         n_clauses: usize,
@@ -72,35 +71,37 @@ pub mod encodings {
         }
     }
 
-    struct VarManager {
-        max_var: Option<Var>,
-        cnew: CVarManager,
+    struct VarManager<'a> {
+        n_vars_used: &'a mut c_int,
     }
 
-    impl VarManager {
-        pub fn new(cnew: CVarManager) -> Self {
-            Self {
-                max_var: None,
-                cnew,
-            }
+    impl<'a> VarManager<'a> {
+        pub fn new(n_vars_used: &'a mut c_int) -> Self {
+            Self { n_vars_used }
         }
     }
 
-    impl ManageVars for VarManager {
+    impl<'a> ManageVars for VarManager<'a> {
         fn new_var(&mut self) -> Var {
-            self.max_var = Some(
-                Lit::from_ipasir((self.cnew)())
-                    .expect("invalid IPASIR lit")
-                    .var(),
-            );
-            self.max_var.unwrap()
+            let var = Var::new(*self.n_vars_used as u32);
+            *self.n_vars_used += 1;
+            var
         }
 
         fn max_var(&self) -> Option<Var> {
-            self.max_var
+            if *self.n_vars_used == 0 {
+                None
+            } else {
+                Some(Var::new(*self.n_vars_used as u32) - 1)
+            }
         }
 
-        fn increase_next_free(&mut self, _v: Var) -> bool {
+        fn increase_next_free(&mut self, v: Var) -> bool {
+            let v_idx = v.idx32();
+            if v_idx > *self.n_vars_used as u32 {
+                *self.n_vars_used = v_idx as c_int;
+                return true;
+            }
             false
         }
 
@@ -112,11 +113,7 @@ pub mod encodings {
         }
 
         fn n_used(&self) -> u32 {
-            if let Some(mv) = self.max_var {
-                mv.idx32() + 1
-            } else {
-                0
-            }
+            *self.n_vars_used as u32
         }
     }
 
@@ -130,7 +127,7 @@ pub mod encodings {
             types::Lit,
         };
 
-        use super::{CClauseCollector, CVarManager, ClauseCollector, MaybeError, VarManager};
+        use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager};
 
         /// Creates a new [`DbTotalizer`] cardinality encoding
         #[no_mangle]
@@ -162,13 +159,13 @@ pub mod encodings {
             tot: *mut DbTotalizer,
             min_bound: usize,
             max_bound: usize,
-            var_manager: CVarManager,
+            n_vars_used: &mut c_int,
             collector: CClauseCollector,
             collector_data: *mut c_void,
         ) {
             assert!(min_bound <= max_bound);
             let mut collector = ClauseCollector::new(collector, collector_data);
-            let mut var_manager = VarManager::new(var_manager);
+            let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(tot) };
             boxed.encode_ub_change(min_bound..max_bound, &mut collector, &mut var_manager);
             Box::into_raw(boxed);
@@ -209,12 +206,12 @@ pub mod encodings {
 
         use std::ffi::{c_int, c_void};
 
-        use crate::{encodings::pb::{DynamicPolyWatchdog, BoundUpperIncremental, BoundUpper}, types::Lit};
-
-        use super::{
-            CAssumpCollector, CClauseCollector, CVarManager, ClauseCollector, MaybeError,
-            VarManager,
+        use crate::{
+            encodings::pb::{BoundUpper, BoundUpperIncremental, DynamicPolyWatchdog},
+            types::Lit,
         };
+
+        use super::{CAssumpCollector, CClauseCollector, ClauseCollector, MaybeError, VarManager};
 
         /// Creates a new [`DynamicPolyWatchdog`] cardinality encoding
         #[no_mangle]
@@ -250,13 +247,13 @@ pub mod encodings {
             dpw: *mut DynamicPolyWatchdog,
             min_bound: usize,
             max_bound: usize,
-            var_manager: CVarManager,
+            n_vars_used: &mut c_int,
             collector: CClauseCollector,
             collector_data: *mut c_void,
         ) {
             assert!(min_bound <= max_bound);
             let mut collector = ClauseCollector::new(collector, collector_data);
-            let mut var_manager = VarManager::new(var_manager);
+            let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(dpw) };
             boxed.encode_ub_change(min_bound..max_bound, &mut collector, &mut var_manager);
             Box::into_raw(boxed);
@@ -287,6 +284,16 @@ pub mod encodings {
                 }
                 Err(err) => err.into(),
             };
+            Box::into_raw(boxed);
+            ret
+        }
+
+        /// Gets the next lower upper bound value that can be encoded without
+        /// setting tares. This is used for coarse convergence.
+        #[no_mangle]
+        pub extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {
+            let boxed = unsafe { Box::from_raw(dpw) };
+            let ret = boxed.coarse_ub(ub);
             Box::into_raw(boxed);
             ret
         }
