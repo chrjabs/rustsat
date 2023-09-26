@@ -69,10 +69,14 @@ pub trait Encode:
     fn weight_sum(&self) -> usize;
     /// Gets the next higher value possible to be achieved by the weighted sum.
     /// Might simply return `val + 1` if no stronger value can be inferred.
-    fn next_higher(&self, val: usize) -> usize;
+    fn next_higher(&self, val: usize) -> usize {
+        val + 1
+    }
     /// Gets the next lower value possible to be achieved by the weighted sum.
     /// Might simply return `val - 1` if no stronger value can be inferred.
-    fn next_lower(&self, val: usize) -> usize;
+    fn next_lower(&self, val: usize) -> usize {
+        val - 1
+    }
 }
 
 /// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
@@ -120,6 +124,12 @@ pub trait BoundUpper: Encode {
                 .map(|unit| clause![unit]),
         );
         Ok(())
+    }
+    /// Gets the next lower upper bound value that can be _easily_ encoded. This
+    /// is used for coarse convergence, e.g., with the [`DynamicPolyWatchdog`]
+    /// encoding.
+    fn coarse_ub(&self, ub: usize) -> usize {
+        ub
     }
 }
 
@@ -170,6 +180,11 @@ pub trait BoundLower: Encode {
                 .map(|unit| clause![unit]),
         );
         Ok(())
+    }
+    /// Gets the next higher lower bound value that can be _easily_ encoded. This
+    /// is used for coarse convergence.
+    fn coarse_lb(&self, lb: usize) -> usize {
+        lb
     }
 }
 

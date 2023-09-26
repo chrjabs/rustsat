@@ -96,14 +96,6 @@ impl Encode for DynamicPolyWatchdog {
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
-
-    fn next_higher(&self, val: usize) -> usize {
-        val + 1
-    }
-
-    fn next_lower(&self, val: usize) -> usize {
-        val - 1
-    }
 }
 
 impl EncodeIncremental for DynamicPolyWatchdog {
@@ -131,6 +123,16 @@ impl BoundUpper for DynamicPolyWatchdog {
         match &self.structure {
             Some(structure) => enforce_ub(structure, ub, &self.db),
             None => Ok(vec![]),
+        }
+    }
+
+    fn coarse_ub(&self, ub: usize) -> usize {
+        match &self.structure {
+            Some(structure) => {
+                let output_weight = 1 << (structure.output_power());
+                ub / output_weight * output_weight
+            }
+            None => ub,
         }
     }
 }
