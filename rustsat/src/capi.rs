@@ -288,7 +288,7 @@ pub mod encodings {
             ret
         }
 
-        /// Gets the next lower upper bound value that can be encoded without
+        /// Gets the next smaller upper bound value that can be encoded without
         /// setting tares. This is used for coarse convergence.
         #[no_mangle]
         pub extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {

@@ -125,7 +125,7 @@ pub trait BoundUpper: Encode {
         );
         Ok(())
     }
-    /// Gets the next lower upper bound value that can be _easily_ encoded. This
+    /// Gets the next smaller upper bound value that can be _easily_ encoded. This
     /// is used for coarse convergence, e.g., with the [`DynamicPolyWatchdog`]
     /// encoding.
     fn coarse_ub(&self, ub: usize) -> usize {
@@ -181,7 +181,7 @@ pub trait BoundLower: Encode {
         );
         Ok(())
     }
-    /// Gets the next higher lower bound value that can be _easily_ encoded. This
+    /// Gets the next greater lower bound value that can be _easily_ encoded. This
     /// is used for coarse convergence.
     fn coarse_lb(&self, lb: usize) -> usize {
         lb
