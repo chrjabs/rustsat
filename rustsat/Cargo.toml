@@ -46,4 +46,4 @@ all = [
 ]
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["lib", "staticlib"]
