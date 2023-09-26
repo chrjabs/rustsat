@@ -28,6 +28,7 @@ fn main() {
         .generate()
         .expect("Unable to generate bindings")
         .write_to_file("rustsat.h");
-    
-    print!("cargo:rerun-if-changed=cbindgen.toml")
+
+    print!("cargo:rerun-if-changed=cbindgen.toml");
+    print!("cargo:rerun-if-changed=src/capi.rs");
 }

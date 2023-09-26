@@ -72,7 +72,7 @@ extern "C" {
 void dpw_add(struct DynamicPolyWatchdog *dpw, int lit, size_t weight);
 
 /**
- * Gets the next lower upper bound value that can be encoded without
+ * Gets the next smaller upper bound value that can be encoded without
  * setting tares. This is used for coarse convergence.
  */
 size_t dpw_coarse_ub(struct DynamicPolyWatchdog *dpw, size_t ub);
