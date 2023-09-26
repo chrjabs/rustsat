@@ -18,9 +18,12 @@ The focus of the library is to provide as much ease of use without giving up on 
 
 ## Examples
 
-For example useage refer to the small example tools in the examples directory.
-For a bigger example you can look at this [multi-objective optimization
-solver](https://github.com/chrjabs/pminimal-rs).
+For example useage refer to the small example tools in the [`rustsat-tools`
+crate](https://crates.io/crates/rustsat_tools) at `tools/src/bin`. For a bigger
+example you can look at this [multi-objective optimization
+solver](https://github.com/chrjabs/scuttle).
+
+For an example of how to use the C-API, see `rustsat/examples/capi*.cpp`.
 
 ## Versions
 

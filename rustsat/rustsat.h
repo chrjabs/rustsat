@@ -1,3 +1,6 @@
+#ifndef rustsat_h
+#define rustsat_h
+
 /* Generated with cbindgen:0.26.0 */
 
 #include <stdarg.h>
@@ -170,3 +173,5 @@ struct DbTotalizer *tot_new(void);
 #ifdef __cplusplus
 } // namespace RustSAT
 #endif // __cplusplus
+
+#endif /* rustsat_h */
