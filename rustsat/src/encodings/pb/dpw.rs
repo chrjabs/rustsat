@@ -223,6 +223,352 @@ impl Extend<(Lit, usize)> for DynamicPolyWatchdog {
     }
 }
 
+#[cfg(feature = "internals")]
+pub mod referenced {
+    use std::{cell::RefCell, ops::Range};
+
+    use crate::{
+        encodings::{
+            card::dbtotalizer::TotDb, nodedb::NodeLike, CollectClauses, EncodeStats, Error,
+        },
+        instances::ManageVars,
+        types::{Lit, RsHashMap},
+    };
+
+    use super::{
+        build_lit_structure, copy_key_val, encode_output, enforce_ub, BoundUpper,
+        BoundUpperIncremental, DpwIter, Encode, EncodeIncremental, Structure,
+    };
+
+    /// Dynamic polynomial watchdog structure with a _mutable reference_ to a totalizer
+    /// database rather than owning it.
+    ///
+    /// ## References
+    ///
+    /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
+    ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+    pub struct DynamicPolyWatchdog<'totdb> {
+        /// Input literals and weights for the encoding
+        in_lits: RsHashMap<Lit, usize>,
+        /// Flag to know when new literals where added and the encoding needs to be reconstructed
+        lits_added: bool,
+        /// The encoding root and the tares
+        structure: Option<Structure>,
+        /// Sum of all input weight
+        weight_sum: usize,
+        /// The number of variables
+        n_vars: u32,
+        /// The number of clauses
+        n_clauses: usize,
+        /// The node database of the totalizer
+        db: &'totdb mut TotDb,
+    }
+
+    /// Dynamic polynomial watchdog structure with a [`RefCell`] to a totalizer
+    /// database rather than owning it.
+    ///
+    /// ## References
+    ///
+    /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
+    ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+    pub struct DynamicPolyWatchdogCell<'totdb> {
+        /// Input literals and weights for the encoding
+        in_lits: RsHashMap<Lit, usize>,
+        /// Flag to know when new literals where added and the encoding needs to be reconstructed
+        lits_added: bool,
+        /// The encoding root and the tares
+        structure: Option<Structure>,
+        /// Sum of all input weight
+        weight_sum: usize,
+        /// The number of variables
+        n_vars: u32,
+        /// The number of clauses
+        n_clauses: usize,
+        /// The node database of the totalizer
+        db: &'totdb RefCell<&'totdb mut TotDb>,
+    }
+
+    impl<'totdb> DynamicPolyWatchdog<'totdb> {
+        /// Constructs a new DPW encoding referencing a totalizer database
+        pub fn new(structure: Option<Structure>, db: &'totdb mut TotDb) -> Self {
+            Self {
+                in_lits: Default::default(),
+                lits_added: false,
+                structure,
+                weight_sum: 0,
+                n_vars: 0,
+                n_clauses: 0,
+                db,
+            }
+        }
+
+        /// Gets the maximum depth of the tree
+        pub fn depth(&self) -> usize {
+            match &self.structure {
+                Some(Structure { root, .. }) => self.db[*root].depth(),
+                None => 0,
+            }
+        }
+    }
+
+    impl<'totdb> DynamicPolyWatchdogCell<'totdb> {
+        /// Constructs a new DPW encoding referencing a totalizer database
+        pub fn new(structure: Option<Structure>, db: &'totdb RefCell<&'totdb mut TotDb>) -> Self {
+            Self {
+                in_lits: Default::default(),
+                lits_added: false,
+                structure,
+                weight_sum: 0,
+                n_vars: 0,
+                n_clauses: 0,
+                db,
+            }
+        }
+
+        /// Gets the maximum depth of the tree
+        pub fn depth(&self) -> usize {
+            match &self.structure {
+                Some(Structure { root, .. }) => self.db.borrow()[*root].depth(),
+                None => 0,
+            }
+        }
+    }
+
+    impl Encode for DynamicPolyWatchdog<'_> {
+        type Iter<'a> = DpwIter<'a> where Self: 'a;
+
+        fn iter(&self) -> Self::Iter<'_> {
+            self.in_lits.iter().map(copy_key_val)
+        }
+
+        fn weight_sum(&self) -> usize {
+            self.weight_sum
+        }
+    }
+
+    impl Encode for DynamicPolyWatchdogCell<'_> {
+        type Iter<'a> = DpwIter<'a> where Self: 'a;
+
+        fn iter(&self) -> Self::Iter<'_> {
+            self.in_lits.iter().map(copy_key_val)
+        }
+
+        fn weight_sum(&self) -> usize {
+            self.weight_sum
+        }
+    }
+
+    impl EncodeIncremental for DynamicPolyWatchdog<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            if let Some(Structure { root, .. }) = &self.structure {
+                self.db.reserve_vars(*root, var_manager);
+            }
+        }
+    }
+
+    impl EncodeIncremental for DynamicPolyWatchdogCell<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            if let Some(Structure { root, .. }) = &self.structure {
+                self.db.borrow_mut().reserve_vars(*root, var_manager);
+            }
+        }
+    }
+
+    impl BoundUpper for DynamicPolyWatchdog<'_> {
+        fn encode_ub<Col>(
+            &mut self,
+            range: Range<usize>,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+        {
+            self.db.reset_encoded();
+            self.encode_ub_change(range, collector, var_manager)
+        }
+
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+            match &self.structure {
+                Some(structure) => enforce_ub(structure, ub, self.db),
+                None => Ok(vec![]),
+            }
+        }
+
+        fn coarse_ub(&self, ub: usize) -> usize {
+            match &self.structure {
+                Some(structure) => {
+                    let output_weight = 1 << (structure.output_power());
+                    ub / output_weight * output_weight
+                }
+                None => ub,
+            }
+        }
+    }
+
+    impl BoundUpper for DynamicPolyWatchdogCell<'_> {
+        fn encode_ub<Col>(
+            &mut self,
+            range: Range<usize>,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+        {
+            self.db.borrow_mut().reset_encoded();
+            self.encode_ub_change(range, collector, var_manager)
+        }
+
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+            match &self.structure {
+                Some(structure) => enforce_ub(structure, ub, &self.db.borrow()),
+                None => Ok(vec![]),
+            }
+        }
+
+        fn coarse_ub(&self, ub: usize) -> usize {
+            match &self.structure {
+                Some(structure) => {
+                    let output_weight = 1 << (structure.output_power());
+                    ub / output_weight * output_weight
+                }
+                None => ub,
+            }
+        }
+    }
+
+    impl BoundUpperIncremental for DynamicPolyWatchdog<'_> {
+        fn encode_ub_change<Col>(
+            &mut self,
+            range: Range<usize>,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+        {
+            if range.is_empty() {
+                return;
+            }
+            if self.lits_added {
+                self.structure = Some(build_lit_structure(
+                    self.in_lits.iter().map(|(&l, &w)| (l, w)),
+                    self.db,
+                    var_manager,
+                ));
+            }
+            match &self.structure {
+                Some(structure) => {
+                    let n_vars_before = var_manager.n_used();
+                    let n_clauses_before = collector.n_clauses();
+                    let output_weight = 1 << (structure.output_power());
+                    let output_range =
+                        range.start / output_weight..(range.end - 1) / output_weight + 1;
+                    for oidx in output_range {
+                        encode_output(structure, oidx, self.db, collector, var_manager);
+                    }
+                    self.n_clauses += collector.n_clauses() - n_clauses_before;
+                    self.n_vars += var_manager.n_used() - n_vars_before;
+                }
+                None => (),
+            }
+        }
+    }
+
+    impl BoundUpperIncremental for DynamicPolyWatchdogCell<'_> {
+        fn encode_ub_change<Col>(
+            &mut self,
+            range: Range<usize>,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+        {
+            if range.is_empty() {
+                return;
+            }
+            if self.lits_added {
+                self.structure = Some(build_lit_structure(
+                    self.in_lits.iter().map(|(&l, &w)| (l, w)),
+                    &mut self.db.borrow_mut(),
+                    var_manager,
+                ));
+            }
+            match &self.structure {
+                Some(structure) => {
+                    let n_vars_before = var_manager.n_used();
+                    let n_clauses_before = collector.n_clauses();
+                    let output_weight = 1 << (structure.output_power());
+                    let output_range =
+                        range.start / output_weight..(range.end - 1) / output_weight + 1;
+                    for oidx in output_range {
+                        encode_output(
+                            structure,
+                            oidx,
+                            &mut self.db.borrow_mut(),
+                            collector,
+                            var_manager,
+                        );
+                    }
+                    self.n_clauses += collector.n_clauses() - n_clauses_before;
+                    self.n_vars += var_manager.n_used() - n_vars_before;
+                }
+                None => (),
+            }
+        }
+    }
+
+    impl EncodeStats for DynamicPolyWatchdog<'_> {
+        fn n_clauses(&self) -> usize {
+            self.n_clauses
+        }
+
+        fn n_vars(&self) -> u32 {
+            self.n_vars
+        }
+    }
+
+    impl EncodeStats for DynamicPolyWatchdogCell<'_> {
+        fn n_clauses(&self) -> usize {
+            self.n_clauses
+        }
+
+        fn n_vars(&self) -> u32 {
+            self.n_vars
+        }
+    }
+
+    impl Extend<(Lit, usize)> for DynamicPolyWatchdog<'_> {
+        fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
+            iter.into_iter().for_each(|(l, w)| {
+                self.weight_sum += w;
+                // Insert into map of input literals
+                match self.in_lits.get_mut(&l) {
+                    Some(old_w) => *old_w += w,
+                    None => {
+                        self.in_lits.insert(l, w);
+                    }
+                };
+            });
+            self.lits_added = true;
+        }
+    }
+
+    impl Extend<(Lit, usize)> for DynamicPolyWatchdogCell<'_> {
+        fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
+            iter.into_iter().for_each(|(l, w)| {
+                self.weight_sum += w;
+                // Insert into map of input literals
+                match self.in_lits.get_mut(&l) {
+                    Some(old_w) => *old_w += w,
+                    None => {
+                        self.in_lits.insert(l, w);
+                    }
+                };
+            });
+            self.lits_added = true;
+        }
+    }
+}
+
 fn copy_key_val(key_val_refs: (&Lit, &usize)) -> (Lit, usize) {
     (*key_val_refs.0, *key_val_refs.1)
 }
@@ -380,6 +726,7 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Er
     let mut assumps = vec![!olit];
     // inputs <= enforced_weight at this stage
     let mut enforced_weight = (oidx + 1) * output_weight - 1;
+    debug_assert!(enforced_weight >= ub);
     // Set needed tares
     for power in (0..dpw.output_power()).rev() {
         let weight = 1 << power;

@@ -18,13 +18,24 @@ use crate::{
 
 /// Simulator type that builds a cardinality encoding of type `CE` over the
 /// negated input literals in order to simulate the other bound type
-#[derive(Default)]
 pub struct Inverted<CE>
 where
     CE: Encode + 'static,
 {
     card_enc: CE,
     n_lits: usize,
+}
+
+impl<CE> Default for Inverted<CE>
+where
+    CE: Encode + Default,
+{
+    fn default() -> Self {
+        Self {
+            card_enc: Default::default(),
+            n_lits: Default::default(),
+        }
+    }
 }
 
 impl<CE> Inverted<CE>
@@ -48,7 +59,7 @@ where
 
 impl<CE> From<Vec<Lit>> for Inverted<CE>
 where
-    CE: Encode + 'static,
+    CE: Encode + From<Vec<Lit>> + 'static,
 {
     fn from(lits: Vec<Lit>) -> Self {
         let n = lits.len();
@@ -62,7 +73,7 @@ where
 
 impl<CE> FromIterator<Lit> for Inverted<CE>
 where
-    CE: Encode + 'static,
+    CE: Encode + From<Vec<Lit>> + 'static,
 {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         let lits: Vec<Lit> = iter.into_iter().collect();
@@ -209,7 +220,6 @@ type InvertedIter<ICE> = std::iter::Map<ICE, fn(Lit) -> Lit>;
 /// Simulator type that builds a combined cardinality encoding supporting both
 /// bounds from two individual cardinality encodings supporting each bound
 /// separately
-#[derive(Default)]
 pub struct Double<UBE, LBE>
 where
     UBE: BoundUpper + 'static,
@@ -219,10 +229,23 @@ where
     lb_enc: LBE,
 }
 
+impl<UBE, LBE> Default for Double<UBE, LBE>
+where
+    UBE: BoundUpper + Default + 'static,
+    LBE: BoundLower + Default + 'static,
+{
+    fn default() -> Self {
+        Self {
+            ub_enc: Default::default(),
+            lb_enc: Default::default(),
+        }
+    }
+}
+
 impl<UBE, LBE> From<Vec<Lit>> for Double<UBE, LBE>
 where
-    UBE: BoundUpper + 'static,
-    LBE: BoundLower + 'static,
+    UBE: BoundUpper + From<Vec<Lit>> + 'static,
+    LBE: BoundLower + From<Vec<Lit>> + 'static,
 {
     fn from(lits: Vec<Lit>) -> Self {
         Self {
@@ -234,8 +257,8 @@ where
 
 impl<UBE, LBE> FromIterator<Lit> for Double<UBE, LBE>
 where
-    UBE: BoundUpper + 'static,
-    LBE: BoundLower + 'static,
+    UBE: BoundUpper + From<Vec<Lit>> + 'static,
+    LBE: BoundLower + From<Vec<Lit>> + 'static,
 {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         let lits: Vec<Lit> = iter.into_iter().collect();

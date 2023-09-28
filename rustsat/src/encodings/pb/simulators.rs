@@ -20,13 +20,24 @@ use crate::{
 
 /// Simulator type that builds a pseudo-boolean encoding of type `PBE` over the
 /// negated input literals in order to simulate the other bound type
-#[derive(Default)]
 pub struct Inverted<PBE>
 where
     PBE: Encode + 'static,
 {
     pb_enc: PBE,
     weight_sum: usize,
+}
+
+impl<PBE> Default for Inverted<PBE>
+where
+    PBE: Encode + Default + 'static,
+{
+    fn default() -> Self {
+        Self {
+            pb_enc: Default::default(),
+            weight_sum: Default::default(),
+        }
+    }
 }
 
 impl<PBE> Inverted<PBE>
@@ -50,7 +61,7 @@ where
 
 impl<PBE> From<RsHashMap<Lit, usize>> for Inverted<PBE>
 where
-    PBE: Encode + 'static,
+    PBE: Encode + From<RsHashMap<Lit, usize>> + 'static,
 {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         let ws = lits.iter().fold(0, |ws, (_, w)| ws + w);
@@ -64,7 +75,7 @@ where
 
 impl<PBE> FromIterator<(Lit, usize)> for Inverted<PBE>
 where
-    PBE: Encode + 'static,
+    PBE: Encode + From<RsHashMap<Lit, usize>> + 'static,
 {
     fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
         let lits: RsHashMap<Lit, usize> = iter.into_iter().collect();
@@ -223,7 +234,6 @@ type InvertedIter<IPBE> = std::iter::Map<IPBE, fn((Lit, usize)) -> (Lit, usize)>
 /// Simulator type that builds a combined pseudo-boolean encoding supporting
 /// both bounds from two individual pseudo-boolean encodings supporting each
 /// bound separately
-#[derive(Default)]
 pub struct Double<UBE, LBE>
 where
     UBE: BoundUpper + 'static,
@@ -233,10 +243,23 @@ where
     lb_enc: LBE,
 }
 
+impl<UBE, LBE> Default for Double<UBE, LBE>
+where
+    UBE: BoundUpper + Default + 'static,
+    LBE: BoundLower + Default + 'static,
+{
+    fn default() -> Self {
+        Self {
+            ub_enc: Default::default(),
+            lb_enc: Default::default(),
+        }
+    }
+}
+
 impl<UBE, LBE> From<RsHashMap<Lit, usize>> for Double<UBE, LBE>
 where
-    UBE: BoundUpper + 'static,
-    LBE: BoundLower + 'static,
+    UBE: BoundUpper + From<RsHashMap<Lit, usize>> + 'static,
+    LBE: BoundLower + From<RsHashMap<Lit, usize>> + 'static,
 {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         Self {
@@ -248,8 +271,8 @@ where
 
 impl<UBE, LBE> FromIterator<(Lit, usize)> for Double<UBE, LBE>
 where
-    UBE: BoundUpper + 'static,
-    LBE: BoundLower + 'static,
+    UBE: BoundUpper + From<RsHashMap<Lit, usize>> + 'static,
+    LBE: BoundLower + From<RsHashMap<Lit, usize>> + 'static,
 {
     fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
         let lits: RsHashMap<Lit, usize> = iter.into_iter().collect();
@@ -396,7 +419,6 @@ where
 
 /// Simulator type that mimics a pseudo-boolean encoding based on a cardinality
 /// encoding that literals are added to multiple times
-#[derive(Default)]
 pub struct Card<CE>
 where
     CE: card::Encode + 'static,
@@ -404,9 +426,20 @@ where
     card_enc: CE,
 }
 
+impl<CE> Default for Card<CE>
+where
+    CE: card::Encode + Default + 'static,
+{
+    fn default() -> Self {
+        Self {
+            card_enc: Default::default(),
+        }
+    }
+}
+
 impl<CE> From<RsHashMap<Lit, usize>> for Card<CE>
 where
-    CE: card::Encode + 'static,
+    CE: card::Encode + From<Vec<Lit>> + 'static,
 {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         Self::from_iter(lits)
@@ -415,7 +448,7 @@ where
 
 impl<CE> FromIterator<(Lit, usize)> for Card<CE>
 where
-    CE: card::Encode + 'static,
+    CE: card::Encode + From<Vec<Lit>> + 'static,
 {
     fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
         let mut mult_lits = vec![];

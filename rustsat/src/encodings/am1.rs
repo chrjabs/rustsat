@@ -28,7 +28,7 @@ mod pairwise;
 pub use pairwise::Pairwise;
 
 /// Trait for all at-most-1 encodings
-pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
+pub trait Encode: Extend<Lit> {
     type Iter<'a>: Iterator<Item = Lit>
     where
         Self: 'a;

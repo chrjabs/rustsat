@@ -48,7 +48,7 @@ pub mod dbtotalizer;
 pub use dbtotalizer::DbTotalizer;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
-pub trait Encode: Default + From<Vec<Lit>> + FromIterator<Lit> + Extend<Lit> {
+pub trait Encode: Extend<Lit> {
     type Iter<'a>: Iterator<Item = Lit>
     where
         Self: 'a;
@@ -85,7 +85,7 @@ pub trait BoundUpper: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
@@ -130,7 +130,7 @@ pub trait BoundLower: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
@@ -183,7 +183,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         let mut enc = Self::default();
         let (lits, b) = constr.decompose();
@@ -205,7 +205,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         match constr {
             CardConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
@@ -335,7 +335,7 @@ pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
 }
 
 /// An encoder for any cardinality constraint with an encoding of choice
-pub fn encode_cardinality_constraint<CE: BoundBoth, Col: CollectClauses>(
+pub fn encode_cardinality_constraint<CE: BoundBoth + Default, Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,

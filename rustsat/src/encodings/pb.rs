@@ -41,7 +41,7 @@ use crate::{
     instances::ManageVars,
     types::{
         constraints::{PBConstraint, PBEQConstr, PBLBConstr, PBUBConstr},
-        Clause, Lit, RsHashMap,
+        Clause, Lit,
     },
 };
 
@@ -57,9 +57,7 @@ pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
-pub trait Encode:
-    Default + From<RsHashMap<Lit, usize>> + FromIterator<(Lit, usize)> + Extend<(Lit, usize)>
-{
+pub trait Encode: Extend<(Lit, usize)> {
     type Iter<'a>: Iterator<Item = (Lit, usize)>
     where
         Self: 'a;
@@ -106,7 +104,7 @@ pub trait BoundUpper: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
@@ -162,7 +160,7 @@ pub trait BoundLower: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
@@ -225,7 +223,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         let mut enc = Self::default();
         let (lits, b) = constr.decompose();
@@ -252,7 +250,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Sized,
+        Self: Default + Sized,
     {
         match constr {
             PBConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
@@ -383,7 +381,7 @@ pub fn default_encode_pb_constraint<Col: CollectClauses>(
 }
 
 /// An encoder for any pseudo-boolean constraint with an encoding of choice
-pub fn encode_pb_constraint<PBE: BoundBoth, Col: CollectClauses>(
+pub fn encode_pb_constraint<PBE: BoundBoth + Default, Col: CollectClauses>(
     constr: PBConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
