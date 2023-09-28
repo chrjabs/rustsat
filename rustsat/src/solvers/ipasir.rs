@@ -445,7 +445,6 @@ mod test {
     }
 }
 
-
 /// cbindgen:ignore
 mod ffi {
     use crate::solvers::{ControlSignal, LearnCallbackPtr, TermCallbackPtr};
