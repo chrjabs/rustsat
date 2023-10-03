@@ -14,7 +14,15 @@ fn main() {
     compile_error!("cannot combine cadical features quiet and logging");
 
     // Select commit based on features. If conflict, always choose newest release
-    let (tag, patch) = if cfg!(feature = "v1-7-2") {
+    let (tag, patch) = if cfg!(feature = "v1-8-0") {
+        ("refs/tags/rel-1.8.0", "patches/v180.patch")
+    } else if cfg!(feature = "v1-7-5") {
+        ("refs/tags/rel-1.7.5", "patches/v171.patch")
+    } else if cfg!(feature = "v1-7-4") {
+        ("refs/tags/rel-1.7.4", "patches/v171.patch")
+    } else if cfg!(feature = "v1-7-3") {
+        ("refs/tags/rel-1.7.3", "patches/v171.patch")
+    } else if cfg!(feature = "v1-7-2") {
         ("refs/tags/rel-1.7.2", "patches/v171.patch")
     } else if cfg!(feature = "v1-7-1") {
         ("refs/tags/rel-1.7.1", "patches/v171.patch")
@@ -38,7 +46,7 @@ fn main() {
         ("refs/tags/rel-1.5.0", "patches/v150.patch")
     } else {
         // default to newest version
-        ("refs/tags/rel-1.7.2", "patches/v171.patch")
+        ("refs/tags/rel-1.8.0", "patches/v180.patch")
     };
 
     // Build C++ library
