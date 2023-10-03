@@ -4,6 +4,7 @@ pub mod utils;
 
 pub mod encodings {
     //! # Encodings for Encoding Generators
-    
+
     pub mod clustering;
+    pub mod knapsack;
 }

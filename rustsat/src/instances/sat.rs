@@ -1,6 +1,6 @@
 //! # Satsifiability Instance Representations
 
-use std::{collections::TryReserveError, io, path::Path};
+use std::{collections::TryReserveError, io, path::Path, ops::Index};
 
 use crate::{
     clause,
@@ -206,6 +206,14 @@ impl FromIterator<Clause> for Cnf {
 impl Extend<Clause> for Cnf {
     fn extend<Iter: IntoIterator<Item = Clause>>(&mut self, iter: Iter) {
         self.clauses.extend(iter)
+    }
+}
+
+impl Index<usize> for Cnf {
+    type Output = Clause;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.clauses[index]
     }
 }
 
