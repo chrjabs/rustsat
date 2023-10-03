@@ -1,6 +1,9 @@
-//! # clustering-encoding
+//! # encodings
 //!
-//! Constrained correlation clustering encodings following \[1\].
+//! A collection of (multi-objective) MaxSAT encodings.
+//!
+//! `clustering`: Constrained correlation clustering encodings following \[1\].
+//! `knapsack`: Multi-criteria 0-1 knapsack.
 //!
 //! ## References
 //!
@@ -8,14 +11,29 @@
 //! correlation clustering via weighted partial Maximum Satisfiability_, AIJ
 //! 2017.
 
-use clap::Parser;
-use rustsat::instances::fio::dimacs;
-use rustsat_tools::encodings::clustering::{saturating_map, scaling_map, Encoding, Error, Variant};
+use clap::{Args, Parser, Subcommand};
+use rustsat::{encodings::pb, instances::fio::dimacs};
+use rustsat_tools::encodings::{
+    clustering::{self, saturating_map, scaling_map, Encoding, Error, Variant},
+    knapsack,
+};
 use std::{fs::File, io, path::PathBuf};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
-struct Args {
+struct CliArgs {
+    #[command(subcommand)]
+    cmd: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    Clustering(ClusteringArgs),
+    Knapsack(KnapsackArgs),
+}
+
+#[derive(Args)]
+struct ClusteringArgs {
     /// The input file. Each line represents an edge between two nodes in the
     /// form `[nodeA] [nodeB] [similarity value]`. Reads from `stdin` if not
     /// given.
@@ -45,9 +63,37 @@ struct Args {
     hard_threshold: usize,
 }
 
-fn main() -> Result<(), Error> {
-    let args = Args::parse();
+#[derive(Args)]
+struct KnapsackArgs {
+    /// The M/WCNF output path. Writes to `stdout` if not given.
+    out_path: Option<PathBuf>,
+    /// The number of items to select from
+    #[arg(long, default_value_t = 20)]
+    n_items: usize,
+    /// The number of objectives to generate
+    #[arg(long, default_value_t = 2)]
+    n_objectives: usize,
+    /// The minimum item weight
+    #[arg(long, default_value_t = 1)]
+    min_weight: usize,
+    /// The maximum item weight
+    #[arg(long, default_value_t = 40)]
+    max_weight: usize,
+    /// The minimum item value
+    #[arg(long, default_value_t = 1)]
+    min_value: usize,
+    /// The maximum item value
+    #[arg(long, default_value_t = 40)]
+    max_value: usize,
+    /// The fraction of the weight to set the capacity to
+    #[arg(long, default_value_t = 2)]
+    cap_fraction: usize,
+    /// The random seed to use
+    #[arg(long, default_value_t = 42)]
+    seed: u64,
+}
 
+fn clustering(args: ClusteringArgs) -> Result<(), Error> {
     let mcnf_to_wcnf = |line: dimacs::McnfLine| match line {
         dimacs::McnfLine::Comment(c) => dimacs::WcnfLine::Comment(c),
         dimacs::McnfLine::Hard(cl) => dimacs::WcnfLine::Hard(cl),
@@ -55,7 +101,7 @@ fn main() -> Result<(), Error> {
     };
 
     if let Some(in_path) = args.in_path {
-        let encoding = Encoding::new(
+        let encoding = clustering::Encoding::new(
             io::BufReader::new(File::open(in_path)?),
             args.variant,
             |sim| {
@@ -105,4 +151,31 @@ fn main() -> Result<(), Error> {
     };
 
     Ok(())
+}
+
+fn knapsack(args: KnapsackArgs) -> Result<(), Error> {
+    let encoding = knapsack::Encoding::new::<pb::DynamicPolyWatchdog>(knapsack::Knapsack::random(
+        args.n_items,
+        args.n_objectives,
+        args.min_value..args.max_value,
+        args.min_weight..args.max_weight,
+        knapsack::Capacity::FractionTotalWeight(args.cap_fraction),
+        args.seed,
+    ));
+    if let Some(out_path) = args.out_path {
+        let mut file = File::open(out_path)?;
+        dimacs::write_mcnf(&mut file, encoding)?;
+    } else {
+        dimacs::write_mcnf(&mut io::stdout(), encoding)?;
+    }
+    Ok(())
+}
+
+fn main() -> Result<(), Error> {
+    let args = CliArgs::parse();
+
+    match args.cmd {
+        Command::Clustering(args) => clustering(args),
+        Command::Knapsack(args) => knapsack(args),
+    }
 }

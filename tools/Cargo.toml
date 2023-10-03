@@ -19,6 +19,8 @@ concolor-clap = { version = "0.1.0" }
 termcolor = { version = "1.2.0" }
 atty = { version = "0.2.14" }
 nom = "7"
+rand = "0.8"
+rand_chacha = "0.3"
 
 [[bin]]
 name = "enumerator"
@@ -48,4 +50,4 @@ name = "shuffledimacs"
 name = "gbmosplit"
 
 [[bin]]
-name = "clustering-encoding"
+name = "encodings"
