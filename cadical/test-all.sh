@@ -48,13 +48,25 @@ echo "Testing v1.7.2"
 cargo test --features=v1-7-2 &> v172-test.log
 echo "v1.7.2 test returned: $?"
 
+echo "Testing v1.7.3"
+cargo test --features=v1-7-3 &> v173-test.log
+echo "v1.7.3 test returned: $?"
+
+echo "Testing v1.7.4"
+cargo test --features=v1-7-4 &> v174-test.log
+echo "v1.7.4 test returned: $?"
+
+echo "Testing v1.7.5"
+cargo test --features=v1-7-5 &> v175-test.log
+echo "v1.7.5 test returned: $?"
+
+echo "Testing v1.8.0"
+cargo test --features=v1-8-0 &> v180-test.log
+echo "v1.8.0 test returned: $?"
+
 echo "Testing quiet"
 cargo test --features=quiet &> quiet-test.log
 echo "quiet test returned: $?"
-
-echo "Testing safe"
-cargo test --features=safe &> safe-test.log
-echo "safe test returned: $?"
 
 echo "Testing logging"
 cargo test --features=logging &> logging-test.log

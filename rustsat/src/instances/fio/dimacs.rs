@@ -577,7 +577,6 @@ pub fn write_cnf_annotated<W: Write>(
     writer.flush()
 }
 
-#[cfg(feature = "optimization")]
 /// Input data for writing a CNF instance
 pub enum CnfLine {
     /// A comment line
