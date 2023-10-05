@@ -15,7 +15,7 @@ use crate::{
         CollectClauses, EncodeStats, Error,
     },
     instances::ManageVars,
-    types::Lit,
+    types::{Lit, RsHashMap},
 };
 
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
@@ -337,12 +337,20 @@ impl LitData {
 pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
     nodes: Vec<Node>,
+    /// Mapping literals to leaf nodes
+    lookup_leaf: RsHashMap<Lit, usize>,
 }
 
 impl NodeById for TotDb {
     type Node = Node;
 
     fn insert(&mut self, node: Self::Node) -> NodeId {
+        if let Node::Leaf(lit) = node {
+            if let Some(&id) = self.lookup_leaf.get(&lit) {
+                return NodeId(id);
+            }
+            self.lookup_leaf.insert(lit, self.nodes.len());
+        }
         self.nodes.push(node);
         NodeId(self.nodes.len() - 1)
     }
