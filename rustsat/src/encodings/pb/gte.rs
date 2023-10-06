@@ -14,11 +14,7 @@ use crate::{
     instances::ManageVars,
     types::{Lit, RsHashMap},
 };
-use std::{
-    cmp,
-    collections::BTreeMap,
-    ops::{Bound, Range},
-};
+use std::{cmp, collections::BTreeMap, ops::Range};
 
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
@@ -85,7 +81,7 @@ impl GeneralizedTotalizer {
                 .collect();
             if !new_lits.is_empty() {
                 // Add nodes in sorted fashion to minimize clauses
-                new_lits[..].sort_by(|(_, w1), (_, w2)| w1.cmp(w2));
+                new_lits.sort_by_key(|(_, w)| *w);
                 let subtree = GeneralizedTotalizer::build_tree(&new_lits[..]);
                 self.root = match self.root.take() {
                     None => Some(subtree),
@@ -101,10 +97,7 @@ impl GeneralizedTotalizer {
 
     /// Gets the maximum depth of the tree
     pub fn depth(&mut self) -> usize {
-        match &self.root {
-            None => 0,
-            Some(root_node) => root_node.depth(),
-        }
+        self.root.as_ref().map_or(0, |node| node.depth())
     }
 
     /// Fully builds the tree, then returns it
@@ -128,10 +121,7 @@ impl Encode for GeneralizedTotalizer {
 
     fn next_higher(&self, val: usize) -> usize {
         if let Some(Node::Internal { out_lits, .. }) = &self.root {
-            if let Some((&next, _)) = out_lits
-                .range((Bound::Excluded(val), Bound::Unbounded))
-                .next()
-            {
+            if let Some((&next, _)) = out_lits.range(val + 1..).next() {
                 return next;
             }
         }
@@ -143,14 +133,7 @@ impl Encode for GeneralizedTotalizer {
             return 0;
         }
         if let Some(Node::Internal { out_lits, .. }) = &self.root {
-            if let Some((&next, _)) = out_lits
-                .range((Bound::Unbounded, Bound::Excluded(val)))
-                .next_back()
-            {
-                return next;
-            } else {
-                return 0;
-            }
+            return out_lits.range(..val).next_back().map_or(0, |(w, _)| *w);
         }
         val - 1
     }
@@ -227,10 +210,7 @@ impl BoundUpper for GeneralizedTotalizer {
                         && enc_range.contains(&cmp::min(*max_val, ub + self.max_leaf_weight))
                     {
                         out_lits
-                            .range((
-                                Bound::Excluded(ub),
-                                Bound::Included(ub + self.max_leaf_weight),
-                            ))
+                            .range(ub + 1..=ub + self.max_leaf_weight)
                             .map(|(_, &l)| !l)
                             .collect()
                     } else {
@@ -280,10 +260,10 @@ impl EncodeStats for GeneralizedTotalizer {
     }
 }
 
-fn copy_key_val(key_val_refs: (&Lit, &usize)) -> (Lit, usize) {
+pub(super) fn copy_key_val(key_val_refs: (&Lit, &usize)) -> (Lit, usize) {
     (*key_val_refs.0, *key_val_refs.1)
 }
-type GTEIter<'a> = std::iter::Map<
+pub(super) type GTEIter<'a> = std::iter::Map<
     std::collections::hash_map::Iter<'a, Lit, usize>,
     fn((&Lit, &usize)) -> (Lit, usize),
 >;
@@ -294,11 +274,8 @@ impl From<RsHashMap<Lit, usize>> for GeneralizedTotalizer {
         Self {
             in_lits: lits.clone(),
             lit_buffer: lits,
-            root: Default::default(),
-            max_leaf_weight: Default::default(),
-            weight_sum,
-            n_vars: Default::default(),
-            n_clauses: Default::default(),
+            weight_sum: weight_sum,
+            ..Default::default()
         }
     }
 }

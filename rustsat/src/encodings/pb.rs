@@ -56,6 +56,9 @@ pub type DoubleGeneralizedTotalizer =
 pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
 
+pub mod dbgte;
+pub use dbgte::DbGte;
+
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode: Extend<(Lit, usize)> {
     type Iter<'a>: Iterator<Item = (Lit, usize)>
