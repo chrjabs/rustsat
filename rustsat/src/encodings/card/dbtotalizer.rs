@@ -99,10 +99,8 @@ impl BoundUpper for DbTotalizer {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        if let Some(root) = self.root {
-            if ub >= self.db[root].len() {
-                return Ok(vec![]);
-            }
+        if ub >= self.n_lits() {
+            return Ok(vec![]);
         }
         if !self.lit_buffer.is_empty() {
             return Err(Error::NotEncoded);
