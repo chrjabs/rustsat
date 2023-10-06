@@ -101,7 +101,7 @@ impl BoundUpper for DbTotalizer {
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         if let Some(root) = self.root {
             if ub >= self.db[root].len() {
-                return Ok(vec![])
+                return Ok(vec![]);
             }
         }
         if !self.lit_buffer.is_empty() {
@@ -301,10 +301,6 @@ impl NodeLike for Node {
         }
     }
 
-    //fn internal(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self {
-    //    Self::General(GeneralNode::new(len, depth, left, right))
-    //}
-
     fn internal<Db>(left: NodeCon, right: NodeCon, db: &Db) -> Self
     where
         Db: NodeById<Node = Self>,
@@ -313,8 +309,14 @@ impl NodeLike for Node {
             || matches!(&db[left.id], Node::General(_))
             || matches!(&db[right.id], Node::General(_));
         if general {
-            let lvals: Vec<_> = db[left.id].vals(..).map(|val| left.map(val)).collect();
-            let rvals: Vec<_> = db[right.id].vals(..).map(|val| right.map(val)).collect();
+            let lvals: Vec<_> = db[left.id]
+                .vals(left.offset..)
+                .map(|val| left.map(val))
+                .collect();
+            let rvals: Vec<_> = db[right.id]
+                .vals(right.offset..)
+                .map(|val| right.map(val))
+                .collect();
             return Self::General(GeneralNode::new(
                 &lvals,
                 &rvals,
@@ -753,7 +755,7 @@ impl TotDb {
             };
         }
         // Propagate sums
-        let lvals = self[lcon.id].vals(1..lcon.rev_map_round_up(val));
+        let lvals = self[lcon.id].vals(lcon.offset + 1..lcon.rev_map_round_up(val));
         for lval in lvals {
             let rval = val - lcon.map(lval);
             if rcon.is_possible(rval) && rcon.rev_map(rval) <= self[rcon.id].max_val() {

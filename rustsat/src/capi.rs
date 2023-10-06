@@ -138,9 +138,9 @@ pub mod encodings {
         }
 
         /// Adds a new input literal to a [`DbTotalizer`]
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -161,9 +161,9 @@ pub mod encodings {
         /// A call to `var_manager` must yield a new variable. The
         /// encoding will be returned via the given callback function as
         /// 0-terminated clauses (in the same way as IPASIR's `add`).
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -187,9 +187,9 @@ pub mod encodings {
         /// lits <= ub`). Make sure that [`tot_encode_ub`] has been called
         /// adequately and nothing has been called afterwards, otherwise
         /// [`MaybeError::NotEncoded`] will be returned.
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -212,9 +212,9 @@ pub mod encodings {
         }
 
         /// Frees the memory associated with a [`DbTotalizer`]
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `tot` must be a return value of [`tot_new`] and cannot be used
         /// afterwards again.
         #[no_mangle]
@@ -244,9 +244,9 @@ pub mod encodings {
         /// Adds a new input literal to a [`DynamicPolyWatchdog`]. Input
         /// literals can only be added _before_ the encoding is built for the
         /// first time. Otherwise [`MaybeError::InvalidState`] is returned.
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -279,9 +279,9 @@ pub mod encodings {
         /// A call to `var_manager` must yield a new variable. The
         /// encoding will be returned via the given callback function as
         /// 0-terminated clauses (in the same way as IPASIR's `add`).
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -309,9 +309,9 @@ pub mod encodings {
         /// Assumptions are returned via the collector callback. There is _no_
         /// terminating zero, all assumptions are passed when [`dpw_enforce_ub`]
         /// returns.
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -337,9 +337,9 @@ pub mod encodings {
 
         /// Gets the next smaller upper bound value that can be encoded without
         /// setting tares. This is used for coarse convergence.
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
         /// not yet been called on.
         #[no_mangle]
@@ -351,9 +351,9 @@ pub mod encodings {
         }
 
         /// Frees the memory associated with a [`DynamicPolyWatchdog`]
-        /// 
+        ///
         /// # Safety
-        /// 
+        ///
         /// `dpw` must be a return value of [`dpw_new`] and cannot be used
         /// afterwards again.
         #[no_mangle]
