@@ -9,7 +9,7 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::{pb, pb::{BoundBoth, Encode}},
+//!     encodings::pb::{BoundBoth, DefIncBothBounding, Encode},
 //!     instances::{BasicVarManager, Cnf, ManageVars},
 //!     lit, solvers, var,
 //!     types::RsHashMap,
@@ -18,13 +18,12 @@
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![4]);
 //!
-//! let mut enc = pb::new_default_inc_both();
 //! let mut lits = RsHashMap::default();
 //! lits.insert(lit![0], 4);
 //! lits.insert(lit![1], 2);
 //! lits.insert(lit![2], 2);
 //! lits.insert(lit![3], 6);
-//! enc.extend(lits);
+//! let mut enc = DefIncBothBounding::from(lits);
 //! let mut encoding = Cnf::new();
 //! enc.encode_both(4..=4, &mut encoding, &mut var_manager);
 //! ```
@@ -33,7 +32,10 @@
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodePB`.
 
-use std::{ops::{RangeBounds, Range, Bound}, cmp};
+use std::{
+    cmp,
+    ops::{Bound, Range, RangeBounds},
+};
 
 use super::{card, CollectClauses, Error};
 use crate::{
@@ -60,7 +62,7 @@ pub mod dbgte;
 pub use dbgte::DbGte;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
-pub trait Encode: Extend<(Lit, usize)> {
+pub trait Encode {
     type Iter<'a>: Iterator<Item = (Lit, usize)>
     where
         Self: 'a;
@@ -108,16 +110,15 @@ pub trait BoundUpper: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<(Lit, usize)> + Sized,
     {
-        let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
         let ub = if ub < 0 {
             return Err(Error::Unsat);
         } else {
             ub as usize
         };
-        enc.extend(lits);
+        let mut enc = Self::from_iter(lits);
         enc.encode_ub(ub..ub + 1, collector, var_manager);
         collector.extend(
             enc.enforce_ub(ub)
@@ -165,16 +166,15 @@ pub trait BoundLower: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<(Lit, usize)> + Sized,
     {
-        let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
         let lb = if lb < 0 {
             return Ok(()); // tautology
         } else {
             lb as usize
         };
-        enc.extend(lits);
+        let mut enc = Self::from_iter(lits);
         enc.encode_lb(lb..lb + 1, collector, var_manager);
         collector.extend(
             enc.enforce_lb(lb)
@@ -229,16 +229,15 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<(Lit, usize)> + Sized,
     {
-        let mut enc = Self::default();
         let (lits, b) = constr.decompose();
         let b = if b < 0 {
             return Err(Error::Unsat);
         } else {
             b as usize
         };
-        enc.extend(lits);
+        let mut enc = Self::from_iter(lits);
         enc.encode_both(b..b + 1, collector, var_manager);
         collector.extend(
             enc.enforce_eq(b)
@@ -256,7 +255,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<(Lit, usize)> + Sized,
     {
         match constr {
             PBConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
@@ -349,32 +348,32 @@ pub type DefIncLowerBounding = InvertedGeneralizedTotalizer;
 pub type DefIncBothBounding = DoubleGeneralizedTotalizer;
 
 /// Constructs a default upper bounding pseudo-boolean encoding.
-pub fn new_default_ub() -> impl BoundUpper {
+pub fn new_default_ub() -> impl BoundUpper + Extend<(Lit, usize)> {
     DefUpperBounding::default()
 }
 
 /// Constructs a default lower bounding pseudo-boolean encoding.
-pub fn new_default_lb() -> impl BoundLower {
+pub fn new_default_lb() -> impl BoundLower + Extend<(Lit, usize)> {
     DefLowerBounding::default()
 }
 
 /// Constructs a default double bounding pseudo-boolean encoding.
-pub fn new_default_both() -> impl BoundBoth {
+pub fn new_default_both() -> impl BoundBoth + Extend<(Lit, usize)> {
     DefBothBounding::default()
 }
 
 /// Constructs a default incremental upper bounding pseudo-boolean encoding.
-pub fn new_default_inc_ub() -> impl BoundUpperIncremental {
+pub fn new_default_inc_ub() -> impl BoundUpperIncremental + Extend<(Lit, usize)> {
     DefIncUpperBounding::default()
 }
 
 /// Constructs a default incremental lower bounding pseudo-boolean encoding.
-pub fn new_default_inc_lb() -> impl BoundLower {
+pub fn new_default_inc_lb() -> impl BoundLower + Extend<(Lit, usize)> {
     DefIncLowerBounding::default()
 }
 
 /// Constructs a default incremental double bounding pseudo-boolean encoding.
-pub fn new_default_inc_both() -> impl BoundBoth {
+pub fn new_default_inc_both() -> impl BoundBoth + Extend<(Lit, usize)> {
     DefIncBothBounding::default()
 }
 
@@ -390,7 +389,7 @@ pub fn default_encode_pb_constraint<Col: CollectClauses>(
 }
 
 /// An encoder for any pseudo-boolean constraint with an encoding of choice
-pub fn encode_pb_constraint<PBE: BoundBoth + Default, Col: CollectClauses>(
+pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: CollectClauses>(
     constr: PBConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,

@@ -81,7 +81,7 @@ where
 
 impl<PBE> Extend<(Lit, usize)> for Inverted<PBE>
 where
-    PBE: Encode + 'static,
+    PBE: Encode + Extend<(Lit, usize)> + 'static,
 {
     fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
         let lits: RsHashMap<Lit, usize> = iter.into_iter().map(|(l, w)| (!l, w)).collect();
@@ -286,8 +286,8 @@ where
 
 impl<UBE, LBE> Extend<(Lit, usize)> for Double<UBE, LBE>
 where
-    UBE: BoundUpper + 'static,
-    LBE: BoundLower + 'static,
+    UBE: BoundUpper + Extend<(Lit, usize)> + 'static,
+    LBE: BoundLower + Extend<(Lit, usize)> + 'static,
 {
     fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
         let lits: RsHashMap<Lit, usize> = iter.into_iter().collect();
@@ -463,7 +463,7 @@ where
 
 impl<CE> Extend<(Lit, usize)> for Card<CE>
 where
-    CE: card::Encode + 'static,
+    CE: card::Encode + Extend<Lit> + 'static,
 {
     fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
         let mut mult_lits = vec![];

@@ -10,11 +10,12 @@ use rustsat::{
         Solve, SolveIncremental,
         SolverResult::{self, Sat, Unsat},
     },
+    types::Lit,
     var,
 };
 use rustsat_cadical::CaDiCaL;
 
-fn test_inc_both_card<CE: BoundBothIncremental>(mut enc: CE) {
+fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -36,6 +37,7 @@ fn test_inc_both_card<CE: BoundBothIncremental>(mut enc: CE) {
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::Sat);
 
+    let mut enc = CE::default();
     enc.extend(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
     enc.encode_both(2..3, &mut solver, &mut var_manager);
@@ -77,7 +79,7 @@ fn test_inc_both_card<CE: BoundBothIncremental>(mut enc: CE) {
     assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_inc_ub_card<CE: BoundUpperIncremental>(mut enc: CE) {
+fn test_inc_ub_card<CE: BoundUpperIncremental + Extend<Lit> + Default>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -99,6 +101,7 @@ fn test_inc_ub_card<CE: BoundUpperIncremental>(mut enc: CE) {
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::Sat);
 
+    let mut enc = CE::default();
     enc.extend(vec![lit![0], lit![1], lit![2], lit![3], lit![4]]);
 
     enc.encode_ub(2..3, &mut solver, &mut var_manager);
@@ -136,7 +139,7 @@ fn test_inc_ub_card<CE: BoundUpperIncremental>(mut enc: CE) {
     assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_both_card<CE: BoundBoth>(mut enc: CE) {
+fn test_both_card<CE: BoundBoth + From<Vec<Lit>>>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -152,7 +155,7 @@ fn test_both_card<CE: BoundBoth>(mut enc: CE) {
     assert_eq!(res, SolverResult::Sat);
 
     // Set up totalizer
-    enc.extend(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
+    let mut enc = CE::from(vec![!lit![0], !lit![1], !lit![2], !lit![3], !lit![4]]);
 
     enc.encode_both(2..4, &mut solver, &mut var_manager);
     let assumps = enc.enforce_ub(2).unwrap();
@@ -169,13 +172,13 @@ fn test_both_card<CE: BoundBoth>(mut enc: CE) {
 }
 
 /// Requires a cardinality encoding with upper and lower bounding functionality
-fn test_both_card_min_enc<CE: BoundBoth>(mut enc: CE) {
+fn test_both_card_min_enc<CE: BoundBoth + From<Vec<Lit>>>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
-    enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+    let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
 
     enc.encode_both(3..4, &mut solver, &mut var_manager);
     let mut assumps = enc.enforce_eq(3).unwrap();
@@ -231,51 +234,44 @@ fn test_both_card_min_enc<CE: BoundBoth>(mut enc: CE) {
 
 #[test]
 fn tot_inc_both() {
-    let tot = Totalizer::default();
-    test_inc_both_card(tot);
+    test_inc_both_card::<Totalizer>()
 }
 
 #[test]
 fn tot_both() {
-    let tot = Totalizer::default();
-    test_both_card(tot);
+    test_both_card::<Totalizer>()
 }
 
 #[test]
 fn tot_min_enc() {
-    let tot = Totalizer::default();
-    test_both_card_min_enc(tot);
+    test_both_card_min_enc::<Totalizer>()
 }
 
 #[test]
 fn invertet_tot() {
-    let inv_tot: Inverted<Totalizer> = Inverted::default();
-    test_inc_both_card(inv_tot)
+    test_inc_both_card::<Inverted<Totalizer>>()
 }
 
 #[test]
 fn double_invertet_tot() {
-    let double_inv_tot: Double<Inverted<Totalizer>, Inverted<Totalizer>> = Double::default();
-    test_inc_both_card(double_inv_tot)
+    test_inc_both_card::<Double<Inverted<Totalizer>, Inverted<Totalizer>>>()
 }
 
 #[test]
 fn tot_inc_ub() {
-    let tot = Totalizer::default();
-    test_inc_ub_card(tot);
+    test_inc_ub_card::<Totalizer>()
 }
 
 #[test]
 fn dbtot_inc_ub() {
-    let tot = DbTotalizer::default();
-    test_inc_ub_card(tot);
+    test_inc_ub_card::<DbTotalizer>()
 }
 
 use rustsat_tools::{test_all, test_assignment};
 
-fn test_ub_exhaustive<CE: BoundUpperIncremental>(mut enc: CE) {
+fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let mut solver = CaDiCaL::default();
-    enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+    let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
@@ -395,9 +391,9 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental>(mut enc: CE) {
     );
 }
 
-fn test_both_exhaustive<CE: BoundBothIncremental>(mut enc: CE) {
+fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
     let mut solver = CaDiCaL::default();
-    enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+    let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
@@ -519,24 +515,20 @@ fn test_both_exhaustive<CE: BoundBothIncremental>(mut enc: CE) {
 
 #[test]
 fn tot_ub_exhaustive() {
-    let tot = Totalizer::default();
-    test_ub_exhaustive(tot)
+    test_ub_exhaustive::<Totalizer>()
 }
 
 #[test]
 fn tot_both_exhaustive() {
-    let tot = Totalizer::default();
-    test_both_exhaustive(tot)
+    test_both_exhaustive::<Totalizer>()
 }
 
 #[test]
 fn invtot_both_exhaustive() {
-    let tot = Inverted::<Totalizer>::default();
-    test_both_exhaustive(tot)
+    test_both_exhaustive::<Inverted<Totalizer>>()
 }
 
 #[test]
 fn dbtot_ub_exhaustive() {
-    let tot = DbTotalizer::default();
-    test_ub_exhaustive(tot)
+    test_ub_exhaustive::<DbTotalizer>()
 }

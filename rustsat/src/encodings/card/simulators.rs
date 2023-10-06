@@ -79,7 +79,7 @@ where
 
 impl<CE> Extend<Lit> for Inverted<CE>
 where
-    CE: Encode + 'static,
+    CE: Encode + Extend<Lit> + 'static,
 {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         let lits: Vec<Lit> = iter.into_iter().map(Lit::not).collect();
@@ -272,8 +272,8 @@ where
 
 impl<UBE, LBE> Extend<Lit> for Double<UBE, LBE>
 where
-    UBE: BoundUpper + 'static,
-    LBE: BoundLower + 'static,
+    UBE: BoundUpper + Extend<Lit> + 'static,
+    LBE: BoundLower + Extend<Lit> + 'static,
 {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         let lits: Vec<Lit> = iter.into_iter().collect();

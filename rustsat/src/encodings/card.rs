@@ -9,7 +9,7 @@
 //! ```
 //! use rustsat::{
 //!     clause,
-//!     encodings::{card, card::{BoundBoth, Encode}},
+//!     encodings::card::{BoundBoth, DefIncBothBounding, Encode},
 //!     instances::{BasicVarManager, Cnf, ManageVars},
 //!     lit, solvers, var,
 //! };
@@ -17,8 +17,7 @@
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![4]);
 //!
-//! let mut enc = card::new_default_inc_both();
-//! enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+//! let mut enc = DefIncBothBounding::from(vec![lit![0], lit![1], lit![2], lit![3]]);
 //! let mut encoding = Cnf::new();
 //! enc.encode_both(3..=3, &mut encoding, &mut var_manager);
 //! ```
@@ -51,7 +50,7 @@ pub mod dbtotalizer;
 pub use dbtotalizer::DbTotalizer;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
-pub trait Encode: Extend<Lit> {
+pub trait Encode {
     type Iter<'a>: Iterator<Item = Lit>
     where
         Self: 'a;
@@ -89,11 +88,10 @@ pub trait BoundUpper: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<Lit> + Sized,
     {
-        let mut enc = Self::default();
         let (lits, ub) = constr.decompose();
-        enc.extend(lits);
+        let mut enc = Self::from_iter(lits);
         enc.encode_ub(ub..ub + 1, collector, var_manager);
         collector.extend(
             enc.enforce_ub(ub)
@@ -135,11 +133,10 @@ pub trait BoundLower: Encode {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<Lit> + Sized,
     {
-        let mut enc = Self::default();
         let (lits, lb) = constr.decompose();
-        enc.extend(lits);
+        let mut enc = Self::from_iter(lits);
         enc.encode_lb(lb..lb + 1, collector, var_manager);
         collector.extend(
             enc.enforce_lb(lb)
@@ -189,11 +186,10 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<Lit> + Sized,
     {
-        let mut enc = Self::default();
         let (lits, b) = constr.decompose();
-        enc.extend(lits);
+        let mut enc = Self::from_iter(lits);
         enc.encode_both(b..b + 1, collector, var_manager);
         collector.extend(
             enc.enforce_eq(b)
@@ -211,7 +207,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), Error>
     where
         Col: CollectClauses,
-        Self: Default + Sized,
+        Self: FromIterator<Lit> + Sized,
     {
         match constr {
             CardConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
@@ -344,7 +340,7 @@ pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
 }
 
 /// An encoder for any cardinality constraint with an encoding of choice
-pub fn encode_cardinality_constraint<CE: BoundBoth + Default, Col: CollectClauses>(
+pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,

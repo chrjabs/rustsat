@@ -19,7 +19,7 @@ use rustsat::{
 };
 use rustsat_cadical::CaDiCaL;
 
-fn test_inc_pb_ub<PBE: BoundUpperIncremental>(mut enc: PBE) {
+fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
@@ -47,6 +47,7 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental>(mut enc: PBE) {
     lits.insert(lit![2], 1);
     lits.insert(lit![3], 3);
     lits.insert(lit![4], 2);
+    let mut enc = PBE::default();
     enc.extend(lits);
 
     enc.encode_ub(0..3, &mut solver, &mut var_manager);
@@ -97,7 +98,7 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental>(mut enc: PBE) {
     assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_pb_eq<PBE: BoundBothIncremental>(mut enc: PBE) {
+fn test_pb_eq<PBE: BoundBothIncremental + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     let mut var_manager = BasicVarManager::default();
@@ -107,7 +108,7 @@ fn test_pb_eq<PBE: BoundBothIncremental>(mut enc: PBE) {
     lits.insert(lit![0], 4);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 2);
-    enc.extend(lits);
+    let mut enc = PBE::from(lits);
 
     enc.encode_both(4..5, &mut solver, &mut var_manager);
 
@@ -152,7 +153,7 @@ fn test_pb_eq<PBE: BoundBothIncremental>(mut enc: PBE) {
     assert_eq!(res, SolverResult::Unsat);
 }
 
-fn test_pb_lb<PBE: BoundLower>(mut enc: PBE) {
+fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     solver
@@ -168,7 +169,7 @@ fn test_pb_lb<PBE: BoundLower>(mut enc: PBE) {
     lits.insert(lit![0], 3);
     lits.insert(lit![1], 6);
     lits.insert(lit![2], 3);
-    enc.extend(lits);
+    let mut enc = PBE::from(lits);
 
     enc.encode_lb(0..11, &mut solver, &mut var_manager);
     let assumps = enc.enforce_lb(10).unwrap();
@@ -181,7 +182,7 @@ fn test_pb_lb<PBE: BoundLower>(mut enc: PBE) {
     assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_pb_ub_min_enc<PBE: BoundUpper>(mut enc: PBE) {
+fn test_pb_ub_min_enc<PBE: BoundUpper  + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     let mut var_manager = BasicVarManager::default();
@@ -191,7 +192,7 @@ fn test_pb_ub_min_enc<PBE: BoundUpper>(mut enc: PBE) {
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 1);
-    enc.extend(lits);
+    let mut enc = PBE::from(lits);
 
     enc.encode_ub(2..3, &mut solver, &mut var_manager);
     let mut assumps = enc.enforce_ub(2).unwrap();
@@ -237,56 +238,42 @@ fn test_pb_ub_min_enc<PBE: BoundUpper>(mut enc: PBE) {
 
 #[test]
 fn gte_ub() {
-    let gte = GeneralizedTotalizer::default();
-    test_inc_pb_ub(gte);
+    test_inc_pb_ub::<GeneralizedTotalizer>()
 }
 
 #[test]
 fn gte_lb() {
-    let gte = InvertedGeneralizedTotalizer::default();
-    test_pb_lb(gte);
+    test_pb_lb::<InvertedGeneralizedTotalizer>()
 }
 
 #[test]
 fn gte_min_enc() {
-    let gte = GeneralizedTotalizer::default();
-    test_pb_ub_min_enc(gte);
+    test_pb_ub_min_enc::<GeneralizedTotalizer>()
 }
 
 #[test]
 fn gte_eq() {
-    let gte = DoubleGeneralizedTotalizer::default();
-    test_pb_eq(gte);
+    test_pb_eq::<DoubleGeneralizedTotalizer>()
 }
 
 #[test]
 fn tot_pb_sim_eq() {
-    let sim: Card<Totalizer> = Card::default();
-    test_pb_eq(sim);
-}
-
-#[test]
-fn dpw_ub() {
-    let dpw = DynamicPolyWatchdog::default();
-    test_inc_pb_ub(dpw);
+    test_pb_eq::<Card<Totalizer>>()
 }
 
 #[test]
 fn dpw_min_enc() {
-    let dpw = DynamicPolyWatchdog::default();
-    test_pb_ub_min_enc(dpw);
+    test_pb_ub_min_enc::<DynamicPolyWatchdog>()
 }
 
 #[test]
 fn dbgte_ub() {
-    let gte = DbGte::default();
-    test_inc_pb_ub(gte);
+    test_inc_pb_ub::<DbGte>()
 }
 
 #[test]
 fn dbgte_min_enc() {
-    let gte = DbGte::default();
-    test_pb_ub_min_enc(gte);
+    test_pb_ub_min_enc::<DbGte>()
 }
 
 use rustsat_tools::{test_all, test_assignment};
