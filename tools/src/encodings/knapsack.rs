@@ -104,7 +104,7 @@ impl Iterator for Encoding {
                 Clause::Capacity(iter) => {
                     let next = iter.next();
                     if next.is_some() {
-                        return next.map(|cl| dimacs::McnfLine::Hard(cl));
+                        return next.map(dimacs::McnfLine::Hard);
                     }
                     self.next_clause = Clause::Soft(0, 0);
                 }

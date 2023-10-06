@@ -182,7 +182,7 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_pb_ub_min_enc<PBE: BoundUpper  + From<RsHashMap<Lit, usize>>>() {
+fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
     let mut solver = CaDiCaL::default();
     let mut var_manager = BasicVarManager::default();

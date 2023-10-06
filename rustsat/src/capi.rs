@@ -134,12 +134,17 @@ pub mod encodings {
         /// Creates a new [`DbTotalizer`] cardinality encoding
         #[no_mangle]
         pub extern "C" fn tot_new() -> *mut DbTotalizer {
-            Box::into_raw(Box::new(DbTotalizer::default()))
+            Box::into_raw(Box::default())
         }
 
         /// Adds a new input literal to a [`DbTotalizer`]
+        /// 
+        /// # Safety
+        /// 
+        /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) {
+        pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) {
             let mut boxed = unsafe { Box::from_raw(tot) };
             boxed.extend([Lit::from_ipasir(lit).expect("invalid IPASIR literal")]);
             Box::into_raw(boxed);
@@ -156,8 +161,13 @@ pub mod encodings {
         /// A call to `var_manager` must yield a new variable. The
         /// encoding will be returned via the given callback function as
         /// 0-terminated clauses (in the same way as IPASIR's `add`).
+        /// 
+        /// # Safety
+        /// 
+        /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn tot_encode_ub(
+        pub unsafe extern "C" fn tot_encode_ub(
             tot: *mut DbTotalizer,
             min_bound: usize,
             max_bound: usize,
@@ -177,8 +187,13 @@ pub mod encodings {
         /// lits <= ub`). Make sure that [`tot_encode_ub`] has been called
         /// adequately and nothing has been called afterwards, otherwise
         /// [`MaybeError::NotEncoded`] will be returned.
+        /// 
+        /// # Safety
+        /// 
+        /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn tot_enforce_ub(
+        pub unsafe extern "C" fn tot_enforce_ub(
             tot: *mut DbTotalizer,
             ub: usize,
             assump: &mut c_int,
@@ -197,8 +212,13 @@ pub mod encodings {
         }
 
         /// Frees the memory associated with a [`DbTotalizer`]
+        /// 
+        /// # Safety
+        /// 
+        /// `tot` must be a return value of [`tot_new`] and cannot be used
+        /// afterwards again.
         #[no_mangle]
-        pub extern "C" fn tot_drop(tot: *mut DbTotalizer) {
+        pub unsafe extern "C" fn tot_drop(tot: *mut DbTotalizer) {
             drop(unsafe { Box::from_raw(tot) })
         }
     }
@@ -218,14 +238,19 @@ pub mod encodings {
         /// Creates a new [`DynamicPolyWatchdog`] cardinality encoding
         #[no_mangle]
         pub extern "C" fn dpw_new() -> *mut DynamicPolyWatchdog {
-            Box::into_raw(Box::new(DynamicPolyWatchdog::default()))
+            Box::into_raw(Box::default())
         }
 
         /// Adds a new input literal to a [`DynamicPolyWatchdog`]. Input
         /// literals can only be added _before_ the encoding is built for the
         /// first time. Otherwise [`MaybeError::InvalidState`] is returned.
+        /// 
+        /// # Safety
+        /// 
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn dpw_add(
+        pub unsafe extern "C" fn dpw_add(
             dpw: *mut DynamicPolyWatchdog,
             lit: c_int,
             weight: usize,
@@ -254,8 +279,13 @@ pub mod encodings {
         /// A call to `var_manager` must yield a new variable. The
         /// encoding will be returned via the given callback function as
         /// 0-terminated clauses (in the same way as IPASIR's `add`).
+        /// 
+        /// # Safety
+        /// 
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn dpw_encode_ub(
+        pub unsafe extern "C" fn dpw_encode_ub(
             dpw: *mut DynamicPolyWatchdog,
             min_bound: usize,
             max_bound: usize,
@@ -279,8 +309,13 @@ pub mod encodings {
         /// Assumptions are returned via the collector callback. There is _no_
         /// terminating zero, all assumptions are passed when [`dpw_enforce_ub`]
         /// returns.
+        /// 
+        /// # Safety
+        /// 
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn dpw_enforce_ub(
+        pub unsafe extern "C" fn dpw_enforce_ub(
             dpw: *mut DynamicPolyWatchdog,
             ub: usize,
             collector: CAssumpCollector,
@@ -302,8 +337,13 @@ pub mod encodings {
 
         /// Gets the next smaller upper bound value that can be encoded without
         /// setting tares. This is used for coarse convergence.
+        /// 
+        /// # Safety
+        /// 
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
         #[no_mangle]
-        pub extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {
+        pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {
             let boxed = unsafe { Box::from_raw(dpw) };
             let ret = boxed.coarse_ub(ub);
             Box::into_raw(boxed);
@@ -311,8 +351,13 @@ pub mod encodings {
         }
 
         /// Frees the memory associated with a [`DynamicPolyWatchdog`]
+        /// 
+        /// # Safety
+        /// 
+        /// `dpw` must be a return value of [`dpw_new`] and cannot be used
+        /// afterwards again.
         #[no_mangle]
-        pub extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
+        pub unsafe extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
             drop(unsafe { Box::from_raw(dpw) })
         }
     }

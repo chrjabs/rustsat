@@ -18,6 +18,7 @@ use crate::types::Lit;
 pub struct NodeId(pub usize);
 
 /// Trait for nodes in the tree
+#[allow(clippy::len_without_is_empty)]
 pub trait NodeLike {
     type ValIter: DoubleEndedIterator<Item = usize>;
 
@@ -135,8 +136,13 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// order of [`NodeId`].    
     fn iter(&self) -> Self::Iter<'_>;
 
-    /// Getss the number of node in the database
+    /// Gets the number of node in the database
     fn len(&self) -> usize;
+
+    /// Checks if the database is empty
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     /// Gets the number of literals that a [`NodeCon`] transmits.
     fn con_len(&self, con: NodeCon) -> usize {
