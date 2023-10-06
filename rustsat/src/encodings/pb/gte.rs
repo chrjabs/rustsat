@@ -14,7 +14,11 @@ use crate::{
     instances::ManageVars,
     types::{Lit, RsHashMap},
 };
-use std::{cmp, collections::BTreeMap, ops::Range};
+use std::{
+    cmp,
+    collections::BTreeMap,
+    ops::{Range, RangeBounds},
+};
 
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
@@ -148,14 +152,12 @@ impl EncodeIncremental for GeneralizedTotalizer {
 }
 
 impl BoundUpper for GeneralizedTotalizer {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         };
@@ -175,6 +177,10 @@ impl BoundUpper for GeneralizedTotalizer {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        if ub >= self.weight_sum {
+            return Ok(vec![]);
+        }
+
         let mut assumps = vec![];
         // Assume literals that have higher weight than `ub`
         assumps.reserve(self.lit_buffer.len());
@@ -224,14 +230,16 @@ impl BoundUpper for GeneralizedTotalizer {
 }
 
 impl BoundUpperIncremental for GeneralizedTotalizer {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         };

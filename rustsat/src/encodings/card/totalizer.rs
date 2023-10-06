@@ -21,7 +21,11 @@ use crate::{
     instances::ManageVars,
     types::Lit,
 };
-use std::{cmp, ops::Range, slice};
+use std::{
+    cmp,
+    ops::{Range, RangeBounds},
+    slice,
+};
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
@@ -115,14 +119,12 @@ impl EncodeIncremental for Totalizer {
 }
 
 impl BoundUpper for Totalizer {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         };
@@ -140,11 +142,11 @@ impl BoundUpper for Totalizer {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        if self.not_enc_idx != self.in_lits.len() {
-            return Err(Error::NotEncoded);
-        };
         if ub >= self.in_lits.len() {
             return Ok(vec![]);
+        };
+        if self.not_enc_idx != self.in_lits.len() {
+            return Err(Error::NotEncoded);
         };
         match &self.root {
             None => Err(Error::NotEncoded),
@@ -165,14 +167,12 @@ impl BoundUpper for Totalizer {
 }
 
 impl BoundLower for Totalizer {
-    fn encode_lb<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_lb<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_lb_range(self, range);
         if range.is_empty() {
             return;
         };
@@ -217,14 +217,16 @@ impl BoundLower for Totalizer {
 }
 
 impl BoundUpperIncremental for Totalizer {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         };
@@ -243,14 +245,16 @@ impl BoundUpperIncremental for Totalizer {
 }
 
 impl BoundLowerIncremental for Totalizer {
-    fn encode_lb_change<Col>(
+    fn encode_lb_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_lb_range(self, range);
         if range.is_empty() {
             return;
         };

@@ -530,6 +530,12 @@ fn tot_both_exhaustive() {
 }
 
 #[test]
+fn invtot_both_exhaustive() {
+    let tot = Inverted::<Totalizer>::default();
+    test_both_exhaustive(tot)
+}
+
+#[test]
 fn dbtot_ub_exhaustive() {
     let tot = DbTotalizer::default();
     test_ub_exhaustive(tot)

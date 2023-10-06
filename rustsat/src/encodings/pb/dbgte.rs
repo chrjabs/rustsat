@@ -3,7 +3,7 @@
 //! This is an alternative implementation of the
 //! [`crate::encodings::pb::GeneralizedTotalizer`] encoding.
 
-use std::ops::Range;
+use std::ops::RangeBounds;
 
 use crate::{
     encodings::{
@@ -150,19 +150,20 @@ impl EncodeIncremental for DbGte {
 }
 
 impl BoundUpper for DbGte {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.db.reset_encoded();
         self.encode_ub_change(range, collector, var_manager);
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        if ub >= self.weight_sum {
+            return Ok(vec![]);
+        }
+
         self.lit_buffer.iter().try_for_each(|(_, &w)| {
             if w <= ub {
                 Err(Error::NotEncoded)
@@ -213,14 +214,16 @@ impl BoundUpper for DbGte {
 }
 
 impl BoundUpperIncremental for DbGte {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         }
@@ -229,7 +232,10 @@ impl BoundUpperIncremental for DbGte {
         self.extend_tree(range.end - 1);
         if let Some(con) = self.root {
             self.db[con.id]
-                .vals(con.rev_map_round_up(range.start + 1)..=con.rev_map(range.end + self.max_leaf_weight))
+                .vals(
+                    con.rev_map_round_up(range.start + 1)
+                        ..=con.rev_map(range.end + self.max_leaf_weight),
+                )
                 .for_each(|val| {
                     self.db
                         .define_pos(con.id, val, collector, var_manager)

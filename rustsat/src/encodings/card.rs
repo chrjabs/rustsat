@@ -20,14 +20,17 @@
 //! let mut enc = card::new_default_inc_both();
 //! enc.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
 //! let mut encoding = Cnf::new();
-//! enc.encode_both(3..4, &mut encoding, &mut var_manager);
+//! enc.encode_both(3..=3, &mut encoding, &mut var_manager);
 //! ```
 //!
 //! When using cardinality and pseudo-boolean encodings at the same time, it is
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodeCard`.
 
-use std::ops::Range;
+use std::{
+    cmp,
+    ops::{Bound, Range, RangeBounds},
+};
 
 use super::{CollectClauses, Error};
 use crate::{
@@ -65,13 +68,14 @@ pub trait BoundUpper: Encode {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_ub<Col>(
+    fn encode_ub<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
-        Col: CollectClauses;
+        Col: CollectClauses,
+        R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
     /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards, otherwise
@@ -108,13 +112,14 @@ pub trait BoundLower: Encode {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_lb<Col>(
+    fn encode_lb<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
-        Col: CollectClauses;
+        Col: CollectClauses,
+        R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
     /// adequately and nothing has been added afterwards, otherwise
@@ -152,13 +157,14 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_both<Col>(
+    fn encode_both<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
     {
         self.encode_ub(range.clone(), collector, var_manager);
         self.encode_lb(range, collector, var_manager);
@@ -233,13 +239,14 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     /// bounds. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
-        Col: CollectClauses;
+        Col: CollectClauses,
+        R: RangeBounds<usize>;
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
@@ -249,13 +256,14 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// bounds in a given range. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore the lower
     /// or upper end of the range.
-    fn encode_lb_change<Col>(
+    fn encode_lb_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
-        Col: CollectClauses;
+        Col: CollectClauses,
+        R: RangeBounds<usize>;
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
@@ -264,13 +272,14 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     /// in a given range. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore the lower or
     /// upper end of the range.
-    fn encode_both_change<Col>(
+    fn encode_both_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
     {
         self.encode_ub_change(range.clone(), collector, var_manager);
         self.encode_lb_change(range, collector, var_manager)
@@ -360,4 +369,28 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + Default, Col: CollectClause
         return;
     }
     CE::encode_constr(constr, collector, var_manager).unwrap()
+}
+
+fn prepare_ub_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+    (match range.start_bound() {
+        Bound::Included(b) => *b,
+        Bound::Excluded(b) => b + 1,
+        Bound::Unbounded => 0,
+    })..match range.end_bound() {
+        Bound::Included(b) => cmp::min(b + 1, enc.n_lits()),
+        Bound::Excluded(b) => cmp::min(*b, enc.n_lits()),
+        Bound::Unbounded => enc.n_lits(),
+    }
+}
+
+fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+    (match range.start_bound() {
+        Bound::Included(b) => cmp::max(*b, 1),
+        Bound::Excluded(b) => cmp::max(b + 1, 1),
+        Bound::Unbounded => 1,
+    })..match range.end_bound() {
+        Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),
+        Bound::Excluded(b) => cmp::min(*b, enc.n_lits() + 1),
+        Bound::Unbounded => enc.n_lits() + 1,
+    }
 }

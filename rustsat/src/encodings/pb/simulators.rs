@@ -7,7 +7,7 @@
 //! pseudo-boolean encoding can also be simulated by a cardinality encoding
 //! where literals are added multiple times.
 
-use std::ops::Range;
+use std::ops::{Range, RangeBounds};
 
 use super::{
     BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
@@ -45,13 +45,9 @@ where
     PBE: Encode + 'static,
 {
     fn convert_encoding_range(&self, range: Range<usize>) -> Range<usize> {
-        let min = if self.weight_sum > (range.end - 1) {
-            self.weight_sum - (range.end - 1)
-        } else {
-            0
-        };
-        let max = if self.weight_sum > range.start {
-            self.weight_sum - range.start + 1
+        let min = self.weight_sum() - (range.end - 1);
+        let max = if self.weight_sum() >= range.start {
+            self.weight_sum() - range.start + 1
         } else {
             0
         };
@@ -131,16 +127,16 @@ impl<PBE> BoundUpper for Inverted<PBE>
 where
     PBE: BoundLower,
 {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
-        self.pb_enc
-            .encode_lb(self.convert_encoding_range(range), collector, var_manager)
+        self.pb_enc.encode_lb(
+            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            collector,
+            var_manager,
+        )
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -157,20 +153,20 @@ impl<PBE> BoundLower for Inverted<PBE>
 where
     PBE: BoundUpper,
 {
-    fn encode_lb<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_lb<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
-        self.pb_enc
-            .encode_ub(self.convert_encoding_range(range), collector, var_manager)
+        self.pb_enc.encode_ub(
+            self.convert_encoding_range(super::prepare_lb_range(self, range)),
+            collector,
+            var_manager,
+        )
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
-        let ub = if self.weight_sum > lb {
+        let ub = if self.weight_sum >= lb {
             self.weight_sum - lb
         } else {
             return Err(Error::Unsat);
@@ -183,16 +179,20 @@ impl<PBE> BoundUpperIncremental for Inverted<PBE>
 where
     PBE: BoundLowerIncremental,
 {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
-        self.pb_enc
-            .encode_lb_change(self.convert_encoding_range(range), collector, var_manager)
+        self.pb_enc.encode_lb_change(
+            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            collector,
+            var_manager,
+        )
     }
 }
 
@@ -200,16 +200,20 @@ impl<PBE> BoundLowerIncremental for Inverted<PBE>
 where
     PBE: BoundUpperIncremental,
 {
-    fn encode_lb_change<Col>(
+    fn encode_lb_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
-        self.pb_enc
-            .encode_ub_change(self.convert_encoding_range(range), collector, var_manager)
+        self.pb_enc.encode_ub_change(
+            self.convert_encoding_range(super::prepare_lb_range(self, range)),
+            collector,
+            var_manager,
+        )
     }
 }
 
@@ -332,13 +336,10 @@ where
     UBE: BoundUpper,
     LBE: BoundLower,
 {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.ub_enc.encode_ub(range, collector, var_manager)
     }
@@ -353,13 +354,10 @@ where
     UBE: BoundUpper,
     LBE: BoundLower,
 {
-    fn encode_lb<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_lb<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.lb_enc.encode_lb(range, collector, var_manager)
     }
@@ -374,13 +372,14 @@ where
     UBE: BoundUpperIncremental,
     LBE: BoundLowerIncremental,
 {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.ub_enc.encode_ub_change(range, collector, var_manager)
     }
@@ -391,13 +390,14 @@ where
     UBE: BoundUpperIncremental,
     LBE: BoundLowerIncremental,
 {
-    fn encode_lb_change<Col>(
+    fn encode_lb_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.lb_enc.encode_lb_change(range, collector, var_manager)
     }
@@ -513,13 +513,10 @@ impl<CE> BoundUpper for Card<CE>
 where
     CE: card::BoundUpper,
 {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.card_enc.encode_ub(range, collector, var_manager)
     }
@@ -533,13 +530,10 @@ impl<CE> BoundLower for Card<CE>
 where
     CE: card::BoundLower,
 {
-    fn encode_lb<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_lb<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.card_enc.encode_lb(range, collector, var_manager)
     }
@@ -553,13 +547,14 @@ impl<CE> BoundUpperIncremental for Card<CE>
 where
     CE: card::BoundUpperIncremental,
 {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.card_enc
             .encode_ub_change(range, collector, var_manager)
@@ -570,13 +565,14 @@ impl<CE> BoundLowerIncremental for Card<CE>
 where
     CE: card::BoundLowerIncremental,
 {
-    fn encode_lb_change<Col>(
+    fn encode_lb_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.card_enc
             .encode_lb_change(range, collector, var_manager)
@@ -587,3 +583,24 @@ fn add_unit_weight(lit: Lit) -> (Lit, usize) {
     (lit, 1)
 }
 type CardIter<ICE> = std::iter::Map<ICE, fn(Lit) -> (Lit, usize)>;
+
+#[cfg(test)]
+mod tests {
+    use crate::{encodings::pb::GeneralizedTotalizer, lit, types::RsHashMap};
+
+    use super::Inverted;
+
+    #[test]
+    fn inv_inv_range_map() {
+        let mut lits = RsHashMap::default();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 2);
+        lits.insert(lit![2], 1);
+        lits.insert(lit![3], 3);
+        lits.insert(lit![4], 2);
+        let enc = Inverted::<Inverted<GeneralizedTotalizer>>::from(lits);
+        debug_assert_eq!(1..3, enc.pb_enc.convert_encoding_range(enc.convert_encoding_range(1..3)));
+        debug_assert_eq!(4..9, enc.pb_enc.convert_encoding_range(enc.convert_encoding_range(4..9)));
+        debug_assert_eq!(0..2, enc.pb_enc.convert_encoding_range(enc.convert_encoding_range(0..2)));
+    }
+}

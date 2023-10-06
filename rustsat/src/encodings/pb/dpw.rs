@@ -13,7 +13,7 @@
 //! - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 //!   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 
-use std::{collections::BTreeMap, ops::Range};
+use std::{collections::BTreeMap, ops::RangeBounds};
 
 use crate::{
     encodings::{
@@ -107,13 +107,10 @@ impl EncodeIncremental for DynamicPolyWatchdog {
 }
 
 impl BoundUpper for DynamicPolyWatchdog {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.db.reset_encoded();
         self.encode_ub_change(range, collector, var_manager)
@@ -138,14 +135,16 @@ impl BoundUpper for DynamicPolyWatchdog {
 }
 
 impl BoundUpperIncremental for DynamicPolyWatchdog {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         }
@@ -225,7 +224,7 @@ impl Extend<(Lit, usize)> for DynamicPolyWatchdog {
 
 #[cfg(feature = "internals")]
 pub mod referenced {
-    use std::{cell::RefCell, ops::Range};
+    use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
         encodings::{
@@ -375,13 +374,14 @@ pub mod referenced {
     }
 
     impl BoundUpper for DynamicPolyWatchdog<'_> {
-        fn encode_ub<Col>(
+        fn encode_ub<Col, R>(
             &mut self,
-            range: Range<usize>,
+            range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
         ) where
             Col: CollectClauses,
+            R: RangeBounds<usize>,
         {
             self.db.reset_encoded();
             self.encode_ub_change(range, collector, var_manager)
@@ -406,13 +406,14 @@ pub mod referenced {
     }
 
     impl BoundUpper for DynamicPolyWatchdogCell<'_> {
-        fn encode_ub<Col>(
+        fn encode_ub<Col, R>(
             &mut self,
-            range: Range<usize>,
+            range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
         ) where
             Col: CollectClauses,
+            R: RangeBounds<usize>,
         {
             self.db.borrow_mut().reset_encoded();
             self.encode_ub_change(range, collector, var_manager)
@@ -437,14 +438,16 @@ pub mod referenced {
     }
 
     impl BoundUpperIncremental for DynamicPolyWatchdog<'_> {
-        fn encode_ub_change<Col>(
+        fn encode_ub_change<Col, R>(
             &mut self,
-            range: Range<usize>,
+            range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
         ) where
             Col: CollectClauses,
+            R: RangeBounds<usize>,
         {
+            let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
                 return;
             }
@@ -474,14 +477,16 @@ pub mod referenced {
     }
 
     impl BoundUpperIncremental for DynamicPolyWatchdogCell<'_> {
-        fn encode_ub_change<Col>(
+        fn encode_ub_change<Col, R>(
             &mut self,
-            range: Range<usize>,
+            range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
         ) where
             Col: CollectClauses,
+            R: RangeBounds<usize>,
         {
+            let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
                 return;
             }
