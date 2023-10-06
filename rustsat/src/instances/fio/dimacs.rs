@@ -752,13 +752,11 @@ mod tests {
     #[cfg(feature = "optimization")]
     use super::{
         parse_idx, parse_mcnf_line, parse_no_pline_body, parse_wcnf_pre22_body,
-        parse_wcnf_pre22_line, parse_weight, write_wcnf_annotated,
+        parse_wcnf_pre22_line, parse_weight, write_wcnf_annotated, Objective, OptInstance,
     };
-    #[cfg(feature = "optimization")]
-    use super::{Objective, OptInstance};
 
     #[cfg(feature = "multiopt")]
-    use super::{write_mcnf, MultiOptInstance};
+    use super::{write_mcnf_annotated, MultiOptInstance};
 
     #[cfg(feature = "optimization")]
     #[test]
@@ -1240,7 +1238,7 @@ mod tests {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_mcnf(
+        write_mcnf_annotated(
             &mut cursor,
             true_constrs.clone().as_cnf().0,
             vec![

@@ -672,18 +672,18 @@ fn build_structure<CI: Iterator<Item = (NodeCon, usize)>>(
                 id: top_bucket.id,
                 offset: top_bucket.offset,
                 divisor: 2,
+                multiplier: 1,
             });
             continue;
         }
 
         let right = last_bottom_bucket.unwrap();
-        let len = tot_db.con_len(top_bucket) + tot_db.con_len(right);
-        let depth = std::cmp::max(tot_db[top_bucket.id].depth(), tot_db[right.id].depth()) + 1;
-        let bottom = tot_db.insert(Node::internal(len, depth, top_bucket, right));
+        let bottom = tot_db.insert(Node::internal(top_bucket, right, tot_db));
         last_bottom_bucket = Some(NodeCon {
             id: bottom,
             offset: 0,
             divisor: 2,
+            multiplier: 1,
         });
     }
 
@@ -706,20 +706,20 @@ fn encode_output<Col>(
 ) where
     Col: CollectClauses,
 {
-    if oidx >= tot_db[dpw.root].len() {
+    if oidx >= tot_db[dpw.root].max_val() {
         return;
     }
-    tot_db.define_pos(dpw.root, oidx, collector, var_manager);
+    tot_db.define_pos_tot(dpw.root, oidx, collector, var_manager);
 }
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Error> {
     let output_weight = 1 << (dpw.output_power());
     let oidx = ub / output_weight;
-    if oidx >= tot_db[dpw.root].len() {
+    if oidx >= tot_db[dpw.root].max_val() {
         return Ok(vec![]);
     }
-    let olit = match tot_db[dpw.root].lit(oidx) {
+    let olit = match tot_db[dpw.root].lit(oidx + 1) {
         Some(&lit) => lit,
         None => return Err(Error::NotEncoded),
     };

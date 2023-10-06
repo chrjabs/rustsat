@@ -4,7 +4,7 @@ use rustsat::{
         card::Totalizer,
         pb::{
             simulators::Card, BoundBoth, BoundBothIncremental, BoundLower, BoundUpper,
-            BoundUpperIncremental, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
+            BoundUpperIncremental, DbGte, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
             GeneralizedTotalizer, InvertedGeneralizedTotalizer,
         },
     },
@@ -14,7 +14,7 @@ use rustsat::{
         Solve, SolveIncremental,
         SolverResult::{self, Sat, Unsat},
     },
-    types::RsHashMap,
+    types::{Lit, RsHashMap},
     var,
 };
 use rustsat_cadical::CaDiCaL;
@@ -277,235 +277,143 @@ fn dpw_min_enc() {
     test_pb_ub_min_enc(dpw);
 }
 
+#[test]
+fn dbgte_ub() {
+    let gte = DbGte::default();
+    test_inc_pb_ub(gte);
+}
+
+#[test]
+fn dbgte_min_enc() {
+    let gte = DbGte::default();
+    test_pb_ub_min_enc(gte);
+}
+
 use rustsat_tools::{test_all, test_assignment};
 
-fn test_ub_exhaustive<PBE: BoundUpperIncremental>(mut enc: PBE) {
+fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
+    weights: [usize; 4],
+    decreasing: bool,
+) {
     let mut solver = CaDiCaL::default();
     let mut lits = RsHashMap::default();
-    lits.insert(lit![0], 5);
-    lits.insert(lit![1], 5);
-    lits.insert(lit![2], 3);
-    lits.insert(lit![3], 3);
-    enc.extend(lits);
+    lits.insert(lit![0], weights[0]);
+    lits.insert(lit![1], weights[1]);
+    lits.insert(lit![2], weights[2]);
+    lits.insert(lit![3], weights[3]);
+    let mut enc = PBE::from(lits);
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
-    enc.encode_ub(0..1, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(0).unwrap();
+    let max_val = weights.iter().fold(0, |sum, &w| sum + w);
+    let expected = |assign: usize, bound: usize| {
+        let sum = (0..4).fold(0, |sum, idx| sum + ((assign >> idx) & 1) * weights[3 - idx]);
+        if sum <= bound {
+            Sat
+        } else {
+            Unsat
+        }
+    };
 
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Unsat,   // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Unsat,   // 0100
-        Unsat,   // 0011
-        Unsat,   // 0010
-        Unsat,   // 0001
-        Sat      // 0000
-    );
+    for mut bound in 0..=max_val {
+        if decreasing {
+            bound = max_val - bound;
+        }
 
-    enc.encode_ub_change(3..4, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(3).unwrap();
+        enc.encode_ub_change(bound..bound + 1, &mut solver, &mut var_manager);
+        let assumps = enc.enforce_ub(bound).unwrap();
 
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Unsat,   // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Unsat,   // 0100
-        Unsat,   // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(5..6, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(5).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Sat,     // 0100
-        Unsat,   // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(6..7, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(6).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(8..9, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(8).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(10..11, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(10).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Sat,     // 1100
-        Unsat,   // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(11..12, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(11).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Sat,     // 1100
-        Sat,     // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Sat,     // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(13..14, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(13).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Sat,     // 1110
-        Sat,     // 1101
-        Sat,     // 1100
-        Sat,     // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Sat,     // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
-
-    enc.encode_ub_change(16..17, &mut solver, &mut var_manager);
-    let assumps = enc.enforce_ub(16).unwrap();
-
-    test_all!(
-        solver, assumps, //
-        Sat,     // 1111
-        Sat,     // 1110
-        Sat,     // 1101
-        Sat,     // 1100
-        Sat,     // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Sat,     // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
-    );
+        test_all!(
+            solver,
+            assumps, //
+            expected(0b1111, bound),
+            expected(0b1110, bound),
+            expected(0b1101, bound),
+            expected(0b1100, bound),
+            expected(0b1011, bound),
+            expected(0b1010, bound),
+            expected(0b1001, bound),
+            expected(0b1000, bound),
+            expected(0b0111, bound),
+            expected(0b0110, bound),
+            expected(0b0101, bound),
+            expected(0b0100, bound),
+            expected(0b0011, bound),
+            expected(0b0010, bound),
+            expected(0b0001, bound),
+            expected(0b0000, bound)
+        );
+    }
 }
 
-#[test]
-fn gte_exhaustive() {
-    let gte = GeneralizedTotalizer::default();
-    test_ub_exhaustive(gte)
+macro_rules! generate_exhaustive {
+    ($mod:ident, $enc:ty) => {
+        mod $mod {
+            #[test]
+            fn increasing_1111() {
+                super::test_ub_exhaustive::<$enc>([1, 1, 1, 1], false);
+            }
+
+            #[test]
+            fn decreasing_1111() {
+                super::test_ub_exhaustive::<$enc>([1, 1, 1, 1], true);
+            }
+
+            #[test]
+            fn increasing_7777() {
+                super::test_ub_exhaustive::<$enc>([7, 7, 7, 7], false);
+            }
+
+            #[test]
+            fn decreasing_7777() {
+                super::test_ub_exhaustive::<$enc>([7, 7, 7, 7], true);
+            }
+
+            #[test]
+            fn increasing_5533() {
+                super::test_ub_exhaustive::<$enc>([5, 5, 3, 3], false);
+            }
+
+            #[test]
+            fn decreasing_5533() {
+                super::test_ub_exhaustive::<$enc>([5, 5, 3, 3], true);
+            }
+
+            #[test]
+            fn increasing_2173() {
+                super::test_ub_exhaustive::<$enc>([2, 1, 7, 3], true);
+            }
+
+            #[test]
+            fn decreasing_2173() {
+                super::test_ub_exhaustive::<$enc>([2, 1, 7, 3], true);
+            }
+
+            #[test]
+            fn increasing_8918() {
+                super::test_ub_exhaustive::<$enc>([8, 9, 1, 8], true);
+            }
+
+            #[test]
+            fn decreasing_8918() {
+                super::test_ub_exhaustive::<$enc>([8, 9, 1, 8], true);
+            }
+
+            #[test]
+            fn increasing_5872() {
+                super::test_ub_exhaustive::<$enc>([5, 8, 7, 2], true);
+            }
+
+            #[test]
+            fn decreasing_5872() {
+                super::test_ub_exhaustive::<$enc>([5, 8, 7, 2], true);
+            }
+        }
+    };
 }
 
-#[test]
-fn dpw_exhaustive() {
-    let dpw = DynamicPolyWatchdog::default();
-    test_ub_exhaustive(dpw)
-}
+generate_exhaustive!(gte, rustsat::encodings::pb::GeneralizedTotalizer);
+
+generate_exhaustive!(dbgte, rustsat::encodings::pb::DbGte);
+
+generate_exhaustive!(dpw, rustsat::encodings::pb::DynamicPolyWatchdog);

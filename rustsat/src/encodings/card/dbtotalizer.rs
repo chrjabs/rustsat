@@ -5,7 +5,8 @@
 
 use std::{
     cmp,
-    ops::{Index, IndexMut, Range},
+    collections::BTreeMap,
+    ops::{Index, IndexMut, Range, RangeBounds},
 };
 
 use crate::{
@@ -112,10 +113,23 @@ impl BoundUpper for DbTotalizer {
         if ub >= self.in_lits.len() {
             return Ok(vec![]);
         }
-        match self.root {
-            Some(id) => Ok(vec![!self.db[id][ub]]),
-            None => Err(Error::NotEncoded),
+        if let Some(id) = self.root {
+            match &self.db[id] {
+                Node::Leaf(lit) => {
+                    debug_assert_eq!(ub, 0);
+                    return Ok(vec![!*lit]);
+                }
+                Node::Unit(node) => {
+                    if let LitData::Lit { lit, enc_pos } = node.lits[ub] {
+                        if enc_pos {
+                            return Ok(vec![!lit]);
+                        }
+                    }
+                }
+                Node::General(_) => panic!(),
+            }
         }
+        Err(Error::NotEncoded)
     }
 }
 
@@ -136,8 +150,8 @@ impl BoundUpperIncremental for DbTotalizer {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                if idx < self.db[id].len() {
-                    self.db.define_pos(id, idx, collector, var_manager);
+                if idx < self.db[id].max_val() {
+                    self.db.define_pos_tot(id, idx, collector, var_manager);
                 }
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
@@ -191,40 +205,140 @@ impl Extend<Lit> for DbTotalizer {
 /// A totalizer adder node
 pub enum Node {
     Leaf(Lit),
-    Internal(INode),
+    Unit(UnitNode),
+    General(GeneralNode),
+}
+
+#[derive(Clone)]
+pub enum ValIter {
+    Range(Range<usize>),
+    General(std::vec::IntoIter<usize>),
+}
+
+impl Iterator for ValIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ValIter::Range(range) => range.next(),
+            ValIter::General(iter) => iter.next(),
+        }
+    }
+}
+
+impl DoubleEndedIterator for ValIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self {
+            ValIter::Range(range) => range.next_back(),
+            ValIter::General(iter) => iter.next_back(),
+        }
+    }
 }
 
 impl NodeLike for Node {
+    type ValIter = ValIter;
+
+    fn max_val(&self) -> usize {
+        match self {
+            Node::Leaf(_) => 1,
+            Node::Unit(node) => node.lits.len(),
+            Node::General(node) => *node.lits.last_key_value().unwrap().0,
+        }
+    }
+
     fn len(&self) -> usize {
         match self {
             Node::Leaf(_) => 1,
-            Node::Internal(node) => node.lits.len(),
+            Node::Unit(node) => node.lits.len(),
+            Node::General(node) => node.lits.len(),
+        }
+    }
+
+    fn vals<R>(&self, range: R) -> Self::ValIter
+    where
+        R: RangeBounds<usize>,
+    {
+        match self {
+            Node::Leaf(_) => {
+                if range.contains(&1) {
+                    return ValIter::Range(1..2);
+                }
+                ValIter::Range(0..0)
+            }
+            Node::Unit(node) => {
+                let lb = match range.start_bound() {
+                    std::ops::Bound::Included(b) => cmp::max(*b, 1),
+                    std::ops::Bound::Excluded(b) => b + 1,
+                    std::ops::Bound::Unbounded => 1,
+                };
+                let ub = match range.end_bound() {
+                    std::ops::Bound::Included(b) => cmp::min(b + 1, node.lits.len() + 1),
+                    std::ops::Bound::Excluded(b) => cmp::min(*b, node.lits.len() + 1),
+                    std::ops::Bound::Unbounded => node.lits.len() + 1,
+                };
+                ValIter::Range(lb..ub)
+            }
+            Node::General(node) => {
+                let vals: Vec<_> = node.lits.range(range).map(|(val, _)| *val).collect();
+                ValIter::General(vals.into_iter())
+            }
         }
     }
 
     fn right(&self) -> Option<NodeCon> {
         match self {
-            Node::Leaf(_) => None,
-            Node::Internal(node) => Some(node.left),
+            Node::Leaf(..) => None,
+            Node::Unit(node) => Some(node.left),
+            Node::General(node) => Some(node.left),
         }
     }
 
     fn left(&self) -> Option<NodeCon> {
         match self {
-            Node::Leaf(_) => None,
-            Node::Internal(node) => Some(node.right),
+            Node::Leaf(..) => None,
+            Node::Unit(node) => Some(node.right),
+            Node::General(node) => Some(node.right),
         }
     }
 
     fn depth(&self) -> usize {
         match self {
-            Node::Leaf(_) => 1,
-            Node::Internal(node) => node.depth,
+            Node::Leaf(..) => 1,
+            Node::Unit(node) => node.depth,
+            Node::General(node) => node.depth,
         }
     }
 
-    fn internal(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self {
-        Self::Internal(INode::new(len, depth, left, right))
+    //fn internal(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self {
+    //    Self::General(GeneralNode::new(len, depth, left, right))
+    //}
+
+    fn internal<Db>(left: NodeCon, right: NodeCon, db: &Db) -> Self
+    where
+        Db: NodeById<Node = Self>,
+    {
+        let general = left.multiplier != right.multiplier
+            || matches!(&db[left.id], Node::General(_))
+            || matches!(&db[right.id], Node::General(_));
+        if general {
+            let lvals: Vec<_> = db[left.id].vals(..).map(|val| left.map(val)).collect();
+            let rvals: Vec<_> = db[right.id].vals(..).map(|val| right.map(val)).collect();
+            return Self::General(GeneralNode::new(
+                &lvals,
+                &rvals,
+                std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
+                left,
+                right,
+            ));
+        }
+        // if both inputs have the same weight, the multiplier should be 1
+        debug_assert!(left.multiplier == 1 && right.multiplier == 1);
+        Self::Unit(UnitNode::new(
+            db.con_len(left) + db.con_len(right),
+            std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
+            left,
+            right,
+        ))
     }
 
     fn leaf(lit: Lit) -> Self {
@@ -234,47 +348,73 @@ impl NodeLike for Node {
 
 impl Node {
     /// Panic-safe version of literal indexing
-    pub fn lit(&self, index: usize) -> Option<&Lit> {
+    pub fn lit(&self, val: usize) -> Option<&Lit> {
         match self {
-            Node::Leaf(lit) => {
-                if index != 0 {
+            Node::Leaf(lit, ..) => {
+                if val != 1 {
                     return None;
                 }
                 Some(lit)
             }
-            Node::Internal(node) => node.lit(index),
+            Node::Unit(node) => node.lit(val),
+            Node::General(node) => node.lit(val),
         }
     }
 
-    /// Returns the internal node and panics if the node is a leaf
-    pub fn unwrap(&mut self) -> &mut INode {
+    /// Returns the internal node and panics if the node is not a unit
+    pub(super) fn unit(&self) -> &UnitNode {
         match self {
-            Node::Leaf(_) => panic!("called unwrap on leaf node"),
-            Node::Internal(node) => node,
+            Node::Unit(node) => node,
+            _ => panic!("called `unit` on non-unit node"),
+        }
+    }
+
+    /// Returns the internal node and panics if the node is not a unit
+    pub(super) fn mut_unit(&mut self) -> &mut UnitNode {
+        match self {
+            Node::Unit(node) => node,
+            _ => panic!("called `unit` on non-unit node"),
+        }
+    }
+
+    /// Returns the internal node and panics if the node is not general
+    pub(super) fn general(&self) -> &GeneralNode {
+        match self {
+            Node::General(node) => node,
+            _ => panic!("called `unit` on non-general node"),
+        }
+    }
+
+    /// Returns the internal node and panics if the node is not general
+    pub(super) fn mut_general(&mut self) -> &mut GeneralNode {
+        match self {
+            Node::General(node) => node,
+            _ => panic!("called `unit` on non-general node"),
         }
     }
 }
 
 /// Access to output literals. Panics if the literal has not been reserved yet.
+/// The index is the output literal _value_, not it's index.
 impl Index<usize> for Node {
     type Output = Lit;
 
-    fn index(&self, index: usize) -> &Self::Output {
-        self.lit(index).unwrap()
+    fn index(&self, val: usize) -> &Self::Output {
+        self.lit(val).unwrap()
     }
 }
 
 /// An internal node of the totalizer
-pub struct INode {
-    pub(super) lits: Vec<LitData>,
-    pub(super) depth: usize,
-    pub(super) left: NodeCon,
-    pub(super) right: NodeCon,
+pub struct UnitNode {
+    pub(crate) lits: Vec<LitData>,
+    pub(crate) depth: usize,
+    pub(crate) left: NodeCon,
+    pub(crate) right: NodeCon,
 }
 
-impl INode {
+impl UnitNode {
     fn new(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self {
-        // Length of node can never change, therefore make sure that the
+        // Length of node can never change
         let mut lits = vec![];
         lits.reserve_exact(len);
         (0..len).for_each(|_| lits.push(LitData::default()));
@@ -285,16 +425,14 @@ impl INode {
             right,
         }
     }
-}
 
-impl INode {
     /// Panic-safe version of literal indexing
-    pub fn lit(&self, index: usize) -> Option<&Lit> {
-        self.lits[index].lit()
+    pub fn lit(&self, val: usize) -> Option<&Lit> {
+        self.lits[val - 1].lit()
     }
 }
 
-impl Index<usize> for INode {
+impl Index<usize> for UnitNode {
     type Output = Lit;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -302,9 +440,47 @@ impl Index<usize> for INode {
     }
 }
 
+/// An internal _general_ (weighted) node
+pub struct GeneralNode {
+    pub(crate) lits: BTreeMap<usize, LitData>,
+    pub(crate) depth: usize,
+    pub(crate) left: NodeCon,
+    pub(crate) right: NodeCon,
+}
+
+impl GeneralNode {
+    fn new(lvals: &[usize], rvals: &[usize], depth: usize, left: NodeCon, right: NodeCon) -> Self {
+        let mut lits = BTreeMap::from_iter(lvals.iter().map(|&val| (val, LitData::default())));
+        rvals.iter().for_each(|val| {
+            if !lits.contains_key(val) {
+                lits.insert(*val, LitData::default());
+            }
+        });
+        lvals.iter().for_each(|lval| {
+            rvals.iter().for_each(|rval| {
+                let val = lval + rval;
+                if !lits.contains_key(&val) {
+                    lits.insert(val, LitData::default());
+                }
+            })
+        });
+        Self {
+            lits,
+            depth,
+            left,
+            right,
+        }
+    }
+
+    /// Panic-safe version of literal indexing
+    pub fn lit(&self, val: usize) -> Option<&Lit> {
+        self.lits.get(&val).map_or(None, |dat| dat.lit())
+    }
+}
+
 /// Data associated with an output literal in a [`Node`]
 #[derive(Default)]
-pub(super) enum LitData {
+pub(crate) enum LitData {
     #[default]
     None,
     Lit {
@@ -381,11 +557,46 @@ impl Index<NodeId> for TotDb {
 }
 
 impl TotDb {
-    /// Generates the encoding to define the positive output literal with index `idx`, if it is not
-    /// already defined. Recurses down the tree. The returned literal is the output literal and the
-    /// encoding is added to the [`Cnf`]. The encoding is not returned in order to save on memory
-    /// allocations.
+    /// Generates the encoding to define the positive output literal with value
+    /// `val`, if it is not already defined. Recurses down the tree. The
+    /// returned literal is the output literal and the encoding is added to the
+    /// `collector`.
     pub fn define_pos<Col>(
+        &mut self,
+        id: NodeId,
+        val: usize,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Option<Lit>
+    where
+        Col: CollectClauses,
+    {
+        let node = &self[id];
+        debug_assert!(val <= node.max_val());
+        match node {
+            Node::Leaf(lit) => {
+                debug_assert_eq!(val, 1);
+                if val != 1 {
+                    return None;
+                }
+                Some(*lit)
+            }
+            Node::Unit(node) => {
+                if val > node.lits.len() || val == 0 {
+                    return None;
+                }
+                Some(self.define_pos_tot(id, val - 1, collector, var_manager))
+            }
+            Node::General(node) => {
+                if !node.lits.contains_key(&val) {
+                    return None;
+                }
+                Some(self.define_pos_gte(id, val, collector, var_manager))
+            }
+        }
+    }
+
+    pub fn define_pos_tot<Col>(
         &mut self,
         id: NodeId,
         idx: usize,
@@ -396,17 +607,18 @@ impl TotDb {
         Col: CollectClauses,
     {
         let node = &self[id];
-        debug_assert!(idx < node.len());
+        debug_assert!(idx < node.max_val());
         if node.is_leaf() {
             debug_assert_eq!(idx, 0);
-            return node[0];
+            return node[1];
         }
         let lcon = node.left().unwrap();
         let rcon = node.right().unwrap();
-        let node = match node {
-            Node::Leaf(_) => panic!(),
-            Node::Internal(node) => node,
-        };
+        debug_assert!(matches!(self[lcon.id], Node::Leaf(_) | Node::Unit(_)));
+        debug_assert!(matches!(self[rcon.id], Node::Leaf(_) | Node::Unit(_)));
+        debug_assert_eq!(lcon.multiplier, 1);
+        debug_assert_eq!(rcon.multiplier, 1);
+        let node = node.unit();
 
         // Check if already encoded
         if let LitData::Lit { lit, enc_pos, .. } = node.lits[idx] {
@@ -415,10 +627,10 @@ impl TotDb {
             }
         }
 
-        let con_idx = |idx: usize, con: NodeCon| ((idx + 1) * con.divisor) - 1 + con.offset;
+        let con_idx = |idx: usize, con: NodeCon| con.rev_map(idx + 1) - 1;
 
-        // The maximum indices of left and right that influence the current literal (ignoring
-        // offset and divisor)
+        // The maximum indices of left and right that influence the current
+        // literal (ignoring offset and divisor)
         let l_max_idx = cmp::min(self.con_len(lcon) - 1, idx);
         let r_max_idx = cmp::min(self.con_len(rcon) - 1, idx);
 
@@ -437,18 +649,18 @@ impl TotDb {
 
         // Encode children (recurse)
         for lidx in l_min_idx..=l_max_idx {
-            self.define_pos(lcon.id, con_idx(lidx, lcon), collector, var_manager);
+            self.define_pos_tot(lcon.id, con_idx(lidx, lcon), collector, var_manager);
         }
         for ridx in r_min_idx..=r_max_idx {
-            self.define_pos(rcon.id, con_idx(ridx, rcon), collector, var_manager);
+            self.define_pos_tot(rcon.id, con_idx(ridx, rcon), collector, var_manager);
         }
 
         // Reserve variable for this node, if needed
-        let olit = if let Some(&olit) = self[id].lit(idx) {
+        let olit = if let Some(&olit) = self[id].lit(idx + 1) {
             olit
         } else {
             let olit = var_manager.new_var().pos_lit();
-            self[id].unwrap().lits[idx] = LitData::new_lit(olit);
+            self[id].mut_unit().lits[idx] = LitData::new_lit(olit);
             olit
         };
 
@@ -459,7 +671,8 @@ impl TotDb {
                 tmp_olit_l = LitData::new_lit(*lit);
                 std::slice::from_ref(&tmp_olit_l)
             }
-            Node::Internal(INode { lits, .. }) => lits,
+            Node::Unit(UnitNode { lits, .. }) => lits,
+            _ => panic!(),
         };
         let tmp_olit_r;
         let rlits = match &self[rcon.id] {
@@ -467,7 +680,8 @@ impl TotDb {
                 tmp_olit_r = LitData::new_lit(*lit);
                 std::slice::from_ref(&tmp_olit_r)
             }
-            Node::Internal(INode { lits, .. }) => lits,
+            Node::Unit(UnitNode { lits, .. }) => lits,
+            _ => panic!(),
         };
 
         // Encode this node
@@ -494,7 +708,78 @@ impl TotDb {
         collector.extend(clause_iter);
 
         // Mark positive literal as encoded
-        match &mut self[id].unwrap().lits[idx] {
+        match &mut self[id].mut_unit().lits[idx] {
+            LitData::None => panic!(),
+            LitData::Lit { enc_pos, .. } => *enc_pos = true,
+        };
+
+        olit
+    }
+
+    fn define_pos_gte<Col>(
+        &mut self,
+        id: NodeId,
+        val: usize,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Lit
+    where
+        Col: CollectClauses,
+    {
+        let node = &self[id];
+        debug_assert!(val <= node.max_val());
+        let lcon = node.left().unwrap();
+        let rcon = node.right().unwrap();
+        let node = node.general();
+        debug_assert!(node.lits.contains_key(&val));
+
+        // Check if already encoded
+        if let LitData::Lit { lit, enc_pos, .. } = node.lits[&val] {
+            if enc_pos {
+                return lit;
+            }
+        }
+
+        // Reserve variable for this node, if needed
+        let olit = if let Some(&olit) = self[id].lit(val) {
+            olit
+        } else {
+            let olit = var_manager.new_var().pos_lit();
+            *self[id].mut_general().lits.get_mut(&val).unwrap() = LitData::new_lit(olit);
+            olit
+        };
+
+        // Propagate value
+        if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
+            if let Some(llit) = self.define_pos(lcon.id, lcon.rev_map(val), collector, var_manager)
+            {
+                collector.extend([atomics::lit_impl_lit(llit, olit)]);
+            }
+        }
+        if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
+            if let Some(rlit) = self.define_pos(rcon.id, rcon.rev_map(val), collector, var_manager)
+            {
+                collector.extend([atomics::lit_impl_lit(rlit, olit)]);
+            };
+        }
+        // Propagate sums
+        let lvals = self[lcon.id].vals(1..lcon.rev_map_round_up(val));
+        for lval in lvals {
+            let rval = val - lcon.map(lval);
+            if rcon.is_possible(rval) && rcon.rev_map(rval) <= self[rcon.id].max_val() {
+                if let Some(rlit) =
+                    self.define_pos(rcon.id, rcon.rev_map(rval), collector, var_manager)
+                {
+                    let llit = self
+                        .define_pos(lcon.id, lval, collector, var_manager)
+                        .unwrap();
+                    collector.extend([atomics::cube_impl_lit(&[llit, rlit], olit)]);
+                }
+            }
+        }
+
+        // Mark positive literal as encoded
+        match &mut self[id].mut_general().lits.get_mut(&val).unwrap() {
             LitData::None => panic!(),
             LitData::Lit { enc_pos, .. } => *enc_pos = true,
         };
@@ -512,22 +797,44 @@ impl TotDb {
         self.reserve_vars(self[id].left().unwrap().id, var_manager);
         self.reserve_vars(self[id].right().unwrap().id, var_manager);
 
-        for olit in &mut self[id].unwrap().lits {
-            if let LitData::None = olit {
-                *olit = LitData::new_lit(var_manager.new_var().pos_lit())
+        match &mut self[id] {
+            Node::Unit(UnitNode { lits, .. }) => {
+                for olit in lits {
+                    if let LitData::None = olit {
+                        *olit = LitData::new_lit(var_manager.new_var().pos_lit())
+                    }
+                }
             }
+            Node::General(GeneralNode { lits, .. }) => {
+                for (_, olit) in lits.iter_mut() {
+                    if let LitData::None = olit {
+                        *olit = LitData::new_lit(var_manager.new_var().pos_lit())
+                    }
+                }
+            }
+            Node::Leaf(_) => panic!(),
         }
     }
 
     /// Resets the status of what has already been encoded
     pub fn reset_encoded(&mut self) {
         for node in &mut self.nodes {
-            if let Node::Internal(INode { lits, .. }) = node {
-                for lit in lits {
-                    if let LitData::Lit { enc_pos, .. } = lit {
-                        *enc_pos = false;
+            match node {
+                Node::Unit(UnitNode { lits, .. }) => {
+                    for lit in lits {
+                        if let LitData::Lit { enc_pos, .. } = lit {
+                            *enc_pos = false
+                        }
                     }
                 }
+                Node::General(GeneralNode { lits, .. }) => {
+                    for (_, lit) in lits.iter_mut() {
+                        if let LitData::Lit { enc_pos, .. } = lit {
+                            *enc_pos = false
+                        }
+                    }
+                }
+                Node::Leaf(_) => (),
             }
         }
     }
@@ -555,23 +862,107 @@ mod tests {
         var_manager.increase_next_free(var![4]);
 
         let mut cnf = Cnf::new();
-        db.define_pos(root, 0, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 0, &mut cnf, &mut var_manager);
         debug_assert_eq!(cnf.len(), 6);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 1, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 1, &mut cnf, &mut var_manager);
         debug_assert_eq!(cnf.len(), 9);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 2, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 2, &mut cnf, &mut var_manager);
         debug_assert_eq!(cnf.len(), 8);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos_tot(root, 3, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 3);
+    }
+
+    #[test]
+    fn weighted_tot_db() {
+        let mut db = TotDb::default();
+        let con = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 4), (lit![2], 7), (lit![3], 7)]);
+        debug_assert_eq!(con.multiplier, 1);
+        debug_assert_eq!(con.offset, 0);
+        debug_assert_eq!(con.divisor, 1);
+        let root = con.id;
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 1, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 0);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 4, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 3);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 7, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 3);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 8, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 2);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 15, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 4);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 22, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 3);
+    }
+
+    #[test]
+    fn weighted_tot_db2() {
+        let mut db = TotDb::default();
+        let con = db.weighted_lit_tree(&[(lit![0], 3), (lit![1], 2), (lit![2], 1)]);
+        debug_assert_eq!(con.multiplier, 1);
+        debug_assert_eq!(con.offset, 0);
+        debug_assert_eq!(con.divisor, 1);
+        let root = con.id;
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![3]);
+
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 1, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 2);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 2, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 2);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
         db.define_pos(root, 3, &mut cnf, &mut var_manager);
         debug_assert_eq!(cnf.len(), 3);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 4, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 2);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 5, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 2);
+
+        db.reset_encoded();
+        let mut cnf = Cnf::new();
+        db.define_pos(root, 6, &mut cnf, &mut var_manager);
+        debug_assert_eq!(cnf.len(), 2);
     }
 
     #[test]

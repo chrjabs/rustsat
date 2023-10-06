@@ -7,7 +7,7 @@
 //! (Note that the DPW encoding is not technically tree-like since it might
 //! share substructures, but close enough.)
 
-use std::ops::IndexMut;
+use std::ops::{IndexMut, RangeBounds};
 
 use crate::types::Lit;
 
@@ -19,13 +19,23 @@ pub struct NodeId(pub usize);
 
 /// Trait for nodes in the tree
 pub trait NodeLike {
+    type ValIter: DoubleEndedIterator<Item = usize>;
+
     /// Returns true if the node is a leaf
     fn is_leaf(&self) -> bool {
         self.len() == 1
     }
 
-    /// Gets the size of the node
+    /// Gets the maximum value of the node
+    fn max_val(&self) -> usize;
+
+    /// Gets the length (number of outputs) of the node
     fn len(&self) -> usize;
+
+    /// Gets the output values of the node in a given range
+    fn vals<R>(&self, range: R) -> Self::ValIter
+    where
+        R: RangeBounds<usize>;
 
     /// Gets the connection to the right child
     fn right(&self) -> Option<NodeCon>;
@@ -37,9 +47,11 @@ pub trait NodeLike {
     fn depth(&self) -> usize;
 
     /// Creates a new internal node
-    fn internal(len: usize, depth: usize, left: NodeCon, right: NodeCon) -> Self;
+    fn internal<Db>(left: NodeCon, right: NodeCon, db: &Db) -> Self
+    where
+        Db: NodeById<Node = Self>;
 
-    /// Creates a new leaf
+    /// Creates a new leaf with weight one
     fn leaf(lit: Lit) -> Self;
 }
 
@@ -49,12 +61,16 @@ pub struct NodeCon {
     /// The child node
     pub id: NodeId,
     /// How much the node is offset. The parent will include `(val - offset) /
-    /// divisor` in its sum. Negative offsets would be required for the static
-    /// polynomial watchdog encoding, but we don't support them as of now.
+    /// divisor * multiplier` in its sum. Negative offsets would be required for
+    /// the static polynomial watchdog encoding, but we don't support them as of
+    /// now.
     pub offset: usize,
     /// The divisor of the connection. The parent will include `(val - offset) /
-    /// divisor` in its sum.
+    /// divisor * multiplier` in its sum.
     pub divisor: usize,
+    /// The multiplier/weight of the connection. The parent will include `(val -
+    /// offset) / divisor * multiplier` in its sum.
+    pub multiplier: usize,
 }
 
 impl NodeCon {
@@ -64,7 +80,41 @@ impl NodeCon {
             id,
             offset: 0,
             divisor: 1,
+            multiplier: 1,
         }
+    }
+
+    /// Creates a node connection with a specified weight
+    pub fn weighted(id: NodeId, weight: usize) -> NodeCon {
+        debug_assert_ne!(weight, 0);
+        NodeCon {
+            id,
+            offset: 0,
+            divisor: 1,
+            multiplier: weight,
+        }
+    }
+
+    /// Maps an input value of the connection to its output value
+    pub fn map(&self, val: usize) -> usize {
+        (val - self.offset) / self.divisor * self.multiplier
+    }
+
+    /// Maps an output value of the connection to its input value
+    pub fn rev_map(&self, val: usize) -> usize {
+        val / self.multiplier * self.divisor + self.offset
+    }
+
+    pub fn rev_map_round_up(&self, mut val: usize) -> usize {
+        if val % self.multiplier > 0 {
+            val += self.multiplier;
+        }
+        val / self.multiplier * self.divisor + self.offset
+    }
+
+    /// Checks if a value is a possible output value of this connection
+    pub fn is_possible(&self, val: usize) -> bool {
+        val % self.multiplier == 0
     }
 }
 
@@ -88,14 +138,17 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// Getss the number of node in the database
     fn len(&self) -> usize;
 
-    /// Gets the number of literals that a [`NodeCon`] transmits
+    /// Gets the number of literals that a [`NodeCon`] transmits.
     fn con_len(&self, con: NodeCon) -> usize {
         (self[con.id].len() - con.offset) / con.divisor
     }
 
-    /// Recursively build a balanced tree of nodes over literals and returns the
+    /// Recursively builds a balanced tree of nodes over literals and returns the
     /// ID of the root
-    fn lit_tree(&mut self, lits: &[Lit]) -> NodeId {
+    fn lit_tree(&mut self, lits: &[Lit]) -> NodeId
+    where
+        Self: Sized,
+    {
         debug_assert!(!lits.is_empty());
 
         if lits.len() == 1 {
@@ -105,21 +158,57 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let split = lits.len() / 2;
         let lid = self.lit_tree(&lits[..split]);
         let rid = self.lit_tree(&lits[split..]);
-        let depth = std::cmp::max(self[lid].depth(), self[rid].depth()) + 1;
 
         self.insert(Self::Node::internal(
-            lits.len(),
-            depth,
             NodeCon::full(lid),
             NodeCon::full(rid),
+            self,
         ))
+    }
+
+    /// Recursively builds a balanced tree of nodes over weighted literals and
+    /// returns a [`NodeCon`] to the root (that will be a fill connection,
+    /// except for if all input literals have equal weight). Works best if
+    /// literals are sorted by weight.
+    fn weighted_lit_tree(&mut self, lits: &[(Lit, usize)]) -> NodeCon
+    where
+        Self: Sized,
+    {
+        debug_assert!(!lits.is_empty());
+
+        // Detect sequences of literals of equal weight and merge them
+        let mut seg_begin = 0;
+        let mut seg_end = 0;
+        let mut cons = vec![];
+        loop {
+            seg_end += 1;
+            if seg_end < lits.len() && lits[seg_end].1 == lits[seg_begin].1 {
+                continue;
+            }
+            // merge lits of equal weight
+            let seg: Vec<_> = lits[seg_begin..seg_end]
+                .iter()
+                .map(|(lit, _)| *lit)
+                .collect();
+            let id = self.lit_tree(&seg);
+            cons.push(NodeCon::weighted(id, lits[seg_begin].1));
+            seg_begin = seg_end;
+            if seg_end >= lits.len() {
+                break;
+            }
+        }
+        // Merge totalizers
+        self.merge_balanced(&cons)
     }
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
     /// the root (that will be a full connection, except for if the input is a
     /// single connection). While the merging subtree will be balanced in terms
     /// of nodes, the overall tree might not be.
-    fn merge(&mut self, cons: &[NodeCon]) -> NodeCon {
+    fn merge(&mut self, cons: &[NodeCon]) -> NodeCon
+    where
+        Self: Sized,
+    {
         debug_assert!(!cons.is_empty());
 
         if cons.len() == 1 {
@@ -130,10 +219,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let lcon = self.merge(&cons[..split]);
         let rcon = self.merge(&cons[split..]);
 
-        let len = self.con_len(lcon) + self.con_len(rcon);
-        let depth = std::cmp::max(self[lcon.id].depth(), self[rcon.id].depth()) + 1;
-
-        NodeCon::full(self.insert(Self::Node::internal(len, depth, lcon, rcon)))
+        NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
     }
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
@@ -143,7 +229,10 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// more balanced at the expense of more computation while merging. For a
     /// maximally balanced tree, the input connections should be sorted by
     /// [`NodeById::max_value`].
-    fn merge_balanced(&mut self, cons: &[NodeCon]) -> NodeCon {
+    fn merge_balanced(&mut self, cons: &[NodeCon]) -> NodeCon
+    where
+        Self: Sized,
+    {
         debug_assert!(!cons.is_empty());
 
         if cons.len() == 1 {
@@ -161,9 +250,6 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let lcon = self.merge(&cons[..split]);
         let rcon = self.merge(&cons[split..]);
 
-        let len = self.con_len(lcon) + self.con_len(rcon);
-        let depth = std::cmp::max(self[lcon.id].depth(), self[rcon.id].depth()) + 1;
-
-        NodeCon::full(self.insert(Self::Node::internal(len, depth, lcon, rcon)))
+        NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
     }
 }
