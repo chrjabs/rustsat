@@ -43,11 +43,9 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 #[derive(Default)]
 pub struct DynamicPolyWatchdog {
     /// Input literals and weights for the encoding
-    in_lits: RsHashMap<Lit, usize>,
-    /// Flag to know when new literals where added and the encoding needs to be reconstructed
-    lits_added: bool,
+    pub(crate) in_lits: RsHashMap<Lit, usize>,
     /// The encoding root and the tares
-    structure: Option<Structure>,
+    pub(crate) structure: Option<Structure>,
     /// Sum of all input weight
     weight_sum: usize,
     /// The number of variables
@@ -148,9 +146,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         if range.is_empty() {
             return;
         }
-        if self.lits_added {
-            // reset current totalizer database
-            self.db = Default::default();
+        if self.structure.is_none() && !self.in_lits.is_empty() {
             self.structure = Some(build_lit_structure(
                 self.in_lits.iter().map(|(&l, &w)| (l, w)),
                 &mut self.db,
@@ -189,7 +185,6 @@ impl From<RsHashMap<Lit, usize>> for DynamicPolyWatchdog {
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
         Self {
             in_lits: lits.clone(),
-            lits_added: true,
             structure: Default::default(),
             weight_sum,
             n_vars: Default::default(),
@@ -203,22 +198,6 @@ impl FromIterator<(Lit, usize)> for DynamicPolyWatchdog {
     fn from_iter<T: IntoIterator<Item = (Lit, usize)>>(iter: T) -> Self {
         let lits: RsHashMap<Lit, usize> = RsHashMap::from_iter(iter);
         Self::from(lits)
-    }
-}
-
-impl Extend<(Lit, usize)> for DynamicPolyWatchdog {
-    fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
-        iter.into_iter().for_each(|(l, w)| {
-            self.weight_sum += w;
-            // Insert into map of input literals
-            match self.in_lits.get_mut(&l) {
-                Some(old_w) => *old_w += w,
-                None => {
-                    self.in_lits.insert(l, w);
-                }
-            };
-        });
-        self.lits_added = true;
     }
 }
 

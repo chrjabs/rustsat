@@ -27,6 +27,10 @@ typedef enum MaybeError {
    * The requested encoding is unsatisfiable
    */
   Unsat,
+  /**
+   * The encoding is in an invalid state to perform this action
+   */
+  InvalidState,
 } MaybeError;
 
 /**
@@ -67,9 +71,11 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- * Adds a new input literal to a [`DynamicPolyWatchdog`]
+ * Adds a new input literal to a [`DynamicPolyWatchdog`]. Input
+ * literals can only be added _before_ the encoding is built for the
+ * first time. Otherwise [`MaybeError::InvalidState`] is returned.
  */
-void dpw_add(struct DynamicPolyWatchdog *dpw, int lit, size_t weight);
+enum MaybeError dpw_add(struct DynamicPolyWatchdog *dpw, int lit, size_t weight);
 
 /**
  * Gets the next smaller upper bound value that can be encoded without

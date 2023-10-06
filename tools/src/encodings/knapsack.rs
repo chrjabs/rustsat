@@ -74,7 +74,7 @@ pub struct Encoding {
 impl Encoding {
     pub fn new<PBE>(data: Knapsack) -> Self
     where
-        PBE: pb::BoundUpper + Default,
+        PBE: pb::BoundUpper + FromIterator<(Lit, usize)>,
     {
         let mut vm = BasicVarManager::default();
         let cap_constr = match PBConstraint::new_ub(

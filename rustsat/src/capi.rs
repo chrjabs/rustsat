@@ -25,6 +25,8 @@ pub mod encodings {
         NotEncoded,
         /// The requested encoding is unsatisfiable
         Unsat,
+        /// The encoding is in an invalid state to perform this action
+        InvalidState,
     }
 
     impl From<encodings::Error> for MaybeError {
@@ -219,15 +221,25 @@ pub mod encodings {
             Box::into_raw(Box::new(DynamicPolyWatchdog::default()))
         }
 
-        /// Adds a new input literal to a [`DynamicPolyWatchdog`]
+        /// Adds a new input literal to a [`DynamicPolyWatchdog`]. Input
+        /// literals can only be added _before_ the encoding is built for the
+        /// first time. Otherwise [`MaybeError::InvalidState`] is returned.
         #[no_mangle]
-        pub extern "C" fn dpw_add(dpw: *mut DynamicPolyWatchdog, lit: c_int, weight: usize) {
+        pub extern "C" fn dpw_add(
+            dpw: *mut DynamicPolyWatchdog,
+            lit: c_int,
+            weight: usize,
+        ) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            boxed.extend([(
+            if boxed.structure.is_some() {
+                return MaybeError::InvalidState;
+            }
+            boxed.in_lits.insert(
                 Lit::from_ipasir(lit).expect("invalid IPASIR literal"),
                 weight,
-            )]);
+            );
             Box::into_raw(boxed);
+            MaybeError::Ok
         }
 
         /// Lazily builds the _change in_ pseudo-boolean encoding to enable
