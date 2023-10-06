@@ -94,24 +94,21 @@ impl EncodeIncremental for DbTotalizer {
 }
 
 impl BoundUpper for DbTotalizer {
-    fn encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) where
+    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
         self.db.reset_encoded();
         self.encode_ub_change(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        if self.not_enc_idx < self.in_lits.len() {
-            return Err(Error::NotEncoded);
-        }
         if ub >= self.in_lits.len() {
             return Ok(vec![]);
+        }
+        if self.not_enc_idx < self.in_lits.len() {
+            return Err(Error::NotEncoded);
         }
         if let Some(id) = self.root {
             match &self.db[id] {
@@ -134,14 +131,16 @@ impl BoundUpper for DbTotalizer {
 }
 
 impl BoundUpperIncremental for DbTotalizer {
-    fn encode_ub_change<Col>(
+    fn encode_ub_change<Col, R>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) where
         Col: CollectClauses,
+        R: RangeBounds<usize>,
     {
+        let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
             return;
         }
@@ -150,9 +149,7 @@ impl BoundUpperIncremental for DbTotalizer {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                if idx < self.db[id].max_val() {
-                    self.db.define_pos_tot(id, idx, collector, var_manager);
-                }
+                self.db.define_pos_tot(id, idx, collector, var_manager);
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;

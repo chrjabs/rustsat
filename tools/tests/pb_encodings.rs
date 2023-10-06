@@ -349,6 +349,8 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
 macro_rules! generate_exhaustive {
     ($mod:ident, $enc:ty) => {
         mod $mod {
+            use rustsat::encodings::pb::*;
+
             #[test]
             fn increasing_1111() {
                 super::test_ub_exhaustive::<$enc>([1, 1, 1, 1], false);
@@ -412,8 +414,18 @@ macro_rules! generate_exhaustive {
     };
 }
 
-generate_exhaustive!(gte, rustsat::encodings::pb::GeneralizedTotalizer);
+generate_exhaustive!(gte, GeneralizedTotalizer);
 
-generate_exhaustive!(dbgte, rustsat::encodings::pb::DbGte);
+generate_exhaustive!(dbgte, DbGte);
 
-generate_exhaustive!(dpw, rustsat::encodings::pb::DynamicPolyWatchdog);
+generate_exhaustive!(dpw, DynamicPolyWatchdog);
+
+generate_exhaustive!(
+    gte_inv_inv,
+    simulators::Inverted<simulators::Inverted<GeneralizedTotalizer>>
+);
+
+generate_exhaustive!(
+    tot_sim,
+    simulators::Card<rustsat::encodings::card::Totalizer>
+);
