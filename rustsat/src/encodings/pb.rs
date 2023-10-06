@@ -63,11 +63,6 @@ pub use dbgte::DbGte;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode {
-    type Iter<'a>: Iterator<Item = (Lit, usize)>
-    where
-        Self: 'a;
-    /// Gets an iterator over copies of the input literals
-    fn iter(&self) -> Self::Iter<'_>;
     /// Get the sum of weights in the encoding
     fn weight_sum(&self) -> usize;
     /// Gets the next higher value possible to be achieved by the weighted sum.

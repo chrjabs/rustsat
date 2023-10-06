@@ -11,7 +11,7 @@ use super::{
     BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{CollectClauses, EncodeStats, Error},
+    encodings::{CollectClauses, EncodeStats, Error, IterInputs},
     instances::ManageVars,
     types::Lit,
 };
@@ -92,14 +92,19 @@ impl<CE> Encode for Inverted<CE>
 where
     CE: Encode,
 {
+    fn n_lits(&self) -> usize {
+        self.n_lits
+    }
+}
+
+impl<CE> IterInputs for Inverted<CE>
+where
+    CE: Encode + IterInputs,
+{
     type Iter<'a> = InvertedIter<CE::Iter<'a>>;
 
     fn iter(&self) -> Self::Iter<'_> {
         self.card_enc.iter().map(Lit::not)
-    }
-
-    fn n_lits(&self) -> usize {
-        self.n_lits
     }
 }
 
@@ -287,14 +292,20 @@ where
     UBE: BoundUpper,
     LBE: BoundLower,
 {
+    fn n_lits(&self) -> usize {
+        self.ub_enc.n_lits()
+    }
+}
+
+impl<UBE, LBE> IterInputs for Double<UBE, LBE>
+where
+    UBE: BoundUpper + IterInputs,
+    LBE: BoundLower,
+{
     type Iter<'a> = UBE::Iter<'a>;
 
     fn iter(&self) -> Self::Iter<'_> {
         self.ub_enc.iter()
-    }
-
-    fn n_lits(&self) -> usize {
-        self.ub_enc.n_lits()
     }
 }
 

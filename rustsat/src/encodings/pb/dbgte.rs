@@ -30,8 +30,6 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[derive(Default)]
 pub struct DbGte {
-    /// Input literals and weights for the encoding
-    in_lits: RsHashMap<Lit, usize>,
     /// Input literals and weights not yet in the tree
     lit_buffer: RsHashMap<Lit, usize>,
     /// The root of the tree, if constructed
@@ -105,12 +103,6 @@ impl DbGte {
 }
 
 impl Encode for DbGte {
-    type Iter<'a> = super::gte::GTEIter<'a>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.in_lits.iter().map(super::gte::copy_key_val)
-    }
-
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
@@ -133,7 +125,7 @@ impl Encode for DbGte {
         }
         if let Some(con) = self.root {
             return self.db[con.id]
-                .vals(..con.rev_map(val))
+                .vals(..con.rev_map_round_up(val))
                 .next_back()
                 .unwrap_or(0);
         }
@@ -164,21 +156,15 @@ impl BoundUpper for DbGte {
             return Ok(vec![]);
         }
 
-        self.lit_buffer.iter().try_for_each(|(_, &w)| {
+        let mut assumps = vec![];
+        self.lit_buffer.iter().try_for_each(|(&l, &w)| {
             if w <= ub {
                 Err(Error::NotEncoded)
             } else {
+                assumps.push(!l);
                 Ok(())
             }
         })?;
-        let mut assumps = vec![];
-        // Assume literals that have higher weight than `ub`
-        assumps.reserve(self.lit_buffer.len());
-        self.in_lits.iter().for_each(|(&l, &w)| {
-            if w > ub {
-                assumps.push(!l);
-            }
-        });
         // Enforce bound on internal tree
         if let Some(con) = self.root {
             self.db[con.id]
@@ -261,7 +247,6 @@ impl From<RsHashMap<Lit, usize>> for DbGte {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
         Self {
-            in_lits: lits.clone(),
             lit_buffer: lits,
             weight_sum,
             ..Default::default()
@@ -287,14 +272,308 @@ impl Extend<(Lit, usize)> for DbGte {
                     self.lit_buffer.insert(l, w);
                 }
             };
-            // Insert into map of input literals
-            match self.in_lits.get_mut(&l) {
-                Some(old_w) => *old_w += w,
-                None => {
-                    self.in_lits.insert(l, w);
-                }
-            };
         });
+    }
+}
+
+#[cfg(feature = "internals")]
+pub mod referenced {
+    use std::{cell::RefCell, ops::RangeBounds};
+
+    use crate::{
+        encodings::{
+            card::dbtotalizer::{LitData, Node, TotDb},
+            nodedb::{NodeCon, NodeLike},
+            pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
+            CollectClauses, Error,
+        },
+        instances::ManageVars,
+        types::Lit,
+    };
+
+    /// Generalized totalizer encoding with a _mutable reference_ to a totalizer
+    /// database rather than owning it.
+    ///
+    /// ## References
+    ///
+    /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
+    ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    pub struct Gte<'totdb> {
+        /// A node connection to the root
+        root: NodeCon,
+        /// The maximum weight of any leaf
+        max_leaf_weight: usize,
+        /// The node database of the totalizer
+        db: &'totdb mut TotDb,
+    }
+
+    /// Generalized totalizer encoding with a [`RefCell`] to a totalizer
+    /// database rather than owning it.
+    ///
+    /// ## References
+    ///
+    /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
+    ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    pub struct GteCell<'totdb> {
+        /// A node connection to the root
+        root: NodeCon,
+        /// The maximum weight of any leaf
+        max_leaf_weight: usize,
+        /// The node database of the totalizer
+        db: &'totdb RefCell<&'totdb mut TotDb>,
+    }
+
+    impl<'totdb> Gte<'totdb> {
+        /// Constructs a new GTE encoding referencing a totalizer database
+        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut TotDb) -> Self {
+            Self {
+                root,
+                max_leaf_weight,
+                db,
+            }
+        }
+
+        /// Gets the maximum depth of the tree
+        pub fn depth(&self) -> usize {
+            self.db[self.root.id].depth()
+        }
+    }
+
+    impl<'totdb> GteCell<'totdb> {
+        /// Constructs a new GTE encoding referencing a totalizer database
+        pub fn new(
+            root: NodeCon,
+            max_leaf_weight: usize,
+            db: &'totdb RefCell<&'totdb mut TotDb>,
+        ) -> Self {
+            Self {
+                root,
+                max_leaf_weight,
+                db,
+            }
+        }
+
+        /// Gets the maximum depth of the tree
+        pub fn depth(&self) -> usize {
+            self.db.borrow()[self.root.id].depth()
+        }
+    }
+
+    impl Encode for Gte<'_> {
+        fn weight_sum(&self) -> usize {
+            self.root.map(self.db[self.root.id].max_val())
+        }
+
+        fn next_higher(&self, val: usize) -> usize {
+            self.db[self.root.id]
+                .vals(self.root.rev_map(val)..)
+                .next()
+                .unwrap_or(val + 1)
+        }
+
+        fn next_lower(&self, val: usize) -> usize {
+            self.db[self.root.id]
+                .vals(..self.root.rev_map_round_up(val))
+                .next_back()
+                .unwrap_or(val - 1)
+        }
+    }
+
+    impl Encode for GteCell<'_> {
+        fn weight_sum(&self) -> usize {
+            self.root.map(self.db.borrow()[self.root.id].max_val())
+        }
+
+        fn next_higher(&self, val: usize) -> usize {
+            self.db.borrow()[self.root.id]
+                .vals(self.root.rev_map(val)..)
+                .next()
+                .unwrap_or(val + 1)
+        }
+
+        fn next_lower(&self, val: usize) -> usize {
+            self.db.borrow()[self.root.id]
+                .vals(..self.root.rev_map_round_up(val))
+                .next_back()
+                .unwrap_or(val - 1)
+        }
+    }
+
+    impl EncodeIncremental for Gte<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            self.db.reserve_vars(self.root.id, var_manager);
+        }
+    }
+
+    impl EncodeIncremental for GteCell<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            self.db.borrow_mut().reserve_vars(self.root.id, var_manager);
+        }
+    }
+
+    impl BoundUpper for Gte<'_> {
+        fn encode_ub<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: RangeBounds<usize>,
+        {
+            self.db.reset_encoded();
+            self.encode_ub_change(range, collector, var_manager)
+        }
+
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+            if ub >= self.weight_sum() {
+                return Ok(vec![]);
+            }
+
+            let mut assumps = vec![];
+            // Enforce bound on internal tree
+            self.db[self.root.id]
+                .vals(
+                    self.root.rev_map_round_up(ub + 1)
+                        ..=self.root.rev_map(ub + self.max_leaf_weight),
+                )
+                .try_for_each(|val| {
+                    match &self.db[self.root.id] {
+                        Node::Leaf(lit) => {
+                            assumps.push(!*lit);
+                            return Ok(());
+                        }
+                        Node::Unit(node) => {
+                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
+                                if enc_pos {
+                                    assumps.push(!lit);
+                                    return Ok(());
+                                }
+                            }
+                        }
+                        Node::General(node) => {
+                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                                if enc_pos {
+                                    assumps.push(!lit);
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                    Err(Error::NotEncoded)
+                })?;
+            Ok(assumps)
+        }
+    }
+
+    impl BoundUpper for GteCell<'_> {
+        fn encode_ub<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: RangeBounds<usize>,
+        {
+            self.db.borrow_mut().reset_encoded();
+            self.encode_ub_change(range, collector, var_manager)
+        }
+
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+            if ub >= self.weight_sum() {
+                return Ok(vec![]);
+            }
+
+            let mut assumps = vec![];
+            // Enforce bound on internal tree
+            self.db.borrow()[self.root.id]
+                .vals(
+                    self.root.rev_map_round_up(ub + 1)
+                        ..=self.root.rev_map(ub + self.max_leaf_weight),
+                )
+                .try_for_each(|val| {
+                    match &self.db.borrow()[self.root.id] {
+                        Node::Leaf(lit) => {
+                            assumps.push(!*lit);
+                            return Ok(());
+                        }
+                        Node::Unit(node) => {
+                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
+                                if enc_pos {
+                                    assumps.push(!lit);
+                                    return Ok(());
+                                }
+                            }
+                        }
+                        Node::General(node) => {
+                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                                if enc_pos {
+                                    assumps.push(!lit);
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                    Err(Error::NotEncoded)
+                })?;
+            Ok(assumps)
+        }
+    }
+
+    impl BoundUpperIncremental for Gte<'_> {
+        fn encode_ub_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: RangeBounds<usize>,
+        {
+            let range = super::super::prepare_ub_range(self, range);
+            if range.is_empty() {
+                return;
+            }
+            self.db[self.root.id]
+                .vals(
+                    self.root.rev_map_round_up(range.start + 1)
+                        ..=self.root.rev_map(range.end + self.max_leaf_weight),
+                )
+                .for_each(|val| {
+                    self.db
+                        .define_pos(self.root.id, val, collector, var_manager)
+                        .unwrap();
+                });
+        }
+    }
+
+    impl BoundUpperIncremental for GteCell<'_> {
+        fn encode_ub_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: RangeBounds<usize>,
+        {
+            let range = super::super::prepare_ub_range(self, range);
+            if range.is_empty() {
+                return;
+            }
+            self.db.borrow()[self.root.id]
+                .vals(
+                    self.root.rev_map_round_up(range.start + 1)
+                        ..=self.root.rev_map(range.end + self.max_leaf_weight),
+                )
+                .for_each(|val| {
+                    self.db
+                        .borrow_mut()
+                        .define_pos(self.root.id, val, collector, var_manager)
+                        .unwrap();
+                });
+        }
     }
 }
 

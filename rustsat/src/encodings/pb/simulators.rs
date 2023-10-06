@@ -13,7 +13,7 @@ use super::{
     BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{card, CollectClauses, EncodeStats, Error},
+    encodings::{card, CollectClauses, EncodeStats, Error, IterInputs, IterWeightedInputs},
     instances::ManageVars,
     types::{Lit, RsHashMap},
 };
@@ -95,12 +95,6 @@ impl<PBE> Encode for Inverted<PBE>
 where
     PBE: Encode,
 {
-    type Iter<'a> = InvertedIter<PBE::Iter<'a>>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.pb_enc.iter().map(negate_weighted)
-    }
-
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
@@ -111,6 +105,17 @@ where
 
     fn next_lower(&self, val: usize) -> usize {
         self.weight_sum - self.pb_enc.next_higher(self.weight_sum - val)
+    }
+}
+
+impl<PBE> IterWeightedInputs for Inverted<PBE>
+where
+    PBE: Encode + IterWeightedInputs,
+{
+    type Iter<'a> = InvertedIter<PBE::Iter<'a>>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.pb_enc.iter().map(negate_weighted)
     }
 }
 
@@ -301,12 +306,6 @@ where
     UBE: BoundUpper,
     LBE: BoundLower,
 {
-    type Iter<'a> = UBE::Iter<'a>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.ub_enc.iter()
-    }
-
     fn weight_sum(&self) -> usize {
         self.ub_enc.weight_sum()
     }
@@ -317,6 +316,18 @@ where
 
     fn next_lower(&self, val: usize) -> usize {
         self.lb_enc.next_lower(val)
+    }
+}
+
+impl<UBE, LBE> IterWeightedInputs for Double<UBE, LBE>
+where
+    UBE: BoundUpper + IterWeightedInputs,
+    LBE: BoundLower,
+{
+    type Iter<'a> = UBE::Iter<'a>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.ub_enc.iter()
     }
 }
 
@@ -478,12 +489,6 @@ impl<CE> Encode for Card<CE>
 where
     CE: card::Encode,
 {
-    type Iter<'a> = CardIter<CE::Iter<'a>>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.card_enc.iter().map(add_unit_weight)
-    }
-
     fn weight_sum(&self) -> usize {
         self.card_enc.n_lits()
     }
@@ -497,6 +502,17 @@ where
             return 0;
         }
         val - 1
+    }
+}
+
+impl<CE> IterWeightedInputs for Card<CE>
+where
+    CE: card::Encode + IterInputs,
+{
+    type Iter<'a> = CardIter<CE::Iter<'a>>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.card_enc.iter().map(add_unit_weight)
     }
 }
 

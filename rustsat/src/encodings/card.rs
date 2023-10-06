@@ -51,11 +51,6 @@ pub use dbtotalizer::DbTotalizer;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait Encode {
-    type Iter<'a>: Iterator<Item = Lit>
-    where
-        Self: 'a;
-    /// Gets an iterator over copies of the input literals
-    fn iter(&self) -> Self::Iter<'_>;
     /// Gets the number of literals in the encoding
     fn n_lits(&self) -> usize;
 }
