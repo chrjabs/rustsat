@@ -17,7 +17,7 @@ use super::{
     EncodeIncremental, Error,
 };
 use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats},
+    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
     instances::ManageVars,
     types::Lit,
 };
@@ -99,14 +99,16 @@ impl Totalizer {
 }
 
 impl Encode for Totalizer {
+    fn n_lits(&self) -> usize {
+        self.in_lits.len()
+    }
+}
+
+impl IterInputs for Totalizer {
     type Iter<'a> = TotIter<'a>;
 
     fn iter(&self) -> Self::Iter<'_> {
         self.in_lits.iter().copied()
-    }
-
-    fn n_lits(&self) -> usize {
-        self.in_lits.len()
     }
 }
 

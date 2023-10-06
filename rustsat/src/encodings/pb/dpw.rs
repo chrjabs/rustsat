@@ -19,7 +19,7 @@ use crate::{
     encodings::{
         card::dbtotalizer::{Node, TotDb},
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        CollectClauses, EncodeStats, Error,
+        CollectClauses, EncodeStats, Error, IterWeightedInputs,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
@@ -68,7 +68,7 @@ impl DynamicPolyWatchdog {
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[derive(Clone)]
-struct Structure {
+pub(crate) struct Structure {
     /// The root of the structure
     pub root: NodeId,
     /// The tare variables needed to enforce specific bounds. First in vector is
@@ -85,14 +85,16 @@ impl Structure {
 }
 
 impl Encode for DynamicPolyWatchdog {
+    fn weight_sum(&self) -> usize {
+        self.weight_sum
+    }
+}
+
+impl IterWeightedInputs for DynamicPolyWatchdog {
     type Iter<'a> = DpwIter<'a>;
 
     fn iter(&self) -> Self::Iter<'_> {
         self.in_lits.iter().map(copy_key_val)
-    }
-
-    fn weight_sum(&self) -> usize {
-        self.weight_sum
     }
 }
 
@@ -206,16 +208,14 @@ pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
-        encodings::{
-            card::dbtotalizer::TotDb, nodedb::NodeLike, CollectClauses, EncodeStats, Error,
-        },
+        encodings::{card::dbtotalizer::TotDb, nodedb::NodeLike, CollectClauses, Error},
         instances::ManageVars,
         types::Lit,
     };
 
     use super::{
-        encode_output, enforce_ub, BoundUpper, BoundUpperIncremental, DpwIter, Encode,
-        EncodeIncremental, Structure,
+        encode_output, enforce_ub, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+        Structure,
     };
 
     /// Dynamic polynomial watchdog structure with a _mutable reference_ to a totalizer
@@ -228,10 +228,6 @@ pub mod referenced {
     pub struct DynamicPolyWatchdog<'totdb> {
         /// The encoding root and the tares
         structure: &'totdb Structure,
-        /// The number of variables
-        n_vars: u32,
-        /// The number of clauses
-        n_clauses: usize,
         /// The node database of the totalizer
         db: &'totdb mut TotDb,
     }
@@ -246,10 +242,6 @@ pub mod referenced {
     pub struct DynamicPolyWatchdogCell<'totdb> {
         /// The encoding root and the tares
         structure: &'totdb Structure,
-        /// The number of variables
-        n_vars: u32,
-        /// The number of clauses
-        n_clauses: usize,
         /// The node database of the totalizer
         db: &'totdb RefCell<&'totdb mut TotDb>,
     }
@@ -257,12 +249,7 @@ pub mod referenced {
     impl<'totdb> DynamicPolyWatchdog<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
         pub fn new(structure: &'totdb Structure, db: &'totdb mut TotDb) -> Self {
-            Self {
-                structure,
-                n_vars: 0,
-                n_clauses: 0,
-                db,
-            }
+            Self { structure, db }
         }
 
         /// Gets the maximum depth of the tree
@@ -274,12 +261,7 @@ pub mod referenced {
     impl<'totdb> DynamicPolyWatchdogCell<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
         pub fn new(structure: &'totdb Structure, db: &'totdb RefCell<&'totdb mut TotDb>) -> Self {
-            Self {
-                structure,
-                n_vars: 0,
-                n_clauses: 0,
-                db,
-            }
+            Self { structure, db }
         }
 
         /// Gets the maximum depth of the tree
@@ -289,12 +271,6 @@ pub mod referenced {
     }
 
     impl Encode for DynamicPolyWatchdog<'_> {
-        type Iter<'a> = DpwIter<'a> where Self: 'a;
-
-        fn iter(&self) -> Self::Iter<'_> {
-            panic!("cannot iter over referencing DPW")
-        }
-
         fn weight_sum(&self) -> usize {
             let output_weight = 1 << self.structure.output_power();
             self.db[self.structure.root].len() * output_weight
@@ -302,12 +278,6 @@ pub mod referenced {
     }
 
     impl Encode for DynamicPolyWatchdogCell<'_> {
-        type Iter<'a> = DpwIter<'a> where Self: 'a;
-
-        fn iter(&self) -> Self::Iter<'_> {
-            panic!("cannot iter over referencing DPW")
-        }
-
         fn weight_sum(&self) -> usize {
             let output_weight = 1 << self.structure.output_power();
             self.db.borrow()[self.structure.root].len() * output_weight
@@ -390,15 +360,11 @@ pub mod referenced {
             if range.is_empty() {
                 return;
             }
-            let n_vars_before = var_manager.n_used();
-            let n_clauses_before = collector.n_clauses();
             let output_weight = 1 << self.structure.output_power();
             let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
             for oidx in output_range {
                 encode_output(self.structure, oidx, self.db, collector, var_manager);
             }
-            self.n_clauses += collector.n_clauses() - n_clauses_before;
-            self.n_vars += var_manager.n_used() - n_vars_before;
         }
     }
 
@@ -416,8 +382,6 @@ pub mod referenced {
             if range.is_empty() {
                 return;
             }
-            let n_vars_before = var_manager.n_used();
-            let n_clauses_before = collector.n_clauses();
             let output_weight = 1 << self.structure.output_power();
             let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
             for oidx in output_range {
@@ -429,28 +393,6 @@ pub mod referenced {
                     var_manager,
                 );
             }
-            self.n_clauses += collector.n_clauses() - n_clauses_before;
-            self.n_vars += var_manager.n_used() - n_vars_before;
-        }
-    }
-
-    impl EncodeStats for DynamicPolyWatchdog<'_> {
-        fn n_clauses(&self) -> usize {
-            self.n_clauses
-        }
-
-        fn n_vars(&self) -> u32 {
-            self.n_vars
-        }
-    }
-
-    impl EncodeStats for DynamicPolyWatchdogCell<'_> {
-        fn n_clauses(&self) -> usize {
-            self.n_clauses
-        }
-
-        fn n_vars(&self) -> u32 {
-            self.n_vars
         }
     }
 }

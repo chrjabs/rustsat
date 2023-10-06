@@ -2,6 +2,8 @@
 //!
 //! CNF encodings for cardinality and pseudo-boolean constraints.
 
+use crate::types::Lit;
+
 pub mod am1;
 pub mod atomics;
 pub mod card;
@@ -58,4 +60,22 @@ mod nodedb {
     //! share substructures, but close enough.)
 
     pub use super::nodedbimpl::{NodeById, NodeCon, NodeId, NodeLike};
+}
+
+/// Iterate over encoding inputs
+pub trait IterInputs {
+    type Iter<'a>: Iterator<Item = Lit>
+    where
+        Self: 'a;
+    /// Gets an iterator over copies of the input literals
+    fn iter(&self) -> Self::Iter<'_>;
+}
+
+/// Iterate over weighted encoding inputs
+pub trait IterWeightedInputs {
+    type Iter<'a>: Iterator<Item = (Lit, usize)>
+    where
+        Self: 'a;
+    /// Gets an iterator over copies of the input literals
+    fn iter(&self) -> Self::Iter<'_>;
 }

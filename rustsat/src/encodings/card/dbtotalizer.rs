@@ -32,10 +32,8 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default)]
 pub struct DbTotalizer {
-    /// Input literals to the totalizer
-    in_lits: Vec<Lit>,
-    /// Index of the next literal in [`Totalizer::in_lits`] that is not in the tree yet
-    not_enc_idx: usize,
+    /// Literals added but not yet in the encoding
+    lit_buffer: Vec<Lit>,
     /// The root of the tree, if constructed
     root: Option<NodeId>,
     /// The number of variables in the totalizer
@@ -48,11 +46,10 @@ pub struct DbTotalizer {
 
 impl DbTotalizer {
     fn extend_tree(&mut self) {
-        if self.not_enc_idx >= self.in_lits.len() {
+        if self.lit_buffer.is_empty() {
             return;
         }
-        let new_lits = &self.in_lits[self.not_enc_idx..];
-        let new_tree = self.db.lit_tree(new_lits);
+        let new_tree = self.db.lit_tree(&self.lit_buffer);
         self.root = Some(match self.root {
             Some(old_root) => {
                 self.db
@@ -61,7 +58,7 @@ impl DbTotalizer {
             }
             None => new_tree,
         });
-        self.not_enc_idx = self.in_lits.len();
+        self.lit_buffer.clear();
     }
 
     /// Gets the maximum depth of the tree
@@ -74,14 +71,12 @@ impl DbTotalizer {
 }
 
 impl Encode for DbTotalizer {
-    type Iter<'a> = super::totalizer::TotIter<'a>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.in_lits.iter().copied()
-    }
-
     fn n_lits(&self) -> usize {
-        self.in_lits.len()
+        self.lit_buffer.len()
+            + match self.root {
+                Some(id) => self.db[id].len(),
+                None => 0,
+            }
     }
 }
 
@@ -104,10 +99,12 @@ impl BoundUpper for DbTotalizer {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        if ub >= self.in_lits.len() {
-            return Ok(vec![]);
+        if let Some(root) = self.root {
+            if ub >= self.db[root].len() {
+                return Ok(vec![])
+            }
         }
-        if self.not_enc_idx < self.in_lits.len() {
+        if !self.lit_buffer.is_empty() {
             return Err(Error::NotEncoded);
         }
         if let Some(id) = self.root {
@@ -170,8 +167,7 @@ impl EncodeStats for DbTotalizer {
 impl From<Vec<Lit>> for DbTotalizer {
     fn from(lits: Vec<Lit>) -> Self {
         Self {
-            in_lits: lits,
-            not_enc_idx: Default::default(),
+            lit_buffer: lits,
             root: Default::default(),
             n_vars: Default::default(),
             n_clauses: Default::default(),
@@ -183,8 +179,7 @@ impl From<Vec<Lit>> for DbTotalizer {
 impl FromIterator<Lit> for DbTotalizer {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         Self {
-            in_lits: Vec::from_iter(iter),
-            not_enc_idx: Default::default(),
+            lit_buffer: Vec::from_iter(iter),
             root: Default::default(),
             n_vars: Default::default(),
             n_clauses: Default::default(),
@@ -195,7 +190,7 @@ impl FromIterator<Lit> for DbTotalizer {
 
 impl Extend<Lit> for DbTotalizer {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
-        self.in_lits.extend(iter)
+        self.lit_buffer.extend(iter)
     }
 }
 
@@ -830,6 +825,216 @@ impl TotDb {
                     }
                 }
                 Node::Leaf(_) => (),
+            }
+        }
+    }
+}
+
+#[cfg(feature = "internals")]
+pub mod referenced {
+    use std::cell::RefCell;
+
+    use crate::{
+        encodings::{
+            card::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
+            nodedb::{NodeId, NodeLike},
+            CollectClauses, Error,
+        },
+        instances::ManageVars,
+        types::Lit,
+    };
+
+    use super::{LitData, Node, TotDb};
+
+    /// Implementation of the binary adder tree totalizer encoding \[1\].
+    /// The implementation is incremental as extended in \[2\].
+    /// This uses a _mutable reference_ to a totalizer database.
+    ///
+    /// # References
+    ///
+    /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
+    /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+    pub struct Tot<'totdb> {
+        /// The root of the tree, if constructed
+        root: NodeId,
+        /// The node database of the totalizer
+        db: &'totdb mut TotDb,
+    }
+
+    /// Implementation of the binary adder tree totalizer encoding \[1\].
+    /// The implementation is incremental as extended in \[2\].
+    /// This uses a [`RefCell`] to a totalizer database.
+    ///
+    /// # References
+    ///
+    /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
+    /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+    pub struct TotCell<'totdb> {
+        /// The root of the tree, if constructed
+        root: NodeId,
+        /// The node database of the totalizer
+        db: &'totdb RefCell<&'totdb mut TotDb>,
+    }
+
+    impl<'totdb> Tot<'totdb> {
+        /// Constructs a new Totalizer encoding referencing a totalizer database
+        pub fn new(root: NodeId, db: &'totdb mut TotDb) -> Self {
+            Self { root, db }
+        }
+
+        /// Gets the maximum depth of the tree
+        pub fn depth(&self) -> usize {
+            self.db[self.root].depth()
+        }
+    }
+
+    impl<'totdb> TotCell<'totdb> {
+        /// Constructs a new Totalizer encoding referencing a totalizer database
+        pub fn new(root: NodeId, db: &'totdb RefCell<&'totdb mut TotDb>) -> Self {
+            Self { root, db }
+        }
+
+        /// Gets the maximum depth of the tree
+        pub fn depth(&self) -> usize {
+            self.db.borrow()[self.root].depth()
+        }
+    }
+
+    impl Encode for Tot<'_> {
+        fn n_lits(&self) -> usize {
+            self.db[self.root].len()
+        }
+    }
+
+    impl Encode for TotCell<'_> {
+        fn n_lits(&self) -> usize {
+            self.db.borrow()[self.root].len()
+        }
+    }
+
+    impl EncodeIncremental for Tot<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            self.db.reserve_vars(self.root, var_manager)
+        }
+    }
+
+    impl EncodeIncremental for TotCell<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            self.db.borrow_mut().reserve_vars(self.root, var_manager)
+        }
+    }
+
+    impl BoundUpper for Tot<'_> {
+        fn encode_ub<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.reset_encoded();
+            self.encode_ub_change(range, collector, var_manager)
+        }
+
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+            if ub >= self.n_lits() {
+                return Ok(vec![]);
+            }
+            match &self.db[self.root] {
+                Node::Leaf(lit) => {
+                    debug_assert_eq!(ub, 0);
+                    return Ok(vec![!*lit]);
+                }
+                Node::Unit(node) => {
+                    if let LitData::Lit { lit, enc_pos } = node.lits[ub] {
+                        if enc_pos {
+                            return Ok(vec![!lit]);
+                        }
+                    }
+                }
+                Node::General(_) => panic!(),
+            }
+            Err(Error::NotEncoded)
+        }
+    }
+
+    impl BoundUpper for TotCell<'_> {
+        fn encode_ub<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.borrow_mut().reset_encoded();
+            self.encode_ub_change(range, collector, var_manager)
+        }
+
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+            if ub >= self.n_lits() {
+                return Ok(vec![]);
+            }
+            match &self.db.borrow()[self.root] {
+                Node::Leaf(lit) => {
+                    debug_assert_eq!(ub, 0);
+                    return Ok(vec![!*lit]);
+                }
+                Node::Unit(node) => {
+                    if let LitData::Lit { lit, enc_pos } = node.lits[ub] {
+                        if enc_pos {
+                            return Ok(vec![!lit]);
+                        }
+                    }
+                }
+                Node::General(_) => panic!(),
+            }
+            Err(Error::NotEncoded)
+        }
+    }
+
+    impl BoundUpperIncremental for Tot<'_> {
+        fn encode_ub_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_ub_range(self, range);
+            if range.is_empty() {
+                return;
+            }
+            for idx in range {
+                self.db
+                    .define_pos_tot(self.root, idx, collector, var_manager);
+            }
+        }
+    }
+
+    impl BoundUpperIncremental for TotCell<'_> {
+        fn encode_ub_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_ub_range(self, range);
+            if range.is_empty() {
+                return;
+            }
+            for idx in range {
+                self.db
+                    .borrow_mut()
+                    .define_pos_tot(self.root, idx, collector, var_manager);
             }
         }
     }

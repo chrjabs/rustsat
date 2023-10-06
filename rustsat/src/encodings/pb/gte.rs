@@ -10,7 +10,7 @@
 
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental, Error};
 use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats},
+    encodings::{atomics, CollectClauses, EncodeStats, IterWeightedInputs},
     instances::ManageVars,
     types::{Lit, RsHashMap},
 };
@@ -113,12 +113,6 @@ impl GeneralizedTotalizer {
 }
 
 impl Encode for GeneralizedTotalizer {
-    type Iter<'a> = GTEIter<'a>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.in_lits.iter().map(copy_key_val)
-    }
-
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
@@ -140,6 +134,14 @@ impl Encode for GeneralizedTotalizer {
             return out_lits.range(..val).next_back().map_or(0, |(w, _)| *w);
         }
         val - 1
+    }
+}
+
+impl IterWeightedInputs for GeneralizedTotalizer {
+    type Iter<'a> = GteIter<'a>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.in_lits.iter().map(copy_key_val)
     }
 }
 
@@ -271,7 +273,7 @@ impl EncodeStats for GeneralizedTotalizer {
 pub(super) fn copy_key_val(key_val_refs: (&Lit, &usize)) -> (Lit, usize) {
     (*key_val_refs.0, *key_val_refs.1)
 }
-pub(super) type GTEIter<'a> = std::iter::Map<
+pub(super) type GteIter<'a> = std::iter::Map<
     std::collections::hash_map::Iter<'a, Lit, usize>,
     fn((&Lit, &usize)) -> (Lit, usize),
 >;

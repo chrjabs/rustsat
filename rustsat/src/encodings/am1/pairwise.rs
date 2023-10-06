@@ -7,7 +7,7 @@
 use super::Encode;
 use crate::{
     clause,
-    encodings::{CollectClauses, EncodeStats, Error},
+    encodings::{CollectClauses, EncodeStats, Error, IterInputs},
     instances::ManageVars,
     types::Lit,
 };
@@ -26,12 +26,6 @@ pub struct Pairwise {
 }
 
 impl Encode for Pairwise {
-    type Iter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.in_lits.iter().copied()
-    }
-
     fn n_lits(&self) -> usize {
         self.in_lits.len()
     }
@@ -52,6 +46,14 @@ impl Encode for Pairwise {
         collector.extend(clause_iter);
         self.n_clauses = collector.n_clauses() - prev_clauses;
         Ok(())
+    }
+}
+
+impl IterInputs for Pairwise {
+    type Iter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.in_lits.iter().copied()
     }
 }
 
