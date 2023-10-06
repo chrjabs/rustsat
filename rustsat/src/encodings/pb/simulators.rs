@@ -599,8 +599,20 @@ mod tests {
         lits.insert(lit![3], 3);
         lits.insert(lit![4], 2);
         let enc = Inverted::<Inverted<GeneralizedTotalizer>>::from(lits);
-        debug_assert_eq!(1..3, enc.pb_enc.convert_encoding_range(enc.convert_encoding_range(1..3)));
-        debug_assert_eq!(4..9, enc.pb_enc.convert_encoding_range(enc.convert_encoding_range(4..9)));
-        debug_assert_eq!(0..2, enc.pb_enc.convert_encoding_range(enc.convert_encoding_range(0..2)));
+        debug_assert_eq!(
+            1..3,
+            enc.pb_enc
+                .convert_encoding_range(enc.convert_encoding_range(1..3))
+        );
+        debug_assert_eq!(
+            4..9,
+            enc.pb_enc
+                .convert_encoding_range(enc.convert_encoding_range(4..9))
+        );
+        debug_assert_eq!(
+            0..2,
+            enc.pb_enc
+                .convert_encoding_range(enc.convert_encoding_range(0..2))
+        );
     }
 }

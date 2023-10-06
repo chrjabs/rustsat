@@ -282,7 +282,7 @@ impl From<RsHashMap<Lit, usize>> for GeneralizedTotalizer {
         Self {
             in_lits: lits.clone(),
             lit_buffer: lits,
-            weight_sum: weight_sum,
+            weight_sum,
             ..Default::default()
         }
     }

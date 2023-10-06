@@ -183,14 +183,14 @@ impl Encoding {
             |line: Result<String, io::Error>| -> Option<Result<(String, String, f64), Error>> {
                 let line = line.ok()?;
                 let line = line.trim_start();
-                if line.starts_with("%") {
+                if line.starts_with('%') {
                     return None;
                 }
                 let (_, tup) = tuple((
                     terminated(ident, multispace1),
                     terminated(ident, multispace1),
                     double,
-                ))(&line[..])
+                ))(line)
                 .ok()?;
                 if !ident_map.contains_key(&tup.0) {
                     ident_map.insert(tup.0.clone(), next_idx);

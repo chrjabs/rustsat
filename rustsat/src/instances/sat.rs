@@ -1,6 +1,6 @@
 //! # Satsifiability Instance Representations
 
-use std::{collections::TryReserveError, io, path::Path, ops::Index};
+use std::{collections::TryReserveError, io, ops::Index, path::Path};
 
 use crate::{
     clause,

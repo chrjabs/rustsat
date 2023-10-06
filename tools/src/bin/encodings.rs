@@ -119,12 +119,10 @@ fn clustering(args: ClusteringArgs) -> Result<(), Error> {
             } else {
                 dimacs::write_mcnf(&mut file, encoding)?;
             }
+        } else if args.single_objective {
+            dimacs::write_wcnf(&mut io::stdout(), encoding.map(mcnf_to_wcnf))?;
         } else {
-            if args.single_objective {
-                dimacs::write_wcnf(&mut io::stdout(), encoding.map(mcnf_to_wcnf))?;
-            } else {
-                dimacs::write_mcnf(&mut io::stdout(), encoding)?;
-            }
+            dimacs::write_mcnf(&mut io::stdout(), encoding)?;
         }
     } else {
         let encoding = Encoding::new(io::BufReader::new(io::stdin()), args.variant, |sim| {
@@ -141,12 +139,10 @@ fn clustering(args: ClusteringArgs) -> Result<(), Error> {
             } else {
                 dimacs::write_mcnf(&mut file, encoding)?;
             }
+        } else if args.single_objective {
+            dimacs::write_wcnf(&mut io::stdout(), encoding.map(mcnf_to_wcnf))?;
         } else {
-            if args.single_objective {
-                dimacs::write_wcnf(&mut io::stdout(), encoding.map(mcnf_to_wcnf))?;
-            } else {
-                dimacs::write_mcnf(&mut io::stdout(), encoding)?;
-            }
+            dimacs::write_mcnf(&mut io::stdout(), encoding)?;
         }
     };
 

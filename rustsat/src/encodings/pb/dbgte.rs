@@ -263,7 +263,7 @@ impl From<RsHashMap<Lit, usize>> for DbGte {
         Self {
             in_lits: lits.clone(),
             lit_buffer: lits,
-            weight_sum: weight_sum,
+            weight_sum,
             ..Default::default()
         }
     }

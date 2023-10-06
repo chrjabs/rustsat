@@ -456,9 +456,7 @@ impl GeneralNode {
         lvals.iter().for_each(|lval| {
             rvals.iter().for_each(|rval| {
                 let val = lval + rval;
-                if !lits.contains_key(&val) {
-                    lits.insert(val, LitData::default());
-                }
+                lits.entry(val).or_insert_with(LitData::default);
             })
         });
         Self {
@@ -471,7 +469,7 @@ impl GeneralNode {
 
     /// Panic-safe version of literal indexing
     pub fn lit(&self, val: usize) -> Option<&Lit> {
-        self.lits.get(&val).map_or(None, |dat| dat.lit())
+        self.lits.get(&val).and_then(|dat| dat.lit())
     }
 }
 
