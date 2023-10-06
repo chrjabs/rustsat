@@ -210,12 +210,12 @@ pub mod referenced {
             card::dbtotalizer::TotDb, nodedb::NodeLike, CollectClauses, EncodeStats, Error,
         },
         instances::ManageVars,
-        types::{Lit, RsHashMap},
+        types::Lit,
     };
 
     use super::{
-        build_lit_structure, copy_key_val, encode_output, enforce_ub, BoundUpper,
-        BoundUpperIncremental, DpwIter, Encode, EncodeIncremental, Structure,
+        encode_output, enforce_ub, BoundUpper, BoundUpperIncremental, DpwIter, Encode,
+        EncodeIncremental, Structure,
     };
 
     /// Dynamic polynomial watchdog structure with a _mutable reference_ to a totalizer
@@ -226,14 +226,8 @@ pub mod referenced {
     /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
     ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
     pub struct DynamicPolyWatchdog<'totdb> {
-        /// Input literals and weights for the encoding
-        in_lits: RsHashMap<Lit, usize>,
-        /// Flag to know when new literals where added and the encoding needs to be reconstructed
-        lits_added: bool,
         /// The encoding root and the tares
-        structure: Option<Structure>,
-        /// Sum of all input weight
-        weight_sum: usize,
+        structure: &'totdb Structure,
         /// The number of variables
         n_vars: u32,
         /// The number of clauses
@@ -250,14 +244,8 @@ pub mod referenced {
     /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
     ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
     pub struct DynamicPolyWatchdogCell<'totdb> {
-        /// Input literals and weights for the encoding
-        in_lits: RsHashMap<Lit, usize>,
-        /// Flag to know when new literals where added and the encoding needs to be reconstructed
-        lits_added: bool,
         /// The encoding root and the tares
-        structure: Option<Structure>,
-        /// Sum of all input weight
-        weight_sum: usize,
+        structure: &'totdb Structure,
         /// The number of variables
         n_vars: u32,
         /// The number of clauses
@@ -268,12 +256,9 @@ pub mod referenced {
 
     impl<'totdb> DynamicPolyWatchdog<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
-        pub fn new(structure: Option<Structure>, db: &'totdb mut TotDb) -> Self {
+        pub fn new(structure: &'totdb Structure, db: &'totdb mut TotDb) -> Self {
             Self {
-                in_lits: Default::default(),
-                lits_added: false,
                 structure,
-                weight_sum: 0,
                 n_vars: 0,
                 n_clauses: 0,
                 db,
@@ -282,21 +267,15 @@ pub mod referenced {
 
         /// Gets the maximum depth of the tree
         pub fn depth(&self) -> usize {
-            match &self.structure {
-                Some(Structure { root, .. }) => self.db[*root].depth(),
-                None => 0,
-            }
+            self.db[self.structure.root].depth()
         }
     }
 
     impl<'totdb> DynamicPolyWatchdogCell<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
-        pub fn new(structure: Option<Structure>, db: &'totdb RefCell<&'totdb mut TotDb>) -> Self {
+        pub fn new(structure: &'totdb Structure, db: &'totdb RefCell<&'totdb mut TotDb>) -> Self {
             Self {
-                in_lits: Default::default(),
-                lits_added: false,
                 structure,
-                weight_sum: 0,
                 n_vars: 0,
                 n_clauses: 0,
                 db,
@@ -305,10 +284,7 @@ pub mod referenced {
 
         /// Gets the maximum depth of the tree
         pub fn depth(&self) -> usize {
-            match &self.structure {
-                Some(Structure { root, .. }) => self.db.borrow()[*root].depth(),
-                None => 0,
-            }
+            self.db.borrow()[self.structure.root].depth()
         }
     }
 
@@ -316,11 +292,12 @@ pub mod referenced {
         type Iter<'a> = DpwIter<'a> where Self: 'a;
 
         fn iter(&self) -> Self::Iter<'_> {
-            self.in_lits.iter().map(copy_key_val)
+            panic!("cannot iter over referencing DPW")
         }
 
         fn weight_sum(&self) -> usize {
-            self.weight_sum
+            let output_weight = 1 << self.structure.output_power();
+            self.db[self.structure.root].len() * output_weight
         }
     }
 
@@ -328,27 +305,26 @@ pub mod referenced {
         type Iter<'a> = DpwIter<'a> where Self: 'a;
 
         fn iter(&self) -> Self::Iter<'_> {
-            self.in_lits.iter().map(copy_key_val)
+            panic!("cannot iter over referencing DPW")
         }
 
         fn weight_sum(&self) -> usize {
-            self.weight_sum
+            let output_weight = 1 << self.structure.output_power();
+            self.db.borrow()[self.structure.root].len() * output_weight
         }
     }
 
     impl EncodeIncremental for DynamicPolyWatchdog<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            if let Some(Structure { root, .. }) = &self.structure {
-                self.db.reserve_vars(*root, var_manager);
-            }
+            self.db.reserve_vars(self.structure.root, var_manager);
         }
     }
 
     impl EncodeIncremental for DynamicPolyWatchdogCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            if let Some(Structure { root, .. }) = &self.structure {
-                self.db.borrow_mut().reserve_vars(*root, var_manager);
-            }
+            self.db
+                .borrow_mut()
+                .reserve_vars(self.structure.root, var_manager);
         }
     }
 
@@ -367,20 +343,12 @@ pub mod referenced {
         }
 
         fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-            match &self.structure {
-                Some(structure) => enforce_ub(structure, ub, self.db),
-                None => Ok(vec![]),
-            }
+            enforce_ub(self.structure, ub, self.db)
         }
 
         fn coarse_ub(&self, ub: usize) -> usize {
-            match &self.structure {
-                Some(structure) => {
-                    let output_weight = 1 << (structure.output_power());
-                    ub / output_weight * output_weight
-                }
-                None => ub,
-            }
+            let output_weight = 1 << self.structure.output_power();
+            ub / output_weight * output_weight
         }
     }
 
@@ -399,20 +367,12 @@ pub mod referenced {
         }
 
         fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-            match &self.structure {
-                Some(structure) => enforce_ub(structure, ub, &self.db.borrow()),
-                None => Ok(vec![]),
-            }
+            enforce_ub(self.structure, ub, &self.db.borrow())
         }
 
         fn coarse_ub(&self, ub: usize) -> usize {
-            match &self.structure {
-                Some(structure) => {
-                    let output_weight = 1 << (structure.output_power());
-                    ub / output_weight * output_weight
-                }
-                None => ub,
-            }
+            let output_weight = 1 << self.structure.output_power();
+            ub / output_weight * output_weight
         }
     }
 
@@ -430,28 +390,15 @@ pub mod referenced {
             if range.is_empty() {
                 return;
             }
-            if self.lits_added {
-                self.structure = Some(build_lit_structure(
-                    self.in_lits.iter().map(|(&l, &w)| (l, w)),
-                    self.db,
-                    var_manager,
-                ));
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            let output_weight = 1 << self.structure.output_power();
+            let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
+            for oidx in output_range {
+                encode_output(self.structure, oidx, self.db, collector, var_manager);
             }
-            match &self.structure {
-                Some(structure) => {
-                    let n_vars_before = var_manager.n_used();
-                    let n_clauses_before = collector.n_clauses();
-                    let output_weight = 1 << (structure.output_power());
-                    let output_range =
-                        range.start / output_weight..(range.end - 1) / output_weight + 1;
-                    for oidx in output_range {
-                        encode_output(structure, oidx, self.db, collector, var_manager);
-                    }
-                    self.n_clauses += collector.n_clauses() - n_clauses_before;
-                    self.n_vars += var_manager.n_used() - n_vars_before;
-                }
-                None => (),
-            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         }
     }
 
@@ -469,34 +416,21 @@ pub mod referenced {
             if range.is_empty() {
                 return;
             }
-            if self.lits_added {
-                self.structure = Some(build_lit_structure(
-                    self.in_lits.iter().map(|(&l, &w)| (l, w)),
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            let output_weight = 1 << self.structure.output_power();
+            let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
+            for oidx in output_range {
+                encode_output(
+                    self.structure,
+                    oidx,
                     &mut self.db.borrow_mut(),
+                    collector,
                     var_manager,
-                ));
+                );
             }
-            match &self.structure {
-                Some(structure) => {
-                    let n_vars_before = var_manager.n_used();
-                    let n_clauses_before = collector.n_clauses();
-                    let output_weight = 1 << (structure.output_power());
-                    let output_range =
-                        range.start / output_weight..(range.end - 1) / output_weight + 1;
-                    for oidx in output_range {
-                        encode_output(
-                            structure,
-                            oidx,
-                            &mut self.db.borrow_mut(),
-                            collector,
-                            var_manager,
-                        );
-                    }
-                    self.n_clauses += collector.n_clauses() - n_clauses_before;
-                    self.n_vars += var_manager.n_used() - n_vars_before;
-                }
-                None => (),
-            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         }
     }
 
@@ -519,38 +453,6 @@ pub mod referenced {
             self.n_vars
         }
     }
-
-    impl Extend<(Lit, usize)> for DynamicPolyWatchdog<'_> {
-        fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
-            iter.into_iter().for_each(|(l, w)| {
-                self.weight_sum += w;
-                // Insert into map of input literals
-                match self.in_lits.get_mut(&l) {
-                    Some(old_w) => *old_w += w,
-                    None => {
-                        self.in_lits.insert(l, w);
-                    }
-                };
-            });
-            self.lits_added = true;
-        }
-    }
-
-    impl Extend<(Lit, usize)> for DynamicPolyWatchdogCell<'_> {
-        fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
-            iter.into_iter().for_each(|(l, w)| {
-                self.weight_sum += w;
-                // Insert into map of input literals
-                match self.in_lits.get_mut(&l) {
-                    Some(old_w) => *old_w += w,
-                    None => {
-                        self.in_lits.insert(l, w);
-                    }
-                };
-            });
-            self.lits_added = true;
-        }
-    }
 }
 
 fn copy_key_val(key_val_refs: (&Lit, &usize)) -> (Lit, usize) {
@@ -569,25 +471,34 @@ fn build_lit_structure<LI: Iterator<Item = (Lit, usize)>>(
 ) -> Structure {
     let lit_to_con = |(lit, weight)| {
         let node = tot_db.insert(Node::Leaf(lit));
-        (NodeCon::full(node), weight)
+        NodeCon::weighted(node, weight)
     };
     let cons: Vec<_> = lits.map(lit_to_con).collect();
     build_structure(cons.into_iter(), tot_db, var_manager)
 }
 
 #[cfg_attr(feature = "internals", visibility::make(pub))]
-fn build_structure<CI: Iterator<Item = (NodeCon, usize)>>(
+fn build_structure<CI: Iterator<Item = NodeCon>>(
     cons: CI,
     tot_db: &mut TotDb,
     var_manager: &mut dyn ManageVars,
 ) -> Structure {
     // Initialize weight queue
     let mut weight_queue: BTreeMap<usize, Vec<NodeCon>> = BTreeMap::new();
-    for (con, weight) in cons {
-        if let Some(cons) = weight_queue.get_mut(&weight) {
-            cons.push(con);
+    for con in cons {
+        if let Some(cons) = weight_queue.get_mut(&con.multiplier) {
+            cons.push(NodeCon {
+                multiplier: 1,
+                ..con
+            });
         } else {
-            weight_queue.insert(weight, vec![con]);
+            weight_queue.insert(
+                con.multiplier,
+                vec![NodeCon {
+                    multiplier: 1,
+                    ..con
+                }],
+            );
         }
     }
     let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
