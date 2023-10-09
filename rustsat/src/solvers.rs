@@ -238,6 +238,16 @@ pub trait PhaseLit {
     }
 }
 
+/// Trait for freezing and melting variables in solvers with pre-/inprocessing.
+pub trait FreezeVar {
+    /// Freezes a variable so that it is not removed in pre-/inprocessing
+    fn freeze_var(&mut self, var: Var) -> Result<(), SolverError>;
+    /// Melts a variable after it had been frozen
+    fn melt_var(&mut self, var: Var) -> Result<(), SolverError>;
+    /// Checks if a variable is frozen
+    fn is_frozen(&mut self, var: Var) -> Result<bool, SolverError>;
+}
+
 /// Trait for all solvers that can flip a literal in the current assignment
 pub trait FlipLit {
     /// Attempts flipping the literal in the given assignment and returns `true` if successful
