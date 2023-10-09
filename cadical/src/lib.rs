@@ -6,7 +6,7 @@ use std::{cmp::Ordering, ffi::CString, fmt};
 use cpu_time::ProcessTime;
 use ffi::CaDiCaLHandle;
 use rustsat::solvers::{
-    ControlSignal, GetInternalStats, Interrupt, InterruptSolver, Learn, LimitConflicts,
+    ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn, LimitConflicts,
     LimitDecisions, PhaseLit, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError,
     SolverResult, SolverState, SolverStats, Terminate,
 };
@@ -244,21 +244,6 @@ impl CaDiCaL<'_, '_> {
             Ordering::Less => TernaryVal::False,
             Ordering::Equal => TernaryVal::DontCare,
         }
-    }
-
-    /// Freezes a literal. See CaDiCaL documentation for more details.
-    pub fn freeze_lit(&mut self, lit: Lit) {
-        unsafe { ffi::ccadical_freeze(self.handle, lit.to_ipasir()) }
-    }
-
-    /// Melts a literal. See CaDiCaL documentation for more details.
-    pub fn melt_lit(&mut self, lit: Lit) {
-        unsafe { ffi::ccadical_melt(self.handle, lit.to_ipasir()) }
-    }
-
-    /// Checks if a literal is frozen. See CaDiCaL documentation for more details.
-    pub fn is_frozen(&self, lit: Lit) -> bool {
-        (unsafe { ffi::ccadical_frozen(self.handle, lit.to_ipasir()) }) != 0
     }
 
     /// Prints the solver statistics from the CaDiCaL backend
@@ -612,6 +597,22 @@ impl PhaseLit for CaDiCaL<'_, '_> {
     fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
         unsafe { ffi::ccadical_unphase(self.handle, var.to_ipasir()) };
         Ok(())
+    }
+}
+
+impl FreezeVar for CaDiCaL<'_, '_> {
+    fn freeze_var(&mut self, var: Var) -> Result<(), SolverError> {
+        unsafe { ffi::ccadical_freeze(self.handle, var.pos_lit().to_ipasir()) };
+        Ok(())
+    }
+
+    fn melt_var(&mut self, var: Var) -> Result<(), SolverError> {
+        unsafe { ffi::ccadical_melt(self.handle, var.pos_lit().to_ipasir()) };
+        Ok(())
+    }
+
+    fn is_frozen(&mut self, var: Var) -> Result<bool, SolverError> {
+        Ok(unsafe { ffi::ccadical_frozen(self.handle, var.pos_lit().to_ipasir()) } != 0)
     }
 }
 
