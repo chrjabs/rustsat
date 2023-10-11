@@ -6,7 +6,7 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        WClsIter, WLitIter,
+        Var, WClsIter, WLitIter,
     },
 };
 
@@ -37,7 +37,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     pub fn compose(mut constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
         objectives.iter().for_each(|o| {
             if let Some(mv) = o.max_var() {
-                constraints.var_manager().increase_next_free(mv);
+                constraints.var_manager().increase_next_free(mv + 1);
             }
         });
         MultiOptInstance {
@@ -47,7 +47,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Decomposes the optimization instance to a [`SatInstance`] and [`Objective`]s
-    pub fn decompose(self) -> (SatInstance<VM>, Vec<Objective>) {
+    pub fn decompose(mut self) -> (SatInstance<VM>, Vec<Objective>) {
+        let omv = self.objs.iter().fold(Var::new(0), |v, o| {
+            if let Some(mv) = o.max_var() {
+                return std::cmp::max(v, mv);
+            }
+            v
+        });
+        self.constrs.var_manager.increase_next_free(omv + 1);
         (self.constrs, self.objs)
     }
 
@@ -80,7 +87,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Converts the instance to a set of hard and soft clauses
     pub fn as_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
-        let (cnf, vm) = self.constrs.as_cnf();
+        let (cnf, mut vm) = self.constrs.as_cnf();
+        let omv = self.objs.iter().fold(Var::new(0), |v, o| {
+            if let Some(mv) = o.max_var() {
+                return std::cmp::max(v, mv);
+            }
+            v
+        });
+        vm.increase_next_free(omv + 1);
         let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
@@ -88,6 +102,13 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Converts the instance to a set of hard clauses and soft literals
     pub fn as_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
+        let omv = self.objs.iter().fold(Var::new(0), |v, o| {
+            if let Some(mv) = o.max_var() {
+                return std::cmp::max(v, mv);
+            }
+            v
+        });
+        vm.increase_next_free(omv);
         let soft_lits = self
             .objs
             .into_iter()
