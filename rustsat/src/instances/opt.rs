@@ -855,7 +855,10 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
-    pub fn decompose(self) -> (SatInstance<VM>, Objective) {
+    pub fn decompose(mut self) -> (SatInstance<VM>, Objective) {
+        if let Some(mv) = self.obj.max_var() {
+            self.constrs.var_manager.increase_next_free(mv + 1);
+        }
         (self.constrs, self.obj)
     }
 
@@ -872,7 +875,10 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Converts the instance to a set of hard and soft clauses, an objective
     /// offset and a variable manager
     pub fn as_hard_cls_soft_cls(self) -> (Cnf, (impl WClsIter, isize), VM) {
-        let (cnf, vm) = self.constrs.as_cnf();
+        let (cnf, mut vm) = self.constrs.as_cnf();
+        if let Some(mv) = self.obj.max_var() {
+            vm.increase_next_free(mv + 1);
+        }
         (cnf, self.obj.as_soft_cls(), vm)
     }
 
@@ -880,6 +886,9 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// objective offset and a variable manager
     pub fn as_hard_cls_soft_lits(self) -> (Cnf, (impl WLitIter, isize), VM) {
         let (mut cnf, mut vm) = self.constrs.as_cnf();
+        if let Some(mv) = self.obj.max_var() {
+            vm.increase_next_free(mv + 1);
+        }
         let (hard_softs, softs) = self.obj.as_soft_lits(&mut vm);
         cnf.extend(hard_softs);
         (cnf, softs, vm)
