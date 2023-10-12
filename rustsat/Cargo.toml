@@ -29,7 +29,8 @@ cbindgen = "0"
 [features]
 default = [
   "optimization",
-  "fxhash"
+  "fxhash",
+  "bench"
 ]
 internals = []
 fxhash = ["dep:rustc-hash"]
@@ -38,6 +39,7 @@ optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
+bench = []
 all = [
   "multiopt",
   "compression",
@@ -47,3 +49,6 @@ all = [
 
 [lib]
 crate-type = ["lib", "staticlib"]
+
+[[example]]
+name = "profiling"

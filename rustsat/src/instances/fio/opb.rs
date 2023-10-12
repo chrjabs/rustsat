@@ -490,19 +490,19 @@ fn write_clause<W: Write>(writer: &mut W, clause: Clause, opts: Options) -> Resu
         let mut rhs: isize = 1;
         clause.into_iter().try_for_each(|l| {
             if l.is_pos() {
-                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
                 rhs -= 1;
-                write!(writer, "-1 x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "-1 x{} ", l.vidx32() + opts.first_var_idx)
             }
         })?;
         writeln!(writer, ">= {};", rhs)
     } else {
         clause.into_iter().try_for_each(|l| {
             if l.is_pos() {
-                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
-                write!(writer, "1 ~x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "1 ~x{} ", l.vidx32() + opts.first_var_idx)
             }
         })?;
         writeln!(writer, ">= 1;")
@@ -536,10 +536,10 @@ fn write_card<W: Write>(
         let mut offset = 0;
         lits.into_iter().try_for_each(|l| {
             if l.is_pos() {
-                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
                 offset += 1;
-                write!(writer, "-1 x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "-1 x{} ", l.vidx32() + opts.first_var_idx)
             }
         })?;
         writeln!(writer, "{} {};", op, bound - offset)
@@ -563,9 +563,9 @@ fn write_card<W: Write>(
         };
         lits.into_iter().try_for_each(|l| {
             if l.is_pos() {
-                write!(writer, "1 x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
-                write!(writer, "1 ~x{} ", l.vidx() + opts.first_var_idx)
+                write!(writer, "1 ~x{} ", l.vidx32() + opts.first_var_idx)
             }
         })?;
         writeln!(writer, "{} {};", op, bound)
@@ -595,12 +595,12 @@ fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint, opts: Options) -> Result
         let mut offset: isize = 0;
         lits.into_iter().try_for_each(|(l, w)| {
             if l.is_pos() {
-                write!(writer, "{} x{} ", w, l.vidx() + opts.first_var_idx)
+                write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)
             } else {
                 // TODO: consider returning error for usize -> isize cast
                 let w = w as isize;
                 offset += w;
-                write!(writer, "{} x{} ", -w, l.vidx() + opts.first_var_idx)
+                write!(writer, "{} x{} ", -w, l.vidx32() + opts.first_var_idx)
             }
         })?;
         writeln!(writer, "{} {};", op, bound - offset)
@@ -624,9 +624,9 @@ fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint, opts: Options) -> Result
         };
         lits.into_iter().try_for_each(|(l, w)| {
             if l.is_pos() {
-                write!(writer, "{} x{} ", w, l.vidx() + opts.first_var_idx)
+                write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)
             } else {
-                write!(writer, "{} ~x{} ", w, l.vidx() + opts.first_var_idx)
+                write!(writer, "{} ~x{} ", w, l.vidx32() + opts.first_var_idx)
             }
         })?;
         writeln!(writer, "{} {};", op, bound)
@@ -656,9 +656,9 @@ fn write_objective<W: Write, LI: WLitIter>(
     } else {
         soft_lits.into_iter().try_for_each(|(l, w)| {
             if l.is_pos() {
-                write!(writer, " {} x{}", w, l.vidx() + opts.first_var_idx)
+                write!(writer, " {} x{}", w, l.vidx32() + opts.first_var_idx)
             } else {
-                write!(writer, " {} ~x{}", w, l.vidx() + opts.first_var_idx)
+                write!(writer, " {} ~x{}", w, l.vidx32() + opts.first_var_idx)
             }
         })?;
     }

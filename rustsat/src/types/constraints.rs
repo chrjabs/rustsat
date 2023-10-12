@@ -6,7 +6,7 @@
 
 use std::{
     fmt,
-    ops::{self, Not},
+    ops::{self, Not, RangeBounds},
 };
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
@@ -112,6 +112,11 @@ impl Clause {
         self.lits.iter_mut()
     }
 
+    /// Like [`Vec::drain`]
+    pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<'_, Lit> {
+        self.lits.drain(range)
+    }
+
     /// Normalizes the clause. This includes sorting the literals, removing
     /// duplicates and removing the entire clause if it is a tautology.
     /// Comparing two normalized clauses checks their logical equivalence.
@@ -162,6 +167,22 @@ impl Clause {
             }
         }
         Some(self)
+    }
+}
+
+impl<const N: usize> From<[Lit; N]> for Clause {
+    fn from(value: [Lit; N]) -> Self {
+        Self {
+            lits: Vec::from(value),
+        }
+    }
+}
+
+impl From<&[Lit]> for Clause {
+    fn from(value: &[Lit]) -> Self {
+        Self {
+            lits: Vec::from(value),
+        }
     }
 }
 

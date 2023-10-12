@@ -312,14 +312,20 @@ impl Lit {
 
     /// Gets the variable index of the literal
     #[inline]
-    pub fn vidx(&self) -> u32 {
+    pub fn vidx(&self) -> usize {
+        (self.lidx >> 1) as usize
+    }
+
+    /// Gets the 32bit variable index of the literal
+    #[inline]
+    pub fn vidx32(&self) -> u32 {
         self.lidx >> 1
     }
 
     /// Gets a literal representation for indexing data structures
     #[inline]
-    pub fn lidx(&self) -> u32 {
-        self.lidx
+    pub fn lidx(&self) -> usize {
+        self.lidx as usize
     }
 
     /// Gets the variables that the literal corresponds to.
@@ -336,7 +342,7 @@ impl Lit {
     /// ```
     #[inline]
     pub fn var(&self) -> Var {
-        Var::new_unchecked(self.vidx())
+        Var::new_unchecked(self.vidx32())
     }
 
     /// True if the literal is positive.
@@ -374,7 +380,7 @@ impl Lit {
         let negated = self.is_neg();
         let idx: c_int = match (self.vidx() + 1).try_into() {
             Ok(idx) => idx,
-            Err(_) => return Err(TypeError::IdxTooHigh(self.vidx() + 1, c_int::MAX as u32)),
+            Err(_) => return Err(TypeError::IdxTooHigh(self.vidx32() + 1, c_int::MAX as u32)),
         };
         Ok(if negated { -idx } else { idx })
     }
