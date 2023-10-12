@@ -125,7 +125,7 @@ impl Encode for DbGte {
         }
         if let Some(con) = self.root {
             return self.db[con.id]
-                .vals(con.offset..con.rev_map_round_up(val))
+                .vals(con.offset()..con.rev_map_round_up(val))
                 .next_back()
                 .map(|val| con.map(val))
                 .unwrap_or(0);
@@ -375,7 +375,7 @@ pub mod referenced {
 
         fn next_lower(&self, val: usize) -> usize {
             self.db[self.root.id]
-                .vals(self.root.offset..self.root.rev_map_round_up(val))
+                .vals(self.root.offset()..self.root.rev_map_round_up(val))
                 .next_back()
                 .map(|val| self.root.map(val))
                 .unwrap_or(val - 1)
@@ -397,7 +397,7 @@ pub mod referenced {
 
         fn next_lower(&self, val: usize) -> usize {
             self.db.borrow()[self.root.id]
-                .vals(self.root.offset..self.root.rev_map_round_up(val))
+                .vals(self.root.offset()..self.root.rev_map_round_up(val))
                 .next_back()
                 .map(|val| self.root.map(val))
                 .unwrap_or(val - 1)

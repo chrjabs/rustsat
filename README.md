@@ -14,6 +14,7 @@ The focus of the library is to provide as much ease of use without giving up on 
 | `optimization` | Include optimization (MaxSAT) data structures etc. |
 | `multiopt` | Include data structures etc. for multi-objective optimization. |
 | `compression` | Enable parsing and writing compressed input. |
+| `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
 | `rand` | Enable randomization features. (Shuffling clauses etc.) |
 
 ## Examples

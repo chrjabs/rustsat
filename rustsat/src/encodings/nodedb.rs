@@ -65,10 +65,10 @@ pub struct NodeCon {
     /// divisor * multiplier` in its sum. Negative offsets would be required for
     /// the static polynomial watchdog encoding, but we don't support them as of
     /// now.
-    pub offset: usize,
+    pub offset: u8,
     /// The divisor of the connection. The parent will include `(val - offset) /
     /// divisor * multiplier` in its sum.
-    pub divisor: usize,
+    pub divisor: u8,
     /// The multiplier/weight of the connection. The parent will include `(val -
     /// offset) / divisor * multiplier` in its sum.
     pub multiplier: usize,
@@ -96,26 +96,45 @@ impl NodeCon {
         }
     }
 
+    #[inline]
+    pub fn offset(&self) -> usize {
+        self.offset.into()
+    }
+
+    #[inline]
+    pub fn divisor(&self) -> usize {
+        self.divisor.into()
+    }
+
+    #[inline]
+    pub fn multiplier(&self) -> usize {
+        self.multiplier
+    }
+
     /// Maps an input value of the connection to its output value
+    #[inline]
     pub fn map(&self, val: usize) -> usize {
-        (val - self.offset) / self.divisor * self.multiplier
+        (val - self.offset()) / self.divisor() * self.multiplier()
     }
 
     /// Maps an output value of the connection to its input value
+    #[inline]
     pub fn rev_map(&self, val: usize) -> usize {
-        val / self.multiplier * self.divisor + self.offset
+        val / self.multiplier() * self.divisor() + self.offset()
     }
 
+    #[inline]
     pub fn rev_map_round_up(&self, mut val: usize) -> usize {
-        if val % self.multiplier > 0 {
-            val += self.multiplier;
+        if val % self.multiplier() > 0 {
+            val += self.multiplier();
         }
-        val / self.multiplier * self.divisor + self.offset
+        val / self.multiplier() * self.divisor() + self.offset()
     }
 
     /// Checks if a value is a possible output value of this connection
+    #[inline]
     pub fn is_possible(&self, val: usize) -> bool {
-        val % self.multiplier == 0
+        val % self.multiplier() == 0
     }
 }
 
@@ -146,7 +165,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
     /// Gets the number of literals that a [`NodeCon`] transmits.
     fn con_len(&self, con: NodeCon) -> usize {
-        (self[con.id].len() - con.offset) / con.divisor
+        (self[con.id].len() - con.offset()) / con.divisor()
     }
 
     /// Recursively builds a balanced tree of nodes over literals and returns the

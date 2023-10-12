@@ -199,40 +199,14 @@ pub enum Node {
     General(GeneralNode),
 }
 
-#[derive(Clone)]
-pub enum ValIter {
-    Range(Range<usize>),
-    General(std::vec::IntoIter<usize>),
-}
-
-impl Iterator for ValIter {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            ValIter::Range(range) => range.next(),
-            ValIter::General(iter) => iter.next(),
-        }
-    }
-}
-
-impl DoubleEndedIterator for ValIter {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        match self {
-            ValIter::Range(range) => range.next_back(),
-            ValIter::General(iter) => iter.next_back(),
-        }
-    }
-}
-
 impl NodeLike for Node {
-    type ValIter = ValIter;
+    type ValIter = std::iter::Chain<Range<usize>, std::vec::IntoIter<usize>>;
 
     fn max_val(&self) -> usize {
         match self {
             Node::Leaf(_) => 1,
             Node::Unit(node) => node.lits.len(),
-            Node::General(node) => *node.lits.last_key_value().unwrap().0,
+            Node::General(node) => node.max_val,
         }
     }
 
@@ -251,9 +225,9 @@ impl NodeLike for Node {
         match self {
             Node::Leaf(_) => {
                 if range.contains(&1) {
-                    return ValIter::Range(1..2);
+                    return (1..2).chain(vec![].into_iter());
                 }
-                ValIter::Range(0..0)
+                (0..0).chain(vec![].into_iter())
             }
             Node::Unit(node) => {
                 let lb = match range.start_bound() {
@@ -266,11 +240,11 @@ impl NodeLike for Node {
                     std::ops::Bound::Excluded(b) => cmp::min(*b, node.lits.len() + 1),
                     std::ops::Bound::Unbounded => node.lits.len() + 1,
                 };
-                ValIter::Range(lb..ub)
+                (lb..ub).chain(vec![].into_iter())
             }
             Node::General(node) => {
                 let vals: Vec<_> = node.lits.range(range).map(|(val, _)| *val).collect();
-                ValIter::General(vals.into_iter())
+                (0..0).chain(vals.into_iter())
             }
         }
     }
@@ -308,11 +282,11 @@ impl NodeLike for Node {
             || matches!(&db[right.id], Node::General(_));
         if general {
             let lvals: Vec<_> = db[left.id]
-                .vals(left.offset..)
+                .vals(left.offset()..)
                 .map(|val| left.map(val))
                 .collect();
             let rvals: Vec<_> = db[right.id]
-                .vals(right.offset..)
+                .vals(right.offset()..)
                 .map(|val| right.map(val))
                 .collect();
             return Self::General(GeneralNode::new(
@@ -366,14 +340,6 @@ impl Node {
         match self {
             Node::Unit(node) => node,
             _ => panic!("called `unit` on non-unit node"),
-        }
-    }
-
-    /// Returns the internal node and panics if the node is not general
-    pub(super) fn general(&self) -> &GeneralNode {
-        match self {
-            Node::General(node) => node,
-            _ => panic!("called `unit` on non-general node"),
         }
     }
 
@@ -436,6 +402,7 @@ impl Index<usize> for UnitNode {
 pub struct GeneralNode {
     pub(crate) lits: BTreeMap<usize, LitData>,
     pub(crate) depth: usize,
+    pub(crate) max_val: usize,
     pub(crate) left: NodeCon,
     pub(crate) right: NodeCon,
 }
@@ -448,15 +415,18 @@ impl GeneralNode {
                 lits.insert(*val, LitData::default());
             }
         });
+        let mut max_val = 0;
         lvals.iter().for_each(|lval| {
             rvals.iter().for_each(|rval| {
                 let val = lval + rval;
+                max_val = val;
                 lits.entry(val).or_insert_with(LitData::default);
             })
         });
         Self {
             lits,
             depth,
+            max_val,
             left,
             right,
         }
@@ -561,9 +531,8 @@ impl TotDb {
     where
         Col: CollectClauses,
     {
-        let node = &self[id];
-        debug_assert!(val <= node.max_val());
-        match node {
+        debug_assert!(val <= self[id].max_val());
+        match &self[id] {
             Node::Leaf(lit) => {
                 debug_assert_eq!(val, 1);
                 if val != 1 {
@@ -575,13 +544,85 @@ impl TotDb {
                 if val > node.lits.len() || val == 0 {
                     return None;
                 }
+
+                // Check if already encoded
+                if let LitData::Lit { lit, enc_pos, .. } = node.lits[val - 1] {
+                    if enc_pos {
+                        return Some(lit);
+                    }
+                }
+
                 Some(self.define_pos_tot(id, val - 1, collector, var_manager))
             }
             Node::General(node) => {
-                if !node.lits.contains_key(&val) {
+                // Check if already encoded
+                if let Some(lit_data) = node.lits.get(&val) {
+                    if let LitData::Lit {
+                        lit, enc_pos: true, ..
+                    } = lit_data
+                    {
+                        return Some(*lit);
+                    }
+                } else {
                     return None;
                 }
-                Some(self.define_pos_gte(id, val, collector, var_manager))
+
+                debug_assert!(val <= node.max_val);
+                debug_assert!(node.lits.contains_key(&val));
+
+                let lcon = node.left;
+                let rcon = node.right;
+
+                // Reserve variable for this node, if needed
+                let olit = if let Some(&olit) = node.lit(val) {
+                    olit
+                } else {
+                    let olit = var_manager.new_var().pos_lit();
+                    *self[id].mut_general().lits.get_mut(&val).unwrap() = LitData::new_lit(olit);
+                    olit
+                };
+
+                // Propagate value
+                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
+                    if let Some(llit) =
+                        self.define_pos(lcon.id, lcon.rev_map(val), collector, var_manager)
+                    {
+                        collector.extend([atomics::lit_impl_lit(llit, olit)]);
+                    }
+                }
+                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
+                    if let Some(rlit) =
+                        self.define_pos(rcon.id, rcon.rev_map(val), collector, var_manager)
+                    {
+                        collector.extend([atomics::lit_impl_lit(rlit, olit)]);
+                    };
+                }
+
+                // Propagate sums
+                let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
+                let rmax = self[rcon.id].max_val();
+                for lval in lvals {
+                    let rval = val - lcon.map(lval);
+                    let rval_rev = rcon.rev_map(rval);
+                    if rcon.is_possible(rval) && rval_rev <= rmax {
+                        if let Some(rlit) =
+                            self.define_pos(rcon.id, rval_rev, collector, var_manager)
+                        {
+                            let llit = self
+                                .define_pos(lcon.id, lval, collector, var_manager)
+                                .unwrap();
+                            collector.extend([atomics::cube_impl_lit(&[llit, rlit], olit)]);
+                        }
+                    }
+                }
+
+                // Mark positive literal as encoded
+                match &mut self[id].mut_general().lits.get_mut(&val).unwrap() {
+                    LitData::None => panic!(),
+                    LitData::Lit { enc_pos, .. } => *enc_pos = true,
+                };
+
+                Some(olit)
             }
         }
     }
@@ -699,77 +740,6 @@ impl TotDb {
 
         // Mark positive literal as encoded
         match &mut self[id].mut_unit().lits[idx] {
-            LitData::None => panic!(),
-            LitData::Lit { enc_pos, .. } => *enc_pos = true,
-        };
-
-        olit
-    }
-
-    fn define_pos_gte<Col>(
-        &mut self,
-        id: NodeId,
-        val: usize,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) -> Lit
-    where
-        Col: CollectClauses,
-    {
-        let node = &self[id];
-        debug_assert!(val <= node.max_val());
-        let lcon = node.left().unwrap();
-        let rcon = node.right().unwrap();
-        let node = node.general();
-        debug_assert!(node.lits.contains_key(&val));
-
-        // Check if already encoded
-        if let LitData::Lit { lit, enc_pos, .. } = node.lits[&val] {
-            if enc_pos {
-                return lit;
-            }
-        }
-
-        // Reserve variable for this node, if needed
-        let olit = if let Some(&olit) = self[id].lit(val) {
-            olit
-        } else {
-            let olit = var_manager.new_var().pos_lit();
-            *self[id].mut_general().lits.get_mut(&val).unwrap() = LitData::new_lit(olit);
-            olit
-        };
-
-        // Propagate value
-        if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
-            if let Some(llit) = self.define_pos(lcon.id, lcon.rev_map(val), collector, var_manager)
-            {
-                collector.extend([atomics::lit_impl_lit(llit, olit)]);
-            }
-        }
-        if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
-            if let Some(rlit) = self.define_pos(rcon.id, rcon.rev_map(val), collector, var_manager)
-            {
-                collector.extend([atomics::lit_impl_lit(rlit, olit)]);
-            };
-        }
-        // Propagate sums
-        let lvals = self[lcon.id].vals(lcon.offset + 1..lcon.rev_map_round_up(val));
-        for lval in lvals {
-            let rval = val - lcon.map(lval);
-            if rcon.is_possible(rval) && rcon.rev_map(rval) <= self[rcon.id].max_val() {
-                if let Some(rlit) =
-                    self.define_pos(rcon.id, rcon.rev_map(rval), collector, var_manager)
-                {
-                    let llit = self
-                        .define_pos(lcon.id, lval, collector, var_manager)
-                        .unwrap();
-                    collector.extend([atomics::cube_impl_lit(&[llit, rlit], olit)]);
-                }
-            }
-        }
-
-        // Mark positive literal as encoded
-        match &mut self[id].mut_general().lits.get_mut(&val).unwrap() {
             LitData::None => panic!(),
             LitData::Lit { enc_pos, .. } => *enc_pos = true,
         };
