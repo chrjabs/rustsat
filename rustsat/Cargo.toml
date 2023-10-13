@@ -29,8 +29,7 @@ cbindgen = "0"
 [features]
 default = [
   "optimization",
-  "fxhash",
-  "bench"
+  "fxhash"
 ]
 internals = []
 fxhash = ["dep:rustc-hash"]
