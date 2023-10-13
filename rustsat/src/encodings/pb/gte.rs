@@ -183,9 +183,8 @@ impl BoundUpper for GeneralizedTotalizer {
             return Ok(vec![]);
         }
 
-        let mut assumps = vec![];
         // Assume literals that have higher weight than `ub`
-        assumps.reserve(self.lit_buffer.len());
+        let mut assumps = Vec::with_capacity(self.lit_buffer.len());
         self.lit_buffer.iter().try_for_each(|(_, &w)| {
             if w <= ub {
                 Err(Error::NotEncoded)

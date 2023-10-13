@@ -225,9 +225,9 @@ impl NodeLike for Node {
         match self {
             Node::Leaf(_) => {
                 if range.contains(&1) {
-                    return (1..2).chain(vec![].into_iter());
+                    return (1..2).chain(vec![]);
                 }
-                (0..0).chain(vec![].into_iter())
+                (0..0).chain(vec![])
             }
             Node::Unit(node) => {
                 let lb = match range.start_bound() {
@@ -240,11 +240,11 @@ impl NodeLike for Node {
                     Bound::Excluded(b) => cmp::min(*b, node.lits.len() + 1),
                     Bound::Unbounded => node.lits.len() + 1,
                 };
-                (lb..ub).chain(vec![].into_iter())
+                (lb..ub).chain(vec![])
             }
             Node::General(node) => {
                 let vals: Vec<_> = node.lits.range(range).map(|(val, _)| *val).collect();
-                (0..0).chain(vals.into_iter())
+                (0..0).chain(vals)
             }
         }
     }
@@ -356,7 +356,7 @@ impl Node {
     /// [`NodeId`] as an Error.
     fn drain(&mut self, range: Range<NodeId>) -> Result<(), NodeId> {
         match self {
-            Node::Leaf(_) => return Ok(()),
+            Node::Leaf(_) => Ok(()),
             Node::Unit(UnitNode { left, right, .. })
             | Node::General(GeneralNode { left, right, .. }) => {
                 if range.contains(&left.id) {
@@ -544,13 +544,11 @@ impl NodeById for TotDb {
         if range.is_empty() {
             return Ok(self.nodes.drain(self.nodes.len()..self.nodes.len()));
         }
-        if let Err(err) = (range.end.0..self.nodes.len()).try_for_each(|idx| {
+        (range.end.0..self.nodes.len()).try_for_each(|idx| {
             self.nodes[idx]
                 .drain(range.clone())
                 .map_err(|con| (NodeId(idx), con))
-        }) {
-            return Err(err);
-        }
+        })?;
         Ok(self.nodes.drain(range.start.0..range.end.0))
     }
 }
@@ -841,7 +839,7 @@ impl TotDb {
                     }
                 }
                 Node::General(GeneralNode { lits, .. }) => {
-                    for (_, lit) in lits {
+                    for lit in lits.values_mut() {
                         if let LitData::Lit { enc_pos, .. } = lit {
                             *enc_pos = false
                         }
@@ -864,7 +862,7 @@ impl TotDb {
                     }
                 }
                 Node::General(GeneralNode { lits, .. }) => {
-                    for (_, lit) in lits {
+                    for lit in lits.values_mut() {
                         *lit = LitData::None;
                     }
                 }
