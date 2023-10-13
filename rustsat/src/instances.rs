@@ -386,8 +386,8 @@ impl ManageVars for RandReindVarManager {
     }
 }
 
-/// Allows for a hash map with arbitrary key type
-/// https://stackoverflow.com/a/64840069
+/// Allows for a hash map with arbitrary key type:
+/// <https://stackoverflow.com/a/64840069>
 trait VarKey {
     fn eq(&self, other: &dyn VarKey) -> bool;
     fn hash(&self) -> u64;

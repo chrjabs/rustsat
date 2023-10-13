@@ -7,15 +7,95 @@
 //! (Note that the DPW encoding is not technically tree-like since it might
 //! share substructures, but close enough.)
 
-use std::ops::{IndexMut, RangeBounds};
+use std::ops::{Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign};
 
 use crate::types::Lit;
 
 /// An ID of a [`NodeLike`] in a database. The usize is typically the index in a
 /// vector of nodes.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[repr(transparent)]
 pub struct NodeId(pub usize);
+
+impl Add<usize> for NodeId {
+    type Output = NodeId;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        NodeId(self.0 + rhs)
+    }
+}
+
+impl Add for &NodeId {
+    type Output = NodeId;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        NodeId(self.0 + rhs.0)
+    }
+}
+
+impl Add<usize> for &NodeId {
+    type Output = NodeId;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        NodeId(self.0 + rhs)
+    }
+}
+
+impl AddAssign for NodeId {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+impl AddAssign<usize> for NodeId {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs;
+    }
+}
+
+impl Sub for NodeId {
+    type Output = usize;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.0 - rhs.0
+    }
+}
+
+impl Sub<usize> for NodeId {
+    type Output = NodeId;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        NodeId(self.0 - rhs)
+    }
+}
+
+impl Sub for &NodeId {
+    type Output = NodeId;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        NodeId(self.0 - rhs.0)
+    }
+}
+
+impl Sub<usize> for &NodeId {
+    type Output = NodeId;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        NodeId(self.0 - rhs)
+    }
+}
+
+impl SubAssign for NodeId {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
+    }
+}
+
+impl SubAssign<usize> for NodeId {
+    fn sub_assign(&mut self, rhs: usize) {
+        self.0 -= rhs;
+    }
+}
 
 /// Trait for nodes in the tree
 #[allow(clippy::len_without_is_empty)]
@@ -168,6 +248,23 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         (self[con.id].len() - con.offset()) / con.divisor()
     }
 
+    /// The drain iterator for the database
+    type Drain<'own>: Iterator<Item = Self::Node>
+    where
+        Self: 'own;
+
+    /// Drains a range of nodes from the database.
+    /// Errors if a node from after the range (first [`Err`] parameter)
+    /// references a node in the range (second [`Err`] parameter).
+    ///
+    /// **Warning**: For this function to preserve a valid database, the
+    /// database is not allowed to contain any backwards references from before
+    /// the range to the range start or higher.
+    fn drain<R: RangeBounds<NodeId>>(
+        &mut self,
+        range: R,
+    ) -> Result<Self::Drain<'_>, (NodeId, NodeId)>;
+
     /// Recursively builds a balanced tree of nodes over literals and returns the
     /// ID of the root
     fn lit_tree(&mut self, lits: &[Lit]) -> NodeId
@@ -253,7 +350,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// splits based on the total value. This results in a tree that is overall
     /// more balanced at the expense of more computation while merging. For a
     /// maximally balanced tree, the input connections should be sorted by
-    /// [`NodeById::max_value`].
+    /// [`NodeById::con_len`].
     fn merge_balanced(&mut self, cons: &[NodeCon]) -> NodeCon
     where
         Self: Sized,
