@@ -6,7 +6,7 @@
 use std::{
     cmp,
     collections::BTreeMap,
-    ops::{Index, IndexMut, Range, RangeBounds},
+    ops::{Bound, Index, IndexMut, Range, RangeBounds},
 };
 
 use crate::{
@@ -231,14 +231,14 @@ impl NodeLike for Node {
             }
             Node::Unit(node) => {
                 let lb = match range.start_bound() {
-                    std::ops::Bound::Included(b) => cmp::max(*b, 1),
-                    std::ops::Bound::Excluded(b) => b + 1,
-                    std::ops::Bound::Unbounded => 1,
+                    Bound::Included(b) => cmp::max(*b, 1),
+                    Bound::Excluded(b) => b + 1,
+                    Bound::Unbounded => 1,
                 };
                 let ub = match range.end_bound() {
-                    std::ops::Bound::Included(b) => cmp::min(b + 1, node.lits.len() + 1),
-                    std::ops::Bound::Excluded(b) => cmp::min(*b, node.lits.len() + 1),
-                    std::ops::Bound::Unbounded => node.lits.len() + 1,
+                    Bound::Included(b) => cmp::min(b + 1, node.lits.len() + 1),
+                    Bound::Excluded(b) => cmp::min(*b, node.lits.len() + 1),
+                    Bound::Unbounded => node.lits.len() + 1,
                 };
                 (lb..ub).chain(vec![].into_iter())
             }
@@ -348,6 +348,31 @@ impl Node {
         match self {
             Node::General(node) => node,
             _ => panic!("called `unit` on non-general node"),
+        }
+    }
+
+    /// Adjusts the connections of the node to draining a range of nodes. If the
+    /// nodes references a nodes within the drained range, it returns that
+    /// [`NodeId`] as an Error.
+    fn drain(&mut self, range: Range<NodeId>) -> Result<(), NodeId> {
+        match self {
+            Node::Leaf(_) => return Ok(()),
+            Node::Unit(UnitNode { left, right, .. })
+            | Node::General(GeneralNode { left, right, .. }) => {
+                if range.contains(&left.id) {
+                    return Err(left.id);
+                }
+                if range.contains(&right.id) {
+                    return Err(right.id);
+                }
+                if left.id > range.end {
+                    left.id -= range.end - range.start;
+                }
+                if right.id > range.end {
+                    right.id -= range.end - range.start;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -499,6 +524,34 @@ impl NodeById for TotDb {
 
     fn len(&self) -> usize {
         self.nodes.len()
+    }
+
+    type Drain<'own> = std::vec::Drain<'own, Node>;
+
+    fn drain<R: RangeBounds<NodeId>>(
+        &mut self,
+        range: R,
+    ) -> Result<Self::Drain<'_>, (NodeId, NodeId)> {
+        let range = match range.start_bound() {
+            Bound::Included(id) => *id,
+            Bound::Excluded(id) => id + 1,
+            Bound::Unbounded => NodeId(0),
+        }..match range.end_bound() {
+            Bound::Included(id) => id + 1,
+            Bound::Excluded(id) => *id,
+            Bound::Unbounded => NodeId(self.nodes.len()),
+        };
+        if range.is_empty() {
+            return Ok(self.nodes.drain(self.nodes.len()..self.nodes.len()));
+        }
+        if let Err(err) = (range.end.0..self.nodes.len()).try_for_each(|idx| {
+            self.nodes[idx]
+                .drain(range.clone())
+                .map_err(|con| (NodeId(idx), con))
+        }) {
+            return Err(err);
+        }
+        Ok(self.nodes.drain(range.start.0..range.end.0))
     }
 }
 
@@ -788,13 +841,33 @@ impl TotDb {
                     }
                 }
                 Node::General(GeneralNode { lits, .. }) => {
-                    for (_, lit) in lits.iter_mut() {
+                    for (_, lit) in lits {
                         if let LitData::Lit { enc_pos, .. } = lit {
                             *enc_pos = false
                         }
                     }
                 }
                 Node::Leaf(_) => (),
+            }
+        }
+    }
+
+    /// Resets the reserved variables in the database. This also resets the
+    /// status of what has already been encoded.
+    pub fn reset_vars(&mut self) {
+        for node in &mut self.nodes {
+            match node {
+                Node::Leaf(_) => (),
+                Node::Unit(UnitNode { lits, .. }) => {
+                    for lit in lits {
+                        *lit = LitData::None;
+                    }
+                }
+                Node::General(GeneralNode { lits, .. }) => {
+                    for (_, lit) in lits {
+                        *lit = LitData::None;
+                    }
+                }
             }
         }
     }
@@ -1016,7 +1089,7 @@ mod tests {
     use crate::{
         encodings::{
             card::{BoundUpper, BoundUpperIncremental},
-            nodedb::{NodeById, NodeLike},
+            nodedb::{NodeById, NodeCon, NodeLike},
             EncodeStats, Error,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
@@ -1183,5 +1256,15 @@ mod tests {
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
         assert_eq!(cnf2.len(), tot2.n_clauses());
+    }
+
+    #[test]
+    fn drain() {
+        let mut db = TotDb::default();
+        let t1 = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let t2 = db.lit_tree(&[lit![4], lit![5], lit![6], lit![7]]);
+        let t3 = db.lit_tree(&[lit![8], lit![9], lit![10], lit![11]]);
+        db.merge(&[NodeCon::full(t1), NodeCon::full(t3)]);
+        db.drain(t1 + 1..=t2).unwrap();
     }
 }
