@@ -7,7 +7,10 @@
 //! (Note that the DPW encoding is not technically tree-like since it might
 //! share substructures, but close enough.)
 
-use std::ops::{Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign};
+use std::{
+    num::{NonZeroU8, NonZeroUsize},
+    ops::{Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
+};
 
 use crate::types::Lit;
 
@@ -145,13 +148,15 @@ pub struct NodeCon {
     /// divisor * multiplier` in its sum. Negative offsets would be required for
     /// the static polynomial watchdog encoding, but we don't support them as of
     /// now.
-    pub offset: u8,
+    pub(crate) offset: usize,
     /// The divisor of the connection. The parent will include `(val - offset) /
     /// divisor * multiplier` in its sum.
-    pub divisor: u8,
+    pub(crate) divisor: NonZeroU8,
     /// The multiplier/weight of the connection. The parent will include `(val -
     /// offset) / divisor * multiplier` in its sum.
-    pub multiplier: usize,
+    pub(crate) multiplier: NonZeroUsize,
+    /// Transmit a single literal
+    pub(crate) single_lit: bool,
 }
 
 impl NodeCon {
@@ -160,19 +165,52 @@ impl NodeCon {
         NodeCon {
             id,
             offset: 0,
-            divisor: 1,
-            multiplier: 1,
+            divisor: NonZeroU8::new(1).unwrap(),
+            multiplier: NonZeroUsize::new(1).unwrap(),
+            single_lit: false,
         }
     }
 
     /// Creates a node connection with a specified weight
     pub fn weighted(id: NodeId, weight: usize) -> NodeCon {
-        debug_assert_ne!(weight, 0);
         NodeCon {
             id,
             offset: 0,
-            divisor: 1,
-            multiplier: weight,
+            divisor: NonZeroU8::new(1).unwrap(),
+            multiplier: weight.try_into().unwrap(),
+            single_lit: false,
+        }
+    }
+
+    #[cfg(feature = "internals")]
+    pub fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
+        NodeCon {
+            id,
+            offset,
+            divisor: NonZeroU8::new(1).unwrap(),
+            multiplier: weight.try_into().unwrap(),
+            single_lit: false,
+        }
+    }
+
+    /// Creates a connection transmitting a single output literal
+    #[cfg(feature = "internals")]
+    pub fn single(id: NodeId, output: usize, weight: usize) -> NodeCon {
+        NodeCon {
+            id,
+            offset: output - 1,
+            divisor: NonZeroU8::new(1).unwrap(),
+            multiplier: weight.try_into().unwrap(),
+            single_lit: true,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "internals")]
+    pub fn reweight(self, weight: usize) -> NodeCon {
+        NodeCon {
+            multiplier: weight.try_into().unwrap(),
+            ..self
         }
     }
 
@@ -183,12 +221,13 @@ impl NodeCon {
 
     #[inline]
     pub fn divisor(&self) -> usize {
-        self.divisor.into()
+        let div: u8 = self.divisor.into();
+        div.into()
     }
 
     #[inline]
     pub fn multiplier(&self) -> usize {
-        self.multiplier
+        self.multiplier.into()
     }
 
     /// Maps an input value of the connection to its output value
@@ -208,7 +247,7 @@ impl NodeCon {
         if val % self.multiplier() > 0 {
             val += self.multiplier();
         }
-        val / self.multiplier() * self.divisor() + self.offset()
+        self.rev_map(val)
     }
 
     /// Checks if a value is a possible output value of this connection
@@ -245,6 +284,9 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
     /// Gets the number of literals that a [`NodeCon`] transmits.
     fn con_len(&self, con: NodeCon) -> usize {
+        if con.single_lit {
+            return 1;
+        }
         (self[con.id].len() - con.offset()) / con.divisor()
     }
 

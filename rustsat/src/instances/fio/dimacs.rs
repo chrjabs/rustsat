@@ -717,7 +717,7 @@ pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
-        McnfLine::Comment(c) => write!(writer, "c {}", c),
+        McnfLine::Comment(c) => writeln!(writer, "c {}", c),
         McnfLine::Hard(cl) => {
             write!(writer, "h ")?;
             write_clause(writer, cl)

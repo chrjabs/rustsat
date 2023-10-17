@@ -117,6 +117,11 @@ pub mod encodings {
         fn n_used(&self) -> u32 {
             *self.n_vars_used as u32
         }
+
+        fn forget_from(&mut self, min_var: Var) {
+            *self.n_vars_used =
+                std::cmp::min(*self.n_vars_used, min_var.idx32().try_into().unwrap())
+        }
     }
 
     pub mod totalizer {

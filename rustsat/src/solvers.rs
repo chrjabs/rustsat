@@ -223,7 +223,7 @@ pub trait Interrupt {
 /// A thread safe interrupter for a solver
 pub trait InterruptSolver: Sync {
     /// Interrupts the solver asynchronously
-    fn interrupt(&mut self);
+    fn interrupt(&self);
 }
 
 /// Trait for all solvers that can force a face for a literal
