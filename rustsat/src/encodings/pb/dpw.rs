@@ -13,7 +13,11 @@
 //! - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 //!   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 
-use std::{collections::BTreeMap, ops::RangeBounds};
+use std::{
+    collections::BTreeMap,
+    num::{NonZeroU8, NonZeroUsize},
+    ops::RangeBounds,
+};
 
 use crate::{
     encodings::{
@@ -428,16 +432,16 @@ fn build_structure<CI: Iterator<Item = NodeCon>>(
     // Initialize weight queue
     let mut weight_queue: BTreeMap<usize, Vec<NodeCon>> = BTreeMap::new();
     for con in cons {
-        if let Some(cons) = weight_queue.get_mut(&con.multiplier) {
+        if let Some(cons) = weight_queue.get_mut(&con.multiplier()) {
             cons.push(NodeCon {
-                multiplier: 1,
+                multiplier: NonZeroUsize::new(1).unwrap(),
                 ..con
             });
         } else {
             weight_queue.insert(
-                con.multiplier,
+                con.multiplier(),
                 vec![NodeCon {
-                    multiplier: 1,
+                    multiplier: NonZeroUsize::new(1).unwrap(),
                     ..con
                 }],
             );
@@ -504,12 +508,13 @@ fn build_structure<CI: Iterator<Item = NodeCon>>(
                 // omitted: shift to next layer
                 continue;
             }
-            debug_assert_eq!(top_bucket.divisor, 1);
+            debug_assert_eq!(top_bucket.divisor(), 1);
             last_bottom_bucket = Some(NodeCon {
                 id: top_bucket.id,
                 offset: top_bucket.offset,
-                divisor: 2,
-                multiplier: 1,
+                divisor: NonZeroU8::new(2).unwrap(),
+                multiplier: NonZeroUsize::new(1).unwrap(),
+                single_lit: false,
             });
             continue;
         }
@@ -519,14 +524,15 @@ fn build_structure<CI: Iterator<Item = NodeCon>>(
         last_bottom_bucket = Some(NodeCon {
             id: bottom,
             offset: 0,
-            divisor: 2,
-            multiplier: 1,
+            divisor: NonZeroU8::new(2).unwrap(),
+            multiplier: NonZeroUsize::new(1).unwrap(),
+            single_lit: false,
         });
     }
 
     let root = last_bottom_bucket.unwrap();
-    debug_assert_eq!(root.offset, 0);
-    debug_assert_eq!(root.divisor, 2);
+    debug_assert_eq!(root.offset(), 0);
+    debug_assert_eq!(root.divisor(), 2);
     Structure {
         root: root.id,
         tares,

@@ -298,7 +298,7 @@ impl NodeLike for Node {
             ));
         }
         // if both inputs have the same weight, the multiplier should be 1
-        debug_assert!(left.multiplier == 1 && right.multiplier == 1);
+        debug_assert!(left.multiplier() == 1 && right.multiplier() == 1);
         Self::Unit(UnitNode::new(
             db.con_len(left) + db.con_len(right),
             std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
@@ -365,10 +365,10 @@ impl Node {
                 if range.contains(&right.id) {
                     return Err(right.id);
                 }
-                if left.id > range.end {
+                if left.id >= range.end {
                     left.id -= range.end - range.start;
                 }
-                if right.id > range.end {
+                if right.id >= range.end {
                     right.id -= range.end - range.start;
                 }
                 Ok(())
@@ -499,7 +499,7 @@ pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
     nodes: Vec<Node>,
     /// Mapping literals to leaf nodes
-    lookup_leaf: RsHashMap<Lit, usize>,
+    lookup_leaf: RsHashMap<Lit, NodeId>,
 }
 
 impl NodeById for TotDb {
@@ -508,9 +508,9 @@ impl NodeById for TotDb {
     fn insert(&mut self, node: Self::Node) -> NodeId {
         if let Node::Leaf(lit) = node {
             if let Some(&id) = self.lookup_leaf.get(&lit) {
-                return NodeId(id);
+                return id;
             }
-            self.lookup_leaf.insert(lit, self.nodes.len());
+            self.lookup_leaf.insert(lit, NodeId(self.nodes.len()));
         }
         self.nodes.push(node);
         NodeId(self.nodes.len() - 1)
@@ -549,6 +549,12 @@ impl NodeById for TotDb {
                 .drain(range.clone())
                 .map_err(|con| (NodeId(idx), con))
         })?;
+        self.lookup_leaf.retain(|_, id| !range.contains(id));
+        self.lookup_leaf.values_mut().for_each(|id| {
+            if *id >= range.end {
+                *id -= range.end - range.start
+            }
+        });
         Ok(self.nodes.drain(range.start.0..range.end.0))
     }
 }
@@ -698,8 +704,8 @@ impl TotDb {
         let rcon = node.right().unwrap();
         debug_assert!(matches!(self[lcon.id], Node::Leaf(_) | Node::Unit(_)));
         debug_assert!(matches!(self[rcon.id], Node::Leaf(_) | Node::Unit(_)));
-        debug_assert_eq!(lcon.multiplier, 1);
-        debug_assert_eq!(rcon.multiplier, 1);
+        debug_assert_eq!(lcon.multiplier(), 1);
+        debug_assert_eq!(rcon.multiplier(), 1);
         let node = node.unit();
 
         // Check if already encoded
@@ -852,6 +858,7 @@ impl TotDb {
 
     /// Resets the reserved variables in the database. This also resets the
     /// status of what has already been encoded.
+    #[cfg(feature = "internals")]
     pub fn reset_vars(&mut self) {
         for node in &mut self.nodes {
             match node {
@@ -1126,9 +1133,9 @@ mod tests {
     fn weighted_tot_db() {
         let mut db = TotDb::default();
         let con = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 4), (lit![2], 7), (lit![3], 7)]);
-        debug_assert_eq!(con.multiplier, 1);
-        debug_assert_eq!(con.offset, 0);
-        debug_assert_eq!(con.divisor, 1);
+        debug_assert_eq!(con.multiplier(), 1);
+        debug_assert_eq!(con.offset(), 0);
+        debug_assert_eq!(con.divisor(), 1);
         let root = con.id;
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::default();
@@ -1168,9 +1175,9 @@ mod tests {
     fn weighted_tot_db2() {
         let mut db = TotDb::default();
         let con = db.weighted_lit_tree(&[(lit![0], 3), (lit![1], 2), (lit![2], 1)]);
-        debug_assert_eq!(con.multiplier, 1);
-        debug_assert_eq!(con.offset, 0);
-        debug_assert_eq!(con.divisor, 1);
+        debug_assert_eq!(con.multiplier(), 1);
+        debug_assert_eq!(con.offset(), 0);
+        debug_assert_eq!(con.divisor(), 1);
         let root = con.id;
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::default();

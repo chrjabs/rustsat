@@ -51,6 +51,8 @@ pub trait ManageVars {
     /// Gets the number of used variables. Typically this is just the index of
     /// the next free variable.
     fn n_used(&self) -> u32;
+    /// Forget variables `>= min_var`
+    fn forget_from(&mut self, min_var: Var);
 }
 
 /// Trait for variable managers reindexing an existing instance
@@ -125,6 +127,10 @@ impl ManageVars for BasicVarManager {
     fn n_used(&self) -> u32 {
         self.next_var.idx32()
     }
+
+    fn forget_from(&mut self, min_var: Var) {
+        self.next_var = std::cmp::min(self.next_var, min_var)
+    }
 }
 
 impl Default for BasicVarManager {
@@ -137,13 +143,13 @@ impl Default for BasicVarManager {
 
 /// Manager for reindexing an existing instance
 #[derive(PartialEq, Eq)]
-pub struct ReinducingVarManager {
+pub struct ReindexingVarManager {
     next_var: Var,
     in_map: RsHashMap<Var, Var>,
     out_map: RsHashMap<Var, Var>,
 }
 
-impl ReinducingVarManager {
+impl ReindexingVarManager {
     /// Creates a new variable manager from a next free variable
     pub fn from_next_free(next_var: Var) -> Self {
         Self {
@@ -154,7 +160,7 @@ impl ReinducingVarManager {
     }
 }
 
-impl ReindexVars for ReinducingVarManager {
+impl ReindexVars for ReindexingVarManager {
     fn reindex(&mut self, in_var: Var) -> Var {
         match self.in_map.get(&in_var) {
             Some(v) => *v,
@@ -172,7 +178,7 @@ impl ReindexVars for ReinducingVarManager {
     }
 }
 
-impl Default for ReinducingVarManager {
+impl Default for ReindexingVarManager {
     fn default() -> Self {
         Self {
             next_var: Var::new(0),
@@ -182,7 +188,7 @@ impl Default for ReinducingVarManager {
     }
 }
 
-impl ManageVars for ReinducingVarManager {
+impl ManageVars for ReindexingVarManager {
     fn new_var(&mut self) -> Var {
         let v = self.next_var;
         self.next_var = v + 1;
@@ -214,6 +220,12 @@ impl ManageVars for ReinducingVarManager {
 
     fn n_used(&self) -> u32 {
         self.next_var.idx32()
+    }
+
+    fn forget_from(&mut self, min_var: Var) {
+        self.in_map.retain(|_, v| *v < min_var);
+        self.out_map.retain(|v, _| *v < min_var);
+        self.next_var = std::cmp::min(self.next_var, min_var)
     }
 }
 
@@ -292,6 +304,11 @@ impl ManageVars for ObjectVarManager {
 
     fn n_used(&self) -> u32 {
         self.next_var.idx32()
+    }
+
+    fn forget_from(&mut self, min_var: Var) {
+        self.object_map.retain(|_, v| *v < min_var);
+        self.next_var = std::cmp::min(self.next_var, min_var)
     }
 }
 
@@ -383,6 +400,10 @@ impl ManageVars for RandReindVarManager {
 
     fn n_used(&self) -> u32 {
         self.next_var.idx32()
+    }
+
+    fn forget_from(&mut self, min_var: Var) {
+        self.next_var = std::cmp::min(self.next_var, min_var)
     }
 }
 
