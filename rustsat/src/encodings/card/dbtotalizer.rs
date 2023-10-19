@@ -589,6 +589,7 @@ impl TotDb {
         Col: CollectClauses,
     {
         debug_assert!(val <= self[id].max_val());
+        debug_assert!(val > 0);
         match &self[id] {
             Node::Leaf(lit) => {
                 debug_assert_eq!(val, 1);
@@ -641,6 +642,7 @@ impl TotDb {
 
                 // Propagate value
                 if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
+                    debug_assert!(!lcon.single_lit || lcon.offset() + 1 == lcon.rev_map(val));
                     if let Some(llit) =
                         self.define_pos(lcon.id, lcon.rev_map(val), collector, var_manager)
                     {
@@ -648,6 +650,7 @@ impl TotDb {
                     }
                 }
                 if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
+                    debug_assert!(!rcon.single_lit || rcon.offset() + 1 == rcon.rev_map(val));
                     if let Some(rlit) =
                         self.define_pos(rcon.id, rcon.rev_map(val), collector, var_manager)
                     {
@@ -656,19 +659,24 @@ impl TotDb {
                 }
 
                 // Propagate sums
-                let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
-                let rmax = self[rcon.id].max_val();
-                for lval in lvals {
-                    let rval = val - lcon.map(lval);
-                    let rval_rev = rcon.rev_map(rval);
-                    if rcon.is_possible(rval) && rval_rev <= rmax {
-                        if let Some(rlit) =
-                            self.define_pos(rcon.id, rval_rev, collector, var_manager)
-                        {
-                            let llit = self
-                                .define_pos(lcon.id, lval, collector, var_manager)
-                                .unwrap();
-                            collector.extend([atomics::cube_impl_lit(&[llit, rlit], olit)]);
+                if lcon.map(lcon.offset() + 1) < val {
+                    let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
+                    let rmax = self[rcon.id].max_val();
+                    for lval in lvals {
+                        let rval = val - lcon.map(lval);
+                        debug_assert!(rval > 0);
+                        let rval_rev = rcon.rev_map(rval);
+                        if rcon.is_possible(rval) && rval_rev <= rmax {
+                            debug_assert!(!rcon.single_lit || rcon.offset() + 1 == rval_rev);
+                            if let Some(rlit) =
+                                self.define_pos(rcon.id, rval_rev, collector, var_manager)
+                            {
+                                debug_assert!(!lcon.single_lit || lcon.offset() + 1 == lval);
+                                let llit = self
+                                    .define_pos(lcon.id, lval, collector, var_manager)
+                                    .unwrap();
+                                collector.extend([atomics::cube_impl_lit(&[llit, rlit], olit)]);
+                            }
                         }
                     }
                 }

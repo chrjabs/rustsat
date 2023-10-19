@@ -233,17 +233,29 @@ impl NodeCon {
     /// Maps an input value of the connection to its output value
     #[inline]
     pub fn map(&self, val: usize) -> usize {
+        if self.single_lit {
+            return self.multiplier();
+        }
         (val - self.offset()) / self.divisor() * self.multiplier()
     }
 
-    /// Maps an output value of the connection to its input value
+    /// Maps an output value of the connection to its input value, rounding down
     #[inline]
     pub fn rev_map(&self, val: usize) -> usize {
+        if self.single_lit {
+            return self.offset() + 1;
+        }
         val / self.multiplier() * self.divisor() + self.offset()
     }
 
     #[inline]
     pub fn rev_map_round_up(&self, mut val: usize) -> usize {
+        if self.single_lit {
+            if val < self.multiplier() {
+                return self.offset() + 1;
+            }
+            return self.offset() + 2;
+        }
         if val % self.multiplier() > 0 {
             val += self.multiplier();
         }
@@ -253,6 +265,9 @@ impl NodeCon {
     /// Checks if a value is a possible output value of this connection
     #[inline]
     pub fn is_possible(&self, val: usize) -> bool {
+        if self.single_lit {
+            return val == self.multiplier();
+        }
         val % self.multiplier() == 0
     }
 }
