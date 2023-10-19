@@ -219,7 +219,7 @@ unsafe impl Send for Interrupter {}
 unsafe impl Sync for Interrupter {}
 
 impl InterruptSolver for Interrupter {
-    fn interrupt(&mut self) {
+    fn interrupt(&self) {
         unsafe { ffi::cglucose4_interrupt(self.handle) }
     }
 }

@@ -105,6 +105,13 @@ impl ManageVars for VarManager {
     fn n_used(&self) -> u32 {
         self.next_var.idx32()
     }
+
+    fn forget_from(&mut self, min_var: Var) {
+        if min_var < self.next_var {
+            self.vars.retain(|_, var| *var < min_var);
+            self.next_var = min_var;
+        }
+    }
 }
 
 impl Default for VarManager {
