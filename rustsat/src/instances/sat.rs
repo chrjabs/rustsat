@@ -8,7 +8,7 @@ use crate::{
     lit,
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Clause, Lit,
+        Assignment, Clause, Lit,
     },
 };
 
@@ -602,6 +602,25 @@ impl<VM: ManageVars> SatInstance<VM> {
             pbs,
             var_manager: self.var_manager,
         }
+    }
+
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        for clause in self.cnf.iter() {
+            if !clause.is_sat(assign) {
+                return false;
+            }
+        }
+        for card in &self.cards {
+            if !card.is_sat(assign) {
+                return false;
+            }
+        }
+        for pb in &self.pbs {
+            if !pb.is_sat(assign) {
+                return false;
+            }
+        }
+        true
     }
 }
 

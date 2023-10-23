@@ -522,6 +522,15 @@ impl fmt::Debug for TernaryVal {
     }
 }
 
+impl From<bool> for TernaryVal {
+    fn from(value: bool) -> Self {
+        if value {
+            return TernaryVal::True;
+        }
+        TernaryVal::False
+    }
+}
+
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]

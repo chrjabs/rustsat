@@ -168,6 +168,15 @@ impl Clause {
         }
         Some(self)
     }
+
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        for &lit in &self.lits {
+            if assign.lit_value(lit) == TernaryVal::True {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl<const N: usize> From<[Lit; N]> for Clause {
@@ -446,6 +455,20 @@ impl CardConstraint {
             CardConstraint::UB(constr) => constr.lits.iter_mut(),
             CardConstraint::LB(constr) => constr.lits.iter_mut(),
             CardConstraint::EQ(constr) => constr.lits.iter_mut(),
+        }
+    }
+
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        let count = self.iter().fold(0, |cnt, lit| {
+            if assign.lit_value(*lit) == TernaryVal::True {
+                return cnt + 1;
+            }
+            cnt
+        });
+        match self {
+            CardConstraint::UB(constr) => count <= constr.b,
+            CardConstraint::LB(constr) => count >= constr.b,
+            CardConstraint::EQ(constr) => count == constr.b,
         }
     }
 }
@@ -825,6 +848,38 @@ impl PBConstraint {
             PBConstraint::EQ(constr) => constr.lits.iter_mut(),
         }
     }
+
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        let sum = self.iter().fold(0, |sum, (lit, coeff)| {
+            if assign.lit_value(*lit) == TernaryVal::True {
+                return sum + coeff;
+            }
+            sum
+        });
+        match self {
+            PBConstraint::UB(constr) => {
+                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
+                    sum <= constr.b
+                } else {
+                    false
+                }
+            }
+            PBConstraint::LB(constr) => {
+                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
+                    sum >= constr.b
+                } else {
+                    true
+                }
+            }
+            PBConstraint::EQ(constr) => {
+                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
+                    sum == constr.b
+                } else {
+                    false
+                }
+            }
+        }
+    }
 }
 
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
@@ -1025,7 +1080,7 @@ impl PBEQConstr {
 #[cfg(test)]
 mod tests {
     use super::{CardConstraint, PBConstraint};
-    use crate::lit;
+    use crate::{lit, types::Assignment, var};
 
     #[test]
     fn clause_remove() {
@@ -1067,6 +1122,22 @@ mod tests {
                 lit![17]
             ])
         );
+    }
+
+    macro_rules! assign {
+        ($val:expr) => {{
+            let mut assign = Assignment::default();
+            assign.assign_var(var![0], (($val & 1) == 1).into());
+            assign.assign_var(var![1], ((($val << 1) & 1) == 1).into());
+            assign.assign_var(var![2], (($val << 2) & 1 == 1).into());
+            assign
+        }};
+    }
+
+    #[test]
+    fn clause_is_sat() {
+        let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
+        assert!(cl.is_sat(&assign!(0b000)))
     }
 
     #[test]
