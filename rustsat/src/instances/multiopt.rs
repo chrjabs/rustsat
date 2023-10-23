@@ -6,7 +6,7 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Var, WClsIter, WLitIter,
+        Assignment, Var, WClsIter, WLitIter,
     },
 };
 
@@ -206,6 +206,15 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         fio::opb::write_multi_opt::<W, VM>(writer, self, opts)
+    }
+
+    /// Calculates the objective values of an assignment. Returns [`None`] if the
+    /// assignment is not a solution.
+    pub fn cost(&self, assign: &Assignment) -> Option<Vec<isize>> {
+        if !self.constrs.is_sat(assign) {
+            return None;
+        }
+        Some(self.objs.iter().map(|o| o.evaluate(assign)).collect())
     }
 }
 

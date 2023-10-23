@@ -976,6 +976,15 @@ impl<VM: ManageVars> OptInstance<VM> {
     ) -> Result<(), io::Error> {
         fio::opb::write_opt::<W, VM>(writer, self, opts)
     }
+
+    /// Calculates the objective value of an assignment. Returns [`None`] if the
+    /// assignment is not a solution.
+    pub fn cost(&self, assign: &Assignment) -> Option<isize> {
+        if !self.constrs.is_sat(assign) {
+            return None;
+        }
+        Some(self.obj.evaluate(assign))
+    }
 }
 
 impl<VM: ManageVars + Default> OptInstance<VM> {
