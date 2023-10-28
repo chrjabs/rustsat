@@ -184,7 +184,7 @@ pub mod encodings {
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(tot) };
-            boxed.encode_ub_change(min_bound..max_bound, &mut collector, &mut var_manager);
+            boxed.encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager);
             Box::into_raw(boxed);
         }
 
@@ -302,7 +302,7 @@ pub mod encodings {
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            boxed.encode_ub_change(min_bound..max_bound, &mut collector, &mut var_manager);
+            boxed.encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager);
             Box::into_raw(boxed);
         }
 
