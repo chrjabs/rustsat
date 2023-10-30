@@ -178,7 +178,7 @@ impl Solve for IpasirSolver<'_, '_> {
 }
 
 impl SolveIncremental for IpasirSolver<'_, '_> {
-    fn solve_assumps(&mut self, assumps: Vec<Lit>) -> Result<SolverResult, SolverError> {
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
         if let InternalSolverState::Error(desc) = &self.state {
