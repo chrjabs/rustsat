@@ -777,8 +777,12 @@ mod test {
     use super::{CaDiCaL, Config, Limit};
     use rustsat::{
         lit,
-        solvers::{ControlSignal, Learn, Solve, SolverError, SolverResult, SolverState, Terminate},
+        solvers::{
+            ControlSignal, FreezeVar, Learn, Solve, SolverError, SolverResult, SolverState,
+            Terminate,
+        },
         types::TernaryVal,
+        var,
     };
 
     #[test]
@@ -939,13 +943,13 @@ mod test {
         let mut solver = CaDiCaL::default();
         solver.add_binary(lit![0], !lit![1]).unwrap();
 
-        solver.freeze_lit(lit![0]);
+        solver.freeze_var(var![0]).unwrap();
 
-        assert_eq!(solver.is_frozen(lit![0]), true);
+        assert!(solver.is_frozen(var![0]).unwrap());
 
-        solver.melt_lit(lit![0]);
+        solver.melt_var(var![0]).unwrap();
 
-        assert_eq!(solver.is_frozen(lit![0]), false);
+        assert!(!solver.is_frozen(var![0]).unwrap());
     }
 }
 

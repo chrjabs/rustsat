@@ -1133,16 +1133,23 @@ mod tests {
         ($val:expr) => {{
             let mut assign = Assignment::default();
             assign.assign_var(var![0], (($val & 1) == 1).into());
-            assign.assign_var(var![1], ((($val << 1) & 1) == 1).into());
-            assign.assign_var(var![2], (($val << 2) & 1 == 1).into());
+            assign.assign_var(var![1], ((($val >> 1) & 1) == 1).into());
+            assign.assign_var(var![2], (($val >> 2) & 1 == 1).into());
             assign
         }};
     }
 
     #[test]
     fn clause_is_sat() {
-        let cl = clause![lit![0], lit![1], lit![2], lit![1]];
-        assert!(cl.is_sat(&assign!(0b000)))
+        let cl = clause![lit![0], lit![1], lit![2]];
+        assert!(!cl.is_sat(&assign!(0b000)));
+        assert!(cl.is_sat(&assign!(0b001)));
+        assert!(cl.is_sat(&assign!(0b010)));
+        assert!(cl.is_sat(&assign!(0b011)));
+        assert!(cl.is_sat(&assign!(0b100)));
+        assert!(cl.is_sat(&assign!(0b101)));
+        assert!(cl.is_sat(&assign!(0b110)));
+        assert!(cl.is_sat(&assign!(0b111)));
     }
 
     #[test]

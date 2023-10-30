@@ -19,7 +19,7 @@ pub trait CollectClauses: Extend<crate::types::Clause> {
 }
 
 /// Errors from encodings
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
     /// Encode was not called before using the encoding
     #[error("not encoded to enforce bound")]
