@@ -114,6 +114,7 @@ use std::fmt;
 mod ipasir;
 #[cfg(feature = "ipasir")]
 pub use ipasir::IpasirSolver;
+use thiserror::Error;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
@@ -424,25 +425,14 @@ pub enum ControlSignal {
 }
 
 /// Type representing solver errors
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum SolverError {
     /// An API with a description
+    #[error("API error: {0}")]
     Api(String),
     /// The solver was expected to be in the second [`SolverState`], but it is in the first.
+    #[error("solvers needs to be in state {1} but was in state {0}")]
     State(SolverState, SolverState),
-}
-
-impl fmt::Display for SolverError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SolverError::Api(desc) => write!(f, "API error: {}", desc),
-            SolverError::State(true_state, required_state) => write!(
-                f,
-                "Solver needs to be in state {} but was in {}",
-                required_state, true_state
-            ),
-        }
-    }
 }
 
 impl<S: Solve + SolveStats> CollectClauses for S {

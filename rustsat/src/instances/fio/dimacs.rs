@@ -26,9 +26,9 @@ use nom::{
 };
 use std::{
     convert::TryFrom,
-    fmt,
     io::{self, BufRead, BufReader, Read, Write},
 };
+use thiserror::Error;
 
 #[cfg(feature = "multiopt")]
 use crate::instances::MultiOptInstance;
@@ -99,33 +99,46 @@ where
 }
 
 /// Errors occuring within the DIMACS parsing module
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum Error {
     /// Expected different instance type
+    #[error("expected different instance type")]
     InvalidInstanceType,
     /// Invalid literal in the file
+    #[error("invalid literal: {0}")]
     Lit(String),
     /// Invalid ending of a clause
+    #[error("invalid clause ending: {0}")]
     ClauseEnding(String),
     /// Invalid objective index
+    #[error("invalid objective index: {0}")]
     ObjIdx(String),
     /// Invalid weight
+    #[error("invalid weight: {0}")]
     Weight(String),
     /// A comment appeared in a clause
+    #[error("found comment in clause: {0}")]
     CommentInClause(String),
     /// The preamble never ended
+    #[error("preamble never ends")]
     PreambleNoEnd,
     /// P line value is too large to fit in a [`usize`]
+    #[error("value in p-line too large to fit usize: {0}")]
     PValTooLarge(u64),
     /// Invalid p line
+    #[error("invalid p-line: {0}")]
     PLine(String),
     /// The requested objective does not exist
+    #[error("the file only has {0} objectives")]
     ObjNoExist(usize),
     /// IO error reading file
+    #[error("IO error: {0}")]
     IOError(io::Error),
     /// Base error from nom parsing
+    #[error("nom error: {0} ({1:?})")]
     NomError(String, ErrorKind),
     /// Incomplete nom error
+    #[error("nom parser requested more data")]
     NomIncomplete,
 }
 
@@ -141,30 +154,6 @@ impl PartialEq for Error {
             (Self::IOError(_), Self::IOError(_)) => true,
             (Self::NomError(l0, l1), Self::NomError(r0, r1)) => l0 == r0 && l1 == r1,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
-        }
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::InvalidInstanceType => write!(f, "Expected different instance type"),
-            Error::Lit(str) => write!(f, "Invalid literal: {}", str),
-            Error::ClauseEnding(str) => write!(f, "Invalid clause ending: {}", str),
-            Error::ObjIdx(str) => write!(f, "Invalid objective index: {}", str),
-            Error::Weight(str) => write!(f, "Invalid weight: {}", str),
-            Error::CommentInClause(str) => write!(f, "Found comment in clause: {}", str),
-            Error::PreambleNoEnd => write!(f, "Preamble never ends"),
-            Error::PValTooLarge(val) => write!(
-                f,
-                "Value in p line is too large to fit in a `usize`: {}",
-                val
-            ),
-            Error::PLine(line) => write!(f, "Invalid p line: {}", line),
-            Error::ObjNoExist(n_obj) => write!(f, "The file only has {} objectives", n_obj),
-            Error::IOError(ioe) => write!(f, "{}", ioe),
-            Error::NomError(str, kind) => write!(f, "Nom error: {}, {:?}", str, kind),
-            Error::NomIncomplete => write!(f, "Nom parser requested more data"),
         }
     }
 }

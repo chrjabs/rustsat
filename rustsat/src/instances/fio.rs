@@ -4,20 +4,25 @@
 //! through the interface of instance types rather than using these functions
 //! directly.
 
-use std::{fmt, fs::File, io, path::Path};
+use std::{fs::File, io, path::Path};
+
+use thiserror::Error;
 
 pub mod dimacs;
 
 pub mod opb;
 
 /// Combined Parsing Errors
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum ParsingError {
     /// IO Errors
+    #[error("IO error: {0}")]
     IO(std::io::Error),
     /// Dimacs Parsing Error
+    #[error("Dimacs error: {0}")]
     Dimacs(dimacs::Error),
     /// OPB Parsing Error
+    #[error("OPB error: {0}")]
     Opb(opb::Error),
 }
 
@@ -30,16 +35,6 @@ impl From<dimacs::Error> for ParsingError {
 impl From<opb::Error> for ParsingError {
     fn from(oe: opb::Error) -> Self {
         ParsingError::Opb(oe)
-    }
-}
-
-impl fmt::Display for ParsingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParsingError::IO(ioe) => write!(f, "IO error: {}", ioe),
-            ParsingError::Dimacs(de) => write!(f, "Dimacs error: {}", de),
-            ParsingError::Opb(oe) => write!(f, "OPB error: {}", oe),
-        }
     }
 }
 

@@ -9,6 +9,8 @@ use std::{
     ops::{self, Not, RangeBounds},
 };
 
+use thiserror::Error;
+
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
 /// Type representing a clause.
@@ -566,13 +568,16 @@ impl CardEQConstr {
 }
 
 /// Errors when converting pseudo-boolean to cardinality constraints
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum PBToCardError {
     /// the pseudo-boolean constraint is not a cardinality constraint
+    #[error("the PB constraint is not a cardinality constraint")]
     NotACard,
     /// the pseudo-boolean constraint is unsatisfiable
+    #[error("the PB constraint is unsatisfiable")]
     Unsat,
     /// the pseudo-boolean constraint is a tautology
+    #[error("the PB constraint is a tautology")]
     Tautology,
 }
 
