@@ -29,5 +29,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Build project
+        run: cargo build
       - name: Run cargo test suite
         run: cargo test --workspace --verbose
