@@ -51,7 +51,7 @@ pub struct DynamicPolyWatchdog {
     /// The encoding root and the tares
     pub(crate) structure: Option<Structure>,
     /// Sum of all input weight
-    weight_sum: usize,
+    pub(crate) weight_sum: usize,
     /// The number of variables
     n_vars: u32,
     /// The number of clauses
@@ -152,6 +152,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         if range.is_empty() {
             return;
         }
+        let n_vars_before = var_manager.n_used();
         if self.structure.is_none() && !self.in_lits.is_empty() {
             self.structure = Some(build_lit_structure(
                 self.in_lits.iter().map(|(&l, &w)| (l, w)),
@@ -161,7 +162,6 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         }
         match &self.structure {
             Some(structure) => {
-                let n_vars_before = var_manager.n_used();
                 let n_clauses_before = collector.n_clauses();
                 let output_weight = 1 << (structure.output_power());
                 let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
@@ -584,4 +584,31 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Er
     debug_assert!(ub == enforced_weight);
 
     Ok(assumps)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        encodings::{pb::BoundUpper, EncodeStats},
+        instances::{BasicVarManager, Cnf},
+        lit,
+        types::RsHashMap,
+    };
+
+    use super::DynamicPolyWatchdog;
+
+    #[test]
+    fn basic() {
+        let mut lits = RsHashMap::default();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 1);
+        lits.insert(lit![2], 2);
+        lits.insert(lit![3], 2);
+        let mut dpw = DynamicPolyWatchdog::from(lits);
+        let mut var_manager = BasicVarManager::default();
+        let mut cnf = Cnf::new();
+        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
+        assert_eq!(dpw.n_vars(), 9);
+        assert_eq!(cnf.len(), 13);
+    }
 }
