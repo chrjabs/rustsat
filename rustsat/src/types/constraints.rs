@@ -1136,7 +1136,7 @@ mod tests {
 
     #[test]
     fn clause_is_sat() {
-        let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
+        let cl = clause![lit![0], lit![1], lit![2], lit![1]];
         assert!(cl.is_sat(&assign!(0b000)))
     }
 

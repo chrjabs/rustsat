@@ -226,6 +226,58 @@ pub mod encodings {
         pub unsafe extern "C" fn tot_drop(tot: *mut DbTotalizer) {
             drop(unsafe { Box::from_raw(tot) })
         }
+
+        #[cfg(test)]
+        mod tests {
+            use inline_c::assert_c;
+
+            #[test]
+            fn new_drop() {
+                (assert_c! {
+                    #include <assert.h>
+                    #include "rustsat.h"
+
+                    int main() {
+                        DbTotalizer *tot = tot_new();
+                        assert(tot != NULL);
+                        tot_drop(tot);
+                        return 0;
+                    }
+                })
+                .success();
+            }
+
+            #[test]
+            fn basic() {
+                (assert_c! {
+                    #include <assert.h>
+                    #include "rustsat.h"
+
+                    void clause_counter(int lit, void *data) {
+                        if (!lit) {
+                            int *cnt = (int *)data;
+                            (*cnt)++;
+                        }
+                    }
+
+                    int main() {
+                        DbTotalizer *tot = tot_new();
+                        tot_add(tot, 1);
+                        tot_add(tot, 2);
+                        tot_add(tot, 3);
+                        tot_add(tot, 4);
+                        int n_used = 4;
+                        int n_clauses = 0;
+                        tot_encode_ub(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
+                        tot_drop(tot);
+                        assert(n_used == 12);
+                        assert(n_clauses == 14);
+                        return 0;
+                    }
+                })
+                .success();
+            }
+        }
     }
 
     mod dpw {
@@ -268,6 +320,7 @@ pub mod encodings {
                 Lit::from_ipasir(lit).expect("invalid IPASIR literal"),
                 weight,
             );
+            boxed.weight_sum += weight;
             Box::into_raw(boxed);
             MaybeError::Ok
         }
@@ -364,6 +417,58 @@ pub mod encodings {
         #[no_mangle]
         pub unsafe extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
             drop(unsafe { Box::from_raw(dpw) })
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use inline_c::assert_c;
+
+            #[test]
+            fn new_drop() {
+                (assert_c! {
+                    #include <assert.h>
+                    #include "rustsat.h"
+
+                    int main() {
+                        DynamicPolyWatchdog *dpw = dpw_new();
+                        assert(dpw != NULL);
+                        dpw_drop(dpw);
+                        return 0;
+                    }
+                })
+                .success();
+            }
+
+            #[test]
+            fn basic() {
+                (assert_c! {
+                    #include <assert.h>
+                    #include "rustsat.h"
+
+                    void clause_counter(int lit, void *data) {
+                        if (!lit) {
+                            int *cnt = (int *)data;
+                            (*cnt)++;
+                        }
+                    }
+
+                    int main() {
+                        DynamicPolyWatchdog *dpw = dpw_new();
+                        dpw_add(dpw, 1, 1);
+                        dpw_add(dpw, 2, 1);
+                        dpw_add(dpw, 3, 2);
+                        dpw_add(dpw, 4, 2);
+                        int n_used = 4;
+                        int n_clauses = 0;
+                        dpw_encode_ub(dpw, 0, 6, &n_used, &clause_counter, &n_clauses);
+                        dpw_drop(dpw);
+                        assert(n_used == 13);
+                        assert(n_clauses == 13);
+                        return 0;
+                    }
+                })
+                .success();
+            }
         }
     }
 }
