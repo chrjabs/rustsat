@@ -2,6 +2,8 @@
 //!
 //! CNF encodings for cardinality and pseudo-boolean constraints.
 
+use thiserror::Error;
+
 use crate::types::Lit;
 
 pub mod am1;
@@ -17,21 +19,14 @@ pub trait CollectClauses: Extend<crate::types::Clause> {
 }
 
 /// Errors from encodings
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum Error {
     /// Encode was not called before using the encoding
+    #[error("not encoded to enforce bound")]
     NotEncoded,
     /// The requested encoding is unsatisfiable
+    #[error("encoding is unsat")]
     Unsat,
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::NotEncoded => write!(f, "not encoded to enforce bound"),
-            Error::Unsat => write!(f, "encoding is unsat"),
-        }
-    }
 }
 
 /// Trait for encodings that track statistics.

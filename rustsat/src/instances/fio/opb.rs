@@ -25,8 +25,8 @@ use nom::{
     sequence::{pair, tuple},
     IResult,
 };
+use thiserror::Error;
 use std::{
-    fmt,
     io::{self, BufRead, BufReader, Read, Write},
     num::TryFromIntError,
 };
@@ -39,24 +39,17 @@ use crate::instances::{Objective, OptInstance};
 use crate::types::WLitIter;
 
 /// Errors occuring within the OPB parsing module
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {
     /// The requested objective does not exist
+    #[error("no matching objective found in file")]
     ObjectiveNotFound,
     /// Encountered an unexpected line in the OPB file
+    #[error("invalid OPB line: {0}")]
     InvalidLine(String),
     /// Error while reading input data
+    #[error("IO error")]
     IOError,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::ObjectiveNotFound => write!(f, "No matching objective found in file"),
-            Error::InvalidLine(line) => write!(f, "Invalid OPB line: {}", line),
-            Error::IOError => write!(f, "Encountered error reading file"),
-        }
-    }
 }
 
 /// Options for reading and writing OPB files

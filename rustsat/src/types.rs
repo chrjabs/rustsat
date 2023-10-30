@@ -7,6 +7,7 @@ use std::{fmt, ops};
 
 pub mod constraints;
 pub use constraints::Clause;
+use thiserror::Error;
 
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
@@ -660,12 +661,14 @@ impl From<Vec<TernaryVal>> for Assignment {
 }
 
 /// Errors related to types
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Error, Debug)]
 pub enum TypeError {
     /// The requested index is too high.
     /// Contains the requested and the maximum index.
+    #[error("index {0} is too high (maximum {1})")]
     IdxTooHigh(u32, u32),
     /// IPASIR index is zero
+    #[error("zero is an invalid IPASIR literal")]
     IpasirZero,
 }
 
