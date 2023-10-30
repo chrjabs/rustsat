@@ -26,10 +26,10 @@ sc2022-bulky = []
 
 [dependencies]
 cpu-time = "1.0.0"
-rustsat = { version = "0.3", path = "../rustsat", default-features = false }
+rustsat = { version = "0.3.0", path = "../rustsat", default-features = false }
 
 [build-dependencies]
-cc = { version = "1", features = ["parallel"] }
-git2 = "0"
-glob = "0"
-chrono = "0"
+cc = { version = "1.0.83", features = ["parallel"] }
+git2 = "0.18.1"
+glob = "0.3.1"
+chrono = "0.4.31"
