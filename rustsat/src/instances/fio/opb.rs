@@ -25,11 +25,11 @@ use nom::{
     sequence::{pair, tuple},
     IResult,
 };
-use thiserror::Error;
 use std::{
     io::{self, BufRead, BufReader, Read, Write},
     num::TryFromIntError,
 };
+use thiserror::Error;
 
 #[cfg(feature = "multiopt")]
 use crate::instances::MultiOptInstance;
