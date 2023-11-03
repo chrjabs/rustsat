@@ -16,7 +16,7 @@ use crate::types::Lit;
 
 /// An ID of a [`NodeLike`] in a database. The usize is typically the index in a
 /// vector of nodes.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[repr(transparent)]
 pub struct NodeId(pub usize);
 

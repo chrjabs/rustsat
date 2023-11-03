@@ -327,6 +327,20 @@ impl Node {
         }
     }
 
+    /// Checks if a given output value is positively encoded
+    pub fn encoded_pos(&self, val: usize) -> bool {
+        match self {
+            Node::Leaf(..) => {
+                if val != 1 {
+                    return false;
+                }
+                true
+            }
+            Node::Unit(node) => node.encoded_pos(val),
+            Node::General(node) => node.encoded_pos(val),
+        }
+    }
+
     /// Returns the internal node and panics if the node is not a unit
     pub(super) fn unit(&self) -> &UnitNode {
         match self {
@@ -410,8 +424,15 @@ impl UnitNode {
     }
 
     /// Panic-safe version of literal indexing
+    #[inline]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
         self.lits[val - 1].lit()
+    }
+
+    /// Checks if a given value is positively encoded
+    #[inline]
+    pub fn encoded_pos(&self, val: usize) -> bool {
+        self.lits[val - 1].encoded_pos()
     }
 }
 
@@ -461,6 +482,15 @@ impl GeneralNode {
     pub fn lit(&self, val: usize) -> Option<&Lit> {
         self.lits.get(&val).and_then(|dat| dat.lit())
     }
+
+    /// Checks if a given value is positively encoded
+    #[inline]
+    pub fn encoded_pos(&self, val: usize) -> bool {
+        self.lits
+            .get(&val)
+            .map(|dat| dat.encoded_pos())
+            .unwrap_or(false)
+    }
 }
 
 /// Data associated with an output literal in a [`Node`]
@@ -484,10 +514,19 @@ impl LitData {
         }
     }
 
+    #[inline]
     fn lit(&self) -> Option<&Lit> {
         match self {
             LitData::None => None,
             LitData::Lit { lit, .. } => Some(lit),
+        }
+    }
+
+    #[inline]
+    fn encoded_pos(&self) -> bool {
+        match self {
+            LitData::None => false,
+            LitData::Lit { enc_pos, .. } => *enc_pos,
         }
     }
 }
