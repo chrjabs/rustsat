@@ -8,6 +8,7 @@
 //! share substructures, but close enough.)
 
 use std::{
+    cmp,
     num::{NonZeroU8, NonZeroUsize},
     ops::{Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
 };
@@ -155,8 +156,8 @@ pub struct NodeCon {
     /// The multiplier/weight of the connection. The parent will include `(val -
     /// offset) / divisor * multiplier` in its sum.
     pub(crate) multiplier: NonZeroUsize,
-    /// Transmit a single literal
-    pub(crate) single_lit: bool,
+    /// Transmit a limited number of literals
+    pub(crate) len_limit: Option<NonZeroUsize>,
 }
 
 impl NodeCon {
@@ -167,7 +168,7 @@ impl NodeCon {
             offset: 0,
             divisor: NonZeroU8::new(1).unwrap(),
             multiplier: NonZeroUsize::new(1).unwrap(),
-            single_lit: false,
+            len_limit: None,
         }
     }
 
@@ -178,30 +179,42 @@ impl NodeCon {
             offset: 0,
             divisor: NonZeroU8::new(1).unwrap(),
             multiplier: weight.try_into().unwrap(),
-            single_lit: false,
+            len_limit: None,
         }
     }
 
-    #[cfg(feature = "internals")]
+    #[cfg(any(test, feature = "internals"))]
     pub fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
         NodeCon {
             id,
             offset,
             divisor: NonZeroU8::new(1).unwrap(),
             multiplier: weight.try_into().unwrap(),
-            single_lit: false,
+            len_limit: None,
         }
     }
 
     /// Creates a connection transmitting a single output literal
-    #[cfg(feature = "internals")]
+    #[cfg(any(test, feature = "internals"))]
     pub fn single(id: NodeId, output: usize, weight: usize) -> NodeCon {
         NodeCon {
             id,
             offset: output - 1,
             divisor: NonZeroU8::new(1).unwrap(),
             multiplier: weight.try_into().unwrap(),
-            single_lit: true,
+            len_limit: Some(1.try_into().unwrap()),
+        }
+    }
+
+    /// Creates a connection transmitting a limited number of literals
+    #[cfg(any(test, feature = "internals"))]
+    pub fn limited(id: NodeId, offset: usize, n_lits: usize, weight: usize) -> NodeCon {
+        NodeCon {
+            id,
+            offset,
+            divisor: NonZeroU8::new(1).unwrap(),
+            multiplier: weight.try_into().unwrap(),
+            len_limit: Some(n_lits.try_into().unwrap()),
         }
     }
 
@@ -233,28 +246,32 @@ impl NodeCon {
     /// Maps an input value of the connection to its output value
     #[inline]
     pub fn map(&self, val: usize) -> usize {
-        if self.single_lit {
-            return self.multiplier();
+        if let Some(limit) = self.len_limit {
+            cmp::min((val - self.offset()) / self.divisor(), limit.into()) * self.multiplier()
+        } else {
+            (val - self.offset()) / self.divisor() * self.multiplier()
         }
-        (val - self.offset()) / self.divisor() * self.multiplier()
     }
 
     /// Maps an output value of the connection to its input value, rounding down
     #[inline]
     pub fn rev_map(&self, val: usize) -> usize {
-        if self.single_lit {
-            return self.offset() + 1;
+        if let Some(limit) = self.len_limit {
+            match cmp::min(val / self.multiplier(), limit.into()) * self.divisor() {
+                0 => 0,
+                x => x + self.offset(),
+            }
+        } else {
+            val / self.multiplier() * self.divisor() + self.offset()
         }
-        val / self.multiplier() * self.divisor() + self.offset()
     }
 
     #[inline]
     pub fn rev_map_round_up(&self, mut val: usize) -> usize {
-        if self.single_lit {
-            if val < self.multiplier() {
-                return self.offset() + 1;
+        if let Some(limit) = self.len_limit {
+            if val % self.multiplier() > 0 && val / self.multiplier() >= limit.into() {
+                return Into::<usize>::into(limit) * self.divisor() + self.offset() + 1;
             }
-            return self.offset() + 2;
         }
         if val % self.multiplier() > 0 {
             val += self.multiplier();
@@ -265,10 +282,11 @@ impl NodeCon {
     /// Checks if a value is a possible output value of this connection
     #[inline]
     pub fn is_possible(&self, val: usize) -> bool {
-        if self.single_lit {
-            return val == self.multiplier();
+        if let Some(limit) = self.len_limit {
+            val % self.multiplier() == 0 && val / self.multiplier() <= limit.into()
+        } else {
+            val % self.multiplier() == 0
         }
-        val % self.multiplier() == 0
     }
 }
 
@@ -299,10 +317,12 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
     /// Gets the number of literals that a [`NodeCon`] transmits.
     fn con_len(&self, con: NodeCon) -> usize {
-        if con.single_lit {
-            return 1;
+        let len = (self[con.id].len() - con.offset()) / con.divisor();
+        if let Some(limit) = con.len_limit {
+            cmp::min(len, limit.into())
+        } else {
+            len
         }
-        (self[con.id].len() - con.offset()) / con.divisor()
     }
 
     /// The drain iterator for the database
@@ -430,5 +450,132 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let rcon = self.merge(&cons[split..]);
 
         NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NodeCon, NodeId};
+
+    #[test]
+    fn node_con_map_full() {
+        let id = NodeId(0);
+        let nc = NodeCon::full(id);
+        for val in 1..=10 {
+            debug_assert_eq!(nc.map(val), val);
+            debug_assert_eq!(nc.rev_map(val), val);
+            debug_assert_eq!(nc.rev_map_round_up(val), val);
+        }
+    }
+
+    #[test]
+    fn node_con_map_mult() {
+        let id = NodeId(0);
+        let weight = 3;
+        let nc = NodeCon::weighted(id, weight);
+        for val in 1..=10 {
+            debug_assert_eq!(nc.map(val), weight * val);
+            debug_assert_eq!(nc.rev_map(val), val / weight);
+            debug_assert_eq!(
+                nc.rev_map_round_up(val),
+                if val % weight == 0 {
+                    val / weight
+                } else {
+                    val / weight + 1
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn node_con_map_div() {
+        let id = NodeId(0);
+        let div = 2;
+        let nc = NodeCon {
+            id,
+            offset: 0,
+            divisor: div.try_into().unwrap(),
+            multiplier: 1.try_into().unwrap(),
+            len_limit: None,
+        };
+        let div: usize = div.into();
+        for val in 1..=10 {
+            debug_assert_eq!(nc.map(val), val / div);
+            debug_assert_eq!(nc.rev_map(val), val * div);
+            debug_assert_eq!(nc.rev_map_round_up(val), val * div);
+        }
+    }
+
+    #[test]
+    fn node_con_map_offset_weighted() {
+        let id = NodeId(0);
+        let offset = 3;
+        let weight = 5;
+        let nc = NodeCon::offset_weighted(id, offset, weight);
+        for val in offset..=10 {
+            debug_assert_eq!(nc.map(val), (val - offset) * weight);
+            debug_assert_eq!(nc.rev_map(val), val / weight + offset);
+            debug_assert_eq!(
+                nc.rev_map_round_up(val),
+                if val % weight == 0 {
+                    val / weight + offset
+                } else {
+                    val / weight + offset + 1
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn node_con_map_single() {
+        let id = NodeId(0);
+        let output = 5;
+        let weight = 7;
+        let nc = NodeCon::single(id, output, weight);
+        for val in output - 1..=20 {
+            debug_assert_eq!(nc.map(val), if val >= output { weight } else { 0 });
+            debug_assert_eq!(nc.rev_map(val), if val >= weight { output } else { 0 });
+            debug_assert_eq!(
+                nc.rev_map_round_up(val),
+                if val % weight == 0 {
+                    output
+                } else {
+                    if val >= weight {
+                        output + 1
+                    } else {
+                        output
+                    }
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn node_con_map_limited() {
+        let id = NodeId(0);
+        let offset = 2;
+        let weight = 3;
+        let limit = 5;
+        let nc = NodeCon::limited(id, offset, limit, weight);
+        for val in offset..=20 {
+            debug_assert_eq!(nc.map(val), std::cmp::min(val - offset, limit) * weight);
+            debug_assert_eq!(
+                nc.rev_map(val),
+                if val >= weight {
+                    std::cmp::min(val / weight, limit) + offset
+                } else {
+                    0
+                }
+            );
+            println!("{}", val);
+            debug_assert_eq!(
+                nc.rev_map_round_up(val),
+                if val % weight == 0 {
+                    std::cmp::min(val / weight, limit) + offset
+                } else {
+                    std::cmp::min(val / weight, limit) + offset + 1
+                }
+            );
+        }
     }
 }
