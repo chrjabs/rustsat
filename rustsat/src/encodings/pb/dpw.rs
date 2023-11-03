@@ -686,7 +686,7 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
         dpw.encode_ub(0..=23, &mut cnf, &mut var_manager);
-        for ub in 8..23 {
+        for ub in 8..=23 {
             let coarse_ub = dpw.coarse_ub(ub);
             debug_assert!(coarse_ub <= ub);
             let assumps = dpw.enforce_ub(coarse_ub).unwrap();
