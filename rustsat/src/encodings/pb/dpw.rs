@@ -517,7 +517,7 @@ fn build_structure<CI: Iterator<Item = NodeCon>>(
                 offset: top_bucket.offset,
                 divisor: NonZeroU8::new(2).unwrap(),
                 multiplier: NonZeroUsize::new(1).unwrap(),
-                single_lit: false,
+                len_limit: None,
             });
             continue;
         }
@@ -529,7 +529,7 @@ fn build_structure<CI: Iterator<Item = NodeCon>>(
             offset: 0,
             divisor: NonZeroU8::new(2).unwrap(),
             multiplier: NonZeroUsize::new(1).unwrap(),
-            single_lit: false,
+            len_limit: None,
         });
     }
 
