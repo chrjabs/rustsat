@@ -1,36 +1,8 @@
 version: 2
 updates:
-  # Maintain dependencies for Cargo - rustsat
+  # Maintain dependencies for Cargo - entire workspace
   - package-ecosystem: cargo
-    directory: "/rustsat"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-
-  # Maintain dependencies for Cargo - cadical
-  - package-ecosystem: cargo
-    directory: "/cadical"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-
-  # Maintain dependencies for Cargo - kissat
-  - package-ecosystem: cargo
-    directory: "/kissat"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-
-  # Maintain dependencies for Cargo - glucose
-  - package-ecosystem: cargo
-    directory: "/glucose"
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 10
-
-  # Maintain dependencies for Cargo - minisat
-  - package-ecosystem: cargo
-    directory: "/minisat"
+    directory: "/"
     schedule:
       interval: daily
     open-pull-requests-limit: 10
