@@ -4,6 +4,25 @@
 This library aims to provide implementations of elements commonly used in the development on software in the area of satisfiability solving.
 The focus of the library is to provide as much ease of use without giving up on performance.
 
+## Crates
+
+The RustSAT project is split up into multiple crates that are all contained in [this repository](https://github.com/chrjabs/rustsat/).
+These are the crates the project consists of:
+
+| Crate | Description |
+| --- | --- |
+| `rustsat` | The main library, containing basic types, traits, encodings, parsers, and more. |
+| `rustsat-tools` | A collection of small helpful tools based on RustSAT that can be installed as binaries. For a list of available tools, see [this directory](https://github.com/chrjabs/rustsat/tree/main/tools/src/bin) with short descriptions of the tools in the headers of the files. |
+| `rustsat-<satsolver>` | Interfaces to SAT solvers that can be used alongside `rustsat`. Currently interfaces are available for `cadical`, `kissat`, `glucose`, and `minisat`. |
+
+## Installation
+
+To use the RustSAT library as a dependency in your project, simply run `cargo add rustsat`.
+To use an SAT solver interface in your project, run `cargo add rustsat-<satsolver>`.
+Typically, the version of the SAT solver can be selected via crate features, refer to the documentation of the respective SAT solver crate for details.
+
+To install the binary tools in `rustsat-tools` run `cargo install rustsat-tools`.
+
 ## Features
 
 | Feature name | Description |
