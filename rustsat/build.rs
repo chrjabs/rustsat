@@ -37,12 +37,12 @@ fn main() {
     let include_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ld_dir = target_dir().unwrap();
     println!(
-        "cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat -D_DEBUG -D_CRT_SECURE_NO_WARNINGS",
+        "cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat -D_DEBUG -D_CRT_SECURE_NO_WARNINGS -llzma -lbz2",
         I = include_dir,
         L = ld_dir.to_string_lossy()
     );
     println!(
-        "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat.a",
+        "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat.a -llzma -lbz2",
         L = ld_dir.to_string_lossy()
     );
 }
