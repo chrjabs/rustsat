@@ -92,18 +92,12 @@ where
 {
     let reader = BufReader::new(reader);
     let (constrs, objs) = parse_dimacs(reader)?;
-    if objs.is_empty() {
-        return Err(Error::InvalidInstanceType);
-    }
     Ok(MultiOptInstance::compose(constrs, objs))
 }
 
 /// Errors occuring within the DIMACS parsing module
 #[derive(Error, Debug)]
 pub enum Error {
-    /// Expected different instance type
-    #[error("expected different instance type")]
-    InvalidInstanceType,
     /// Invalid literal in the file
     #[error("invalid literal: {0}")]
     Lit(String),
@@ -228,6 +222,14 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> Result<(R, Preamble), Error> {
         match reader.read_line(&mut buf) {
             Ok(len) => {
                 if len == 0 {
+                    #[cfg(feature = "optimization")]
+                    return Ok((
+                        reader,
+                        Preamble::NoPLine {
+                            first_line: String::from(""),
+                        },
+                    ));
+                    #[cfg(not(feature = "optimization"))]
                     return Err(Error::PreambleNoEnd);
                 }
             }
