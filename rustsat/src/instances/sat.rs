@@ -2,6 +2,8 @@
 
 use std::{collections::TryReserveError, io, ops::Index, path::Path};
 
+use pyo3::prelude::*;
+
 use crate::{
     clause,
     encodings::{atomics, card, pb, CollectClauses},
@@ -16,6 +18,7 @@ use super::{fio, BasicVarManager, ManageVars, ReindexVars};
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
@@ -50,39 +53,6 @@ impl Cnf {
     #[inline]
     pub fn capacity(&self) -> usize {
         self.clauses.capacity()
-    }
-
-    /// Adds a clause to the CNF
-    #[inline]
-    pub fn add_clause(&mut self, clause: Clause) {
-        self.clauses.push(clause);
-    }
-
-    /// Adds a unit clause to the CNF
-    pub fn add_unit(&mut self, unit: Lit) {
-        self.add_clause(clause![unit])
-    }
-
-    /// Adds a binary clause to the CNF
-    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(clause![lit1, lit2])
-    }
-
-    /// Adds a ternary clause to the CNF
-    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(clause![lit1, lit2, lit3])
-    }
-
-    /// Checks if the CNF is empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.clauses.is_empty()
-    }
-
-    /// Returns the number of clauses in the instance
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.clauses.len()
     }
 
     /// See [`atomics::lit_impl_lit`]
@@ -214,6 +184,96 @@ impl Index<usize> for Cnf {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.clauses[index]
+    }
+}
+
+#[pymethods]
+impl Cnf {
+    #[new]
+    fn pynew(clauses: Vec<Clause>) -> Self {
+        Self::from_iter(clauses)
+    }
+    
+    fn __repr__(&self) -> String {
+        format!("{:?}", self)
+    }
+    
+    /// Adds a clause to the CNF
+    #[inline]
+    pub fn add_clause(&mut self, clause: Clause) {
+        self.clauses.push(clause);
+    }
+
+    /// Adds a unit clause to the CNF
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the CNF
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the CNF
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
+    }
+
+    /// Checks if the CNF is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.clauses.is_empty()
+    }
+
+    /// Returns the number of clauses in the instance
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.clauses.len()
+    }
+
+    /// See [`atomics::lit_impl_lit`]
+    fn lit_impl_lit(&mut self, a: Lit, b: Lit) {
+        self.add_clause(atomics::lit_impl_lit(a, b))
+    }
+
+    /// See [`atomics::lit_impl_clause`]
+    fn lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+        self.add_clause(atomics::lit_impl_clause(a, &b))
+    }
+
+    /// Adds an implication of form a -> (b1 & b2 & ... & bm)
+    fn lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+        self.extend(atomics::lit_impl_cube(a, &b))
+    }
+
+    /// See [`atomics::cube_impl_lit`]
+    fn cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        self.add_clause(atomics::cube_impl_lit(&a, b))
+    }
+
+    /// Adds an implication of form (a1 | a2 | ... | an) -> b
+    fn clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+        self.extend(atomics::clause_impl_lit(&a, b))
+    }
+
+    /// See [`atomics::cube_impl_clause`]
+    fn cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.add_clause(atomics::cube_impl_clause(&a, &b))
+    }
+
+    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
+    fn clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.extend(atomics::clause_impl_clause(&a, &b))
+    }
+
+    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
+    fn clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.extend(atomics::clause_impl_cube(&a, &b))
+    }
+
+    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
+    fn cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+        self.extend(atomics::cube_impl_cube(&a, &b))
     }
 }
 

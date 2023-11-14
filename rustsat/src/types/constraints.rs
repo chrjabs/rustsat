@@ -9,6 +9,7 @@ use std::{
     ops::{self, Not, RangeBounds},
 };
 
+use pyo3::prelude::*;
 use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
@@ -16,6 +17,7 @@ use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
+#[pyclass]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
@@ -30,60 +32,6 @@ impl Clause {
     /// Gets the clause as a slice of literals
     pub fn lits(&self) -> &[Lit] {
         &self.lits
-    }
-
-    /// Gets the length of the clause
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.lits.len()
-    }
-
-    /// Checks if the clause is empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.lits.is_empty()
-    }
-
-    /// Checks if the clause is a unit clause
-    #[inline]
-    pub fn is_unit(&self) -> bool {
-        self.lits.len() == 1
-    }
-
-    /// Checks if the clause is binary
-    pub fn is_binary(&self) -> bool {
-        self.lits.len() == 2
-    }
-
-    /// Adds a literal to the clause
-    pub fn add(&mut self, lit: Lit) {
-        self.lits.push(lit)
-    }
-
-    /// Removes the first occurrence of a literal from the clause
-    /// Returns true if an occurrence was found
-    pub fn remove(&mut self, lit: &Lit) -> bool {
-        for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
-                self.lits.swap_remove(i);
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Removes all occurrences of a literal from the clause
-    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
-        let mut idxs = Vec::new();
-        for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
-                idxs.push(i);
-            }
-        }
-        for i in idxs.iter().rev() {
-            self.lits.remove(*i);
-        }
-        !idxs.is_empty()
     }
 
     /// Evaluates a clause under a given assignment
@@ -285,6 +233,85 @@ impl fmt::Debug for Clause {
             write!(f, "{}", lit)?
         }
         write!(f, ")")
+    }
+}
+
+#[pymethods]
+impl Clause {
+    #[new]
+    fn pynew(lits: Vec<Lit>) -> Self {
+        Self::from_iter(lits)
+    }
+    
+    fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+    
+    fn __repr__(&self) -> String {
+        format!("{}", self)
+    }
+    
+    fn extend(&mut self, lits: Vec<Lit>) {
+        <Self as Extend<Lit>>::extend(self, lits)
+    }
+
+    /// Gets the length of the clause
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.lits.len()
+    }
+
+    /// Checks if the clause is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.lits.is_empty()
+    }
+
+    /// Checks if the clause is a unit clause
+    #[inline]
+    pub fn is_unit(&self) -> bool {
+        self.lits.len() == 1
+    }
+
+    /// Checks if the clause is binary
+    pub fn is_binary(&self) -> bool {
+        self.lits.len() == 2
+    }
+
+    /// Adds a literal to the clause
+    pub fn add(&mut self, lit: Lit) {
+        self.lits.push(lit)
+    }
+
+    /// Removes the first occurrence of a literal from the clause
+    /// Returns true if an occurrence was found
+    pub fn remove(&mut self, lit: &Lit) -> bool {
+        for (i, l) in self.lits.iter().enumerate() {
+            if l == lit {
+                self.lits.swap_remove(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Removes all occurrences of a literal from the clause
+    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
+        let mut idxs = Vec::new();
+        for (i, l) in self.lits.iter().enumerate() {
+            if l == lit {
+                idxs.push(i);
+            }
+        }
+        for i in idxs.iter().rev() {
+            self.lits.remove(*i);
+        }
+        !idxs.is_empty()
+    }
+    
+    /// Gets a list of the literals in the clause
+    fn lit_list(&self) -> Vec<Lit> {
+        self.lits.clone()
     }
 }
 

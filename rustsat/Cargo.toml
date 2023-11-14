@@ -23,6 +23,7 @@ cpu-time = "1.0.0"
 rand = { version = "0.8.5", optional = true }
 visibility = { version = "0.1.0" }
 thiserror = { version = "1.0.50" }
+pyo3 = { version = "0.20.0", features = ["extension-module"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
@@ -51,7 +52,7 @@ all = [
 ]
 
 [lib]
-crate-type = ["lib", "staticlib"]
+crate-type = ["lib", "staticlib", "cdylib"]
 
 [[example]]
 name = "profiling"
