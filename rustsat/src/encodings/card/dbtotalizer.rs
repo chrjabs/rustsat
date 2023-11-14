@@ -9,6 +9,8 @@ use std::{
     ops::{Bound, Index, IndexMut, Range, RangeBounds},
 };
 
+use pyo3::prelude::*;
+
 use crate::{
     encodings::{
         atomics,
@@ -30,6 +32,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+#[pyclass]
 #[derive(Default)]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
@@ -1093,6 +1096,19 @@ pub mod referenced {
                     .define_pos_tot(self.root, idx, collector, var_manager);
             }
         }
+    }
+}
+
+#[pymethods]
+impl DbTotalizer {
+    #[new]
+    fn new(lits: Vec<Lit>) -> Self {
+        Self::from(lits)
+    }
+    
+    /// Adds additional input literals to the totalizer
+    fn extend(&mut self, lits: Vec<Lit>) {
+        <Self as Extend<Lit>>::extend(self, lits)
     }
 }
 

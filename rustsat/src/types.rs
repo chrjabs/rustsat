@@ -5,9 +5,11 @@
 use core::ffi::c_int;
 use std::{fmt, ops};
 
+use pyo3::{exceptions::PyValueError, prelude::*};
+use thiserror::Error;
+
 pub mod constraints;
 pub use constraints::Clause;
-use thiserror::Error;
 
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
@@ -207,6 +209,7 @@ macro_rules! var {
 }
 
 /// Type representing literals, possibly negated boolean variables.
+#[pyclass]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct Lit {
@@ -439,6 +442,39 @@ impl fmt::Display for Lit {
         match self.is_neg() {
             true => write!(f, "~x{}", self.vidx()),
             false => write!(f, "x{}", self.vidx()),
+        }
+    }
+}
+
+#[pymethods]
+impl Lit {
+    #[new]
+    fn pynew(val: c_int) -> PyResult<Self> {
+        Self::from_ipasir(val).map_err(|_| PyValueError::new_err("invalid ipasir lit"))
+    }
+    
+    fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+    
+    fn __repr__(&self) -> String {
+        format!("{}", self)
+    }
+    
+    fn __neg__(&self) -> Lit {
+        !*self
+    }
+    
+    /// Gets the IPASIR representation of the literal
+    fn ipasir(&self) -> c_int {
+        let negated = self.is_neg();
+        let idx: c_int = (self.vidx() + 1)
+            .try_into()
+            .expect("variable index too high to fit in c_int");
+        if negated {
+            -idx
+        } else {
+            idx
         }
     }
 }
