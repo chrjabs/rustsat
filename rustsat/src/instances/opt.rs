@@ -58,7 +58,7 @@ impl Objective {
         Default::default()
     }
 
-    /// Checks if the objective is empty
+    /// Checks if the objective is empty, i.e., has constant value 0
     pub fn is_empty(&self) -> bool {
         match &self.0 {
             IntObj::Weighted {
@@ -72,6 +72,22 @@ impl Objective {
                 soft_clauses,
                 ..
             } => soft_lits.is_empty() && soft_clauses.is_empty() && offset == &0,
+        }
+    }
+
+    /// Checks if the objective is a constant
+    pub fn constant(&self) -> bool {
+        match &self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => soft_lits.is_empty() && soft_clauses.is_empty(),
+            IntObj::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => soft_lits.is_empty() && soft_clauses.is_empty(),
         }
     }
 
