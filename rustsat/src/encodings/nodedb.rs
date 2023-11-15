@@ -269,12 +269,12 @@ impl NodeCon {
     #[inline]
     pub fn rev_map_round_up(&self, mut val: usize) -> usize {
         if let Some(limit) = self.len_limit {
-            if val % self.multiplier() > 0 && val / self.multiplier() >= limit.into() {
-                return Into::<usize>::into(limit) * self.divisor() + self.offset() + 1;
+            if (val - 1) / self.multiplier() >= limit.into() {
+                return (Into::<usize>::into(limit) + 1) * self.divisor() + self.offset();
             }
         }
         if val % self.multiplier() > 0 {
-            val += self.multiplier();
+            val += self.multiplier()
         }
         self.rev_map(val)
     }
@@ -533,19 +533,12 @@ mod tests {
         let weight = 7;
         let nc = NodeCon::single(id, output, weight);
         for val in output - 1..=20 {
+            println!("{}", val);
             debug_assert_eq!(nc.map(val), if val >= output { weight } else { 0 });
             debug_assert_eq!(nc.rev_map(val), if val >= weight { output } else { 0 });
             debug_assert_eq!(
                 nc.rev_map_round_up(val),
-                if val % weight == 0 {
-                    output
-                } else {
-                    if val >= weight {
-                        output + 1
-                    } else {
-                        output
-                    }
-                }
+                if val > weight { output + 1 } else { output }
             );
         }
     }
@@ -558,6 +551,7 @@ mod tests {
         let limit = 5;
         let nc = NodeCon::limited(id, offset, limit, weight);
         for val in offset..=20 {
+            println!("{}", val);
             debug_assert_eq!(nc.map(val), std::cmp::min(val - offset, limit) * weight);
             debug_assert_eq!(
                 nc.rev_map(val),
@@ -567,13 +561,14 @@ mod tests {
                     0
                 }
             );
-            println!("{}", val);
             debug_assert_eq!(
                 nc.rev_map_round_up(val),
-                if val % weight == 0 {
-                    std::cmp::min(val / weight, limit) + offset
+                if val > weight * limit {
+                    limit + offset + 1
+                } else if val % weight == 0 {
+                    val / weight + offset
                 } else {
-                    std::cmp::min(val / weight, limit) + offset + 1
+                    val / weight + offset + 1                    
                 }
             );
         }
