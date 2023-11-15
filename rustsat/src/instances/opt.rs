@@ -27,7 +27,10 @@ enum IntObj {
     },
 }
 
-use super::{fio, BasicVarManager, Cnf, ManageVars, ReindexVars, SatInstance};
+use super::{
+    fio::{self, dimacs::WcnfLine},
+    BasicVarManager, Cnf, ManageVars, ReindexVars, SatInstance,
+};
 
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
@@ -1113,5 +1116,21 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
             Err(why) => Err(fio::ParsingError::IO(why)),
             Ok(reader) => OptInstance::from_opb_with_idx(reader, obj_idx, opts),
         }
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<WcnfLine> for OptInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = WcnfLine>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        for line in iter {
+            match line {
+                WcnfLine::Comment(_) => (),
+                WcnfLine::Hard(cl) => inst.get_constraints().add_clause(cl),
+                WcnfLine::Soft(cl, w) => {
+                    inst.get_objective().add_soft_clause(w, cl);
+                }
+            }
+        }
+        inst
     }
 }
