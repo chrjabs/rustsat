@@ -2,12 +2,13 @@
 
 use std::{collections::TryReserveError, io, ops::Index, path::Path};
 
-use pyo3::prelude::*;
+use pyo3::{prelude::*, exceptions::PyIndexError};
 
 use crate::{
     clause,
     encodings::{atomics, card, pb, CollectClauses},
     lit,
+    pyapi::{SingleOrList, SliceOrInt},
     types::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, Lit,
@@ -53,6 +54,18 @@ impl Cnf {
     #[inline]
     pub fn capacity(&self) -> usize {
         self.clauses.capacity()
+    }
+
+    /// Checks if the CNF is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.clauses.is_empty()
+    }
+
+    /// Returns the number of clauses in the instance
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.clauses.len()
     }
 
     /// See [`atomics::lit_impl_lit`]
@@ -193,11 +206,40 @@ impl Cnf {
     fn pynew(clauses: Vec<Clause>) -> Self {
         Self::from_iter(clauses)
     }
-    
+
     fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
-    
+
+    fn __len__(&self) -> usize {
+        self.len()
+    }
+
+    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
+        match idx {
+            SliceOrInt::Slice(slice) => {
+                let indices = slice.indices(self.len() as i64)?;
+                Ok(SingleOrList::List(
+                    (indices.start as usize..indices.stop as usize)
+                        .step_by(indices.step as usize)
+                        .map(|idx| self[idx].clone())
+                        .collect(),
+                ))
+            }
+            SliceOrInt::Int(idx) => {
+                if idx.unsigned_abs() > self.len() || idx >= 0 && idx.unsigned_abs() >= self.len() {
+                    return Err(PyIndexError::new_err("out of bounds"));
+                }
+                let idx = if idx >= 0 {
+                    idx.unsigned_abs()
+                } else {
+                    self.len() - idx.unsigned_abs()
+                };
+                Ok(SingleOrList::Single(self[idx].clone()))
+            }
+        }
+    }
+
     /// Adds a clause to the CNF
     #[inline]
     pub fn add_clause(&mut self, clause: Clause) {
@@ -217,18 +259,6 @@ impl Cnf {
     /// Adds a ternary clause to the CNF
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
         self.add_clause(clause![lit1, lit2, lit3])
-    }
-
-    /// Checks if the CNF is empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.clauses.is_empty()
-    }
-
-    /// Returns the number of clauses in the instance
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.clauses.len()
     }
 
     /// See [`atomics::lit_impl_lit`]
