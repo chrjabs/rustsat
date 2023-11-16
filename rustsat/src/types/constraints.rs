@@ -9,10 +9,11 @@ use std::{
     ops::{self, Not, RangeBounds},
 };
 
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyIndexError, prelude::*};
 use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
+use crate::pyapi::{SingleOrList, SliceOrInt};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -32,6 +33,18 @@ impl Clause {
     /// Gets the clause as a slice of literals
     pub fn lits(&self) -> &[Lit] {
         &self.lits
+    }
+
+    /// Gets the length of the clause
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.lits.len()
+    }
+
+    /// Checks if the clause is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.lits.is_empty()
     }
 
     /// Evaluates a clause under a given assignment
@@ -242,29 +255,48 @@ impl Clause {
     fn pynew(lits: Vec<Lit>) -> Self {
         Self::from_iter(lits)
     }
-    
+
     fn __str__(&self) -> String {
         format!("{}", self)
     }
-    
+
     fn __repr__(&self) -> String {
         format!("{}", self)
     }
-    
+
+    fn __len__(&self) -> usize {
+        self.len()
+    }
+
+    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
+        match idx {
+            SliceOrInt::Slice(slice) => {
+                let indices = slice.indices(self.len() as i64)?;
+                Ok(SingleOrList::List(
+                    (indices.start as usize..indices.stop as usize)
+                        .step_by(indices.step as usize)
+                        .map(|idx| self[idx])
+                        .collect(),
+                ))
+            }
+            SliceOrInt::Int(idx) => {
+                if idx.unsigned_abs() > self.len()
+                    || idx >= 0 && idx.unsigned_abs() >= self.len()
+                {
+                    return Err(PyIndexError::new_err("out of bounds"));
+                }
+                let idx = if idx >= 0 {
+                    idx.unsigned_abs()
+                } else {
+                    self.len() - idx.unsigned_abs()
+                };
+                Ok(SingleOrList::Single(self[idx]))
+            }
+        }
+    }
+
     fn extend(&mut self, lits: Vec<Lit>) {
         <Self as Extend<Lit>>::extend(self, lits)
-    }
-
-    /// Gets the length of the clause
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.lits.len()
-    }
-
-    /// Checks if the clause is empty
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.lits.is_empty()
     }
 
     /// Checks if the clause is a unit clause
@@ -308,7 +340,7 @@ impl Clause {
         }
         !idxs.is_empty()
     }
-    
+
     /// Gets a list of the literals in the clause
     fn lit_list(&self) -> Vec<Lit> {
         self.lits.clone()
