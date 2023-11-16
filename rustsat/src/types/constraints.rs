@@ -9,16 +9,19 @@ use std::{
     ops::{self, Not, RangeBounds},
 };
 
-use pyo3::{exceptions::PyIndexError, prelude::*};
 use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
+
+#[cfg(feature = "pyapi")]
+use pyo3::{exceptions::PyIndexError, prelude::*};
+#[cfg(feature = "pyapi")]
 use crate::pyapi::{SingleOrList, SliceOrInt};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
-#[pyclass]
+#[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
@@ -249,56 +252,8 @@ impl fmt::Debug for Clause {
     }
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyapi", pymethods)]
 impl Clause {
-    #[new]
-    fn pynew(lits: Vec<Lit>) -> Self {
-        Self::from_iter(lits)
-    }
-
-    fn __str__(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn __len__(&self) -> usize {
-        self.len()
-    }
-
-    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
-        match idx {
-            SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.len() as i64)?;
-                Ok(SingleOrList::List(
-                    (indices.start as usize..indices.stop as usize)
-                        .step_by(indices.step as usize)
-                        .map(|idx| self[idx])
-                        .collect(),
-                ))
-            }
-            SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.len()
-                    || idx >= 0 && idx.unsigned_abs() >= self.len()
-                {
-                    return Err(PyIndexError::new_err("out of bounds"));
-                }
-                let idx = if idx >= 0 {
-                    idx.unsigned_abs()
-                } else {
-                    self.len() - idx.unsigned_abs()
-                };
-                Ok(SingleOrList::Single(self[idx]))
-            }
-        }
-    }
-
-    fn extend(&mut self, lits: Vec<Lit>) {
-        <Self as Extend<Lit>>::extend(self, lits)
-    }
-
     /// Checks if the clause is a unit clause
     #[inline]
     pub fn is_unit(&self) -> bool {
@@ -341,9 +296,58 @@ impl Clause {
         !idxs.is_empty()
     }
 
-    /// Gets a list of the literals in the clause
-    fn lit_list(&self) -> Vec<Lit> {
-        self.lits.clone()
+    #[cfg(feature = "pyapi")]
+    #[new]
+    fn pynew(lits: Vec<Lit>) -> Self {
+        Self::from_iter(lits)
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __str__(&self) -> String {
+        format!("{}", self)
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __repr__(&self) -> String {
+        format!("{}", self)
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __len__(&self) -> usize {
+        self.len()
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
+        match idx {
+            SliceOrInt::Slice(slice) => {
+                let indices = slice.indices(self.len() as i64)?;
+                Ok(SingleOrList::List(
+                    (indices.start as usize..indices.stop as usize)
+                        .step_by(indices.step as usize)
+                        .map(|idx| self[idx])
+                        .collect(),
+                ))
+            }
+            SliceOrInt::Int(idx) => {
+                if idx.unsigned_abs() > self.len()
+                    || idx >= 0 && idx.unsigned_abs() >= self.len()
+                {
+                    return Err(PyIndexError::new_err("out of bounds"));
+                }
+                let idx = if idx >= 0 {
+                    idx.unsigned_abs()
+                } else {
+                    self.len() - idx.unsigned_abs()
+                };
+                Ok(SingleOrList::Single(self[idx]))
+            }
+        }
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn extend(&mut self, lits: Vec<Lit>) {
+        <Self as Extend<Lit>>::extend(self, lits)
     }
 }
 

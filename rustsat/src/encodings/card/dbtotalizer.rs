@@ -9,8 +9,6 @@ use std::{
     ops::{Bound, Index, IndexMut, Range, RangeBounds},
 };
 
-use pyo3::prelude::*;
-
 use crate::{
     encodings::{
         atomics,
@@ -23,6 +21,9 @@ use crate::{
 
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 
+#[cfg(feature = "pyapi")]
+use pyo3::prelude::*;
+
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
 /// The implementation is based on a node database.
@@ -32,7 +33,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
-#[pyclass]
+#[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Default)]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
@@ -1099,13 +1100,14 @@ pub mod referenced {
     }
 }
 
+#[cfg(feature = "pyapi")]
 #[pymethods]
 impl DbTotalizer {
     #[new]
     fn new(lits: Vec<Lit>) -> Self {
         Self::from(lits)
     }
-    
+
     /// Adds additional input literals to the totalizer
     fn extend(&mut self, lits: Vec<Lit>) {
         <Self as Extend<Lit>>::extend(self, lits)

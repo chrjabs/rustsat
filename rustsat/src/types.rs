@@ -5,8 +5,10 @@
 use core::ffi::c_int;
 use std::{fmt, ops};
 
-use pyo3::{exceptions::PyValueError, prelude::*};
 use thiserror::Error;
+
+#[cfg(feature = "pyapi")]
+use pyo3::{exceptions::PyValueError, prelude::*};
 
 pub mod constraints;
 pub use constraints::Clause;
@@ -209,7 +211,7 @@ macro_rules! var {
 }
 
 /// Type representing literals, possibly negated boolean variables.
-#[pyclass]
+#[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct Lit {
@@ -446,6 +448,7 @@ impl fmt::Display for Lit {
     }
 }
 
+#[cfg(feature = "pyapi")]
 #[pymethods]
 impl Lit {
     #[new]

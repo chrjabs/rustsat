@@ -2,24 +2,26 @@
 
 use std::{collections::TryReserveError, io, ops::Index, path::Path};
 
-use pyo3::{prelude::*, exceptions::PyIndexError};
-
 use crate::{
     clause,
     encodings::{atomics, card, pb, CollectClauses},
     lit,
-    pyapi::{SingleOrList, SliceOrInt},
     types::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, Lit,
     },
 };
 
+#[cfg(feature = "pyapi")]
+use crate::pyapi::{SingleOrList, SliceOrInt};
+#[cfg(feature = "pyapi")]
+use pyo3::{exceptions::PyIndexError, prelude::*};
+
 use super::{fio, BasicVarManager, ManageVars, ReindexVars};
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
-#[pyclass]
+#[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
@@ -200,21 +202,46 @@ impl Index<usize> for Cnf {
     }
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyapi", pymethods)]
 impl Cnf {
+    /// Adds a clause to the CNF
+    #[inline]
+    pub fn add_clause(&mut self, clause: Clause) {
+        self.clauses.push(clause);
+    }
+
+    /// Adds a unit clause to the CNF
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the CNF
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the CNF
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
+    }
+
+    #[cfg(feature = "pyapi")]
     #[new]
     fn pynew(clauses: Vec<Clause>) -> Self {
         Self::from_iter(clauses)
     }
 
+    #[cfg(feature = "pyapi")]
     fn __repr__(&self) -> String {
         format!("{:?}", self)
     }
 
+    #[cfg(feature = "pyapi")]
     fn __len__(&self) -> usize {
         self.len()
     }
 
+    #[cfg(feature = "pyapi")]
     fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
         match idx {
             SliceOrInt::Slice(slice) => {
@@ -240,67 +267,55 @@ impl Cnf {
         }
     }
 
-    /// Adds a clause to the CNF
-    #[inline]
-    pub fn add_clause(&mut self, clause: Clause) {
-        self.clauses.push(clause);
-    }
-
-    /// Adds a unit clause to the CNF
-    pub fn add_unit(&mut self, unit: Lit) {
-        self.add_clause(clause![unit])
-    }
-
-    /// Adds a binary clause to the CNF
-    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(clause![lit1, lit2])
-    }
-
-    /// Adds a ternary clause to the CNF
-    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(clause![lit1, lit2, lit3])
-    }
-
+    #[cfg(feature = "pyapi")]
     /// See [`atomics::lit_impl_lit`]
     fn lit_impl_lit(&mut self, a: Lit, b: Lit) {
         self.add_clause(atomics::lit_impl_lit(a, b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// See [`atomics::lit_impl_clause`]
     fn lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
         self.add_clause(atomics::lit_impl_clause(a, &b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     fn lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
         self.extend(atomics::lit_impl_cube(a, &b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// See [`atomics::cube_impl_lit`]
     fn cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.add_clause(atomics::cube_impl_lit(&a, b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     fn clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.extend(atomics::clause_impl_lit(&a, b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// See [`atomics::cube_impl_clause`]
     fn cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.add_clause(atomics::cube_impl_clause(&a, &b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     fn clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.extend(atomics::clause_impl_clause(&a, &b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     fn clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.extend(atomics::clause_impl_cube(&a, &b))
     }
 
+    #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     fn cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.extend(atomics::cube_impl_cube(&a, &b))
