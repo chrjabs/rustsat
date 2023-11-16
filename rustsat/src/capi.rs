@@ -33,7 +33,7 @@ pub mod encodings {
         fn from(value: encodings::Error) -> Self {
             match value {
                 encodings::Error::NotEncoded => MaybeError::NotEncoded,
-                encodings::Error::Unsat => MaybeError::NotEncoded,
+                encodings::Error::Unsat => MaybeError::Unsat,
             }
         }
     }
