@@ -36,15 +36,22 @@ fn main() {
     // Setup inline-c
     let include_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ld_dir = target_dir().unwrap();
-    println!(
-        "cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat -D_DEBUG -D_CRT_SECURE_NO_WARNINGS -llzma -lbz2",
-        I = include_dir,
-        L = ld_dir.to_string_lossy()
-    );
-    println!(
-        "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat.a -llzma -lbz2",
-        L = ld_dir.to_string_lossy()
-    );
+    #[cfg(feature = "pyapi")]
+    let python_lib = pyo3_build_config::get().lib_name.as_ref().unwrap();
+
+    let cflags = format!("cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat -D_DEBUG -D_CRT_SECURE_NO_WARNINGS", I=include_dir, L=ld_dir.to_string_lossy());
+    #[cfg(feature = "compression")]
+    let cflags = format!("{} -llzma -lbz2", cflags);
+    #[cfg(feature = "pyapi")]
+    let cflags = format!("{} -l{}", cflags, python_lib);
+    println!("{}", cflags);
+
+    let ldflags = format!("cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat.a", L=ld_dir.to_string_lossy());
+    #[cfg(feature = "compression")]
+    let ldflags = format!("{} -llzma -lbz2", ldflags);
+    #[cfg(feature = "pyapi")]
+    let ldflags = format!("{} -l{}", ldflags, python_lib);
+    println!("{}", ldflags);
 }
 
 // https://github.com/rust-lang/cargo/issues/9661#issuecomment-1722358176
