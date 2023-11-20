@@ -14,9 +14,12 @@ use thiserror::Error;
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
 #[cfg(feature = "pyapi")]
-use pyo3::{exceptions::PyIndexError, prelude::*};
-#[cfg(feature = "pyapi")]
 use crate::pyapi::{SingleOrList, SliceOrInt};
+#[cfg(feature = "pyapi")]
+use pyo3::{
+    exceptions::{PyIndexError, PyRuntimeError},
+    prelude::*,
+};
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -25,6 +28,8 @@ use crate::pyapi::{SingleOrList, SliceOrInt};
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
+    #[cfg(feature = "pyapi")]
+    modified: bool,
 }
 
 impl Clause {
@@ -149,6 +154,8 @@ impl<const N: usize> From<[Lit; N]> for Clause {
     fn from(value: [Lit; N]) -> Self {
         Self {
             lits: Vec::from(value),
+            #[cfg(feature = "pyapi")]
+            modified: false,
         }
     }
 }
@@ -157,6 +164,8 @@ impl From<&[Lit]> for Clause {
     fn from(value: &[Lit]) -> Self {
         Self {
             lits: Vec::from(value),
+            #[cfg(feature = "pyapi")]
+            modified: false,
         }
     }
 }
@@ -220,6 +229,8 @@ impl FromIterator<Lit> for Clause {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         Self {
             lits: Vec::from_iter(iter),
+            #[cfg(feature = "pyapi")]
+            modified: false,
         }
     }
 }
@@ -267,12 +278,20 @@ impl Clause {
 
     /// Adds a literal to the clause
     pub fn add(&mut self, lit: Lit) {
+        #[cfg(feature = "pyapi")]
+        {
+            self.modified = true;
+        }
         self.lits.push(lit)
     }
 
     /// Removes the first occurrence of a literal from the clause
     /// Returns true if an occurrence was found
     pub fn remove(&mut self, lit: &Lit) -> bool {
+        #[cfg(feature = "pyapi")]
+        {
+            self.modified = true;
+        }
         for (i, l) in self.lits.iter().enumerate() {
             if l == lit {
                 self.lits.swap_remove(i);
@@ -284,6 +303,10 @@ impl Clause {
 
     /// Removes all occurrences of a literal from the clause
     pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
+        #[cfg(feature = "pyapi")]
+        {
+            self.modified = true;
+        }
         let mut idxs = Vec::new();
         for (i, l) in self.lits.iter().enumerate() {
             if l == lit {
@@ -330,9 +353,7 @@ impl Clause {
                 ))
             }
             SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.len()
-                    || idx >= 0 && idx.unsigned_abs() >= self.len()
-                {
+                if idx.unsigned_abs() > self.len() || idx >= 0 && idx.unsigned_abs() >= self.len() {
                     return Err(PyIndexError::new_err("out of bounds"));
                 }
                 let idx = if idx >= 0 {
@@ -342,6 +363,15 @@ impl Clause {
                 };
                 Ok(SingleOrList::Single(self[idx]))
             }
+        }
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __iter__(mut slf: PyRefMut<'_, Self>) -> ClauseIter {
+        slf.modified = false;
+        ClauseIter {
+            clause: slf.into(),
+            index: 0,
         }
     }
 
@@ -362,6 +392,32 @@ macro_rules! clause {
             tmp_clause
         }
     };
+}
+
+#[cfg(feature = "pyapi")]
+#[pyclass]
+struct ClauseIter {
+    clause: Py<Clause>,
+    index: usize,
+}
+
+#[cfg(feature = "pyapi")]
+#[pymethods]
+impl ClauseIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Lit>> {
+        if slf.clause.borrow(slf.py()).modified {
+            return Err(PyRuntimeError::new_err("clause modified during iteration"));
+        }
+        if slf.index < slf.clause.borrow(slf.py()).len() {
+            slf.index += 1;
+            return Ok(Some(slf.clause.borrow(slf.py())[slf.index - 1]));
+        }
+        return Ok(None);
+    }
 }
 
 /// Type representing a cardinality constraint.
