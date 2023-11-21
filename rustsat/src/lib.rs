@@ -8,7 +8,7 @@ pub mod types;
 
 mod capi;
 #[cfg(feature = "pyapi")]
-pub(crate) mod pyapi;
+pub mod pyapi;
 
 pub mod utils;
 
