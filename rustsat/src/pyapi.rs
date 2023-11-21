@@ -7,7 +7,7 @@
 use pyo3::{prelude::*, types::PySlice};
 
 use crate::{
-    encodings::card::DbTotalizer,
+    encodings::{card::DbTotalizer, pb::{DbGte, DynamicPolyWatchdog}},
     instances::{BasicVarManager, Cnf},
     types::{Clause, Lit},
 };
@@ -36,11 +36,17 @@ where
 }
 
 #[pymodule]
-fn rustsat(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn rustsat(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Lit>()?;
     m.add_class::<Clause>()?;
     m.add_class::<Cnf>()?;
-    m.add_class::<DbTotalizer>()?;
     m.add_class::<BasicVarManager>()?;
+
+    let encodings = PyModule::new(py, "encodings")?;
+    encodings.add_class::<DbTotalizer>()?;
+    encodings.add_class::<DbGte>()?;
+    encodings.add_class::<DynamicPolyWatchdog>()?;
+    m.add_submodule(encodings)?;
+
     Ok(())
 }
