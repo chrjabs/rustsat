@@ -22,6 +22,8 @@ use crate::{
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 
 #[cfg(feature = "pyapi")]
+use crate::instances::{BasicVarManager, Cnf};
+#[cfg(feature = "pyapi")]
 use pyo3::prelude::*;
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
@@ -33,7 +35,7 @@ use pyo3::prelude::*;
 ///
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
-#[cfg_attr(feature = "pyapi", pyclass)]
+#[cfg_attr(feature = "pyapi", pyclass(name = "Totalizer"))]
 #[derive(Default)]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
@@ -1109,8 +1111,54 @@ impl DbTotalizer {
     }
 
     /// Adds additional input literals to the totalizer
-    fn extend(&mut self, lits: Vec<Lit>) {
-        <Self as Extend<Lit>>::extend(self, lits)
+    #[pyo3(name = "extend")]
+    fn py_extend(&mut self, lits: Vec<Lit>) {
+        self.extend(lits)
+    }
+
+    /// Gets the number of input literals in the encoding
+    #[pyo3(name = "n_lits")]
+    fn py_n_lits(&self) -> usize {
+        self.n_lits()
+    }
+
+    /// Gets the number of clauses in the encoding
+    #[pyo3(name = "n_clauses")]
+    fn py_n_clauses(&self) -> usize {
+        self.n_clauses()
+    }
+
+    /// Gets the number of variables in the encoding
+    #[pyo3(name = "n_vars")]
+    fn py_n_vars(&self) -> u32 {
+        self.n_vars()
+    }
+
+    /// Incrementally builds the totalizer encoding to that upper bounds
+    /// in the range `max_ub..=min_ub` can be enforced. New variables will
+    /// be taken from `var_manager`.
+    #[pyo3(name = "encode_ub")]
+    fn py_encode_ub(
+        &mut self,
+        max_ub: usize,
+        min_ub: usize,
+        var_manager: &mut BasicVarManager,
+    ) -> Cnf {
+        let mut cnf = Cnf::new();
+        <Self as BoundUpperIncremental>::encode_ub_change(
+            self,
+            max_ub..=min_ub,
+            &mut cnf,
+            var_manager,
+        );
+        cnf
+    }
+
+    /// Gets assumptions to enforce the given upper bound. Make sure that
+    /// the required encoding is built first.
+    #[pyo3(name = "enforce_ub")]
+    fn py_enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
+        Ok(self.enforce_ub(ub)?)
     }
 }
 

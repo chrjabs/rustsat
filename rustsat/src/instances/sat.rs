@@ -25,11 +25,25 @@ use super::{fio, BasicVarManager, ManageVars, ReindexVars};
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
 #[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Eq, Default)]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
     #[cfg(feature = "pyapi")]
     modified: bool,
+}
+
+impl PartialEq for Cnf {
+    fn eq(&self, other: &Self) -> bool {
+        self.clauses == other.clauses
+    }
+}
+
+impl std::fmt::Debug for Cnf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cnf")
+            .field("clauses", &self.clauses)
+            .finish()
+    }
 }
 
 impl Cnf {
@@ -298,63 +312,72 @@ impl Cnf {
 
     #[cfg(feature = "pyapi")]
     /// See [`atomics::lit_impl_lit`]
-    fn lit_impl_lit(&mut self, a: Lit, b: Lit) {
+    #[pyo3(name = "add_lit_impl_lit")]
+    fn py_add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
         self.modified = true;
         self.add_clause(atomics::lit_impl_lit(a, b))
     }
 
     #[cfg(feature = "pyapi")]
     /// See [`atomics::lit_impl_clause`]
-    fn lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+    #[pyo3(name = "add_lit_impl_clause")]
+    fn py_add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
         self.modified = true;
         self.add_clause(atomics::lit_impl_clause(a, &b))
     }
 
     #[cfg(feature = "pyapi")]
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
-    fn lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+    #[pyo3(name = "add_lit_impl_cube")]
+    fn py_add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
         self.modified = true;
         self.extend(atomics::lit_impl_cube(a, &b))
     }
 
     #[cfg(feature = "pyapi")]
     /// See [`atomics::cube_impl_lit`]
-    fn cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    #[pyo3(name = "add_cube_impl_lit")]
+    fn py_add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.modified = true;
         self.add_clause(atomics::cube_impl_lit(&a, b))
     }
 
     #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
-    fn clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    #[pyo3(name = "add_clause_impl_lit")]
+    fn py_add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.modified = true;
         self.extend(atomics::clause_impl_lit(&a, b))
     }
 
     #[cfg(feature = "pyapi")]
     /// See [`atomics::cube_impl_clause`]
-    fn cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    #[pyo3(name = "add_cube_impl_clause")]
+    fn py_add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
         self.add_clause(atomics::cube_impl_clause(&a, &b))
     }
 
     #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
-    fn clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    #[pyo3(name = "add_clause_impl_clause")]
+    fn py_add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
         self.extend(atomics::clause_impl_clause(&a, &b))
     }
 
     #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
-    fn clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    #[pyo3(name = "add_clause_impl_cube")]
+    fn py_add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
         self.extend(atomics::clause_impl_cube(&a, &b))
     }
 
     #[cfg(feature = "pyapi")]
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
-    fn cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    #[pyo3(name = "add_cube_impl_cube")]
+    fn py_add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
         self.extend(atomics::cube_impl_cube(&a, &b))
     }
@@ -366,6 +389,16 @@ impl Cnf {
             cnf: slf.into(),
             index: 0,
         }
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __eq__(&self, other: &Cnf) -> bool {
+        self == other
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __ne__(&self, other: &Cnf) -> bool {
+        self != other
     }
 }
 

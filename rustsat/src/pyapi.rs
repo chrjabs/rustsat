@@ -8,7 +8,7 @@ use pyo3::{prelude::*, types::PySlice};
 
 use crate::{
     encodings::card::DbTotalizer,
-    instances::Cnf,
+    instances::{BasicVarManager, Cnf},
     types::{Clause, Lit},
 };
 
@@ -41,5 +41,6 @@ fn rustsat(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Clause>()?;
     m.add_class::<Cnf>()?;
     m.add_class::<DbTotalizer>()?;
+    m.add_class::<BasicVarManager>()?;
     Ok(())
 }
