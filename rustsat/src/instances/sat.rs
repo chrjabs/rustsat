@@ -288,7 +288,7 @@ impl Cnf {
     fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
         match idx {
             SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.len() as i64)?;
+                let indices = slice.indices(self.len().try_into().unwrap())?;
                 Ok(SingleOrList::List(
                     (indices.start as usize..indices.stop as usize)
                         .step_by(indices.step as usize)

@@ -25,7 +25,7 @@ use pyo3::{
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
 #[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Hash, Eq, PartialOrd, Ord, Clone, Default)]
+#[derive(Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
     #[cfg(feature = "pyapi")]
@@ -35,6 +35,12 @@ pub struct Clause {
 impl PartialEq for Clause {
     fn eq(&self, other: &Self) -> bool {
         self.lits == other.lits
+    }
+}
+
+impl std::hash::Hash for Clause {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.lits.hash(state);
     }
 }
 
@@ -350,7 +356,7 @@ impl Clause {
     fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
         match idx {
             SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.len() as i64)?;
+                let indices = slice.indices(self.len().try_into().unwrap())?;
                 Ok(SingleOrList::List(
                     (indices.start as usize..indices.stop as usize)
                         .step_by(indices.step as usize)
