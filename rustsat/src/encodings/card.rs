@@ -51,7 +51,7 @@ pub use dbtotalizer::DbTotalizer;
 
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait Encode {
-    /// Gets the number of literals in the encoding
+    /// Gets the number of input literals in the encoding
     fn n_lits(&self) -> usize;
 }
 

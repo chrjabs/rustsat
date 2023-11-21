@@ -46,7 +46,10 @@ fn main() {
     let cflags = format!("{} -l{}", cflags, python_lib);
     println!("{}", cflags);
 
-    let ldflags = format!("cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat.a", L=ld_dir.to_string_lossy());
+    let ldflags = format!(
+        "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat.a",
+        L = ld_dir.to_string_lossy()
+    );
     #[cfg(feature = "compression")]
     let ldflags = format!("{} -llzma -lbz2", ldflags);
     #[cfg(feature = "pyapi")]

@@ -26,6 +26,9 @@ mod multiopt;
 #[cfg(feature = "multiopt")]
 pub use multiopt::MultiOptInstance;
 
+#[cfg(feature = "pyapi")]
+use pyo3::prelude::*;
+
 pub mod fio;
 
 /// Trait for variable managers keeping track of used variables
@@ -82,7 +85,8 @@ pub trait ReindexVars: ManageVars {
     }
 }
 
-/// Simple counter variable manager
+/// Simple conting variable manager
+#[cfg_attr(feature = "pyapi", pyclass(name = "VarManager"))]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BasicVarManager {
     next_var: Var,
@@ -92,6 +96,33 @@ impl BasicVarManager {
     /// Creates a new variable manager from a next free variable
     pub fn from_next_free(next_var: Var) -> BasicVarManager {
         BasicVarManager { next_var }
+    }
+}
+
+#[cfg(feature = "pyapi")]
+#[pymethods]
+impl BasicVarManager {
+    #[new]
+    fn new() -> Self {
+        Default::default()
+    }
+
+    #[staticmethod]
+    fn used(n_used: u32) -> Self {
+        BasicVarManager::from_next_free(Var::new(n_used))
+    }
+
+    fn increase_used(&mut self, n_used: u32) {
+        self.next_var = std::cmp::max(self.next_var, Var::new(n_used));
+    }
+
+    fn new_var(&mut self) -> u32 {
+        let v = <Self as ManageVars>::new_var(self);
+        v.idx32() + 1
+    }
+
+    fn n_used(&self) -> u32 {
+        <Self as ManageVars>::n_used(self)
     }
 }
 

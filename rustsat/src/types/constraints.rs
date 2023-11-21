@@ -25,11 +25,17 @@ use pyo3::{
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
 #[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Default)]
+#[derive(Hash, Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
     #[cfg(feature = "pyapi")]
     modified: bool,
+}
+
+impl PartialEq for Clause {
+    fn eq(&self, other: &Self) -> bool {
+        self.lits == other.lits
+    }
 }
 
 impl Clause {
@@ -376,8 +382,19 @@ impl Clause {
     }
 
     #[cfg(feature = "pyapi")]
-    fn extend(&mut self, lits: Vec<Lit>) {
-        <Self as Extend<Lit>>::extend(self, lits)
+    #[pyo3(name = "extend")]
+    fn py_extend(&mut self, lits: Vec<Lit>) {
+        self.extend(lits)
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __eq__(&self, other: &Clause) -> bool {
+        self == other
+    }
+
+    #[cfg(feature = "pyapi")]
+    fn __ne__(&self, other: &Clause) -> bool {
+        self != other
     }
 }
 

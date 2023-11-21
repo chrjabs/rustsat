@@ -455,21 +455,33 @@ impl Lit {
     fn pynew(val: c_int) -> PyResult<Self> {
         Self::from_ipasir(val).map_err(|_| PyValueError::new_err("invalid ipasir lit"))
     }
-    
+
     fn __str__(&self) -> String {
         format!("{}", self)
     }
-    
+
     fn __repr__(&self) -> String {
         format!("{}", self)
     }
-    
+
     fn __neg__(&self) -> Lit {
         !*self
     }
-    
+
+    fn __richcmp__(&self, other: &Lit, op: pyo3::basic::CompareOp) -> bool {
+        op.matches(self.cmp(&other))
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
     /// Gets the IPASIR representation of the literal
-    fn ipasir(&self) -> c_int {
+    #[pyo3(name = "to_ipasir")]
+    fn py_ipasir(&self) -> c_int {
         let negated = self.is_neg();
         let idx: c_int = (self.vidx() + 1)
             .try_into()

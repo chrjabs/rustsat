@@ -35,8 +35,7 @@ inline-c = "0.1.7"
 [features]
 default = [
   "optimization",
-  "fxhash",
-  "pyapi"
+  "fxhash"
 ]
 internals = []
 fxhash = ["dep:rustc-hash"]
@@ -51,7 +50,8 @@ all = [
   "multiopt",
   "compression",
   "rand",
-  "fxhash"
+  "fxhash",
+  "pyapi"
 ]
 
 [lib]
