@@ -73,11 +73,16 @@ fn rustsat(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Cnf>()?;
     m.add_class::<BasicVarManager>()?;
 
-    let encodings = PyModule::new(py, "encodings")?;
+    let encodings = PyModule::new(py, "rustsat.encodings")?;
     encodings.add_class::<DbTotalizer>()?;
     encodings.add_class::<DbGte>()?;
     encodings.add_class::<DynamicPolyWatchdog>()?;
-    m.add_submodule(encodings)?;
+    m.add("encodings", encodings)?;
+
+    // To import encodings. Fix from https://github.com/PyO3/pyo3/issues/759
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings", encodings)?;
 
     Ok(())
 }
