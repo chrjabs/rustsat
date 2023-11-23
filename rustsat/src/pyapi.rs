@@ -66,6 +66,7 @@ where
     }
 }
 
+/// Python bindings for the RustSAT library
 #[pymodule]
 fn rustsat(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Lit>()?;
