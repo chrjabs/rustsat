@@ -3,3 +3,6 @@
 
 **/*.o
 **/*.out
+
+rustsat/pydocs/
+**/__pycache__/

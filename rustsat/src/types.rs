@@ -452,8 +452,8 @@ impl fmt::Display for Lit {
 #[pymethods]
 impl Lit {
     #[new]
-    fn pynew(val: c_int) -> PyResult<Self> {
-        Self::from_ipasir(val).map_err(|_| PyValueError::new_err("invalid ipasir lit"))
+    fn pynew(ipasir: c_int) -> PyResult<Self> {
+        Self::from_ipasir(ipasir).map_err(|_| PyValueError::new_err("invalid ipasir lit"))
     }
 
     fn __str__(&self) -> String {

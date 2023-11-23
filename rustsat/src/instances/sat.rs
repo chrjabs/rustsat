@@ -101,7 +101,7 @@ impl Cnf {
         self.add_clause(atomics::lit_impl_clause(a, b))
     }
 
-    /// Adds an implication of form a -> (b1 & b2 & ... & bm)
+    /// See [`atomics::lit_impl_cube`]
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
         self.extend(atomics::lit_impl_cube(a, b))
     }
@@ -111,7 +111,7 @@ impl Cnf {
         self.add_clause(atomics::cube_impl_lit(a, b))
     }
 
-    /// Adds an implication of form (a1 | a2 | ... | an) -> b
+    /// See [`atomics::clause_impl_lit`]
     pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
         self.extend(atomics::clause_impl_lit(a, b))
     }
@@ -121,17 +121,17 @@ impl Cnf {
         self.add_clause(atomics::cube_impl_clause(a, b))
     }
 
-    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
+    /// See [`atomics::clause_impl_clause`]
     pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         self.extend(atomics::clause_impl_clause(a, b))
     }
 
-    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
+    /// See [`atomics::clause_impl_cube`]
     pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         self.extend(atomics::clause_impl_cube(a, b))
     }
 
-    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
+    /// See [`atomics::cube_impl_cube`]
     pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         self.extend(atomics::cube_impl_cube(a, b))
     }
@@ -311,7 +311,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// See [`atomics::lit_impl_lit`]
+    /// Adds an implication of form `a -> b`
     #[pyo3(name = "add_lit_impl_lit")]
     fn py_add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
         self.modified = true;
@@ -319,7 +319,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// See [`atomics::lit_impl_clause`]
+    /// Adds an implication of form `a -> (b1 | b2 | ... | bm)`
     #[pyo3(name = "add_lit_impl_clause")]
     fn py_add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
         self.modified = true;
@@ -327,7 +327,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// Adds an implication of form a -> (b1 & b2 & ... & bm)
+    /// Adds an implication of form `a -> (b1 & b2 & ... & bm)`
     #[pyo3(name = "add_lit_impl_cube")]
     fn py_add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
         self.modified = true;
@@ -335,7 +335,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// See [`atomics::cube_impl_lit`]
+    /// Adds an implication of form `(a1 & a2 & ... & an) -> b`
     #[pyo3(name = "add_cube_impl_lit")]
     fn py_add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.modified = true;
@@ -343,7 +343,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// Adds an implication of form (a1 | a2 | ... | an) -> b
+    /// Adds an implication of form `(a1 | a2 | ... | an) -> b`
     #[pyo3(name = "add_clause_impl_lit")]
     fn py_add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.modified = true;
@@ -351,7 +351,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// See [`atomics::cube_impl_clause`]
+    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
     #[pyo3(name = "add_cube_impl_clause")]
     fn py_add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
@@ -359,7 +359,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
+    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
     #[pyo3(name = "add_clause_impl_clause")]
     fn py_add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
@@ -367,7 +367,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
+    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)`
     #[pyo3(name = "add_clause_impl_cube")]
     fn py_add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;
@@ -375,7 +375,7 @@ impl Cnf {
     }
 
     #[cfg(feature = "pyapi")]
-    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
+    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
     #[pyo3(name = "add_cube_impl_cube")]
     fn py_add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
         self.modified = true;

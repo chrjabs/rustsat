@@ -85,7 +85,7 @@ pub trait ReindexVars: ManageVars {
     }
 }
 
-/// Simple conting variable manager
+/// Simple counting variable manager
 #[cfg_attr(feature = "pyapi", pyclass(name = "VarManager"))]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct BasicVarManager {
@@ -103,12 +103,8 @@ impl BasicVarManager {
 #[pymethods]
 impl BasicVarManager {
     #[new]
-    fn new() -> Self {
-        Default::default()
-    }
-
-    #[staticmethod]
-    fn used(n_used: u32) -> Self {
+    #[pyo3(text_signature = "(n_used = 0)")]
+    fn new(n_used: u32) -> Self {
         BasicVarManager::from_next_free(Var::new(n_used))
     }
 
