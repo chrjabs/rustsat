@@ -199,6 +199,7 @@ impl Extend<Lit> for DbTotalizer {
 }
 
 /// A totalizer adder node
+#[derive(Clone)]
 pub enum Node {
     Leaf(Lit),
     Unit(UnitNode),
@@ -408,6 +409,7 @@ impl Index<usize> for Node {
 }
 
 /// An internal node of the totalizer
+#[derive(Clone)]
 pub struct UnitNode {
     pub(crate) lits: Vec<LitData>,
     pub(crate) depth: usize,
@@ -451,6 +453,7 @@ impl Index<usize> for UnitNode {
 }
 
 /// An internal _general_ (weighted) node
+#[derive(Clone)]
 pub struct GeneralNode {
     pub(crate) lits: BTreeMap<usize, LitData>,
     pub(crate) depth: usize,
@@ -500,7 +503,7 @@ impl GeneralNode {
 }
 
 /// Data associated with an output literal in a [`Node`]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(crate) enum LitData {
     #[default]
     None,
@@ -538,7 +541,7 @@ impl LitData {
 }
 
 /// A totalizer database
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
