@@ -12,7 +12,10 @@ use crate::{
     },
 };
 
-use super::{fio, BasicVarManager, ManageVars, ReindexVars};
+use super::{
+    fio::{self, dimacs::CnfLine},
+    BasicVarManager, ManageVars, ReindexVars,
+};
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
@@ -200,6 +203,15 @@ impl FromIterator<Clause> for Cnf {
         Self {
             clauses: iter.into_iter().collect(),
         }
+    }
+}
+
+impl FromIterator<CnfLine> for Cnf {
+    fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
+        Self::from_iter(iter.into_iter().filter_map(|line| match line {
+            CnfLine::Comment(_) => None,
+            CnfLine::Clause(cl) => Some(cl),
+        }))
     }
 }
 
@@ -695,8 +707,19 @@ impl<VM: ManageVars + Default> Default for SatInstance<VM> {
 
 impl<VM: ManageVars + Default> FromIterator<Clause> for SatInstance<VM> {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
-        let mut inst = Self::default();
-        iter.into_iter().for_each(|cl| inst.add_clause(cl));
-        inst
+        let cnf = Cnf::from_iter(iter);
+        Self {
+            cnf,
+            ..Default::default()
+        }
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<CnfLine> for SatInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
+        Self::from_iter(iter.into_iter().filter_map(|line| match line {
+            CnfLine::Comment(_) => None,
+            CnfLine::Clause(cl) => Some(cl),
+        }))
     }
 }

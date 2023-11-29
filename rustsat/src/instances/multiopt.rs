@@ -10,7 +10,10 @@ use crate::{
     },
 };
 
-use super::{fio, BasicVarManager, Cnf, ManageVars, Objective, ReindexVars, SatInstance};
+use super::{
+    fio::{self, dimacs::McnfLine},
+    BasicVarManager, Cnf, ManageVars, Objective, ReindexVars, SatInstance,
+};
 
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
@@ -293,5 +296,24 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
             Err(why) => Err(fio::ParsingError::IO(why)),
             Ok(reader) => MultiOptInstance::from_opb(reader, opts),
         }
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = McnfLine>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        for line in iter {
+            match line {
+                McnfLine::Comment(_) => (),
+                McnfLine::Hard(cl) => inst.get_constraints().add_clause(cl),
+                McnfLine::Soft(cl, w, oidx) => {
+                    if oidx >= inst.objs.len() {
+                        inst.objs.resize(oidx + 1, Default::default())
+                    }
+                    inst.get_objective(oidx).add_soft_clause(w, cl);
+                }
+            }
+        }
+        inst
     }
 }
