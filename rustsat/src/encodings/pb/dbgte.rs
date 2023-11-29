@@ -367,7 +367,7 @@ pub mod referenced {
 
         fn next_higher(&self, val: usize) -> usize {
             self.db[self.root.id]
-                .vals(self.root.rev_map(val)..)
+                .vals(self.root.rev_map(val + 1)..)
                 .next()
                 .map(|val| self.root.map(val))
                 .unwrap_or(val + 1)
@@ -389,7 +389,7 @@ pub mod referenced {
 
         fn next_higher(&self, val: usize) -> usize {
             self.db.borrow()[self.root.id]
-                .vals(self.root.rev_map(val)..)
+                .vals(self.root.rev_map(val + 1)..)
                 .next()
                 .map(|val| self.root.map(val))
                 .unwrap_or(val + 1)
