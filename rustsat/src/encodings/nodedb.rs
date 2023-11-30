@@ -568,7 +568,7 @@ mod tests {
                 } else if val % weight == 0 {
                     val / weight + offset
                 } else {
-                    val / weight + offset + 1                    
+                    val / weight + offset + 1
                 }
             );
         }
