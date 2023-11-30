@@ -716,7 +716,9 @@ impl TotDb {
                             if let Some(rlit) =
                                 self.define_pos(rcon.id, rval_rev, collector, var_manager)
                             {
-                                debug_assert!(lcon.len_limit.is_none() || lcon.offset() + 1 == lval);
+                                debug_assert!(
+                                    lcon.len_limit.is_none() || lcon.offset() + 1 == lval
+                                );
                                 let llit = self
                                     .define_pos(lcon.id, lval, collector, var_manager)
                                     .unwrap();
