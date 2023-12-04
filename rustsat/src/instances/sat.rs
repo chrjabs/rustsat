@@ -707,11 +707,9 @@ impl<VM: ManageVars + Default> Default for SatInstance<VM> {
 
 impl<VM: ManageVars + Default> FromIterator<Clause> for SatInstance<VM> {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
-        let cnf = Cnf::from_iter(iter);
-        Self {
-            cnf,
-            ..Default::default()
-        }
+        let mut inst = Self::default();
+        iter.into_iter().for_each(|cl| inst.add_clause(cl));
+        inst
     }
 }
 
@@ -721,5 +719,20 @@ impl<VM: ManageVars + Default> FromIterator<CnfLine> for SatInstance<VM> {
             CnfLine::Comment(_) => None,
             CnfLine::Clause(cl) => Some(cl),
         }))
+    }
+}
+
+impl<VM: ManageVars + Default> From<Cnf> for SatInstance<VM> {
+    fn from(value: Cnf) -> Self {
+        let mut inst = Self {
+            cnf: value,
+            ..Default::default()
+        };
+        inst.cnf.iter().for_each(|cl| {
+            cl.iter().for_each(|l| {
+                inst.var_manager.increase_next_free(l.var());
+            })
+        });
+        inst
     }
 }
