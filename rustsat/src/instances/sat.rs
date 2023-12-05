@@ -941,7 +941,7 @@ impl<VM: ManageVars + Default> From<Cnf> for SatInstance<VM> {
         };
         inst.cnf.iter().for_each(|cl| {
             cl.iter().for_each(|l| {
-                inst.var_manager.increase_next_free(l.var());
+                inst.var_manager.increase_next_free(l.var() + 1);
             })
         });
         inst
