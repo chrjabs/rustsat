@@ -3,6 +3,7 @@ use std::{env, fs, path::Path, str};
 fn main() {
     // Build C++ library
     // Full commit hash needs to be provided
+    #[cfg(not(doc))]
     build(
         "https://github.com/chrjabs/minisat.git",
         "master",
