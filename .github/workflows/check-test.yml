@@ -36,6 +36,18 @@ jobs:
       - name: Run cargo test suite
         run: cargo test --workspace --verbose
 
+  doc:
+    name: Doc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run cargo doc
+        run: cargo doc --workspace --verbose --no-deps --features=all
+
   pystubs:
     name: Test python stubs
     runs-on: ubuntu-latest
