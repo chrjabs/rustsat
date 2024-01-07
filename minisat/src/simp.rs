@@ -248,7 +248,7 @@ impl PhaseLit for Minisat {
         Ok(())
     }
 
-    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
+    /// Undoes the effect of a call to [`Minisat::phase_lit`]
     fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
         unsafe { ffi::cminisatsimp_unphase(self.handle, var.to_ipasir()) };
         Ok(())

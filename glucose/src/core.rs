@@ -231,7 +231,7 @@ impl PhaseLit for Glucose {
         Ok(())
     }
 
-    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
+    /// Undoes the effect of a call to [`Glucose::phase_lit`]
     fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
         unsafe { ffi::cglucose4_unphase(self.handle, var.to_ipasir()) };
         Ok(())
