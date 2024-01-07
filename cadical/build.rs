@@ -56,6 +56,7 @@ fn main() {
     };
 
     // Build C++ library
+    #[cfg(not(doc))]
     build(
         "https://github.com/arminbiere/cadical.git",
         "master",

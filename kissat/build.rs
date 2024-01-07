@@ -29,6 +29,7 @@ fn main() {
 
     // Build C library
     // Full commit hash needs to be provided
+    #[cfg(not(doc))]
     build("https://github.com/arminbiere/kissat.git", "master", tag);
 
     let out_dir = env::var("OUT_DIR").unwrap();
