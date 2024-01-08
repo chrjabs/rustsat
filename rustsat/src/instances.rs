@@ -35,6 +35,10 @@ pub mod fio;
 pub trait ManageVars {
     /// Uses up the next free variable
     fn new_var(&mut self) -> Var;
+    /// Uses up the next free variable and returns its positive literal.
+    fn new_lit(&mut self) -> Lit {
+        self.new_var().pos_lit()
+    }
     /// Gets the used variable with the highest index
     fn max_var(&self) -> Option<Var>;
     /// Increases the next free variable index if the provided variable has a

@@ -891,6 +891,24 @@ impl<VM: ManageVars> OptInstance<VM> {
         &mut self.obj
     }
 
+    /// Reserves a new variable in the internal variable manager. This is a
+    /// shortcut for `inst.get_constraints().var_manager().new_var()`.
+    pub fn new_var(&mut self) -> Var {
+        self.get_constraints().var_manager().new_var()
+    }
+
+    /// Reserves a new variable in the internal variable manager. This is a
+    /// shortcut for `inst.get_constraints().var_manager().new_lit()`.
+    pub fn new_lit(&mut self) -> Lit {
+        self.get_constraints().var_manager().new_lit()
+    }
+
+    /// Gets the used variable with the highest index. This is a shortcut
+    /// for `inst.get_constraints().var_manager().max_var()`.
+    pub fn max_var(&mut self) -> Option<Var> {
+        self.get_constraints().var_manager().max_var()
+    }
+
     /// Converts the instance to a set of hard and soft clauses, an objective
     /// offset and a variable manager
     pub fn as_hard_cls_soft_cls(self) -> (Cnf, (impl WClsIter, isize), VM) {

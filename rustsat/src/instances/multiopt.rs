@@ -6,7 +6,7 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Assignment, Var, WClsIter, WLitIter,
+        Assignment, Lit, Var, WClsIter, WLitIter,
     },
 };
 
@@ -69,6 +69,24 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Gets a mutable reference to the hard constraints for modifying them
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
+    }
+
+    /// Reserves a new variable in the internal variable manager. This is a
+    /// shortcut for `inst.get_constraints().var_manager().new_var()`.
+    pub fn new_var(&mut self) -> Var {
+        self.get_constraints().var_manager().new_var()
+    }
+
+    /// Reserves a new variable in the internal variable manager. This is a
+    /// shortcut for `inst.get_constraints().var_manager().new_lit()`.
+    pub fn new_lit(&mut self) -> Lit {
+        self.get_constraints().var_manager().new_lit()
+    }
+
+    /// Gets the used variable with the highest index. This is a shortcut
+    /// for `inst.get_constraints().var_manager().max_var()`.
+    pub fn max_var(&mut self) -> Option<Var> {
+        self.get_constraints().var_manager().max_var()
     }
 
     /// Gets a mutable reference to the first objective for modifying it.
