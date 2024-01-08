@@ -80,11 +80,9 @@ impl Var {
     /// # Examples
     ///
     /// ```
-    /// use rustsat::types::{Var,Lit};
-    ///
+    /// # use rustsat::types::{Var,Lit};
     /// let var = Var::new(5);
     /// let lit = Lit::positive(5);
-    ///
     /// assert_eq!(lit, var.pos_lit());
     /// ```
     #[inline]
@@ -97,11 +95,9 @@ impl Var {
     /// # Examples
     ///
     /// ```
-    /// use rustsat::types::{Var,Lit};
-    ///
+    /// # use rustsat::types::{Var,Lit};
     /// let var = Var::new(5);
     /// let lit = Lit::negative(5);
-    ///
     /// assert_eq!(lit, var.neg_lit());
     /// ```
     #[inline]
@@ -117,10 +113,8 @@ impl Var {
     /// # Examples
     ///
     /// ```
-    /// use rustsat::types::Var;
-    ///
+    /// # use rustsat::types::Var;
     /// let var = Var::new(5);
-    ///
     /// assert_eq!(5, var.idx());
     /// ```
     #[inline]
@@ -133,10 +127,8 @@ impl Var {
     /// # Examples
     ///
     /// ```
-    /// use rustsat::types::Var;
-    ///
+    /// # use rustsat::types::Var;
     /// let var = Var::new(5);
-    ///
     /// assert_eq!(5, var.idx32());
     /// ```
     #[inline]
@@ -199,8 +191,7 @@ impl fmt::Display for Var {
 /// # Examples
 ///
 /// ```
-/// use rustsat::{var, types::Var};
-///
+/// # use rustsat::{var, types::Var};
 /// assert_eq!(var![42], Var::new(42));
 /// ```
 #[macro_export]
@@ -339,11 +330,9 @@ impl Lit {
     /// # Examples
     ///
     /// ```
-    /// use rustsat::types::{Var,Lit};
-    ///
+    /// # use rustsat::types::{Var,Lit};
     /// let var = Var::new(5);
     /// let lit = Lit::negative(5);
-    ///
     /// assert_eq!(var, lit.var());
     /// ```
     #[inline]
@@ -499,8 +488,7 @@ impl Lit {
 /// # Examples
 ///
 /// ```
-/// use rustsat::{lit, types::Lit};
-///
+/// # use rustsat::{lit, types::Lit};
 /// assert_eq!(lit![42], Lit::positive(42));
 /// assert_eq!(!lit![42], Lit::negative(42));
 /// ```
@@ -517,8 +505,7 @@ macro_rules! lit {
 /// # Examples
 ///
 /// ```
-/// use rustsat::{lit, ipasir_lit, types::Lit};
-///
+/// # use rustsat::{lit, ipasir_lit, types::Lit};
 /// assert_eq!(ipasir_lit![42], lit![41]);
 /// assert_eq!(ipasir_lit![-42], !lit![41]);
 /// ```

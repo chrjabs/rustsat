@@ -4,6 +4,24 @@
 This library aims to provide implementations of elements commonly used in the development on software in the area of satisfiability solving.
 The focus of the library is to provide as much ease of use without giving up on performance.
 
+## Example
+
+```
+# use rustsat::{instances::SatInstance, solvers::{Solve, SolverResult}, types::TernaryVal};
+let mut instance: SatInstance = SatInstance::new();
+let l1 = instance.new_lit();
+let l2 = instance.new_lit();
+instance.add_binary(l1, l2);
+instance.add_binary(!l1, l2);
+let mut solver = rustsat_cadical::CaDiCaL::default();
+solver.add_cnf(instance.as_cnf().0).unwrap();
+let res = solver.solve().unwrap();
+assert_eq!(res, SolverResult::Sat);
+let sol = solver.full_solution().unwrap();
+assert_eq!(sol.lit_value(l1), TernaryVal::True);
+assert_eq!(sol.lit_value(l2), TernaryVal::True);
+```
+
 ## Crates
 
 The RustSAT project is split up into multiple crates that are all contained in [this repository](https://github.com/chrjabs/rustsat/).
