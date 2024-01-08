@@ -18,8 +18,8 @@ solver.add_cnf(instance.as_cnf().0).unwrap();
 let res = solver.solve().unwrap();
 assert_eq!(res, SolverResult::Sat);
 let sol = solver.full_solution().unwrap();
-assert_eq!(sol.lit_value(l1), TernaryVal::True);
-assert_eq!(sol.lit_value(l2), TernaryVal::True);
+assert_eq!(sol[l1.var()], TernaryVal::True);
+assert_eq!(sol[l2.var()], TernaryVal::True);
 ```
 
 ## Crates
