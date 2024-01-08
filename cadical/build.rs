@@ -101,7 +101,7 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
             });
         // Setup build configuration
         let mut cadical_build = cc::Build::new();
-        cadical_build.cpp(true);
+        cadical_build.cpp(true).std("c++11");
         if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
             cadical_build
                 .opt_level(0)
