@@ -92,8 +92,18 @@ echo "v1.9.1 build returned: $?"
 
 echo "Building v1.9.2"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
-cargo build --features=v1-9-2 &> v191-build.log
+cargo build --features=v1-9-2 &> v192-build.log
 echo "v1.9.2 build returned: $?"
+
+echo "Building v1.9.3"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=v1-9-3 &> v193-build.log
+echo "v1.9.3 build returned: $?"
+
+echo "Building v1.9.4"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=v1-9-4 &> v194-build.log
+echo "v1.9.4 build returned: $?"
 
 echo "Building quiet"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
