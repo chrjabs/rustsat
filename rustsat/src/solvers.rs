@@ -105,6 +105,7 @@ use crate::{
     clause,
     encodings::CollectClauses,
     instances::Cnf,
+    lit,
     types::{Assignment, Clause, Lit, TernaryVal, Var},
 };
 use core::time::Duration;
@@ -129,7 +130,7 @@ pub trait Solve: Extend<Clause> {
     }
     /// Solves the internal CNF formula without any assumptions.
     fn solve(&mut self) -> Result<SolverResult, SolverError>;
-    /// Gets a solution found by the solver.
+    /// Gets a solution found by the solver up to a specified highest variable.
     ///
     /// # Errors
     ///
@@ -144,6 +145,26 @@ pub trait Solve: Extend<Clause> {
             assignment.push(self.lit_val(lit)?);
         }
         Ok(Assignment::from(assignment))
+    }
+    /// Gets a solution found by the solver up to the highest variable known
+    /// to the solver.
+    ///
+    /// # Errors
+    ///
+    /// - If the solver is not in the satisfied state
+    /// - A specific implementation might return other errors
+    fn full_solution(&self) -> Result<Assignment, SolverError>
+    where
+        Self: SolveStats,
+    {
+        match self.max_var() {
+            Some(high_var) => self.solution(high_var),
+            None => {
+                // throw error if in incorrect state
+                self.lit_val(lit![0])?;
+                Ok(Assignment::default())
+            }
+        }
     }
     /// Same as [`Solve::lit_val`], but for variables.
     fn var_val(&self, var: Var) -> Result<TernaryVal, SolverError> {

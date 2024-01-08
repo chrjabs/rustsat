@@ -8,7 +8,7 @@ use crate::{
     lit,
     types::{
         constraints::{CardConstraint, PBConstraint},
-        Assignment, Clause, Lit,
+        Assignment, Clause, Lit, Var,
     },
 };
 
@@ -602,9 +602,27 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.pbs.push(pb)
     }
 
-    /// Get a reference to the variable manager
+    /// Gets a reference to the variable manager
     pub fn var_manager(&mut self) -> &mut VM {
         &mut self.var_manager
+    }
+
+    /// Reserves a new variable in the internal variable manager. This is a
+    /// shortcut for `inst.var_manager().new_var()`.
+    pub fn new_var(&mut self) -> Var {
+        self.var_manager().new_var()
+    }
+
+    /// Reserves a new variable in the internal variable manager. This is a
+    /// shortcut for `inst.var_manager().new_lit()`.
+    pub fn new_lit(&mut self) -> Lit {
+        self.var_manager().new_lit()
+    }
+
+    /// Gets the used variable with the highest index. This is a shortcut
+    /// for `inst.var_manager().max_var()`.
+    pub fn max_var(&mut self) -> Option<Var> {
+        self.var_manager().max_var()
     }
 
     /// Converts the included variable manager to a different type
