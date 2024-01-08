@@ -6,12 +6,12 @@
 //! ## Example Useage
 //!
 //! ```
-//! use rustsat::{
-//!     encodings::am1::{Def, Encode},
-//!     instances::{BasicVarManager, Cnf, ManageVars},
-//!     lit, var,
-//! };
-//!
+//! # use rustsat::{
+//! #     encodings::am1::{Def, Encode},
+//! #     instances::{BasicVarManager, Cnf, ManageVars},
+//! #     lit, var,
+//! # };
+//! #
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![3]);
 //!

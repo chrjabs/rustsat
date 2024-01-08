@@ -7,14 +7,14 @@
 //! ## Example Useage
 //!
 //! ```
-//! use rustsat::{
-//!     clause,
-//!     encodings::pb::{BoundBoth, DefIncBothBounding, Encode},
-//!     instances::{BasicVarManager, Cnf, ManageVars},
-//!     lit, solvers, var,
-//!     types::RsHashMap,
-//! };
-//!
+//! # use rustsat::{
+//! #     clause,
+//! #     encodings::pb::{BoundBoth, DefIncBothBounding, Encode},
+//! #     instances::{BasicVarManager, Cnf, ManageVars},
+//! #     lit, solvers, var,
+//! #     types::RsHashMap,
+//! # };
+//! #
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![4]);
 //!

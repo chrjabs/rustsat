@@ -129,6 +129,17 @@ pub trait Solve: Extend<Clause> {
         Ok(())
     }
     /// Solves the internal CNF formula without any assumptions.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use rustsat::{lit, solvers::{SolverResult, Solve}};
+    /// // any other solver crate works the same way
+    /// let mut solver = rustsat_cadical::CaDiCaL::default();
+    /// solver.add_unit(lit![0]).unwrap();
+    /// let res = solver.solve().unwrap();
+    /// debug_assert_eq!(res, SolverResult::Sat);
+    /// ```
     fn solve(&mut self) -> Result<SolverResult, SolverError>;
     /// Gets a solution found by the solver up to a specified highest variable.
     ///
@@ -171,6 +182,17 @@ pub trait Solve: Extend<Clause> {
         self.lit_val(var.pos_lit())
     }
     /// Gets an assignment of a variable in the solver.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use rustsat::{lit, solvers::Solve, types::TernaryVal};
+    /// // any other solver crate works the same way
+    /// let mut solver = rustsat_cadical::CaDiCaL::default();
+    /// solver.add_unit(lit![0]).unwrap();
+    /// let res = solver.solve().unwrap();
+    /// debug_assert_eq!(solver.lit_val(lit![0]).unwrap(), TernaryVal::True);
+    /// ```
     ///
     /// # Errors
     ///
