@@ -3,7 +3,10 @@
 //! Common types used throughout the library to guarantee type safety.
 
 use core::ffi::c_int;
-use std::{fmt, ops};
+use std::{
+    fmt,
+    ops::{self, Index, IndexMut},
+};
 
 use thiserror::Error;
 
@@ -570,6 +573,30 @@ impl From<bool> for TernaryVal {
     }
 }
 
+impl ops::Not for TernaryVal {
+    type Output = TernaryVal;
+
+    fn not(self) -> Self::Output {
+        match self {
+            TernaryVal::True => TernaryVal::False,
+            TernaryVal::False => TernaryVal::True,
+            TernaryVal::DontCare => TernaryVal::DontCare,
+        }
+    }
+}
+
+impl ops::Neg for TernaryVal {
+    type Output = TernaryVal;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            TernaryVal::True => TernaryVal::False,
+            TernaryVal::False => TernaryVal::True,
+            TernaryVal::DontCare => TernaryVal::DontCare,
+        }
+    }
+}
+
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
@@ -695,6 +722,20 @@ impl FromIterator<Lit> for Assignment {
 impl From<Vec<TernaryVal>> for Assignment {
     fn from(assignment: Vec<TernaryVal>) -> Self {
         Self { assignment }
+    }
+}
+
+impl Index<Var> for Assignment {
+    type Output = TernaryVal;
+
+    fn index(&self, index: Var) -> &Self::Output {
+        &self.assignment[index.idx()]
+    }
+}
+
+impl IndexMut<Var> for Assignment {
+    fn index_mut(&mut self, index: Var) -> &mut Self::Output {
+        &mut self.assignment[index.idx()]
     }
 }
 
