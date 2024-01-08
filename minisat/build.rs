@@ -7,7 +7,7 @@ fn main() {
     build(
         "https://github.com/chrjabs/minisat.git",
         "master",
-        "7767e6587e28d8c4f844dc018ffcbfdf49937514",
+        "f34c822a9106ffed26c429015914b927d4da455c",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
