@@ -52,10 +52,7 @@ fn main() {
         SatInstance::from_dimacs_path(in_path).expect("error parsing the input file");
     let (cnf, vm) = inst.as_cnf();
 
-    #[cfg(feature = "minisat")]
-    let mut solver = rustsat_minisat::simp::Minisat::default();
-    #[cfg(feature = "cadical")]
-    let mut solver = rustsat_cadical::CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     solver
         .reserve(vm.max_var().expect("no variables in instance"))
         .expect("error reserving memory in solver");

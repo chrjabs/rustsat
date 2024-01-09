@@ -8,3 +8,8 @@ pub mod encodings {
     pub mod clustering;
     pub mod knapsack;
 }
+
+#[cfg(feature = "cadical")]
+pub type Solver = rustsat_cadical::CaDiCaL<'static, 'static>;
+#[cfg(all(not(feature = "cadical"), feature = "minisat"))]
+pub type Solver = rustsat_minisat::core::Minisat;

@@ -2,7 +2,6 @@ use rustsat::{
     instances::{fio::opb::Options, SatInstance},
     solvers::{Solve, SolverResult},
 };
-use rustsat_cadical::CaDiCaL;
 
 use rustsat::instances::MultiOptInstance;
 use rustsat::types::RsHashMap;
@@ -17,7 +16,7 @@ macro_rules! opb_test {
         let inst: SatInstance = SatInstance::from_opb_path($path, Options::default()).unwrap();
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
-        let mut solver = CaDiCaL::default();
+        let mut solver = rustsat_tools::Solver::default();
         solver.add_cnf(cnf).unwrap();
         assert_eq!(solver.solve().unwrap(), $expect);
     }};

@@ -13,11 +13,10 @@ use rustsat::{
     types::Lit,
     var,
 };
-use rustsat_cadical::CaDiCaL;
 
 fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
     solver.add_clause(clause![lit![1], lit![2]]).unwrap();
@@ -81,7 +80,7 @@ fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
 
 fn test_inc_ub_card<CE: BoundUpperIncremental + Extend<Lit> + Default>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
     solver.add_clause(clause![lit![1], lit![2]]).unwrap();
@@ -141,7 +140,7 @@ fn test_inc_ub_card<CE: BoundUpperIncremental + Extend<Lit> + Default>() {
 
 fn test_both_card<CE: BoundBoth + From<Vec<Lit>>>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
     solver.add_clause(clause![lit![1], lit![2]]).unwrap();
@@ -174,7 +173,7 @@ fn test_both_card<CE: BoundBoth + From<Vec<Lit>>>() {
 /// Requires a cardinality encoding with upper and lower bounding functionality
 fn test_both_card_min_enc<CE: BoundBoth + From<Vec<Lit>>>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
@@ -270,7 +269,7 @@ fn dbtot_inc_ub() {
 use rustsat_tools::{test_all, test_assignment};
 
 fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
@@ -392,7 +391,7 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
 }
 
 fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
