@@ -7,7 +7,7 @@ fn main() {
     build(
         "https://github.com/chrjabs/minisat.git",
         "master",
-        "eba7139dfafe76a787e4bbea8464ac140c2dfafd",
+        "f64a4f78eea61927dec9f151650504defba490c1",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -40,7 +40,7 @@ fn build(repo: &str, branch: &str, commit: &str) {
     #[cfg(target_os = "macos")]
     println!("cargo:rustc-flags=-l dylib=c++");
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     println!("cargo:rustc-flags=-l dylib=stdc++");
 }
 
