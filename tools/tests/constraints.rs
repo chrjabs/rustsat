@@ -7,7 +7,6 @@ use rustsat::{
         RsHashMap,
     },
 };
-use rustsat_cadical::CaDiCaL;
 
 macro_rules! test_card {
     ( $constr:expr, $sat_assump:expr, $unsat_assump:expr ) => {{
@@ -15,7 +14,7 @@ macro_rules! test_card {
         inst.add_card_constr($constr);
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
-        let mut solver = CaDiCaL::default();
+        let mut solver = rustsat_tools::Solver::default();
         solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),
@@ -34,7 +33,7 @@ macro_rules! test_pb {
         inst.add_pb_constr($constr);
         let (cnf, _) = inst.as_cnf();
         println!("{:?}", cnf);
-        let mut solver = CaDiCaL::default();
+        let mut solver = rustsat_tools::Solver::default();
         solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),

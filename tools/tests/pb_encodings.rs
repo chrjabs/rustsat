@@ -17,11 +17,10 @@ use rustsat::{
     types::{Lit, RsHashMap},
     var,
 };
-use rustsat_cadical::CaDiCaL;
 
 fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     solver.add_clause(clause![lit![0], lit![1]]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
     solver.add_clause(clause![lit![1], lit![2]]).unwrap();
@@ -100,7 +99,7 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
 
 fn test_pb_eq<PBE: BoundBothIncremental + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![3]);
 
@@ -155,7 +154,7 @@ fn test_pb_eq<PBE: BoundBothIncremental + From<RsHashMap<Lit, usize>>>() {
 
 fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     solver
         .add_clause(clause![!lit![0], !lit![1], !lit![2]])
         .unwrap();
@@ -184,7 +183,7 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
 
 fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
     // Set up instance
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
@@ -282,7 +281,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
     weights: [usize; 4],
     decreasing: bool,
 ) {
-    let mut solver = CaDiCaL::default();
+    let mut solver = rustsat_tools::Solver::default();
     let mut lits = RsHashMap::default();
     lits.insert(lit![0], weights[0]);
     lits.insert(lit![1], weights[1]);

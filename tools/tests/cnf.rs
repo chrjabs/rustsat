@@ -7,20 +7,19 @@ use rustsat::{
     },
     types::Lit,
 };
-use rustsat_cadical::CaDiCaL;
-use rustsat_tools::{test_all, test_assignment};
+use rustsat_tools::{test_all, test_assignment, Solver};
 
 #[test]
 fn cnf_implications() {
     let mut cnf = Cnf::new();
     cnf.add_lit_impl_lit(lit![0], lit![1]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(solver, Vec::<Lit>::new(), Sat, Unsat, Sat, Sat);
 
     let mut cnf = Cnf::new();
     cnf.add_lit_impl_clause(lit![0], &[lit![1], lit![2]]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -37,7 +36,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_lit_impl_cube(lit![0], &[lit![1], lit![2]]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -54,7 +53,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_cube_impl_lit(&[lit![0], lit![1]], lit![2]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -71,7 +70,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_clause_impl_lit(&[lit![0], lit![1]], lit![2]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -88,7 +87,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_cube_impl_clause(&[lit![0], lit![1]], &[lit![2], lit![3]]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -113,7 +112,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_clause_impl_clause(&[lit![0], lit![1]], &[lit![2], lit![3]]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -138,7 +137,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_clause_impl_cube(&[lit![0], lit![1]], &[lit![2], lit![3]]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
@@ -163,7 +162,7 @@ fn cnf_implications() {
 
     let mut cnf = Cnf::new();
     cnf.add_cube_impl_cube(&[lit![0], lit![1]], &[lit![2], lit![3]]);
-    let mut solver = CaDiCaL::default();
+    let mut solver = Solver::default();
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
