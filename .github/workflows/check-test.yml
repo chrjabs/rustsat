@@ -34,9 +34,9 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cargo test --workspace --verbose --features=all --exclude rustsat-kissat --exclude rustsat-cadical
+            RUST_BACKTRACE=1 cargo test --workspace --verbose --features=all --exclude rustsat-kissat --exclude rustsat-cadical
           else 
-            cargo test --workspace --verbose --features=all
+            RUST_BACKTRACE=1 cargo test --workspace --verbose --features=all
           fi
 
   doc:
