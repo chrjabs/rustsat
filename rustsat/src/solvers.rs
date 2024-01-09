@@ -135,7 +135,7 @@ pub trait Solve: Extend<Clause> {
     /// ```
     /// # use rustsat::{lit, solvers::{SolverResult, Solve}};
     /// // any other solver crate works the same way
-    /// let mut solver = rustsat_cadical::CaDiCaL::default();
+    /// let mut solver = rustsat_minisat::core::Minisat::default();
     /// solver.add_unit(lit![0]).unwrap();
     /// let res = solver.solve().unwrap();
     /// debug_assert_eq!(res, SolverResult::Sat);
@@ -188,7 +188,7 @@ pub trait Solve: Extend<Clause> {
     /// ```
     /// # use rustsat::{lit, solvers::Solve, types::TernaryVal};
     /// // any other solver crate works the same way
-    /// let mut solver = rustsat_cadical::CaDiCaL::default();
+    /// let mut solver = rustsat_minisat::core::Minisat::default();
     /// solver.add_unit(lit![0]).unwrap();
     /// let res = solver.solve().unwrap();
     /// debug_assert_eq!(solver.lit_val(lit![0]).unwrap(), TernaryVal::True);
