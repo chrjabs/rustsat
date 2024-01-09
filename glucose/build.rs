@@ -7,7 +7,7 @@ fn main() {
     build(
         "https://github.com/chrjabs/glucose4.git",
         "main",
-        "50caaa1c45dd217cbdbd43793c5a8c8824db78d4",
+        "257eeb2951a481a12d72f83a37d484360cabdcad",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -41,7 +41,7 @@ fn build(repo: &str, branch: &str, commit: &str) {
     #[cfg(target_os = "macos")]
     println!("cargo:rustc-flags=-l dylib=c++");
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     println!("cargo:rustc-flags=-l dylib=stdc++");
 }
 
