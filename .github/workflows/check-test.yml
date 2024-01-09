@@ -1,4 +1,4 @@
-name: Rust
+name: Check & Test
 
 on:
   push:
@@ -10,11 +10,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: Check
+  check-test:
+    name: Build and test
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources
@@ -22,25 +22,22 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run cargo check
-        run: cargo check --workspace --verbose --features=all
-          
-  test:
-    name: Test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Build project
-        run: cargo build
-      - name: Run cargo test suite
-        run: cargo test --workspace --verbose
+      - name: Cargo build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cargo build --workspace --verbose --features=all --exclude rustsat-kissat --exclude rustsat-cadical
+          else 
+            cargo build --workspace --verbose --features=all
+          fi
+      - name: Cargo test
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cargo test --workspace --verbose --features=all --exclude rustsat-kissat --exclude rustsat-cadical
+          else 
+            cargo test --workspace --verbose --features=all
+          fi
 
   doc:
     name: Doc
