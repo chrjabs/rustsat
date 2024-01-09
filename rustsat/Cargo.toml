@@ -52,7 +52,6 @@ all = [
   "compression",
   "rand",
   "fxhash",
-  "pyapi"
 ]
 
 [lib]
