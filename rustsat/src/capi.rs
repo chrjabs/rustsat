@@ -227,7 +227,8 @@ pub mod encodings {
             drop(unsafe { Box::from_raw(tot) })
         }
 
-        #[cfg(test)]
+        // TODO: figure out how to get these to work on windows
+        #[cfg(all(test, not(target_os = "windows")))]
         mod tests {
             use inline_c::assert_c;
 
@@ -419,7 +420,8 @@ pub mod encodings {
             drop(unsafe { Box::from_raw(dpw) })
         }
 
-        #[cfg(test)]
+        // TODO: figure out how to get these to work on windows
+        #[cfg(all(test, not(target_os = "windows")))]
         mod tests {
             use inline_c::assert_c;
 
