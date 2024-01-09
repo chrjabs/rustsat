@@ -13,6 +13,9 @@ build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+debug = []
+
 [dependencies]
 cpu-time = "1.0.0"
 rustsat = { version = "0.4.0", path = "../rustsat", default-features = false }
