@@ -28,7 +28,11 @@ fn build(repo: &str, branch: &str, commit: &str) {
             .join("libglucose4.a")
             .exists()
     {
-        cmake::build(glucose_dir);
+        let mut conf = cmake::Config::new(glucose_dir);
+        if cfg!(not(feature = "debug")) {
+            conf.profile("Release");
+        }
+        conf.build();
     };
 
     println!("cargo:rustc-link-lib=static=glucose4");

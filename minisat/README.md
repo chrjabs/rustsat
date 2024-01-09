@@ -2,6 +2,10 @@
 
 The Minisat SAT solver to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 
+## Features
+
+- `debug`: if this feature is enables, the C++ library will be built with debug and check functionality if the Rust project is built in debug mode
+
 ## Minisat Version
 
 The version of minisat in this crate is Version 2.2.0.

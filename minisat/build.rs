@@ -28,7 +28,11 @@ fn build(repo: &str, branch: &str, commit: &str) {
             .join("libminisat.a")
             .exists()
     {
-        cmake::build(minisat_dir);
+        let mut conf = cmake::Config::new(minisat_dir);
+        if cfg!(not(feature = "debug")) {
+            conf.profile("Release");
+        }
+        conf.build();
     };
 
     println!("cargo:rustc-link-lib=static=minisat");
