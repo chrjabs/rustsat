@@ -2,6 +2,8 @@
 
 Armin Biere's SAT solver [Kissat](https://github.com/arminbiere/kissat) to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 
+**Note**: at the moment this crate is known to not work on Windows since Kissat is non-trivial to get to work on Windows.
+
 ## Features
 
 - `debug`: if this feature is enables, the C library will be built with debug functionality if the Rust project is built in debug mode
