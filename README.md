@@ -1,3 +1,5 @@
+<!-- cargo-rdme start -->
+
 # rustsat - A Comprehensive SAT Library for Rust
 
 `rustsat` is a collection of interfaces and utilities for working with the boolean satisfiability problem in Rust.
@@ -6,8 +8,7 @@ The focus of the library is to provide as much ease of use without giving up on 
 
 ## Example
 
-```
-# use rustsat::{instances::SatInstance, solvers::{Solve, SolverResult}, types::TernaryVal};
+```rust
 let mut instance: SatInstance = SatInstance::new();
 let l1 = instance.new_lit();
 let l2 = instance.new_lit();
@@ -88,3 +89,5 @@ Updated initial version with working dependencies
 ### Version 0.1.0 and 0.1.1
 
 Yanked because of dependencies that don't exist anymore
+
+<!-- cargo-rdme end -->

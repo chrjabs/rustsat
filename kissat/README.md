@@ -1,3 +1,5 @@
+<!-- cargo-rdme start -->
+
 # rustsat-kissat - Interface to the kissat SAT Solver for RustSAT
 
 Armin Biere's SAT solver [Kissat](https://github.com/arminbiere/kissat) to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
@@ -22,3 +24,5 @@ The following Kissat versions are available:
 
 Without any features selected, the newest version will be used.
 If conflicting Kissat versions are requested, the newest requested version will be selected.
+
+<!-- cargo-rdme end -->
