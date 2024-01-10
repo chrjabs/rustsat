@@ -15,7 +15,6 @@ build = "build.rs"
 
 [features]
 debug = []
-glucose4-1 = []
 
 [dependencies]
 cpu-time = "1.0.0"

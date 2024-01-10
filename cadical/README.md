@@ -1,3 +1,5 @@
+<!-- cargo-rdme start -->
+
 # rustsat-cadical - Interface to the CaDiCaL SAT Solver for RustSAT
 
 Armin Biere's SAT solver [CaDiCaL](https://github.com/arminbiere/cadical) to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
@@ -19,3 +21,5 @@ For the full list of versions and the changelog see [the CaDiCaL releases](https
 
 Without any features selected, the newest version will be used.
 If conflicting CaDiCaL versions are requested, the newest requested version will be selected.
+
+<!-- cargo-rdme end -->
