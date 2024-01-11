@@ -10,6 +10,11 @@ use std::{
 };
 
 fn main() {
+    if std::env::var("DOCS_RS").is_ok() {
+        // don't build c++ library on docs.rs due to network restrictions
+        return;
+    }
+
     #[cfg(all(feature = "quiet", feature = "logging"))]
     compile_error!("cannot combine cadical features quiet and logging");
 
@@ -60,7 +65,6 @@ fn main() {
     };
 
     // Build C++ library
-    #[cfg(not(doc))]
     build(
         "https://github.com/arminbiere/cadical.git",
         "master",
