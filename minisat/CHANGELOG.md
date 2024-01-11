@@ -7,7 +7,6 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 
 - Build on non-linux
-- Test with minisat by default
 
 ### Documentation
 
