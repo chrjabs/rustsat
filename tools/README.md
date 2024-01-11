@@ -5,9 +5,8 @@
 
 <!-- cargo-rdme start -->
 
-# rustsat-tools - Tools and Unittests for the RustSAT Library
+# rustsat-tools - Tools for and with the RustSAT Library
 
-This crate contains tools and unit tests for the RustSAT library.
-Unittests are here because they depend on solver interface crates, which in turn depend on RustSAT, which creates a dependency cycle if the tests are in RustSAT directly.
+This crate contains tools for and built on the RustSAT library.
 
 <!-- cargo-rdme end -->
