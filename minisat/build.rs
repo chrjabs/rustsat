@@ -1,9 +1,13 @@
 use std::{env, fs, path::Path, str};
 
 fn main() {
+    if std::env::var("DOCS_RS").is_ok() {
+        // don't build c++ library on docs.rs due to network restrictions
+        return;
+    }
+
     // Build C++ library
     // Full commit hash needs to be provided
-    #[cfg(not(doc))]
     build(
         "https://github.com/chrjabs/minisat.git",
         "master",

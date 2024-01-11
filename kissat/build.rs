@@ -9,6 +9,11 @@ use std::{
 };
 
 fn main() {
+    if std::env::var("DOCS_RS").is_ok() {
+        // don't build c library on docs.rs due to network restrictions
+        return;
+    }
+
     // Select commit based on features. If conflict, always choose newest release
     let tag = if cfg!(feature = "v3-1-1") {
         "refs/tags/rel-3.1.1"
@@ -29,7 +34,6 @@ fn main() {
 
     // Build C library
     // Full commit hash needs to be provided
-    #[cfg(not(doc))]
     build("https://github.com/arminbiere/kissat.git", "master", tag);
 
     let out_dir = env::var("OUT_DIR").unwrap();
