@@ -4,9 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [0.2.2] - 2024-01-11
 
-### Bug Fixes
+### Features
 
-- Test with minisat by default
+- Select minisat/cadical via a cargo feature
+- Moved integration tests to main crate
 
 ### Documentation
 
