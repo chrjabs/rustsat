@@ -65,6 +65,7 @@
 //! For an example of how to use the C-API, see `rustsat/examples/capi*.cpp`.
 //! Similarly, for an example of using the Python API, see `rustsat/examples/pyapi*.py`.
 
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(feature = "bench", feature(test))]
 
 pub mod encodings;
