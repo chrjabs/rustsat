@@ -1,5 +1,5 @@
 //! # rustsat-tools - Tools for and with the RustSAT Library
-//! 
+//!
 //! This crate contains tools for and built on the RustSAT library.
 
 pub mod utils;
