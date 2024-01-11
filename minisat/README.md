@@ -1,4 +1,4 @@
-[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/check-test.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/check-test.yml)
+[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/minisat.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/minisat.yml)
 [![crates.io](https://img.shields.io/crates/v/rustsat-minisat)](https://crates.io/crates/rustsat-minisat)
 [![docs.rs](https://img.shields.io/docsrs/rustsat-minisat)](https://docs.rs/rustsat-minisat)
 [![License](https://img.shields.io/crates/l/rustsat-minisat)](../LICENSE)

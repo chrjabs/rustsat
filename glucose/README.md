@@ -1,4 +1,4 @@
-[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/check-test.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/check-test.yml)
+[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/glucose.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/glucose.yml)
 [![crates.io](https://img.shields.io/crates/v/rustsat-glucose)](https://crates.io/crates/rustsat-glucose)
 [![docs.rs](https://img.shields.io/docsrs/rustsat-glucose)](https://docs.rs/rustsat-glucose)
 [![License](https://img.shields.io/crates/l/rustsat-glucose)](../LICENSE)

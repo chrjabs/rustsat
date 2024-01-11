@@ -1,4 +1,4 @@
-[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/check-test.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/check-test.yml)
+[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/cadical.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/cadical.yml)
 [![crates.io](https://img.shields.io/crates/v/rustsat-cadical)](https://crates.io/crates/rustsat-cadical)
 [![docs.rs](https://img.shields.io/docsrs/rustsat-cadical)](https://docs.rs/rustsat-cadical)
 [![License](https://img.shields.io/crates/l/rustsat-cadical)](../LICENSE)
