@@ -1,0 +1,30 @@
+name: CaDiCaL
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+    
+jobs:
+  build-test:
+    name: Build and test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "build-test"
+      - name: Cargo build
+        run: cargo build -p rustsat-cadical --verbose
+      - name: Cargo test
+        run: cargo test -p rustsat-cadical --verbose

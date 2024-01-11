@@ -1,0 +1,27 @@
+name: Docs
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+    
+jobs:
+  doc:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run cargo doc
+        run: cargo doc --workspace --verbose --no-deps --features=all
+      - name: Check READMEs
+        run: |
+          cargo install cargo-rdme
+          for dir in rustsat tools cadical kissat minisat glucose; do cd ${dir} && cargo rdme --check; cd ..; done
