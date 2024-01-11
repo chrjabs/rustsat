@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-tools"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
@@ -12,9 +12,9 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsat = { version = "0.4.1", path = "../rustsat", features = ["compression", "multiopt", "rand", "internals"] }
-rustsat-cadical = { version = "0.2.2", path = "../cadical", optional = true }
-rustsat-minisat = { version = "0.2.2", path = "../minisat", optional = true }
+rustsat = { version = "0.4.2", path = "../rustsat", features = ["compression", "multiopt", "rand", "internals"] }
+rustsat-cadical = { version = "0.2.3", path = "../cadical", optional = true }
+rustsat-minisat = { version = "0.2.3", path = "../minisat", optional = true }
 clap = { version = "4.2.4", features = ["derive", "cargo"] }
 concolor-clap = { version = "0.1.0" }
 termcolor = { version = "1.2.0" }

@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-glucose"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
@@ -18,7 +18,7 @@ debug = []
 
 [dependencies]
 cpu-time = "1.0.0"
-rustsat = { version = "0.4.1", path = "../rustsat", default-features = false }
+rustsat = { version = "0.4.2", path = "../rustsat", default-features = false }
 
 [build-dependencies]
 cc = { version = "1.0.83", features = ["parallel"] }
