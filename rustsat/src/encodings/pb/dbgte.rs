@@ -54,6 +54,16 @@ pub struct DbGte {
 }
 
 impl DbGte {
+    #[cfg_attr(feature = "internals", visibility::make(pub))]
+    fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
+        Self {
+            root: Some(root),
+            max_leaf_weight,
+            db,
+            ..Default::default()
+        }
+    }
+
     fn extend_tree(&mut self, max_weight: usize) {
         if !self.lit_buffer.is_empty() {
             let mut new_lits: Vec<(Lit, usize)> = self
