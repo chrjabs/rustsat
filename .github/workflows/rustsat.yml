@@ -44,3 +44,16 @@ jobs:
         run: maturin build -m rustsat/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
       - name: Test stubs
         run: stubtest --mypy-config-file rustsat/pyproject.toml --allowlist rustsat/stubtest-allowlist.txt rustsat
+
+  cbindgen:
+    name: Test generated C header
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check C header
+        run: |
+          cargo install cbindgen
+          cbindgen -c rustsat/cbindgen.toml --crate rustsat -o rustsat/rustsat.h --verify
