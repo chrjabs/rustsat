@@ -3,6 +3,11 @@ extern crate cbindgen;
 use std::env;
 
 fn main() {
+    if std::env::var("DOCS_RS").is_ok() {
+        // exit the build script early on docs.rs because cbindgen needs network access
+        return;
+    }
+
     #[cfg(feature = "ipasir")]
     {
         // Link to custom IPASIR solver
