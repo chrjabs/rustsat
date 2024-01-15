@@ -51,6 +51,15 @@ pub struct DbTotalizer {
 }
 
 impl DbTotalizer {
+    #[cfg_attr(feature = "internals", visibility::make(pub))]
+    fn from_raw(root: NodeId, db: TotDb) -> Self {
+        Self {
+            root: Some(root),
+            db,
+            ..Default::default()
+        }
+    }
+
     fn extend_tree(&mut self) {
         if self.lit_buffer.is_empty() {
             return;
