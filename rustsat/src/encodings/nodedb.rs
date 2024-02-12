@@ -229,7 +229,7 @@ impl NodeCon {
 
     #[inline]
     pub fn offset(&self) -> usize {
-        self.offset.into()
+        self.offset
     }
 
     #[inline]
@@ -481,7 +481,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
                 seg.sort_unstable_by_key(|&con| self.con_len(con));
                 let con = self.merge_balanced(&seg);
                 debug_assert_eq!(con.multiplier(), 1);
-                merged_cons.push(con.reweight(cons[seg_begin].multiplier().try_into().unwrap()));
+                merged_cons.push(con.reweight(cons[seg_begin].multiplier()));
             } else {
                 merged_cons.push(cons[seg_begin])
             }
