@@ -451,6 +451,49 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
         NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
     }
+
+    /// Merges the given connections according to the following strategy: sort
+    /// the connections by multiplier, then merge connections with equal
+    /// multiplier, then merge resulting connections with
+    /// [`NodeById::merge_balanced`].
+    fn merge_thorough(&mut self, cons: &mut [NodeCon]) -> NodeCon
+    where
+        Self: Sized,
+    {
+        debug_assert!(!cons.is_empty());
+        cons.sort_unstable_by_key(|con| con.multiplier());
+
+        // Detect sequences of connections of equal weight and merge them
+        let mut seg_begin = 0;
+        let mut seg_end = 0;
+        let mut merged_cons = vec![];
+        loop {
+            seg_end += 1;
+            if seg_end < cons.len() && cons[seg_end].multiplier() == cons[seg_begin].multiplier() {
+                continue;
+            }
+            if seg_end > seg_begin + 1 {
+                // merge lits of equal weight
+                let mut seg: Vec<_> = cons[seg_begin..seg_end]
+                    .iter()
+                    .map(|&con| con.reweight(1))
+                    .collect();
+                seg.sort_unstable_by_key(|&con| self.con_len(con));
+                let con = self.merge_balanced(&seg);
+                debug_assert_eq!(con.multiplier(), 1);
+                merged_cons.push(con.reweight(cons[seg_begin].multiplier().try_into().unwrap()));
+            } else {
+                merged_cons.push(cons[seg_begin])
+            }
+            seg_begin = seg_end;
+            if seg_end >= cons.len() {
+                break;
+            }
+        }
+
+        merged_cons.sort_unstable_by_key(|&con| self.con_len(con));
+        self.merge_balanced(&merged_cons)
+    }
 }
 
 #[cfg(test)]
