@@ -346,7 +346,7 @@ fn gcd(mut a: usize, mut b: usize) -> usize {
 }
 
 fn get_sums_pot_splits_gcds(
-    sorted_clauses: &Vec<(Clause, usize)>,
+    sorted_clauses: &[(Clause, usize)],
 ) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     let mut sums = vec![];
     let mut pot_split_ends = vec![];
