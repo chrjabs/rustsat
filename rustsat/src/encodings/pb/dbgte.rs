@@ -43,8 +43,6 @@ pub struct DbGte {
     /// Maximum weight of a leaf, needed for computing how much more than
     /// `max_rhs` to encode
     max_leaf_weight: usize,
-    /// Sum of all input weight
-    weight_sum: usize,
     /// The number of variables in the totalizer
     n_vars: u32,
     /// The number of clauses in the totalizer
@@ -120,7 +118,12 @@ impl DbGte {
 
 impl Encode for DbGte {
     fn weight_sum(&self) -> usize {
-        self.weight_sum
+        self.lit_buffer.iter().fold(0, |sum, (_, w)| sum + w)
+            + if let Some(root) = self.root {
+                root.map(self.db[root.id].max_val())
+            } else {
+                0
+            }
     }
 
     fn next_higher(&self, val: usize) -> usize {
@@ -169,7 +172,7 @@ impl BoundUpper for DbGte {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        if ub >= self.weight_sum {
+        if ub >= self.weight_sum() {
             return Ok(vec![]);
         }
 
@@ -262,10 +265,8 @@ impl EncodeStats for DbGte {
 
 impl From<RsHashMap<Lit, usize>> for DbGte {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
-        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
         Self {
             lit_buffer: lits,
-            weight_sum,
             ..Default::default()
         }
     }
@@ -281,7 +282,6 @@ impl FromIterator<(Lit, usize)> for DbGte {
 impl Extend<(Lit, usize)> for DbGte {
     fn extend<T: IntoIterator<Item = (Lit, usize)>>(&mut self, iter: T) {
         iter.into_iter().for_each(|(l, w)| {
-            self.weight_sum += w;
             // Insert into buffer to be added to tree
             match self.lit_buffer.get_mut(&l) {
                 Some(old_w) => *old_w += w,
