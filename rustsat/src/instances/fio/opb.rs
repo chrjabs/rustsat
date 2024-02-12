@@ -367,6 +367,12 @@ where
     W: Write,
     VM: ManageVars,
 {
+    writeln!(
+        writer,
+        "* #variable = {} #constraint= {}",
+        inst.var_manager.n_used(),
+        inst.n_clauses() + inst.cards.len() + inst.pbs.len()
+    )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = inst.var_manager.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
@@ -403,6 +409,12 @@ where
     let pbs = constrs.pbs;
     let mut vm = constrs.var_manager;
     let (hardened, softs) = obj.as_soft_lits(&mut vm);
+    writeln!(
+        writer,
+        "* #variable = {} #constraint= {}",
+        vm.n_used(),
+        cnf.len() + cards.len() + pbs.len()
+    )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = vm.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
@@ -449,6 +461,12 @@ where
         .into_iter()
         .map(|o| o.as_soft_lits(&mut vm))
         .unzip::<_, _, Vec<_>, Vec<_>>();
+    writeln!(
+        writer,
+        "* #variable = {} #constraint= {}",
+        vm.n_used(),
+        cnf.len() + cards.len() + pbs.len()
+    )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = vm.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
