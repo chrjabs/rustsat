@@ -14,7 +14,7 @@ struct Args {
     /// The OPB output path. Writes to `stdout` if not given.
     out_path: Option<PathBuf>,
     /// The index in the OPB file to treat as the lowest variable
-    #[arg(long, default_value_t = 0)]
+    #[arg(long, default_value_t = 1)]
     first_var_idx: u32,
     /// Avoid negated literals in the OPB file by transforming constraints
     #[arg(long)]

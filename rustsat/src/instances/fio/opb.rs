@@ -68,7 +68,7 @@ impl Default for Options {
     /// Default options following the OPB specification
     fn default() -> Self {
         Self {
-            first_var_idx: 0,
+            first_var_idx: 1,
             no_negated_lits: true,
         }
     }
