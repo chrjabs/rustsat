@@ -706,21 +706,21 @@ mod test {
     fn parse_variable() {
         assert_eq!(
             variable("x5 test", Options::default()),
-            Ok((" test", var![5]))
+            Ok((" test", var![4]))
         );
         assert_eq!(
             variable(
                 "x5 test",
                 Options {
-                    first_var_idx: 1,
+                    first_var_idx: 0,
                     no_negated_lits: true
                 }
             ),
-            Ok((" test", var![4]))
+            Ok((" test", var![5]))
         );
         assert_eq!(
             variable("x2 test", Options::default()),
-            Ok((" test", var![2]))
+            Ok((" test", var![1]))
         );
         assert_eq!(
             variable(" test\n", Options::default()),
@@ -732,19 +732,19 @@ mod test {
     fn parse_literal() {
         assert_eq!(
             literal("x5 test", Options::default()),
-            Ok((" test", lit![5]))
+            Ok((" test", lit![4]))
         );
         assert_eq!(
             literal("x2 test", Options::default()),
-            Ok((" test", lit![2]))
+            Ok((" test", lit![1]))
         );
         assert_eq!(
             literal("~x5 test", Options::default()),
-            Ok((" test", !lit![5]))
+            Ok((" test", !lit![4]))
         );
         assert_eq!(
             literal("~x2 test", Options::default()),
-            Ok((" test", !lit![2]))
+            Ok((" test", !lit![1]))
         );
     }
 
@@ -768,19 +768,19 @@ mod test {
     fn parse_weighted_literal() {
         assert_eq!(
             weighted_literal("5 x1 test", Options::default()),
-            Ok(("test", (lit![1], 5)))
+            Ok(("test", (lit![0], 5)))
         );
         assert_eq!(
             weighted_literal("-5  x1 test", Options::default()),
-            Ok(("test", (lit![1], -5)))
+            Ok(("test", (lit![0], -5)))
         );
         assert_eq!(
             weighted_literal("5 ~x1  test", Options::default()),
-            Ok(("test", (!lit![1], 5)))
+            Ok(("test", (!lit![0], 5)))
         );
         assert_eq!(
             weighted_literal("-5 ~x1 test", Options::default()),
-            Ok(("test", (!lit![1], -5)))
+            Ok(("test", (!lit![0], -5)))
         );
     }
 
@@ -788,7 +788,7 @@ mod test {
     fn parse_weighted_lit_sum() {
         assert_eq!(
             weighted_lit_sum("5  x1    -3 ~x2  test", Options::default()),
-            Ok(("test", vec![(lit![1], 5), (!lit![2], -3)]))
+            Ok(("test", vec![(lit![0], 5), (!lit![1], -3)]))
         );
     }
 
@@ -807,7 +807,7 @@ mod test {
                 PBConstraint::UB(constr) => {
                     assert_eq!(rest, "");
                     let (lits, b) = constr.decompose();
-                    let should_be_lits = vec![(lit![1], 3), (lit![2], 2)];
+                    let should_be_lits = vec![(lit![0], 3), (lit![1], 2)];
                     assert_eq!(lits, should_be_lits);
                     assert_eq!(b, 6);
                 }
@@ -825,8 +825,8 @@ mod test {
             Ok((rest, obj)) => {
                 assert_eq!(rest, "");
                 let mut should_be_obj = Objective::new();
-                should_be_obj.increase_soft_lit_int(3, lit![1]);
-                should_be_obj.increase_soft_lit_int(-2, !lit![2]);
+                should_be_obj.increase_soft_lit_int(3, lit![0]);
+                should_be_obj.increase_soft_lit_int(-2, !lit![1]);
                 assert_eq!(obj, should_be_obj);
             }
             Err(_) => panic!(),
@@ -861,7 +861,7 @@ mod test {
             opb_data("* test\n", Options::default()),
             Ok(("", OpbData::Cmt(String::from("* test\n"))))
         );
-        let lits = vec![(lit![1], 3), (!lit![2], -2)];
+        let lits = vec![(lit![0], 3), (!lit![1], -2)];
         let should_be_constr = PBConstraint::new_ub(lits, 4);
         assert_eq!(
             opb_data("3 x1 -2 ~x2 <= 4;\n", Options::default()),
@@ -873,12 +873,12 @@ mod test {
             obj.increase_soft_lit_int(-3, lit![0]);
             obj.increase_soft_lit_int(4, lit![1]);
             assert_eq!(
-                opb_data("min: -3 x0 4 x1;", Options::default()),
+                opb_data("min: -3 x1 4 x2;", Options::default()),
                 Ok(("", OpbData::Obj(obj)))
             );
             assert_eq!(
-                opb_data("min: x0;", Options::default()),
-                Err(nom::Err::Error(NomError::new("x0;", ErrorKind::Eof)))
+                opb_data("min: x1;", Options::default()),
+                Err(nom::Err::Error(NomError::new("x1;", ErrorKind::Eof)))
             );
         }
     }
@@ -886,7 +886,7 @@ mod test {
     #[cfg(feature = "optimization")]
     #[test]
     fn multi_opb_data() {
-        let data = "* test\n5 x0 -3 x1 >= 4;\nmin: 1 x0;";
+        let data = "* test\n5 x1 -3 x2 >= 4;\nmin: 1 x1;";
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
         match parse_opb_data(reader, Options::default()) {
@@ -906,12 +906,12 @@ mod test {
             }
             Err(_) => panic!(),
         }
-        let data = "* test\n5 x0 -3 x1 >= 4;\nmin: x0;";
+        let data = "* test\n5 x1 -3 x2 >= 4;\nmin: x1;";
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
         assert_eq!(
             parse_opb_data(reader, Options::default()),
-            Err(Error::InvalidLine(String::from("min: x0;")))
+            Err(Error::InvalidLine(String::from("min: x1;")))
         );
     }
 
