@@ -51,7 +51,7 @@ pub struct DbTotalizer {
 }
 
 impl DbTotalizer {
-    #[cfg_attr(feature = "internals", visibility::make(pub))]
+    #[cfg(feature = "internals")]
     fn from_raw(root: NodeId, db: TotDb) -> Self {
         Self {
             root: Some(root),

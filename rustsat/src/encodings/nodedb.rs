@@ -456,6 +456,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// the connections by multiplier, then merge connections with equal
     /// multiplier, then merge resulting connections with
     /// [`NodeById::merge_balanced`].
+    #[cfg(feature = "internals")]
     fn merge_thorough(&mut self, cons: &mut [NodeCon]) -> NodeCon
     where
         Self: Sized,
