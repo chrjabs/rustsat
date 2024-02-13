@@ -52,7 +52,7 @@ pub struct DbGte {
 }
 
 impl DbGte {
-    #[cfg_attr(feature = "internals", visibility::make(pub))]
+    #[cfg(feature = "internals")]
     fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
         Self {
             root: Some(root),
