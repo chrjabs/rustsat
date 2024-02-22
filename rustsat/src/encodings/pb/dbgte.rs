@@ -53,7 +53,7 @@ pub struct DbGte {
 
 impl DbGte {
     #[cfg(feature = "internals")]
-    fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
+    pub fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
         Self {
             root: Some(root),
             max_leaf_weight,
