@@ -52,7 +52,7 @@ pub struct DbTotalizer {
 
 impl DbTotalizer {
     #[cfg(feature = "internals")]
-    fn from_raw(root: NodeId, db: TotDb) -> Self {
+    pub fn from_raw(root: NodeId, db: TotDb) -> Self {
         Self {
             root: Some(root),
             db,
