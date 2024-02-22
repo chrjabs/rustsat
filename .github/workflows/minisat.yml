@@ -26,5 +26,9 @@ jobs:
           shared-key: "build-test"
       - name: Cargo build
         run: cargo build -p rustsat-minisat --verbose
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
       - name: Cargo test
         run: cargo test -p rustsat-minisat --verbose
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
