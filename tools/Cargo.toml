@@ -12,7 +12,12 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsat = { version = "0.4.3", path = "../rustsat", features = ["compression", "multiopt", "rand", "internals"] }
+rustsat = { version = "0.4.3", path = "../rustsat", features = [
+  "compression",
+  "multiopt",
+  "rand",
+  "internals",
+] }
 rustsat-cadical = { version = "0.2.4", path = "../cadical", optional = true }
 rustsat-minisat = { version = "0.2.4", path = "../minisat", optional = true }
 clap = { version = "4.2.4", features = ["derive", "cargo"] }
