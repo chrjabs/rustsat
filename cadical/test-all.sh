@@ -84,6 +84,10 @@ echo "Testing v1.9.4"
 cargo test --features=v1-9-4 &> v194-test.log
 echo "v1.9.4 test returned: $?"
 
+echo "Testing v1.9.5"
+cargo test --features=v1-9-5 &> v195-test.log
+echo "v1.9.5 test returned: $?"
+
 echo "Testing quiet"
 cargo test --features=quiet &> quiet-test.log
 echo "quiet test returned: $?"
