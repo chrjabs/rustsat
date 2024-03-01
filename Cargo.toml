@@ -1,12 +1,5 @@
 [workspace]
-members = [
-  "rustsat",
-  "tools",
-  "cadical",
-  "kissat",
-  "glucose",
-  "minisat"
-]
+members = ["rustsat", "tools", "cadical", "kissat", "glucose", "minisat"]
 resolver = "2"
 
 [profile.profiling]
