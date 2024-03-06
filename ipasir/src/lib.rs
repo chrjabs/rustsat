@@ -1,17 +1,51 @@
-//! # IPASIR Interface
+//! # rustsat-ipasir - IPASIR Bindings for RustSAT
 //!
-//! Interface to any SAT solver implementing the
-//! [IPASIR API](https://github.com/biotomas/ipasir) for incremental SAT solvers.
+//! [IPASIR](https://github.com/biotomas/ipasir) is a general incremental interface for SAT
+//! solvers. This crate provides bindings for this API to be used with the
+//! [RustSAT](https://github.com/chrjabs/rustsat) library.
+//!
+//! **Note**: This crate only provides bindings to the API, linking to a IPASIR library needs to be
+//! set up by the user. This is intentional to allow easy integration of solvers that we do not
+//! provide a specialized crate for. For a plug-and-play experience see the other rustsat solver
+//! crates.
+//!
+//! ## Linking
+//!
+//! Linking to a IPASIR library can be done by adding something like the following to your projects
+//! build script (`build.rs`).
+//!
+//! ```
+//! // Link to custom IPASIR solver
+//! // Modify this for linking to your static library
+//! // The name of the library should be _without_ the prefix 'lib' and the suffix '.a'
+//! println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
+//! println!("cargo:rustc-link-search=<name-of-your-static-lib>");
+//! // If your IPASIR solver links to the C++ stdlib, the next four lines are required
+//! #[cfg(target_os = "macos")]
+//! println!("cargo:rustc-flags=-l dylib=c++");
+//! #[cfg(not(target_os = "macos"))]
+//! println!("cargo:rustc-flags=-l dylib=stdc++");
+//! ```
 
 use core::ffi::{c_int, c_void, CStr};
 
-use super::{
-    ControlSignal, Learn, OptLearnCallbackStore, OptTermCallbackStore, Solve, SolveIncremental,
-    SolveMightFail, SolveStats, SolverError, SolverResult, SolverState, SolverStats, Terminate,
-};
-use crate::types::{Clause, Lit, TernaryVal};
 use cpu_time::ProcessTime;
 use ffi::IpasirHandle;
+use rustsat::{
+    solvers::{
+        ControlSignal, Learn, Solve, SolveIncremental, SolveStats, SolverResult, SolverState,
+        SolverStats, StateError, Terminate,
+    },
+    types::{Clause, Lit, TernaryVal},
+};
+use thiserror::Error;
+
+#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[error("ipasir c-api returned an invalid value: {api_call} -> {value}")]
+pub struct InvalidApiReturn {
+    api_call: &'static str,
+    value: c_int,
+}
 
 #[derive(Debug, PartialEq, Eq, Default)]
 #[allow(dead_code)] // Not all solvers use all states
@@ -21,21 +55,25 @@ enum InternalSolverState {
     Input,
     Sat,
     Unsat(Vec<Lit>),
-    Error(String),
 }
 
 impl InternalSolverState {
-    #[cfg(solver)]
     fn to_external(&self) -> SolverState {
         match self {
             InternalSolverState::Configuring => SolverState::Configuring,
             InternalSolverState::Input => SolverState::Input,
             InternalSolverState::Sat => SolverState::Sat,
             InternalSolverState::Unsat(_) => SolverState::Unsat,
-            InternalSolverState::Error(desc) => SolverState::Error(desc.clone()),
         }
     }
 }
+
+type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+type LearnCallbackPtr<'a> = Box<dyn FnMut(Clause) + 'a>;
+/// Double boxing is necessary to get thin pointers for casting
+type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
+/// Double boxing is necessary to get thin pointers for casting
+type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
 /// Type for an IPASIR solver.
 pub struct IpasirSolver<'term, 'learn> {
@@ -59,18 +97,18 @@ impl Default for IpasirSolver<'_, '_> {
 }
 
 impl IpasirSolver<'_, '_> {
-    fn get_core_assumps(&self, assumps: &Vec<Lit>) -> Result<Vec<Lit>, SolverError> {
+    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, InvalidApiReturn> {
         let mut core = Vec::new();
         core.reserve(assumps.len());
         for a in assumps {
             match unsafe { ffi::ipasir_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
                 1 => core.push(!*a),
-                invalid => {
-                    return Err(SolverError::Api(format!(
-                        "ipasir_failed returned invalid value: {}",
-                        invalid
-                    )))
+                value => {
+                    return Err(InvalidApiReturn {
+                        api_call: "ipasir_failed",
+                        value,
+                    })
                 }
             }
         }
@@ -87,19 +125,15 @@ impl Solve for IpasirSolver<'_, '_> {
             .expect("IPASIR signature returned invalid UTF-8.")
     }
 
-    fn solve(&mut self) -> Result<SolverResult, SolverError> {
+    fn solve(&mut self) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
-        } else if let InternalSolverState::Unsat(core) = &self.state {
+        }
+        if let InternalSolverState::Unsat(core) = &self.state {
             if core.is_empty() {
                 return Ok(SolverResult::Unsat);
             }
-        } else if let InternalSolverState::Error(desc) = &self.state {
-            return Err(SolverError::State(
-                SolverState::Error(desc.clone()),
-                SolverState::Input,
-            ));
         }
         let start = ProcessTime::now();
         // Solve with IPASIR backend
@@ -121,39 +155,36 @@ impl Solve for IpasirSolver<'_, '_> {
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "ipasir_solve returned invalid value: {}",
-                invalid
-            ))),
-        }
-    }
-
-    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError> {
-        match &self.state {
-            InternalSolverState::Sat => {
-                let lit = lit.to_ipasir();
-                match unsafe { ffi::ipasir_val(self.handle, lit) } {
-                    0 => Ok(TernaryVal::DontCare),
-                    p if p == lit => Ok(TernaryVal::True),
-                    n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(SolverError::Api(format!(
-                        "ipasir_val returned invalid value: {}",
-                        invalid
-                    ))),
-                }
+            value => Err(InvalidApiReturn {
+                api_call: "ipasir_solve",
+                value,
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
+            .into()),
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
-        if let InternalSolverState::Error(_) = self.state {
-            // Don't add clause if already in error state.
-            return Err(SolverError::State(
-                self.state.to_external(),
-                SolverState::Input,
-            ));
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+        if self.state != InternalSolverState::Sat {
+            return Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: self.state.to_external(),
+            }
+            .into());
         }
+        let lit = lit.to_ipasir();
+        match unsafe { ffi::ipasir_val(self.handle, lit) } {
+            0 => Ok(TernaryVal::DontCare),
+            p if p == lit => Ok(TernaryVal::True),
+            n if n == -lit => Ok(TernaryVal::False),
+            value => Err(InvalidApiReturn {
+                api_call: "ipasir_val",
+                value,
+            }
+            .into()),
+        }
+    }
+
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         clause.iter().for_each(|l| match self.stats.max_var {
@@ -178,18 +209,12 @@ impl Solve for IpasirSolver<'_, '_> {
 }
 
 impl SolveIncremental for IpasirSolver<'_, '_> {
-    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError> {
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
-        if let InternalSolverState::Error(desc) = &self.state {
-            return Err(SolverError::State(
-                SolverState::Error(desc.clone()),
-                SolverState::Input,
-            ));
-        }
         let start = ProcessTime::now();
         // Solve with IPASIR backend
-        for a in &assumps {
+        for a in assumps {
             unsafe { ffi::ipasir_assume(self.handle, a.to_ipasir()) }
         }
         let res = unsafe { ffi::ipasir_solve(self.handle) };
@@ -207,20 +232,25 @@ impl SolveIncremental for IpasirSolver<'_, '_> {
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(self.get_core_assumps(&assumps)?);
+                self.state = InternalSolverState::Unsat(self.get_core_assumps(assumps)?);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "ipasir_solve returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "ipasir_solve",
+                value,
+            }
+            .into()),
         }
     }
 
-    fn core(&mut self) -> Result<Vec<Lit>, SolverError> {
+    fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
-            other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
+            other => Err(StateError {
+                required_state: SolverState::Unsat,
+                actual_state: other.to_external(),
+            }
+            .into()),
         }
     }
 }
@@ -232,8 +262,9 @@ impl<'term> Terminate<'term> for IpasirSolver<'term, '_> {
     ///
     /// Terminate solver after 10 callback calls.
     ///
-    /// ```
-    /// use rustsat::solvers::{IpasirSolver, ControlSignal, Solve, SolverResult, Terminate};
+    /// ```no_run
+    /// use rustsat::solvers::{ControlSignal, Solve, SolverResult, Terminate};
+    /// use rustsat_ipasir::IpasirSolver;
     ///
     /// let mut solver = IpasirSolver::default();
     ///
@@ -260,14 +291,12 @@ impl<'term> Terminate<'term> for IpasirSolver<'term, '_> {
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
-        unsafe { ffi::ipasir_set_terminate(self.handle, cb_ptr, ffi::ipasir_terminate_cb) }
+        unsafe { ffi::ipasir_set_terminate(self.handle, cb_ptr, Some(ffi::ipasir_terminate_cb)) }
     }
 
     fn detach_terminator(&mut self) {
         self.terminate_cb = None;
-        let null_cb: extern "C" fn(*const c_void) -> c_int =
-            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
-        unsafe { ffi::ipasir_set_terminate(self.handle, std::ptr::null(), null_cb) }
+        unsafe { ffi::ipasir_set_terminate(self.handle, std::ptr::null(), None) }
     }
 }
 
@@ -280,8 +309,9 @@ impl<'learn> Learn<'learn> for IpasirSolver<'_, 'learn> {
     ///
     /// Count number of learned clauses up to length 10.
     ///
-    /// ```
-    /// use rustsat::solvers::{IpasirSolver, Solve, SolverResult, Learn};
+    /// ```no_run
+    /// use rustsat::solvers::{Solve, SolverResult, Learn};
+    /// use rustsat_ipasir::IpasirSolver;
     ///
     /// let mut cnt = 0;
     ///
@@ -307,16 +337,14 @@ impl<'learn> Learn<'learn> for IpasirSolver<'_, 'learn> {
                 self.handle,
                 cb_ptr,
                 max_len.try_into().unwrap(),
-                ffi::ipasir_learn_cb,
+                Some(ffi::ipasir_learn_cb),
             )
         }
     }
 
     fn detach_learner(&mut self) {
         self.terminate_cb = None;
-        let null_cb: extern "C" fn(*const c_void, *const c_int) =
-            unsafe { std::mem::transmute(std::ptr::null::<u32>()) };
-        unsafe { ffi::ipasir_set_learn(self.handle, std::ptr::null(), 0, null_cb) }
+        unsafe { ffi::ipasir_set_learn(self.handle, std::ptr::null(), 0, None) }
     }
 }
 
@@ -332,124 +360,18 @@ impl Drop for IpasirSolver<'_, '_> {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::IpasirSolver;
-    use crate::{
-        lit,
-        solvers::{ControlSignal, Learn, Solve, SolverResult, Terminate},
-        types::Lit,
-    };
-
-    #[test]
-    fn build_destroy() {
-        let _solver = IpasirSolver::default();
-    }
-
-    #[test]
-    fn build_two() {
-        let _solver1 = IpasirSolver::default();
-        let _solver2 = IpasirSolver::default();
-    }
-
-    #[test]
-    fn tiny_instance_sat() {
-        let mut solver = IpasirSolver::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_unsat() {
-        let mut solver = IpasirSolver::default();
-        solver.add_unit(!lit![0]).unwrap();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_unit(lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
-
-    #[test]
-    fn termination_callback() {
-        let mut solver = IpasirSolver::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_binary(lit![2], !lit![3]).unwrap();
-        solver.add_binary(lit![3], !lit![4]).unwrap();
-        solver.add_binary(lit![4], !lit![5]).unwrap();
-        solver.add_binary(lit![5], !lit![6]).unwrap();
-        solver.add_binary(lit![6], !lit![7]).unwrap();
-        solver.add_binary(lit![7], !lit![8]).unwrap();
-        solver.add_binary(lit![8], !lit![9]).unwrap();
-
-        solver.attach_terminator(|| ControlSignal::Terminate);
-
-        let ret = solver.solve();
-
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Interrupted),
-        }
-
-        // Note: since IPASIR doesn't specify _when_ the terminator callback needs
-        // to be called, there is no guarantee that the callback is actually
-        // called during solving. This might cause this test to fail with some solvers.
-    }
-
-    #[test]
-    fn learner_callback() {
-        let mut solver = IpasirSolver::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_binary(lit![2], !lit![3]).unwrap();
-        solver.add_binary(lit![3], !lit![4]).unwrap();
-        solver.add_binary(lit![4], !lit![5]).unwrap();
-        solver.add_binary(lit![5], !lit![6]).unwrap();
-        solver.add_binary(lit![6], !lit![7]).unwrap();
-        solver.add_binary(lit![7], !lit![8]).unwrap();
-        solver.add_binary(lit![8], !lit![9]).unwrap();
-        solver.add_unit(lit![9]).unwrap();
-        solver.add_unit(!lit![0]).unwrap();
-
-        let mut cl_len = 0;
-        let ret;
-
-        solver.attach_learner(
-            |clause| {
-                cl_len = clause.len();
-            },
-            10,
-        );
-
-        ret = solver.solve();
-
-        drop(solver);
-
-        // Note: it is hard to create a testing instance on which clause learning
-        // actually happens and therefore it is not actually tested if the
-        // callback is called
-
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
+impl Extend<Clause> for IpasirSolver<'_, '_> {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        iter.into_iter()
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
     }
 }
 
 /// cbindgen:ignore
 mod ffi {
-    use crate::solvers::{ControlSignal, LearnCallbackPtr, TermCallbackPtr};
-    use crate::types::Lit;
+    use super::{LearnCallbackPtr, TermCallbackPtr};
     use core::ffi::{c_char, c_int, c_void};
+    use rustsat::{solvers::ControlSignal, types::Lit};
     use std::slice;
 
     #[repr(C)]
@@ -470,13 +392,13 @@ mod ffi {
         pub fn ipasir_set_terminate(
             solver: *mut IpasirHandle,
             state: *const c_void,
-            terminate: extern "C" fn(state: *const c_void) -> c_int,
+            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
         );
         pub fn ipasir_set_learn(
             solver: *mut IpasirHandle,
             state: *const c_void,
             max_length: c_int,
-            learn: extern "C" fn(state: *const c_void, clause: *const c_int),
+            learn: Option<extern "C" fn(state: *const c_void, clause: *const c_int)>,
         );
     }
 

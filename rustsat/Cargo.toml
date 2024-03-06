@@ -45,7 +45,6 @@ rustsat-tools = { version = "0.2", path = "../tools" }
 default = ["optimization", "fxhash"]
 internals = []
 fxhash = ["dep:rustc-hash"]
-ipasir = []
 optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
