@@ -27,10 +27,18 @@ use cpu_time::ProcessTime;
 use ffi::CaDiCaLHandle;
 use rustsat::solvers::{
     ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn, LimitConflicts,
-    LimitDecisions, PhaseLit, Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError,
-    SolverResult, SolverState, SolverStats, Terminate,
+    LimitDecisions, PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState,
+    SolverStats, StateError, Terminate,
 };
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
+use thiserror::Error;
+
+#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[error("cadical c-api returned an invalid value: {api_call} -> {value}")]
+pub struct InvalidApiReturn {
+    api_call: &'static str,
+    value: c_int,
+}
 
 #[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
@@ -84,17 +92,17 @@ impl Default for CaDiCaL<'_, '_> {
 }
 
 impl CaDiCaL<'_, '_> {
-    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, SolverError> {
+    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, InvalidApiReturn> {
         let mut core = Vec::new();
         for a in assumps {
             match unsafe { ffi::ccadical_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
                 1 => core.push(!*a),
-                invalid => {
-                    return Err(SolverError::Api(format!(
-                        "ccadical_failed returned invalid value: {}",
-                        invalid
-                    )))
+                value => {
+                    return Err(InvalidApiReturn {
+                        api_call: "ccadical_failed",
+                        value,
+                    })
                 }
             }
         }
@@ -124,17 +132,21 @@ impl CaDiCaL<'_, '_> {
     /// Checks whether the temporary clause is part of the core if in
     /// unsatisfiable state. This needs to always be checked in addition to
     /// [`SolveIncremental::core`] if a [`CaDiCaL::add_tmp_clause`] is used.
-    pub fn tmp_clause_in_core(&mut self) -> Result<bool, SolverError> {
+    pub fn tmp_clause_in_core(&mut self) -> anyhow::Result<bool> {
         match &self.state {
             InternalSolverState::Unsat(_) => unsafe {
                 Ok(ffi::ccadical_constraint_failed(self.handle) != 0)
             },
-            state => Err(SolverError::State(state.to_external(), SolverState::Unsat)),
+            state => Err(StateError {
+                required_state: SolverState::Unsat,
+                actual_state: state.to_external(),
+            }
+            .into()),
         }
     }
 
     /// Sets a pre-defined configuration for CaDiCaL's internal options
-    pub fn set_configuration(&mut self, config: Config) -> SolveMightFail {
+    pub fn set_configuration(&mut self, config: Config) -> anyhow::Result<()> {
         if self.state == InternalSolverState::Configuring {
             let config_name = match config {
                 Config::Default => CString::new("default").unwrap(),
@@ -146,15 +158,18 @@ impl CaDiCaL<'_, '_> {
             if ret {
                 Ok(())
             } else {
-                Err(SolverError::Api(
-                    "ccadical_configure returned false".to_string(),
-                ))
+                Err(InvalidApiReturn {
+                    api_call: "ccadical_configure",
+                    value: 0,
+                }
+                .into())
             }
         } else {
-            Err(SolverError::State(
-                self.state.to_external(),
-                SolverState::Configuring,
-            ))
+            Err(StateError {
+                required_state: SolverState::Configuring,
+                actual_state: self.state.to_external(),
+            }
+            .into())
         }
     }
 
@@ -167,23 +182,16 @@ impl CaDiCaL<'_, '_> {
     /// and `<val>` can be parsed then 'true' is returned.  If the option value
     /// is out of range the actual value is computed as the closest (minimum or
     /// maximum) value possible, but still `true` is returned.
-    pub fn set_option(&mut self, name: &str, value: c_int) -> SolveMightFail {
-        let c_name = match CString::new(name) {
-            Ok(cstr) => cstr,
-            Err(_) => {
-                return Err(SolverError::Api(format!(
-                    "CaDiCaL option {} cannot be converted to a C string",
-                    name
-                )))
-            }
-        };
+    pub fn set_option(&mut self, name: &str, value: c_int) -> anyhow::Result<()> {
+        let c_name = CString::new(name)?;
         if unsafe { ffi::ccadical_set_option_ret(self.handle, c_name.as_ptr(), value) } {
             Ok(())
         } else {
-            Err(SolverError::Api(format!(
-                "ccadical_set_option_ret returned false for option {}",
-                name
-            )))
+            Err(InvalidApiReturn {
+                api_call: "ccadical_set_option_ret",
+                value: 0,
+            }
+            .into())
         }
     }
 
@@ -193,16 +201,8 @@ impl CaDiCaL<'_, '_> {
     ///
     /// Get the current value of the option `name`.  If `name` is invalid then
     /// zero is returned.
-    pub fn get_option(&self, name: &str) -> Result<c_int, SolverError> {
-        let c_name = match CString::new(name) {
-            Ok(cstr) => cstr,
-            Err(_) => {
-                return Err(SolverError::Api(format!(
-                    "CaDiCaL option {} cannot be converted to a C string",
-                    name
-                )))
-            }
-        };
+    pub fn get_option(&self, name: &str) -> anyhow::Result<c_int> {
+        let c_name = CString::new(name)?;
         Ok(unsafe { ffi::ccadical_get_option(self.handle, c_name.as_ptr()) })
     }
 
@@ -223,7 +223,7 @@ impl CaDiCaL<'_, '_> {
     /// well as overwritten and reset during calls to `simplify` and
     /// `lookahead`).  We actually also have an internal "terminate" limit
     /// which however should only be used for testing and debugging.
-    pub fn set_limit(&mut self, limit: Limit) -> SolveMightFail {
+    pub fn set_limit(&mut self, limit: Limit) -> anyhow::Result<()> {
         let (name, val) = match limit {
             Limit::Terminate(val) => (CString::new("terminate").unwrap(), val),
             Limit::Conflicts(val) => (CString::new("conflicts").unwrap(), val),
@@ -234,10 +234,11 @@ impl CaDiCaL<'_, '_> {
         if unsafe { ffi::ccadical_limit_ret(self.handle, name.as_ptr(), val) } {
             Ok(())
         } else {
-            Err(SolverError::Api(format!(
-                "ccadical_limit_ret returned false for limit {}",
-                limit
-            )))
+            Err(InvalidApiReturn {
+                api_call: "ccadical_limit_ret",
+                value: 0,
+            }
+            .into())
         }
     }
 
@@ -271,22 +272,15 @@ impl CaDiCaL<'_, '_> {
         unsafe { ffi::ccadical_print_statistics(self.handle) }
     }
 
-    pub fn simplify(&mut self, rounds: u32) -> Result<SolverResult, SolverError> {
+    pub fn simplify(&mut self, rounds: u32) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
-        } else if let InternalSolverState::Unsat(_) = self.state {
+        }
+        if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::Unsat);
         }
-        let rounds: c_int = match rounds.try_into() {
-            Ok(val) => val,
-            Err(_) => {
-                return Err(SolverError::Api(format!(
-                    "rounds value {} does not fit into c_int",
-                    rounds
-                )))
-            }
-        };
+        let rounds: c_int = rounds.try_into()?;
         // Simplify with CaDiCaL backend
         match unsafe { ffi::ccadical_simplify_rounds(self.handle, rounds) } {
             0 => {
@@ -301,10 +295,11 @@ impl CaDiCaL<'_, '_> {
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "ccadical_simplify returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "ccadical_simplify",
+                value,
+            }
+            .into()),
         }
     }
 
@@ -312,22 +307,15 @@ impl CaDiCaL<'_, '_> {
         &mut self,
         assumps: Vec<Lit>,
         rounds: u32,
-    ) -> Result<SolverResult, SolverError> {
+    ) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
-        } else if let InternalSolverState::Unsat(_) = self.state {
+        }
+        if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::Unsat);
         }
-        let rounds: c_int = match rounds.try_into() {
-            Ok(val) => val,
-            Err(_) => {
-                return Err(SolverError::Api(format!(
-                    "rounds value {} does not fit into c_int",
-                    rounds
-                )))
-            }
-        };
+        let rounds: c_int = rounds.try_into()?;
         // Simplify with CaDiCaL backend under assumptions
         for a in &assumps {
             unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
@@ -345,10 +333,11 @@ impl CaDiCaL<'_, '_> {
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "ccadical_simplify returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "ccadical_simplify",
+                value,
+            }
+            .into()),
         }
     }
 }
@@ -369,17 +358,18 @@ impl Solve for CaDiCaL<'_, '_> {
             .expect("CaDiCaL signature returned invalid UTF-8.")
     }
 
-    fn reserve(&mut self, max_var: Var) -> SolveMightFail {
+    fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
         self.state = InternalSolverState::Input;
         unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) };
         Ok(())
     }
 
-    fn solve(&mut self) -> Result<SolverResult, SolverError> {
+    fn solve(&mut self) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
-        } else if let InternalSolverState::Unsat(core) = &self.state {
+        }
+        if let InternalSolverState::Unsat(core) = &self.state {
             if core.is_empty() {
                 return Ok(SolverResult::Unsat);
             }
@@ -404,14 +394,16 @@ impl Solve for CaDiCaL<'_, '_> {
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "ccadical_solve returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "ccadical_solve",
+                value,
+            }
+            .into()),
         }
     }
 
-    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError> {
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+        // FIXME: rewrite control flow without match
         match &self.state {
             InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
@@ -421,17 +413,22 @@ impl Solve for CaDiCaL<'_, '_> {
                     n if n == -lit => Ok(TernaryVal::False),
                     // CaDiCaL returns -1 if variable is higher than max var
                     dc if dc == -1 => Ok(TernaryVal::DontCare),
-                    invalid => Err(SolverError::Api(format!(
-                        "ccadical_val returned invalid value: {}",
-                        invalid
-                    ))),
+                    value => Err(InvalidApiReturn {
+                        api_call: "ccadical_val",
+                        value,
+                    }
+                    .into()),
                 }
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
+            other => Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: other.to_external(),
+            }
+            .into()),
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -448,7 +445,7 @@ impl Solve for CaDiCaL<'_, '_> {
 }
 
 impl SolveIncremental for CaDiCaL<'_, '_> {
-    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError> {
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         let start = ProcessTime::now();
         // Solve with CaDiCaL backend
         for a in assumps {
@@ -472,17 +469,23 @@ impl SolveIncremental for CaDiCaL<'_, '_> {
                 self.state = InternalSolverState::Unsat(self.get_core_assumps(assumps)?);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "ccadical_solve returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "ccadical_solve",
+                value,
+            }
+            .into()),
         }
     }
 
-    fn core(&mut self) -> Result<Vec<Lit>, SolverError> {
+    fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
+        // FIXME: rewrite control flow without match
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
-            other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
+            other => Err(StateError {
+                required_state: SolverState::Unsat,
+                actual_state: other.to_external(),
+            }
+            .into()),
         }
     }
 }
@@ -608,30 +611,30 @@ impl InterruptSolver for Interrupter {
 
 impl PhaseLit for CaDiCaL<'_, '_> {
     /// Forces the default decision phase of a variable to a certain value
-    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+    fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_phase(self.handle, lit.to_ipasir()) };
         Ok(())
     }
 
     /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
-    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
+    fn unphase_var(&mut self, var: Var) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_unphase(self.handle, var.to_ipasir()) };
         Ok(())
     }
 }
 
 impl FreezeVar for CaDiCaL<'_, '_> {
-    fn freeze_var(&mut self, var: Var) -> Result<(), SolverError> {
+    fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_freeze(self.handle, var.pos_lit().to_ipasir()) };
         Ok(())
     }
 
-    fn melt_var(&mut self, var: Var) -> Result<(), SolverError> {
+    fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_melt(self.handle, var.pos_lit().to_ipasir()) };
         Ok(())
     }
 
-    fn is_frozen(&mut self, var: Var) -> Result<bool, SolverError> {
+    fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool> {
         Ok(unsafe { ffi::ccadical_frozen(self.handle, var.pos_lit().to_ipasir()) } != 0)
     }
 }
@@ -651,29 +654,31 @@ impl FreezeVar for CaDiCaL<'_, '_> {
     )
 ))]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
-    fn flip_lit(&mut self, lit: Lit) -> Result<bool, SolverError> {
+    fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
-            return Err(SolverError::State(
-                self.state.to_external(),
-                SolverState::Sat,
-            ));
+            return Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: self.state.to_external(),
+            }
+            .into());
         }
         Ok(unsafe { ffi::ccadical_flip(self.handle, lit.to_ipasir()) })
     }
 
-    fn is_flippable(&mut self, lit: Lit) -> Result<bool, SolverError> {
+    fn is_flippable(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
-            return Err(SolverError::State(
-                self.state.to_external(),
-                SolverState::Sat,
-            ));
+            return Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: self.state.to_external(),
+            }
+            .into());
         }
         Ok(unsafe { ffi::ccadical_flippable(self.handle, lit.to_ipasir()) })
     }
 }
 
 impl LimitConflicts for CaDiCaL<'_, '_> {
-    fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+    fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
             limit as c_int
         } else {
@@ -683,7 +688,7 @@ impl LimitConflicts for CaDiCaL<'_, '_> {
 }
 
 impl LimitDecisions for CaDiCaL<'_, '_> {
-    fn limit_decisions(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+    fn limit_decisions(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Decisions(if let Some(limit) = limit {
             limit as c_int
         } else {
@@ -798,7 +803,7 @@ mod test {
     use rustsat::{
         lit,
         solvers::{
-            ControlSignal, FreezeVar, Learn, Solve, SolverError, SolverResult, SolverState,
+            ControlSignal, FreezeVar, Learn, Solve, SolverResult, SolverState, StateError,
             Terminate,
         },
         types::TernaryVal,
@@ -885,7 +890,6 @@ mod test {
         solver.add_unit(!lit![0]).unwrap();
 
         let mut cl_len = 0;
-        let ret;
 
         solver.attach_learner(
             |clause| {
@@ -894,7 +898,7 @@ mod test {
             10,
         );
 
-        ret = solver.solve();
+        let ret = solver.solve();
 
         drop(solver);
 
@@ -916,13 +920,13 @@ mod test {
         solver.set_configuration(Config::SAT).unwrap();
         solver.set_configuration(Config::UNSAT).unwrap();
         solver.add_unit(lit![0]).unwrap();
-        assert_eq!(
-            solver.set_configuration(Config::Default),
-            Err(SolverError::State(
-                SolverState::Input,
-                SolverState::Configuring
-            ))
-        );
+        assert!(solver.set_configuration(Config::Default).is_err_and(|e| e
+            .downcast::<StateError>()
+            .unwrap()
+            == StateError {
+                required_state: SolverState::Configuring,
+                actual_state: SolverState::Input
+            }));
     }
 
     #[test]

@@ -275,17 +275,15 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// positive number preceded by an 'o', indicating what objective this soft
     /// clause belongs to. After that, the format is identical to a soft clause
     /// in a WCNF file.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> Result<Self, fio::ParsingError> {
-        Ok(fio::dimacs::parse_mcnf(reader)?)
+    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+        fio::dimacs::parse_mcnf(reader)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs`](super::OptInstance::from_dimacs).
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::ParsingError> {
-        match fio::open_compressed_uncompressed_read(path) {
-            Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => MultiOptInstance::from_dimacs(reader),
-        }
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_dimacs(reader)
     }
 
     /// Parses an OPB instance from a reader object.
@@ -296,24 +294,16 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// pseudo-boolean optimization instances with multiple objectives defined.
     /// For details on the file format see
     /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(
-        reader: R,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::ParsingError> {
-        Ok(fio::opb::parse_multi_opt(reader, opts)?)
+    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+        fio::opb::parse_multi_opt(reader, opts)
     }
 
     /// Parses an OPB instance from a file path. For more details see
     /// [`MultiOptInstance::from_opb`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
-    pub fn from_opb_path<P: AsRef<Path>>(
-        path: P,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::ParsingError> {
-        match fio::open_compressed_uncompressed_read(path) {
-            Err(why) => Err(fio::ParsingError::IO(why)),
-            Ok(reader) => MultiOptInstance::from_opb(reader, opts),
-        }
+    pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
+        let reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_opb(reader, opts)
     }
 }
 

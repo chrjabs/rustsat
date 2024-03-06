@@ -5,38 +5,15 @@
 //! directly.
 
 use std::{fs::File, io, path::Path};
-
 use thiserror::Error;
 
 pub mod dimacs;
-
 pub mod opb;
 
-/// Combined Parsing Errors
-#[derive(Error, Debug)]
-pub enum ParsingError {
-    /// IO Errors
-    #[error("IO error: {0}")]
-    IO(std::io::Error),
-    /// Dimacs Parsing Error
-    #[error("Dimacs error: {0}")]
-    Dimacs(dimacs::Error),
-    /// OPB Parsing Error
-    #[error("OPB error: {0}")]
-    Opb(opb::Error),
-}
-
-impl From<dimacs::Error> for ParsingError {
-    fn from(de: dimacs::Error) -> Self {
-        ParsingError::Dimacs(de)
-    }
-}
-
-impl From<opb::Error> for ParsingError {
-    fn from(oe: opb::Error) -> Self {
-        ParsingError::Opb(oe)
-    }
-}
+/// An error for when a requested objective does not exist
+#[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
+#[error("the file only has {0} objectives")]
+pub struct ObjNoExist(usize);
 
 /// Opens a reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.

@@ -13,11 +13,18 @@
 //! The used C++ source repository can be found [here](https://github.com/chrjabs/minisat).
 
 use rustsat::{solvers::SolverState, types::Lit};
-use std::fmt;
-
-pub mod simp;
+use std::{ffi::c_int, fmt};
+use thiserror::Error;
 
 pub mod core;
+pub mod simp;
+
+#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[error("minisat c-api returned an invalid value: {api_call} -> {value}")]
+pub struct InvalidApiReturn {
+    api_call: &'static str,
+    value: c_int,
+}
 
 #[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
