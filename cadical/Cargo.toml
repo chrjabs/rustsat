@@ -42,6 +42,8 @@ v1-9-5 = []
 [dependencies]
 cpu-time = "1.0.0"
 rustsat = { version = "0.4.3", path = "../rustsat", default-features = false }
+thiserror = { version = "1.0.57" }
+anyhow = { version = "1.0.80" }
 
 [build-dependencies]
 cc = { version = "1.0.83", features = ["parallel"] }

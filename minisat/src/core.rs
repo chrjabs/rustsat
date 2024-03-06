@@ -5,14 +5,13 @@
 
 use core::ffi::{c_int, CStr};
 
-use super::{InternalSolverState, Limit};
+use super::{InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
 use ffi::MinisatHandle;
 use rustsat::{
     solvers::{
         GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations, PhaseLit,
-        Solve, SolveIncremental, SolveMightFail, SolveStats, SolverError, SolverResult,
-        SolverState, SolverStats,
+        Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
     },
     types::{Clause, Lit, TernaryVal, Var},
 };
@@ -35,17 +34,17 @@ impl Default for Minisat {
 }
 
 impl Minisat {
-    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, SolverError> {
+    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, InvalidApiReturn> {
         let mut core = Vec::new();
         for a in assumps {
             match unsafe { ffi::cminisat_failed(self.handle, a.to_ipasir()) } {
                 0 => (),
                 1 => core.push(!*a),
-                invalid => {
-                    return Err(SolverError::Api(format!(
-                        "cminisat_failed returned invalid value: {}",
-                        invalid
-                    )))
+                value => {
+                    return Err(InvalidApiReturn {
+                        api_call: "cminisat_failed",
+                        value,
+                    })
                 }
             }
         }
@@ -90,11 +89,12 @@ impl Solve for Minisat {
             .expect("Minisat signature returned invalid UTF-8.")
     }
 
-    fn solve(&mut self) -> Result<SolverResult, SolverError> {
+    fn solve(&mut self) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
-        } else if let InternalSolverState::Unsat(core) = &self.state {
+        }
+        if let InternalSolverState::Unsat(core) = &self.state {
             if core.is_empty() {
                 return Ok(SolverResult::Unsat);
             }
@@ -119,14 +119,16 @@ impl Solve for Minisat {
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "cminisat_solve returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "cminisat_solve",
+                value,
+            }
+            .into()),
         }
     }
 
-    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError> {
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+        // FIXME: rewrite without match
         match &self.state {
             InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
@@ -134,17 +136,22 @@ impl Solve for Minisat {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(SolverError::Api(format!(
-                        "cminisat_val returned invalid value: {}",
-                        invalid
-                    ))),
+                    value => Err(InvalidApiReturn {
+                        api_call: "cminisat_val",
+                        value,
+                    }
+                    .into()),
                 }
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
+            other => Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: other.to_external(),
+            }
+            .into()),
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -161,7 +168,7 @@ impl Solve for Minisat {
 }
 
 impl SolveIncremental for Minisat {
-    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError> {
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         let start = ProcessTime::now();
         // Solve with minisat backend
         for a in assumps {
@@ -185,17 +192,23 @@ impl SolveIncremental for Minisat {
                 self.state = InternalSolverState::Unsat(self.get_core_assumps(assumps)?);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "cminisat_solve returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "cminisat_solve",
+                value,
+            }
+            .into()),
         }
     }
 
-    fn core(&mut self) -> Result<Vec<Lit>, SolverError> {
+    fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
+        // FIXME: rewrite without match
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
-            other => Err(SolverError::State(other.to_external(), SolverState::Unsat)),
+            other => Err(StateError {
+                required_state: SolverState::Unsat,
+                actual_state: other.to_external(),
+            }
+            .into()),
         }
     }
 }
@@ -226,20 +239,20 @@ impl InterruptSolver for Interrupter {
 
 impl PhaseLit for Minisat {
     /// Forces the default decision phase of a variable to a certain value
-    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+    fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
         unsafe { ffi::cminisat_phase(self.handle, lit.to_ipasir()) };
         Ok(())
     }
 
     /// Undoes the effect of a call to [`Minisat::phase_lit`]
-    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError> {
+    fn unphase_var(&mut self, var: Var) -> anyhow::Result<()> {
         unsafe { ffi::cminisat_unphase(self.handle, var.to_ipasir()) };
         Ok(())
     }
 }
 
 impl LimitConflicts for Minisat {
-    fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+    fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
             limit as i64
         } else {
@@ -250,7 +263,7 @@ impl LimitConflicts for Minisat {
 }
 
 impl LimitPropagations for Minisat {
-    fn limit_propagations(&mut self, limit: Option<u32>) -> Result<(), SolverError> {
+    fn limit_propagations(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Propagations(if let Some(limit) = limit {
             limit as i64
         } else {

@@ -14,12 +14,13 @@ use crate::{
     instances::{Cnf, ManageVars, SatInstance},
     types::{Clause, Lit, Var},
 };
+use anyhow::Context;
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{i32, line_ending, multispace0, multispace1, u64},
-    combinator::{all_consuming, map_res, recognize, success},
-    error::{Error as NomError, ErrorKind, ParseError},
+    combinator::{all_consuming, map, map_res, recognize, success},
+    error::{context, Error as NomError},
     multi::separated_list0,
     sequence::{pair, terminated, tuple},
     IResult,
@@ -44,8 +45,15 @@ type BodyContent<VM> = (SatInstance<VM>, Vec<Objective>);
 #[cfg(not(feature = "optimization"))]
 type BodyContent<VM> = SatInstance<VM>;
 
+// FIXME: ensure strings are cleared before read_line
+
+/// An error for when an invalid p line is encountered
+#[derive(Error, Debug, PartialEq, Eq, Clone)]
+#[error("invalid p line '{0}'")]
+pub struct InvalidPLine(String);
+
 /// Parses a CNF instance from a reader (typically a (compressed) file)
-pub fn parse_cnf<R, VM>(reader: R) -> Result<SatInstance<VM>, Error>
+pub fn parse_cnf<R, VM>(reader: R) -> anyhow::Result<SatInstance<VM>>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -65,17 +73,19 @@ where
 #[cfg(feature = "optimization")]
 /// Parses a WCNF instance (old or new format) from a reader (typically a
 /// (compressed) file). The objective with the index obj_idx is used.
-pub fn parse_wcnf_with_idx<R, VM>(reader: R, obj_idx: usize) -> Result<OptInstance<VM>, Error>
+pub fn parse_wcnf_with_idx<R, VM>(reader: R, obj_idx: usize) -> anyhow::Result<OptInstance<VM>>
 where
     R: Read,
     VM: ManageVars + Default,
 {
+    use super::ObjNoExist;
+
     let reader = BufReader::new(reader);
     let (constrs, mut objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
         objs.push(Objective::default());
     } else if obj_idx >= objs.len() {
-        return Err(Error::ObjNoExist(objs.len()));
+        return Err(ObjNoExist(objs.len()).into());
     }
     Ok(OptInstance::compose(
         constrs,
@@ -85,7 +95,7 @@ where
 
 #[cfg(feature = "multiopt")]
 /// Parses a MCNF instance (old or new format) from a reader (typically a (compressed) file)
-pub fn parse_mcnf<R, VM>(reader: R) -> Result<MultiOptInstance<VM>, Error>
+pub fn parse_mcnf<R, VM>(reader: R) -> anyhow::Result<MultiOptInstance<VM>>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -93,75 +103,6 @@ where
     let reader = BufReader::new(reader);
     let (constrs, objs) = parse_dimacs(reader)?;
     Ok(MultiOptInstance::compose(constrs, objs))
-}
-
-/// Errors occuring within the DIMACS parsing module
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Invalid literal in the file
-    #[error("invalid literal: {0}")]
-    Lit(String),
-    /// Invalid ending of a clause
-    #[error("invalid clause ending: {0}")]
-    ClauseEnding(String),
-    /// Invalid objective index
-    #[error("invalid objective index: {0}")]
-    ObjIdx(String),
-    /// Invalid weight
-    #[error("invalid weight: {0}")]
-    Weight(String),
-    /// A comment appeared in a clause
-    #[error("found comment in clause: {0}")]
-    CommentInClause(String),
-    /// The preamble never ended
-    #[error("preamble never ends")]
-    PreambleNoEnd,
-    /// P line value is too large to fit in a [`usize`]
-    #[error("value in p-line too large to fit usize: {0}")]
-    PValTooLarge(u64),
-    /// Invalid p line
-    #[error("invalid p-line: {0}")]
-    PLine(String),
-    /// The requested objective does not exist
-    #[error("the file only has {0} objectives")]
-    ObjNoExist(usize),
-    /// IO error reading file
-    #[error("IO error: {0}")]
-    IOError(io::Error),
-    /// Base error from nom parsing
-    #[error("nom error: {0} ({1:?})")]
-    NomError(String, ErrorKind),
-    /// Incomplete nom error
-    #[error("nom parser requested more data")]
-    NomIncomplete,
-}
-
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Lit(l0), Self::Lit(r0)) => l0 == r0,
-            (Self::ClauseEnding(l0), Self::ClauseEnding(r0)) => l0 == r0,
-            (Self::ObjIdx(l0), Self::ObjIdx(r0)) => l0 == r0,
-            (Self::Weight(l0), Self::Weight(r0)) => l0 == r0,
-            (Self::CommentInClause(l0), Self::CommentInClause(r0)) => l0 == r0,
-            (Self::ObjNoExist(l0), Self::ObjNoExist(r0)) => l0 == r0,
-            (Self::IOError(_), Self::IOError(_)) => true,
-            (Self::NomError(l0, l1), Self::NomError(r0, r1)) => l0 == r0 && l1 == r1,
-            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
-        }
-    }
-}
-
-impl ParseError<&str> for Error {
-    fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
-        Self::NomError(String::from(input), kind)
-    }
-
-    fn append(_: &str, _: ErrorKind, other: Self) -> Self {
-        // Other error always has precedence. This should prefer more meaningful
-        // errors than [`DimacsError::NomError`]
-        other
-    }
 }
 
 /// Internal type of possible preambles
@@ -184,7 +125,7 @@ enum Preamble {
 }
 
 /// Top level parser
-fn parse_dimacs<R, VM>(reader: R) -> Result<BodyContent<VM>, Error>
+fn parse_dimacs<R, VM>(reader: R) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -207,50 +148,34 @@ where
     Ok(content)
 }
 
-fn unwrap_dimacs_error(err: nom::Err<Error>) -> Error {
-    match err {
-        nom::Err::Incomplete(_) => Error::NomIncomplete,
-        nom::Err::Error(e) => e,
-        nom::Err::Failure(e) => e,
-    }
-}
-
 /// Parses preamble and determines type of instance/file format
-fn parse_preamble<R: BufRead>(mut reader: R) -> Result<(R, Preamble), Error> {
-    loop {
-        let mut buf = String::new();
-        match reader.read_line(&mut buf) {
-            Ok(len) => {
-                if len == 0 {
-                    #[cfg(feature = "optimization")]
-                    return Ok((
-                        reader,
-                        Preamble::NoPLine {
-                            first_line: String::from(""),
-                        },
-                    ));
-                    #[cfg(not(feature = "optimization"))]
-                    return Err(Error::PreambleNoEnd);
-                }
-            }
-            Err(ioe) => return Err(Error::IOError(ioe)),
-        };
+fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
+    let mut buf = String::new();
+    while reader.read_line(&mut buf)? > 0 {
         if buf.starts_with('c') || buf.trim().is_empty() {
+            buf.clear();
             continue;
         }
         if buf.starts_with('p') {
-            let (_, preamble) = parse_p_line(&buf).map_err(unwrap_dimacs_error)?;
+            let (_, preamble) = parse_p_line(&buf)
+                .map_err(|e| e.to_owned())
+                .with_context(|| format!("failed to parse p line '{}'", buf))?;
             return Ok((reader, preamble));
         }
-        #[cfg(feature = "optimization")]
-        return Ok((reader, Preamble::NoPLine { first_line: buf }));
-        #[cfg(not(feature = "optimization"))]
-        return Err(Error::PLine(buf));
+        break;
+    }
+    #[cfg(feature = "optimization")]
+    {
+        Ok((reader, Preamble::NoPLine { first_line: buf }))
+    }
+    #[cfg(not(feature = "optimization"))]
+    {
+        Err(InvalidPLine(buf).into())
     }
 }
 
 /// Main parser for CNF file
-fn parse_cnf_body<R, VM>(mut reader: R) -> Result<BodyContent<VM>, Error>
+fn parse_cnf_body<R, VM>(mut reader: R) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -258,18 +183,16 @@ where
     let mut inst = SatInstance::<VM>::new();
     loop {
         let mut buf = String::new();
-        match reader.read_line(&mut buf) {
-            Ok(len) => {
-                if len == 0 {
-                    #[cfg(feature = "optimization")]
-                    return Ok((inst, vec![]));
-                    #[cfg(not(feature = "optimization"))]
-                    return Ok(inst);
-                }
-            }
-            Err(ioe) => return Err(Error::IOError(ioe)),
-        };
-        let (_, opt_clause) = parse_cnf_line(&buf).map_err(unwrap_dimacs_error)?;
+        let len = reader.read_line(&mut buf)?;
+        if len == 0 {
+            #[cfg(feature = "optimization")]
+            return Ok((inst, vec![]));
+            #[cfg(not(feature = "optimization"))]
+            return Ok(inst);
+        }
+        let (_, opt_clause) = parse_cnf_line(&buf)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse cnf line '{}'", buf))?;
         if let Some(clause) = opt_clause {
             inst.add_clause(clause)
         }
@@ -278,7 +201,7 @@ where
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF pre 22 (with p line)
-fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> Result<BodyContent<VM>, Error>
+fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -287,15 +210,13 @@ where
     let mut obj = Objective::new();
     loop {
         let mut buf = String::new();
-        match reader.read_line(&mut buf) {
-            Ok(len) => {
-                if len == 0 {
-                    return Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }));
-                }
-            }
-            Err(ioe) => return Err(Error::IOError(ioe)),
-        };
-        let (_, opt_wclause) = parse_wcnf_pre22_line(&buf).map_err(unwrap_dimacs_error)?;
+        let len = reader.read_line(&mut buf)?;
+        if len == 0 {
+            return Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }));
+        }
+        let (_, opt_wclause) = parse_wcnf_pre22_line(&buf)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse old wcnf line '{}'", buf))?;
         match opt_wclause {
             None => (),
             Some((w, clause)) => {
@@ -311,7 +232,7 @@ where
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF post 22 (without p line) and MCNF
-fn parse_no_pline_body<R, VM>(mut reader: R, first_line: &str) -> Result<BodyContent<VM>, Error>
+fn parse_no_pline_body<R, VM>(mut reader: R, first_line: &str) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -320,7 +241,9 @@ where
     let mut objs = Vec::new();
     let mut buf = first_line.to_string();
     loop {
-        let (_, opt_wclause) = parse_mcnf_line(&buf).map_err(unwrap_dimacs_error)?;
+        let (_, opt_wclause) = parse_mcnf_line(&buf)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse new wcnf/mcnf line '{}'", buf))?;
         if let Some((opt_iw, clause)) = opt_wclause {
             match opt_iw {
                 Some((idx, w)) => {
@@ -333,74 +256,80 @@ where
             }
         };
         buf.clear();
-        match reader.read_line(&mut buf) {
-            Ok(len) => {
-                if len == 0 {
-                    return Ok((constrs, objs));
-                }
-            }
-            Err(ioe) => return Err(Error::IOError(ioe)),
-        };
+        let len = reader.read_line(&mut buf)?;
+        if len == 0 {
+            return Ok((constrs, objs));
+        }
     }
 }
 
 /// Parses p line and determine file format
-fn parse_p_line(input: &str) -> IResult<&str, Preamble, Error> {
-    let full_p_line = String::from(input);
-    let (input, _) = terminated::<_, _, _, NomError<_>, _, _>(tag("p"), multispace1)(input)
-        .map_err(|e| e.map(|_| Error::PLine(full_p_line.clone())))?;
-    let (input, id_token) = alt((
-        terminated::<_, _, _, NomError<_>, _, _>(tag("cnf"), multispace1),
-        #[cfg(feature = "optimization")]
-        terminated(tag("wcnf"), multispace1),
-    ))(input)
-    .map_err(|e| e.map(|_| Error::PLine(full_p_line.clone())))?;
+fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
+    let (input, _) = context(
+        "p line does not start with 'p'",
+        terminated::<_, _, _, NomError<_>, _, _>(tag("p"), multispace1),
+    )(input)?;
+    let (input, id_token) = context(
+        "invalid id token in p line",
+        alt((
+            terminated::<_, _, _, NomError<_>, _, _>(tag("cnf"), multispace1),
+            #[cfg(feature = "optimization")]
+            terminated(tag("wcnf"), multispace1),
+        )),
+    )(input)?;
+    //.with_context(|| format!("invalid id token in '{}'", input))?;
     if id_token == "cnf" {
         // Is CNF file
-        let (input, (n_vars, _, n_clauses)) =
-            tuple::<_, _, NomError<_>, _>((u64, multispace1, u64))(input)
-                .map_err(|e| e.map(|_| Error::PLine(full_p_line)))?;
-        // Safe cast to usize
-        let n_vars = match usize::try_from(n_vars) {
-            Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::PValTooLarge(n_vars))),
-        };
-        let n_clauses = match usize::try_from(n_clauses) {
-            Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::PValTooLarge(n_clauses))),
-        };
+        let (input, (n_vars, _, n_clauses)) = context(
+            "failed to parse number of variables and clauses",
+            tuple::<_, _, NomError<_>, _>((
+                context(
+                    "number of vars does not fit usize",
+                    map_res(u64, usize::try_from),
+                ),
+                multispace1,
+                context(
+                    "number of clauses does not fit usize",
+                    map_res(u64, usize::try_from),
+                ),
+            )),
+        )(input)?;
         return Ok((input, Preamble::Cnf { n_vars, n_clauses }));
     }
     #[cfg(feature = "optimization")]
     if id_token == "wcnf" {
         // Is WCNF file
-        let (input, (n_vars, _, n_clauses, _, top)) =
-            tuple::<_, _, NomError<_>, _>((u64, multispace1, u64, multispace1, u64))(input)
-                .map_err(|e| e.map(|_| Error::PLine(full_p_line)))?;
-        // Safe cast to usize
-        let n_vars = match usize::try_from(n_vars) {
-            Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::PValTooLarge(n_vars))),
-        };
-        let n_clauses = match usize::try_from(n_clauses) {
-            Ok(v) => v,
-            Err(_) => return Err(nom::Err::Error(Error::PValTooLarge(n_clauses))),
-        };
+        let (input, (n_vars, _, n_clauses, _, top)) = context(
+            "failed to parse number of variables, clauses, and top",
+            tuple::<_, _, NomError<_>, _>((
+                context(
+                    "number of vars does not fit usize",
+                    map_res(u64, usize::try_from),
+                ),
+                multispace1,
+                context(
+                    "number of clauses does not fit usize",
+                    map_res(u64, usize::try_from),
+                ),
+                multispace1,
+                context("top does not fit usize", map_res(u64, usize::try_from)),
+            )),
+        )(input)?;
         return Ok((
             input,
             Preamble::WcnfPre22 {
                 n_vars,
                 n_clauses,
-                top: top.try_into().unwrap(),
+                top,
             },
         ));
     }
-    Err(nom::Err::Error(Error::PLine(full_p_line)))
+    panic!("this should be impossible to reach")
 }
 
 /// Parses a CNF line, either a comment or a clause
-fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>, Error> {
-    let (input, _) = multispace0(input)?;
+fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
+    let (input, _) = multispace0::<_, NomError<_>>(input)?;
     if input.trim().is_empty() {
         // Tolerate empty lines
         return Ok((input, None));
@@ -409,17 +338,16 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>, Error> {
         Ok((input, _)) => Ok((input, None)),
         Err(_) => {
             // Line is not a comment
-            let (input, clause) =
-                terminated(separated_list0(multispace1, parse_lit), parse_clause_ending)(input)?;
-            Ok((input, Some(Clause::from_iter(clause))))
+            let (input, clause) = parse_clause(input)?;
+            Ok((input, Some(clause)))
         }
     }
 }
 
 #[cfg(feature = "optimization")]
 /// Parses a WCNF pre 22 line, either a comment or a clause
-fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>, Error> {
-    let (input, _) = multispace0(input)?;
+fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> {
+    let (input, _) = multispace0::<_, NomError<_>>(input)?;
     if input.trim().is_empty() {
         // Tolerate empty lines
         return Ok((input, None));
@@ -428,12 +356,9 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>, 
         Ok((input, _)) => Ok((input, None)),
         Err(_) => {
             // Line is not a comment
-            let (input, (weight, opt_clause)) =
-                separated_pair(parse_weight, multispace1, parse_cnf_line)(input)?;
-            match opt_clause {
-                Some(clause) => Ok((input, Some((weight, clause)))),
-                None => Err(nom::Err::Error(Error::CommentInClause(String::from(input)))),
-            }
+            let (input, (weight, clause)) =
+                separated_pair(parse_weight, multispace1, parse_clause)(input)?;
+            Ok((input, Some((weight, clause))))
         }
     }
 }
@@ -445,8 +370,8 @@ type McnfDataLine = Option<(Option<(usize, usize)>, Clause)>;
 /// Parses a MCNF or WCNF post 22 line, either a comment or a clause with
 /// objective index. If a line does not explicitly specify an objective index,
 /// it is assumed to be 1. This enables for also parsing mcnf lines.
-fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine, Error> {
-    let (input, _) = multispace0(input)?;
+fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine> {
+    let (input, _) = multispace0::<_, NomError<_>>(input)?;
     if input.trim().is_empty() {
         // Tolerate empty lines
         return Ok((input, None));
@@ -456,45 +381,32 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine, Error> {
         Err(_) =>
         // Line is not a comment
         {
-            match terminated(tag::<&str, &str, NomError<&str>>("h"), multispace1)(input) {
+            match terminated(tag::<_, _, NomError<_>>("h"), multispace1)(input) {
                 Ok((input, _)) => {
                     // Hard clause
-                    let (input, opt_clause) = parse_cnf_line(input)?;
-                    match opt_clause {
-                        Some(clause) => Ok((input, Some((None, clause)))),
-                        None => Err(nom::Err::Error(Error::CommentInClause(String::from(input)))),
-                    }
+                    let (input, clause) = parse_clause(input)?;
+                    Ok((input, Some((None, clause))))
                 }
                 Err(_) => {
                     // Soft clause
-                    match tag::<&str, &str, NomError<&str>>("o")(input) {
+                    match tag::<_, _, NomError<_>>("o")(input) {
                         Ok((input, _)) => {
                             // MCNF soft (explicit obj index)
-                            let (input, (idx, _, weight, _, opt_clause)) =
+                            let (input, (idx, _, weight, _, clause)) =
                                 tuple((
                                     parse_idx,
                                     multispace1,
                                     parse_weight,
                                     multispace1,
-                                    parse_cnf_line,
+                                    parse_clause,
                                 ))(input)?;
-                            match opt_clause {
-                                Some(clause) => Ok((input, Some((Some((idx, weight)), clause)))),
-                                None => Err(nom::Err::Error(Error::CommentInClause(String::from(
-                                    input,
-                                )))),
-                            }
+                            Ok((input, Some((Some((idx, weight)), clause))))
                         }
                         Err(_) => {
                             // WCNF soft (implicit obj index of 1)
-                            let (input, (weight, opt_clause)) =
-                                separated_pair(parse_weight, multispace1, parse_cnf_line)(input)?;
-                            match opt_clause {
-                                Some(clause) => Ok((input, Some((Some((1, weight)), clause)))),
-                                None => Err(nom::Err::Error(Error::CommentInClause(String::from(
-                                    input,
-                                )))),
-                            }
+                            let (input, (weight, clause)) =
+                                separated_pair(parse_weight, multispace1, parse_clause)(input)?;
+                            Ok((input, Some((Some((1, weight)), clause))))
                         }
                     }
                 }
@@ -503,36 +415,50 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine, Error> {
     }
 }
 
-#[cfg(feature = "optimization")]
-/// Nuclear parser for weight value
-fn parse_weight(input: &str) -> IResult<&str, usize, Error> {
-    map_res(u64, |w| w.try_into())(input)
-        .map_err(|e| e.map(|e: NomError<&str>| Error::Weight(String::from(e.input))))
+/// Nom-like parser for a clause
+fn parse_clause(input: &str) -> IResult<&str, Clause> {
+    context(
+        "failed to parse clause",
+        map(
+            terminated(separated_list0(multispace1, parse_lit), parse_clause_ending),
+            Clause::from_iter,
+        ),
+    )(input)
 }
 
 #[cfg(feature = "optimization")]
-/// Nuclear parser for objective index
-fn parse_idx(input: &str) -> IResult<&str, usize, Error> {
-    map_res(u64, |w| {
-        if w == 0 {
-            return Err(());
-        }
-        w.try_into().map_err(|_| ())
-    })(input)
-    .map_err(|e| e.map(|e: NomError<&str>| Error::ObjIdx(String::from(e.input))))
+/// Nom-like parser for weight value
+fn parse_weight(input: &str) -> IResult<&str, usize> {
+    context(
+        "weight does not fit usize",
+        map_res(context("expected number for weight", u64), |w| w.try_into()),
+    )(input)
 }
 
-/// Nuclear parser for literal
-fn parse_lit(input: &str) -> IResult<&str, Lit, Error> {
-    map_res(i32, Lit::from_ipasir)(input)
-        .map_err(|e| e.map(|e: NomError<&str>| Error::Lit(String::from(e.input))))
+#[cfg(feature = "optimization")]
+/// Nom-like parser for objective index
+fn parse_idx(input: &str) -> IResult<&str, usize> {
+    context(
+        "invalid objective index (either 0 or does not fit usize)",
+        map_res(context("expected number for objective index", u64), |w| {
+            if w == 0 {
+                return Err(());
+            }
+            w.try_into().map_err(|_| ())
+        }),
+    )(input)
+}
+
+/// Nom-like parser for literal
+fn parse_lit(input: &str) -> IResult<&str, Lit> {
+    context("invalid ipasir literal", map_res(i32, Lit::from_ipasir))(input)
 }
 
 /// Parses the end of a clause
 /// A '0' followed by a linebreak, as well as a '0' followed by
 /// whitespace or only a linebreak are treated as valid clause endings.
 /// This is more lean than the file format spec.
-fn parse_clause_ending(input: &str) -> IResult<&str, &str, Error> {
+fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
     recognize(pair(
         multispace0,
         alt((
@@ -543,7 +469,6 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str, Error> {
             recognize(line_ending),
         )),
     ))(input)
-    .map_err(|e| e.map(|e: NomError<&str>| Error::ClauseEnding(String::from(e.input))))
 }
 
 /// Writes a CNF to a DIMACS CNF file
@@ -731,13 +656,14 @@ fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Erro
 mod tests {
     use super::{
         parse_clause_ending, parse_cnf_body, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line,
-        parse_preamble, write_cnf_annotated, Error, Preamble,
+        parse_preamble, write_cnf_annotated, Preamble,
     };
     use crate::{
         clause,
         instances::{Cnf, SatInstance},
         ipasir_lit, var,
     };
+    use nom::error::Error as NomError;
     use std::io::{Cursor, Seek};
 
     #[cfg(feature = "optimization")]
@@ -759,22 +685,14 @@ mod tests {
     #[cfg(feature = "optimization")]
     #[test]
     fn parse_idx_fail() {
-        assert_eq!(
-            parse_idx("0 "),
-            Err(nom::Err::Error(Error::ObjIdx(String::from("0 "))))
-        );
-        assert_eq!(
-            parse_idx("-15 "),
-            Err(nom::Err::Error(Error::ObjIdx(String::from("-15 "))))
-        );
-        assert_eq!(
-            parse_idx("abc "),
-            Err(nom::Err::Error(Error::ObjIdx(String::from("abc "))))
-        );
-        assert_eq!(
-            parse_idx(" abc "),
-            Err(nom::Err::Error(Error::ObjIdx(String::from(" abc "))))
-        );
+        assert!(parse_idx("0 ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "0 ", .. }))));
+        assert!(parse_idx("-15 ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "-15 ", .. }))));
+        assert!(parse_idx("abc ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "abc ", .. }))));
+        assert!(parse_idx(" abc ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: " abc ", .. }))));
     }
 
     #[cfg(feature = "optimization")]
@@ -788,18 +706,12 @@ mod tests {
     #[cfg(feature = "optimization")]
     #[test]
     fn parse_weight_fail() {
-        assert_eq!(
-            parse_weight("-2 "),
-            Err(nom::Err::Error(Error::Weight(String::from("-2 "))))
-        );
-        assert_eq!(
-            parse_weight("abc "),
-            Err(nom::Err::Error(Error::Weight(String::from("abc "))))
-        );
-        assert_eq!(
-            parse_weight(" abc "),
-            Err(nom::Err::Error(Error::Weight(String::from(" abc "))))
-        );
+        assert!(parse_weight("-2 ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "-2 ", .. }))));
+        assert!(parse_weight("abc ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "abc ", .. }))));
+        assert!(parse_weight(" abc ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: " abc ", .. }))));
     }
 
     #[test]
@@ -812,14 +724,10 @@ mod tests {
 
     #[test]
     fn parse_lit_fail() {
-        assert_eq!(
-            parse_lit("abc "),
-            Err(nom::Err::Error(Error::Lit(String::from("abc "))))
-        );
-        assert_eq!(
-            parse_lit(" abc "),
-            Err(nom::Err::Error(Error::Lit(String::from(" abc "))))
-        );
+        assert!(parse_lit("abc ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "abc ", .. }))));
+        assert!(parse_lit(" abc ")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: " abc ", .. }))));
     }
 
     #[test]
@@ -850,24 +758,32 @@ mod tests {
 
     #[test]
     fn parse_p_line_fail() {
-        assert_eq!(
-            parse_p_line("a cnf 23 42"),
-            Err(nom::Err::Error(Error::PLine(String::from("a cnf 23 42"))))
-        );
-        assert_eq!(
-            parse_p_line("p abc 23 42 52"),
-            Err(nom::Err::Error(Error::PLine(String::from(
-                "p abc 23 42 52"
-            ))))
-        );
-        assert_eq!(
-            parse_p_line("p cnf ab"),
-            Err(nom::Err::Error(Error::PLine(String::from("p cnf ab"))))
-        );
-        assert_eq!(
-            parse_p_line("p wcnf ab"),
-            Err(nom::Err::Error(Error::PLine(String::from("p wcnf ab"))))
-        );
+        assert!(parse_p_line("a cnf 23 42").is_err_and(|e| matches!(
+            e,
+            nom::Err::Error(NomError {
+                input: "a cnf 23 42",
+                ..
+            })
+        )));
+        assert!(parse_p_line("p abc 23 42 52").is_err_and(|e| matches!(
+            e,
+            nom::Err::Error(NomError {
+                input: "abc 23 42 52",
+                ..
+            })
+        )));
+        assert!(parse_p_line("p cnf ab")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "ab", .. }))));
+        assert!(parse_p_line("p wcnf ab")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "ab", .. }))));
+        #[cfg(not(feature = "optimization"))]
+        assert!(parse_p_line("p wcnf 23 42 52").is_err_and(|e| matches!(
+            e,
+            nom::Err::Error(NomError {
+                input: "wcnf 23 42 52",
+                ..
+            })
+        )));
     }
 
     #[test]
@@ -880,14 +796,10 @@ mod tests {
 
     #[test]
     fn parse_clause_ending_fail() {
-        assert_eq!(
-            parse_clause_ending("test"),
-            Err(nom::Err::Error(Error::ClauseEnding(String::from("test"))))
-        );
-        assert_eq!(
-            parse_clause_ending("0test"),
-            Err(nom::Err::Error(Error::ClauseEnding(String::from("0test"))))
-        );
+        assert!(parse_clause_ending("test")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "test", .. }))));
+        assert!(parse_clause_ending("0test")
+            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "0test", .. }))));
     }
 
     #[test]
@@ -912,12 +824,13 @@ mod tests {
 
     #[test]
     fn parse_cnf_line_fail() {
-        assert_eq!(
-            parse_cnf_line("42 34 a -16 0"),
-            Err(nom::Err::Error(Error::ClauseEnding(String::from(
-                "a -16 0"
-            ))))
-        );
+        assert!(parse_cnf_line("42 34 a -16 0").is_err_and(|e| matches!(
+            e,
+            nom::Err::Error(NomError {
+                input: "a -16 0",
+                ..
+            })
+        )));
     }
 
     #[cfg(feature = "optimization")]

@@ -125,7 +125,7 @@ pub trait Solve: Extend<Clause> {
     fn signature(&self) -> &'static str;
     /// Reserves memory in the solver until a maximum variables, if the solver
     /// supports it
-    fn reserve(&mut self, _max_var: Var) -> SolveMightFail {
+    fn reserve(&mut self, _max_var: Var) -> anyhow::Result<()> {
         Ok(())
     }
     /// Solves the internal CNF formula without any assumptions.
@@ -140,14 +140,14 @@ pub trait Solve: Extend<Clause> {
     /// let res = solver.solve().unwrap();
     /// debug_assert_eq!(res, SolverResult::Sat);
     /// ```
-    fn solve(&mut self) -> Result<SolverResult, SolverError>;
+    fn solve(&mut self) -> anyhow::Result<SolverResult>;
     /// Gets a solution found by the solver up to a specified highest variable.
     ///
     /// # Errors
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn solution(&self, high_var: Var) -> Result<Assignment, SolverError> {
+    fn solution(&self, high_var: Var) -> anyhow::Result<Assignment> {
         let mut assignment = Vec::new();
         let len = high_var.idx32() + 1;
         assignment.reserve(len as usize);
@@ -164,7 +164,7 @@ pub trait Solve: Extend<Clause> {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn full_solution(&self) -> Result<Assignment, SolverError>
+    fn full_solution(&self) -> anyhow::Result<Assignment>
     where
         Self: SolveStats,
     {
@@ -178,7 +178,7 @@ pub trait Solve: Extend<Clause> {
         }
     }
     /// Same as [`Solve::lit_val`], but for variables.
-    fn var_val(&self, var: Var) -> Result<TernaryVal, SolverError> {
+    fn var_val(&self, var: Var) -> anyhow::Result<TernaryVal> {
         self.lit_val(var.pos_lit())
     }
     /// Gets an assignment of a variable in the solver.
@@ -198,25 +198,25 @@ pub trait Solve: Extend<Clause> {
     ///
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
-    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError>;
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal>;
     /// Adds a clause to the solver
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
-    fn add_clause(&mut self, clause: Clause) -> SolveMightFail;
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()>;
     /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
-    fn add_unit(&mut self, lit: Lit) -> SolveMightFail {
+    fn add_unit(&mut self, lit: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit])
     }
     /// Like [`Solve::add_clause`] but for clauses with two literals.
-    fn add_binary(&mut self, lit1: Lit, lit2: Lit) -> SolveMightFail {
+    fn add_binary(&mut self, lit1: Lit, lit2: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit1, lit2])
     }
     /// Like [`Solve::add_clause`] but for clauses with three literals.
-    fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> SolveMightFail {
+    fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit1, lit2, lit3])
     }
     /// Adds all clauses from a [`Cnf`] instance.
-    fn add_cnf(&mut self, cnf: Cnf) -> SolveMightFail {
+    fn add_cnf(&mut self, cnf: Cnf) -> anyhow::Result<()> {
         cnf.into_iter().try_for_each(|cl| self.add_clause(cl))
     }
 }
@@ -226,11 +226,11 @@ pub trait Solve: Extend<Clause> {
 /// use them with this library.
 pub trait SolveIncremental: Solve {
     /// Solves the internal CNF formula under assumptions.
-    fn solve_assumps(&mut self, assumps: &[Lit]) -> Result<SolverResult, SolverError>;
+    fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult>;
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted
     /// literals of the assumptions.
-    fn core(&mut self) -> Result<Vec<Lit>, SolverError>;
+    fn core(&mut self) -> anyhow::Result<Vec<Lit>>;
 }
 
 /// Trait for all solvers that can be terminated by a termination callback.
@@ -273,11 +273,11 @@ pub trait InterruptSolver: Sync {
 /// Trait for all solvers that can force a face for a literal
 pub trait PhaseLit {
     /// Forces the default decision phase of a variable to a certain value
-    fn phase_lit(&mut self, lit: Lit) -> Result<(), SolverError>;
+    fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()>;
     /// Undoes the effect of a call to [`PhaseLit::phase_lit`]
-    fn unphase_var(&mut self, var: Var) -> Result<(), SolverError>;
+    fn unphase_var(&mut self, var: Var) -> anyhow::Result<()>;
     /// Undoes the effect of a call to [`PhaseLit::phase_lit`]
-    fn unphase_lit(&mut self, lit: Lit) -> Result<(), SolverError> {
+    fn unphase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
         self.unphase_var(lit.var())
     }
 }
@@ -285,37 +285,37 @@ pub trait PhaseLit {
 /// Trait for freezing and melting variables in solvers with pre-/inprocessing.
 pub trait FreezeVar {
     /// Freezes a variable so that it is not removed in pre-/inprocessing
-    fn freeze_var(&mut self, var: Var) -> Result<(), SolverError>;
+    fn freeze_var(&mut self, var: Var) -> anyhow::Result<()>;
     /// Melts a variable after it had been frozen
-    fn melt_var(&mut self, var: Var) -> Result<(), SolverError>;
+    fn melt_var(&mut self, var: Var) -> anyhow::Result<()>;
     /// Checks if a variable is frozen
-    fn is_frozen(&mut self, var: Var) -> Result<bool, SolverError>;
+    fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool>;
 }
 
 /// Trait for all solvers that can flip a literal in the current assignment
 pub trait FlipLit {
     /// Attempts flipping the literal in the given assignment and returns `true` if successful
-    fn flip_lit(&mut self, lit: Lit) -> Result<bool, SolverError>;
+    fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool>;
     /// Checks if the literal can be flipped in the given assignment without flipping it
-    fn is_flippable(&mut self, lit: Lit) -> Result<bool, SolverError>;
+    fn is_flippable(&mut self, lit: Lit) -> anyhow::Result<bool>;
 }
 
 /// Trait for all solvers that can limit the number of conflicts
 pub trait LimitConflicts {
     /// Sets or removes a limit on the number of conflicts
-    fn limit_conflicts(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
+    fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()>;
 }
 
 /// Trait for all solvers that can limit the number of decisions
 pub trait LimitDecisions {
     /// Sets or removes a limit on the number of decisions
-    fn limit_decisions(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
+    fn limit_decisions(&mut self, limit: Option<u32>) -> anyhow::Result<()>;
 }
 
 /// Trait for all solvers that can limit the number of propagations
 pub trait LimitPropagations {
     /// Sets or removes a limit on the number of propagations
-    fn limit_propagations(&mut self, limit: Option<u32>) -> Result<(), SolverError>;
+    fn limit_propagations(&mut self, limit: Option<u32>) -> anyhow::Result<()>;
 }
 
 /// Trait for all solvers allowing access to internal search statistics
@@ -327,9 +327,6 @@ pub trait GetInternalStats {
     /// Gets the number of conflicts
     fn conflicts(&self) -> usize;
 }
-
-/// Return type of solver calls that don't return but might fail
-pub type SolveMightFail = Result<(), SolverError>;
 
 #[allow(dead_code)]
 type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
@@ -467,15 +464,21 @@ pub enum ControlSignal {
     Terminate,
 }
 
-/// Type representing solver errors
+/// A solver state error
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
-pub enum SolverError {
-    /// An API with a description
-    #[error("API error: {0}")]
-    Api(String),
-    /// The solver was expected to be in the second [`SolverState`], but it is in the first.
-    #[error("solvers needs to be in state {1} but was in state {0}")]
-    State(SolverState, SolverState),
+pub struct StateError {
+    pub required_state: SolverState,
+    pub actual_state: SolverState,
+}
+
+impl fmt::Display for StateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "action requires {} state, but solver is in state {}",
+            self.required_state, self.actual_state
+        )
+    }
 }
 
 impl<S: Solve + SolveStats> CollectClauses for S {

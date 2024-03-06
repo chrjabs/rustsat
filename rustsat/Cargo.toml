@@ -24,6 +24,7 @@ rustc-hash = { version = "1.1.0", optional = true }
 cpu-time = "1.0.0"
 rand = { version = "0.8.5", optional = true }
 visibility = { version = "0.1.0" }
+anyhow = { version = "1.0.80" }
 thiserror = { version = "1.0.50" }
 pyo3 = { version = "0.20.0", optional = true, features = [
   "extension-module",

@@ -30,12 +30,21 @@ use cpu_time::ProcessTime;
 use ffi::KissatHandle;
 use rustsat::{
     solvers::{
-        ControlSignal, Interrupt, InterruptSolver, Solve, SolveMightFail, SolveStats, SolverError,
-        SolverResult, SolverState, SolverStats, Terminate,
+        ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
+        SolverStats, StateError, Terminate,
     },
     types::{Clause, Lit, TernaryVal, Var},
 };
+use thiserror::Error;
 
+#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[error("kissat c-api returned an invalid value: {api_call} -> {value}")]
+pub struct InvalidApiReturn {
+    api_call: &'static str,
+    value: c_int,
+}
+
+// FIXME: remove error state, since this doesn't make sense with return values
 #[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
     #[default]
@@ -111,7 +120,8 @@ impl Kissat<'_> {
     }
 
     /// Sets a pre-defined configuration for Kissat's internal options
-    pub fn set_configuration(&mut self, config: Config) -> SolveMightFail {
+    pub fn set_configuration(&mut self, config: Config) -> anyhow::Result<()> {
+        // FIXME: write with early error return
         if self.state == InternalSolverState::Configuring {
             let config_name = match config {
                 Config::Default => CString::new("default").unwrap(),
@@ -124,49 +134,39 @@ impl Kissat<'_> {
             if ret != 0 {
                 Ok(())
             } else {
-                Err(SolverError::Api("kissat_configure returned 0".to_string()))
+                Err(InvalidApiReturn {
+                    api_call: "kissat_configure",
+                    value: 0,
+                }
+                .into())
             }
         } else {
-            Err(SolverError::State(
-                self.state.to_external(),
-                SolverState::Configuring,
-            ))
+            Err(StateError {
+                required_state: SolverState::Configuring,
+                actual_state: self.state.to_external(),
+            }
+            .into())
         }
     }
 
     /// Sets the value of a Kissat option. For possible options, check Kissat with `kissat --help`.
     /// Requires state [`SolverState::Configuring`].
-    pub fn set_option(&mut self, name: &str, value: c_int) -> SolveMightFail {
-        let c_name = match CString::new(name) {
-            Ok(cstr) => cstr,
-            Err(_) => {
-                return Err(SolverError::Api(format!(
-                    "Kissat option {} cannot be converted to a C string",
-                    name
-                )))
-            }
-        };
+    pub fn set_option(&mut self, name: &str, value: c_int) -> anyhow::Result<()> {
+        let c_name = CString::new(name)?;
         if unsafe { ffi::kissat_set_option(self.handle, c_name.as_ptr(), value) } != 0 {
             Ok(())
         } else {
-            Err(SolverError::Api(format!(
-                "kissat_set_option returned false for option {}",
-                name
-            )))
+            Err(InvalidApiReturn {
+                api_call: "kissat_set_option",
+                value: 0,
+            }
+            .into())
         }
     }
 
     /// Gets the value of a Kissat option. For possible options, check Kissat with `kissat --help`.
-    pub fn get_option(&self, name: &str) -> Result<c_int, SolverError> {
-        let c_name = match CString::new(name) {
-            Ok(cstr) => cstr,
-            Err(_) => {
-                return Err(SolverError::Api(format!(
-                    "Kissat option {} cannot be converted to a C string",
-                    name
-                )))
-            }
-        };
+    pub fn get_option(&self, name: &str) -> anyhow::Result<c_int> {
+        let c_name = CString::new(name)?;
         Ok(unsafe { ffi::kissat_get_option(self.handle, c_name.as_ptr()) })
     }
 
@@ -200,13 +200,15 @@ impl Solve for Kissat<'_> {
             .expect("Kissat signature returned invalid UTF-8.")
     }
 
-    fn reserve(&mut self, max_var: Var) -> SolveMightFail {
+    fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
+        // FIXME: rewrite with nicer control flow
         self.state = match self.state {
             InternalSolverState::Error(_) => {
-                return Err(SolverError::State(
-                    self.state.to_external(),
-                    SolverState::Input,
-                ))
+                return Err(StateError {
+                    required_state: SolverState::Input,
+                    actual_state: self.state.to_external(),
+                }
+                .into())
             }
             _ => InternalSolverState::Input,
         };
@@ -214,17 +216,20 @@ impl Solve for Kissat<'_> {
         Ok(())
     }
 
-    fn solve(&mut self) -> Result<SolverResult, SolverError> {
+    fn solve(&mut self) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
-        } else if let InternalSolverState::Unsat(_) = self.state {
+        }
+        if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::Unsat);
-        } else if let InternalSolverState::Error(desc) = &self.state {
-            return Err(SolverError::State(
-                SolverState::Error(desc.clone()),
-                SolverState::Input,
-            ));
+        }
+        if let InternalSolverState::Error(_) = &self.state {
+            return Err(StateError {
+                required_state: SolverState::Input,
+                actual_state: self.state.to_external(),
+            }
+            .into());
         }
         let start = ProcessTime::now();
         // Solve with Kissat backend
@@ -246,14 +251,16 @@ impl Solve for Kissat<'_> {
                 self.state = InternalSolverState::Unsat(vec![]);
                 Ok(SolverResult::Unsat)
             }
-            invalid => Err(SolverError::Api(format!(
-                "kissat_solve returned invalid value: {}",
-                invalid
-            ))),
+            value => Err(InvalidApiReturn {
+                api_call: "kissat_solve",
+                value,
+            }
+            .into()),
         }
     }
 
-    fn lit_val(&self, lit: Lit) -> Result<TernaryVal, SolverError> {
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+        // FIXME: rewrite without match
         match &self.state {
             InternalSolverState::Sat => {
                 let lit = lit.to_ipasir();
@@ -261,25 +268,32 @@ impl Solve for Kissat<'_> {
                     0 => Ok(TernaryVal::DontCare),
                     p if p == lit => Ok(TernaryVal::True),
                     n if n == -lit => Ok(TernaryVal::False),
-                    invalid => Err(SolverError::Api(format!(
-                        "kissat_val returned invalid value: {}",
-                        invalid
-                    ))),
+                    value => Err(InvalidApiReturn {
+                        api_call: "kissat_value",
+                        value,
+                    }
+                    .into()),
                 }
             }
-            other => Err(SolverError::State(other.to_external(), SolverState::Sat)),
+            other => Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: other.to_external(),
+            }
+            .into()),
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> SolveMightFail {
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
         // Kissat is non-incremental, so only add if in input or configuring state
+        // FIXME: rewrite with nicer control flow
         match &mut self.state {
             InternalSolverState::Input | InternalSolverState::Configuring => (),
             InternalSolverState::Error(_) => {
-                return Err(SolverError::State(
-                    self.state.to_external(),
-                    SolverState::Input,
-                ))
+                return Err(StateError {
+                    required_state: SolverState::Input,
+                    actual_state: self.state.to_external(),
+                }
+                .into())
             }
             other => {
                 let old_state = other.to_external();
@@ -287,7 +301,11 @@ impl Solve for Kissat<'_> {
                 *other = InternalSolverState::Error(String::from(
                     "added clause while not in input state",
                 ));
-                return Err(SolverError::State(old_state, SolverState::Input));
+                return Err(StateError {
+                    required_state: SolverState::Input,
+                    actual_state: old_state,
+                }
+                .into());
             }
         }
         // Update wrapper-internal state
@@ -445,7 +463,7 @@ mod test {
     use super::{Config, Kissat, Limit};
     use rustsat::{
         lit,
-        solvers::{Solve, SolverError, SolverResult, SolverState},
+        solvers::{Solve, SolverResult, SolverState, StateError},
     };
 
     #[test]
@@ -494,13 +512,13 @@ mod test {
         solver.set_configuration(Config::SAT).unwrap();
         solver.set_configuration(Config::UNSAT).unwrap();
         solver.add_unit(lit![0]).unwrap();
-        assert_eq!(
-            solver.set_configuration(Config::Default),
-            Err(SolverError::State(
-                SolverState::Input,
-                SolverState::Configuring
-            ))
-        );
+        assert!(solver.set_configuration(Config::Default).is_err_and(|e| e
+            .downcast::<StateError>()
+            .unwrap()
+            == StateError {
+                required_state: SolverState::Configuring,
+                actual_state: SolverState::Input
+            }));
     }
 
     #[test]

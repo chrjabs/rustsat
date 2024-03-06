@@ -15,13 +15,14 @@ use crate::{
         Clause, Lit, Var,
     },
 };
+use anyhow::Context;
 use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{anychar, i64, line_ending, space0, space1, u64},
-    combinator::{eof, map_res, recognize},
+    combinator::{cut, eof, map, map_res, recognize},
     error::Error as NomError,
-    multi::{many0, many_till},
+    multi::{many0, many1, many_till},
     sequence::{pair, tuple},
     IResult,
 };
@@ -29,7 +30,6 @@ use std::{
     io::{self, BufRead, BufReader, Read, Write},
     num::TryFromIntError,
 };
-use thiserror::Error;
 
 #[cfg(feature = "multiopt")]
 use crate::instances::MultiOptInstance;
@@ -37,20 +37,6 @@ use crate::instances::MultiOptInstance;
 use crate::instances::{Objective, OptInstance};
 #[cfg(feature = "optimization")]
 use crate::types::WLitIter;
-
-/// Errors occuring within the OPB parsing module
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum Error {
-    /// The requested objective does not exist
-    #[error("no matching objective found in file")]
-    ObjectiveNotFound,
-    /// Encountered an unexpected line in the OPB file
-    #[error("invalid OPB line: {0}")]
-    InvalidLine(String),
-    /// Error while reading input data
-    #[error("IO error")]
-    IOError,
-}
 
 /// Options for reading and writing OPB files
 /// Possible relational operators
@@ -104,7 +90,7 @@ enum OpbData {
 }
 
 /// Parses the constraints from an OPB file as a [`SatInstance`]
-pub fn parse_sat<R, VM>(reader: R, opts: Options) -> Result<SatInstance<VM>, Error>
+pub fn parse_sat<R, VM>(reader: R, opts: Options) -> anyhow::Result<SatInstance<VM>>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -126,11 +112,13 @@ pub fn parse_opt_with_idx<R, VM>(
     reader: R,
     obj_idx: usize,
     opts: Options,
-) -> Result<OptInstance<VM>, Error>
+) -> anyhow::Result<OptInstance<VM>>
 where
     R: Read,
     VM: ManageVars + Default,
 {
+    use super::ObjNoExist;
+
     let data = parse_opb_data(reader, opts)?;
     let mut sat_inst = SatInstance::<VM>::new();
     let mut obj_cnt = 0;
@@ -150,7 +138,7 @@ where
         }
     });
     if obj_cnt <= obj_idx {
-        Err(Error::ObjectiveNotFound)
+        Err(ObjNoExist(obj_cnt).into())
     } else {
         Ok(OptInstance::compose(sat_inst, obj))
     }
@@ -159,7 +147,7 @@ where
 #[cfg(feature = "multiopt")]
 /// Parses an OPB file as an [`MultiOptInstance`] using the objective with the given
 /// index (starting from 0).
-pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> Result<MultiOptInstance<VM>, Error>
+pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
 where
     R: Read,
     VM: ManageVars + Default,
@@ -176,27 +164,25 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: Read>(reader: R, opts: Options) -> Result<Vec<OpbData>, Error> {
+fn parse_opb_data<R: Read>(reader: R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
     let mut reader = BufReader::new(reader);
     let mut buf = String::new();
     let mut data = vec![];
-    while let Ok(len) = reader.read_line(&mut buf) {
-        if len == 0 {
-            return Ok(data);
+    // TODO: consider not necessarily reading a full line
+    while reader.read_line(&mut buf)? > 0 {
+        let (rem, new_data) = many0(|i| opb_data(i, opts))(&buf)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse opb line '{}'", buf))?;
+        data.extend(new_data);
+        if !rem.is_empty() {
+            // continue with remainder, this allows for line breaks within constraints etc
+            // TODO: to work, this requires the opb_ending function to be adapted
+            buf = String::from(rem);
+        } else {
+            buf.clear();
         }
-        match many0(|i| opb_data(i, opts))(&buf) {
-            Ok((rem, new_data)) => {
-                if !rem.is_empty() {
-                    return Err(Error::InvalidLine(buf.clone()));
-                } else {
-                    data.extend(new_data)
-                }
-            }
-            Err(_) => return Err(Error::InvalidLine(buf.clone())),
-        }
-        buf.clear();
     }
-    Err(Error::IOError)
+    Ok(data)
 }
 
 /// Matches an OPB comment
@@ -255,19 +241,26 @@ fn weight(input: &str) -> IResult<&str, isize> {
 
 /// Parses an OPB weighted term
 fn weighted_literal(input: &str, opts: Options) -> IResult<&str, (Lit, isize)> {
-    map_res(
-        tuple((weight, space1, |i| literal(i, opts), space0)),
-        |(w, _, l, _)| Ok::<_, ()>((l, w)),
+    map(
+        tuple((weight, cut(space1), cut(|i| literal(i, opts)), space0)),
+        |(w, _, l, _)| (l, w),
     )(input)
 }
 
 /// Parses an OPB sum
 fn weighted_lit_sum(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
+    many1(|i| weighted_literal(i, opts))(input)
+}
+
+#[cfg(feature = "optimization")]
+/// Parses a (potentially empty) OPB sum
+fn weighted_lit_sum0(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
     many0(|i| weighted_literal(i, opts))(input)
 }
 
 /// Leniently parses OPB constraint or objective ending as ';' or a line ending
 fn opb_ending(input: &str) -> IResult<&str, &str> {
+    // TODO: potentially simplify with `cut`?
     recognize(pair(
         space0,
         alt((
@@ -289,10 +282,10 @@ fn constraint(input: &str, opts: Options) -> IResult<&str, PBConstraint> {
     map_res(
         tuple((
             |i| weighted_lit_sum(i, opts),
-            operator,
+            cut(operator),
             space0,
-            weight,
-            opb_ending,
+            cut(weight),
+            cut(opb_ending),
         )),
         |(wls, op, _, b, _)| {
             let lits = wls.into_iter();
@@ -314,8 +307,8 @@ fn objective(input: &str, opts: Options) -> IResult<&str, Objective> {
         tuple((
             tag("min:"),
             space0,
-            |i| weighted_lit_sum(i, opts),
-            opb_ending,
+            |i| weighted_lit_sum0(i, opts),
+            cut(opb_ending),
         )),
         |(_, _, wsl, _)| {
             let mut obj = Objective::new();
@@ -342,17 +335,14 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
     // remove leading spaces
     let (input, _) = space0(input)?;
     alt((
-        map_res(comment, |cmt| Ok::<_, ()>(OpbData::Cmt(String::from(cmt)))),
-        map_res(
-            |i| constraint(i, opts),
-            |constr| Ok::<_, ()>(OpbData::Constr(constr)),
-        ),
+        map(comment, |cmt| OpbData::Cmt(String::from(cmt))),
+        map(|i| constraint(i, opts), OpbData::Constr),
         #[cfg(feature = "optimization")]
-        map_res(|i| objective(i, opts), |obj| Ok::<_, ()>(OpbData::Obj(obj))),
+        map(|i| objective(i, opts), OpbData::Obj),
         #[cfg(not(feature = "optimization"))]
-        map_res(
+        map(
             |i| objective(i, opts),
-            |obj| Ok::<_, ()>(OpbData::Obj(String::from(obj))),
+            |obj| OpbData::Obj(String::from(obj)),
         ),
     ))(input)
 }
@@ -703,7 +693,7 @@ mod test {
     use nom::error::{Error as NomError, ErrorKind};
 
     #[cfg(feature = "optimization")]
-    use super::{opb_data, parse_opb_data, Error, OpbData};
+    use super::{opb_data, parse_opb_data, OpbData};
     #[cfg(feature = "optimization")]
     use crate::instances::Objective;
     #[cfg(feature = "optimization")]
@@ -851,7 +841,7 @@ mod test {
         }
         match objective("min: x0;", Options::default()) {
             Ok(_) => panic!(),
-            Err(err) => assert_eq!(err, nom::Err::Error(NomError::new("x0;", ErrorKind::Eof))),
+            Err(err) => assert_eq!(err, nom::Err::Failure(NomError::new("x0;", ErrorKind::Eof))),
         }
         match objective("min:;", Options::default()) {
             Ok((rest, obj)) => {
@@ -885,6 +875,7 @@ mod test {
             opb_data("3 x1 -2 ~x2 <= 4;\n", Options::default()),
             Ok(("", OpbData::Constr(should_be_constr)))
         );
+        assert!(opb_data("", Options::default()).is_err_and(|e| matches!(e, nom::Err::Error(_))));
         #[cfg(feature = "optimization")]
         {
             let mut obj = Objective::new();
@@ -896,7 +887,7 @@ mod test {
             );
             assert_eq!(
                 opb_data("min: x1;", Options::default()),
-                Err(nom::Err::Error(NomError::new("x1;", ErrorKind::Eof)))
+                Err(nom::Err::Failure(NomError::new("x1;", ErrorKind::Eof)))
             );
         }
     }
@@ -912,12 +903,10 @@ mod test {
                 assert_eq!(data.len(), 3);
                 assert_eq!(data[0], OpbData::Cmt(String::from("* test\n")));
                 if let OpbData::Constr(_) = data[1] {
-                    ()
                 } else {
                     panic!()
                 }
                 if let OpbData::Obj(_) = data[2] {
-                    ()
                 } else {
                     panic!()
                 }
@@ -927,10 +916,7 @@ mod test {
         let data = "* test\n5 x1 -3 x2 >= 4;\nmin: x1;";
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
-        assert_eq!(
-            parse_opb_data(reader, Options::default()),
-            Err(Error::InvalidLine(String::from("min: x1;")))
-        );
+        assert!(parse_opb_data(reader, Options::default()).is_err());
     }
 
     #[test]
