@@ -45,8 +45,6 @@ type BodyContent<VM> = (SatInstance<VM>, Vec<Objective>);
 #[cfg(not(feature = "optimization"))]
 type BodyContent<VM> = SatInstance<VM>;
 
-// FIXME: ensure strings are cleared before read_line
-
 /// An error for when an invalid p line is encountered
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
 #[error("invalid p line '{0}'")]
@@ -181,21 +179,23 @@ where
     VM: ManageVars + Default,
 {
     let mut inst = SatInstance::<VM>::new();
-    loop {
-        let mut buf = String::new();
-        let len = reader.read_line(&mut buf)?;
-        if len == 0 {
-            #[cfg(feature = "optimization")]
-            return Ok((inst, vec![]));
-            #[cfg(not(feature = "optimization"))]
-            return Ok(inst);
-        }
+    let mut buf = String::new();
+    while reader.read_line(&mut buf)? > 0 {
         let (_, opt_clause) = parse_cnf_line(&buf)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse cnf line '{}'", buf))?;
         if let Some(clause) = opt_clause {
             inst.add_clause(clause)
         }
+        buf.clear();
+    }
+    #[cfg(feature = "optimization")]
+    {
+        Ok((inst, vec![]))
+    }
+    #[cfg(not(feature = "optimization"))]
+    {
+        Ok(inst)
     }
 }
 
@@ -208,12 +208,8 @@ where
 {
     let mut constrs = SatInstance::<VM>::new();
     let mut obj = Objective::new();
-    loop {
-        let mut buf = String::new();
-        let len = reader.read_line(&mut buf)?;
-        if len == 0 {
-            return Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }));
-        }
+    let mut buf = String::new();
+    while reader.read_line(&mut buf)? > 0 {
         let (_, opt_wclause) = parse_wcnf_pre22_line(&buf)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse old wcnf line '{}'", buf))?;
@@ -227,7 +223,9 @@ where
                 }
             }
         };
+        buf.clear();
     }
+    Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }))
 }
 
 #[cfg(feature = "optimization")]
