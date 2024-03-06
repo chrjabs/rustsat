@@ -40,6 +40,7 @@ These are the crates the project consists of:
 | `rustsat` | The main library, containing basic types, traits, encodings, parsers, and more. |
 | `rustsat-tools` | A collection of small helpful tools based on RustSAT that can be installed as binaries. For a list of available tools, see [this directory](https://github.com/chrjabs/rustsat/tree/main/tools/src/bin) with short descriptions of the tools in the headers of the files. |
 | `rustsat-<satsolver>` | Interfaces to SAT solvers that can be used alongside `rustsat`. Currently interfaces are available for `cadical`, `kissat`, `glucose`, and `minisat`. |
+| `rustsat-ipasir` | [IPASIR](https://github.com/biotomas/ipasir) bindings to use any compliant solver with `rustsat`. |
 
 ## Installation
 
@@ -55,7 +56,6 @@ To install the binary tools in `rustsat-tools` run `cargo install rustsat-tools`
 | --- | --- |
 | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
 | `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
-| `ipasir` | Include and link the IPASIR solver interface. |
 | `optimization` | Include optimization (MaxSAT) data structures etc. |
 | `multiopt` | Include data structures etc. for multi-objective optimization. |
 | `compression` | Enable parsing and writing compressed input. |

@@ -79,27 +79,8 @@
 //! ### IPASIR
 //!
 //! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
-//! solvers. RustSAT's IPASIR interface is disabled by default since linking to
-//! multiple solvers implementing IPASIR at the same time is not possible. The
-//! main reason for including the IPASIR interface in RustSAT is to make it
-//! easier to include solvers that don't have Rust interface crates. For this,
-//! make sure to not depend on any other SAT solver crate to avoid potential
-//! namespace conflicts. Then enable the `ipasir` feature and modify the
-//! following lines in the build script `build.rs` accordingly.
-//!
-//! ```text
-//! // Link to custom IPASIR solver
-//! // Modify this for linking to your static library
-//! // Uncomment and modify this for linking to your static library
-//! // The name of the library should be _without_ the prefix 'lib' and the suffix '.a'
-//! //println!("cargo:rustc-link-lib=static=<path-to-your-static-lib>");
-//! //println!("cargo:rustc-link-search=<name-of-your-static-lib>");
-//! // If your IPASIR solver links to the C++ stdlib, uncomment the next four lines
-//! //#[cfg(target_os = "macos")]
-//! //println!("cargo:rustc-flags=-l dylib=c++");
-//! //#[cfg(not(target_os = "macos"))]
-//! //println!("cargo:rustc-flags=-l dylib=stdc++");
-//! ```
+//! solvers. IPASIR bindings for rustsat are provided in the
+//! [`rustsat-ipasir`](https://crates.io/crates/rustsat-ipasir) crate.
 
 use crate::{
     clause,
@@ -110,11 +91,6 @@ use crate::{
 };
 use core::time::Duration;
 use std::fmt;
-
-#[cfg(feature = "ipasir")]
-mod ipasir;
-#[cfg(feature = "ipasir")]
-pub use ipasir::IpasirSolver;
 use thiserror::Error;
 
 /// Trait for all SAT solvers in this library.
