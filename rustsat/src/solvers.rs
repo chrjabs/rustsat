@@ -383,7 +383,7 @@ pub trait SolveStats {
 }
 
 /// States that the solver can be in.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverState {
     /// Configuration of the solver must be done in this state, before any clauses are added
     Configuring,
@@ -393,9 +393,6 @@ pub enum SolverState {
     Sat,
     /// The query was found unsatisfiable.
     Unsat,
-    /// Solver is in error state.
-    /// For example after trying to add a clause to a non-incremental solver after solving.
-    Error(String),
 }
 
 impl fmt::Display for SolverState {
@@ -405,7 +402,6 @@ impl fmt::Display for SolverState {
             SolverState::Input => write!(f, "INPUT"),
             SolverState::Sat => write!(f, "SAT"),
             SolverState::Unsat => write!(f, "UNSAT"),
-            SolverState::Error(desc) => write!(f, "Error: {}", desc),
         }
     }
 }

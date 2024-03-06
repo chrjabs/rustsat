@@ -128,24 +128,21 @@ impl Solve for Minisat {
     }
 
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
-        // FIXME: rewrite without match
-        match &self.state {
-            InternalSolverState::Sat => {
-                let lit = lit.to_ipasir();
-                match unsafe { ffi::cminisat_val(self.handle, lit) } {
-                    0 => Ok(TernaryVal::DontCare),
-                    p if p == lit => Ok(TernaryVal::True),
-                    n if n == -lit => Ok(TernaryVal::False),
-                    value => Err(InvalidApiReturn {
-                        api_call: "cminisat_val",
-                        value,
-                    }
-                    .into()),
-                }
-            }
-            other => Err(StateError {
+        if self.state != InternalSolverState::Sat {
+            return Err(StateError {
                 required_state: SolverState::Sat,
-                actual_state: other.to_external(),
+                actual_state: self.state.to_external(),
+            }
+            .into());
+        }
+        let lit = lit.to_ipasir();
+        match unsafe { ffi::cminisat_val(self.handle, lit) } {
+            0 => Ok(TernaryVal::DontCare),
+            p if p == lit => Ok(TernaryVal::True),
+            n if n == -lit => Ok(TernaryVal::False),
+            value => Err(InvalidApiReturn {
+                api_call: "cminisat_val",
+                value,
             }
             .into()),
         }
@@ -201,7 +198,6 @@ impl SolveIncremental for Minisat {
     }
 
     fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
-        // FIXME: rewrite without match
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
             other => Err(StateError {

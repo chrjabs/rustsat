@@ -44,7 +44,6 @@ pub struct InvalidApiReturn {
     value: c_int,
 }
 
-// FIXME: remove error state, since this doesn't make sense with return values
 #[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
     #[default]
@@ -52,7 +51,6 @@ enum InternalSolverState {
     Input,
     Sat,
     Unsat(Vec<Lit>),
-    Error(String),
 }
 
 impl InternalSolverState {
@@ -62,7 +60,6 @@ impl InternalSolverState {
             InternalSolverState::Input => SolverState::Input,
             InternalSolverState::Sat => SolverState::Sat,
             InternalSolverState::Unsat(_) => SolverState::Unsat,
-            InternalSolverState::Error(desc) => SolverState::Error(desc.clone()),
         }
     }
 }
@@ -121,29 +118,27 @@ impl Kissat<'_> {
 
     /// Sets a pre-defined configuration for Kissat's internal options
     pub fn set_configuration(&mut self, config: Config) -> anyhow::Result<()> {
-        // FIXME: write with early error return
-        if self.state == InternalSolverState::Configuring {
-            let config_name = match config {
-                Config::Default => CString::new("default").unwrap(),
-                Config::Basic => CString::new("basic").unwrap(),
-                Config::Plain => CString::new("plain").unwrap(),
-                Config::SAT => CString::new("sat").unwrap(),
-                Config::UNSAT => CString::new("unsat").unwrap(),
-            };
-            let ret = unsafe { ffi::kissat_set_configuration(self.handle, config_name.as_ptr()) };
-            if ret != 0 {
-                Ok(())
-            } else {
-                Err(InvalidApiReturn {
-                    api_call: "kissat_configure",
-                    value: 0,
-                }
-                .into())
-            }
-        } else {
-            Err(StateError {
+        if self.state != InternalSolverState::Configuring {
+            return Err(StateError {
                 required_state: SolverState::Configuring,
                 actual_state: self.state.to_external(),
+            }
+            .into());
+        }
+        let config_name = match config {
+            Config::Default => CString::new("default").unwrap(),
+            Config::Basic => CString::new("basic").unwrap(),
+            Config::Plain => CString::new("plain").unwrap(),
+            Config::SAT => CString::new("sat").unwrap(),
+            Config::UNSAT => CString::new("unsat").unwrap(),
+        };
+        let ret = unsafe { ffi::kissat_set_configuration(self.handle, config_name.as_ptr()) };
+        if ret != 0 {
+            Ok(())
+        } else {
+            Err(InvalidApiReturn {
+                api_call: "kissat_configure",
+                value: 0,
             }
             .into())
         }
@@ -201,17 +196,7 @@ impl Solve for Kissat<'_> {
     }
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
-        // FIXME: rewrite with nicer control flow
-        self.state = match self.state {
-            InternalSolverState::Error(_) => {
-                return Err(StateError {
-                    required_state: SolverState::Input,
-                    actual_state: self.state.to_external(),
-                }
-                .into())
-            }
-            _ => InternalSolverState::Input,
-        };
+        self.state = InternalSolverState::Input;
         unsafe { ffi::kissat_reserve(self.handle, max_var.to_ipasir()) };
         Ok(())
     }
@@ -223,13 +208,6 @@ impl Solve for Kissat<'_> {
         }
         if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::Unsat);
-        }
-        if let InternalSolverState::Error(_) = &self.state {
-            return Err(StateError {
-                required_state: SolverState::Input,
-                actual_state: self.state.to_external(),
-            }
-            .into());
         }
         let start = ProcessTime::now();
         // Solve with Kissat backend
@@ -260,24 +238,21 @@ impl Solve for Kissat<'_> {
     }
 
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
-        // FIXME: rewrite without match
-        match &self.state {
-            InternalSolverState::Sat => {
-                let lit = lit.to_ipasir();
-                match unsafe { ffi::kissat_value(self.handle, lit) } {
-                    0 => Ok(TernaryVal::DontCare),
-                    p if p == lit => Ok(TernaryVal::True),
-                    n if n == -lit => Ok(TernaryVal::False),
-                    value => Err(InvalidApiReturn {
-                        api_call: "kissat_value",
-                        value,
-                    }
-                    .into()),
-                }
-            }
-            other => Err(StateError {
+        if self.state != InternalSolverState::Sat {
+            return Err(StateError {
                 required_state: SolverState::Sat,
-                actual_state: other.to_external(),
+                actual_state: self.state.to_external(),
+            }
+            .into());
+        }
+        let lit = lit.to_ipasir();
+        match unsafe { ffi::kissat_value(self.handle, lit) } {
+            0 => Ok(TernaryVal::DontCare),
+            p if p == lit => Ok(TernaryVal::True),
+            n if n == -lit => Ok(TernaryVal::False),
+            value => Err(InvalidApiReturn {
+                api_call: "kissat_value",
+                value,
             }
             .into()),
         }
@@ -285,28 +260,15 @@ impl Solve for Kissat<'_> {
 
     fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
         // Kissat is non-incremental, so only add if in input or configuring state
-        // FIXME: rewrite with nicer control flow
-        match &mut self.state {
-            InternalSolverState::Input | InternalSolverState::Configuring => (),
-            InternalSolverState::Error(_) => {
-                return Err(StateError {
-                    required_state: SolverState::Input,
-                    actual_state: self.state.to_external(),
-                }
-                .into())
+        if !matches!(
+            self.state,
+            InternalSolverState::Input | InternalSolverState::Configuring
+        ) {
+            return Err(StateError {
+                required_state: SolverState::Input,
+                actual_state: self.state.to_external(),
             }
-            other => {
-                let old_state = other.to_external();
-                // Transition into error state
-                *other = InternalSolverState::Error(String::from(
-                    "added clause while not in input state",
-                ));
-                return Err(StateError {
-                    required_state: SolverState::Input,
-                    actual_state: old_state,
-                }
-                .into());
-            }
+            .into());
         }
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
