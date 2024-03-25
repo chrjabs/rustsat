@@ -137,6 +137,9 @@ impl BoundUpper for DynamicPolyWatchdog {
         match &self.structure {
             Some(structure) => {
                 let output_weight = 1 << (structure.output_power());
+                if output_weight == 1 {
+                    return ub;
+                }
                 if ub < output_weight {
                     return ub;
                 }
@@ -692,6 +695,25 @@ mod tests {
             if ub % 8 == 7 {
                 debug_assert_eq!(coarse_ub, ub);
             }
+            let assumps = dpw.enforce_ub(coarse_ub).unwrap();
+            debug_assert_eq!(assumps.len(), 1);
+        }
+    }
+
+    #[test]
+    fn coarse_convergence_unweighted() {
+        let mut lits = RsHashMap::default();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 1);
+        lits.insert(lit![2], 1);
+        lits.insert(lit![3], 1);
+        let mut dpw = DynamicPolyWatchdog::from(lits);
+        let mut var_manager = BasicVarManager::default();
+        let mut cnf = Cnf::new();
+        dpw.encode_ub(0..=4, &mut cnf, &mut var_manager);
+        for ub in 0..4 {
+            let coarse_ub = dpw.coarse_ub(ub);
+            debug_assert_eq!(coarse_ub, ub);
             let assumps = dpw.enforce_ub(coarse_ub).unwrap();
             debug_assert_eq!(assumps.len(), 1);
         }
