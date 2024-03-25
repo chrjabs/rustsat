@@ -139,12 +139,27 @@ impl Var {
         self.idx
     }
 
-    /// Converts the variable to an integer as accepted by the IPASIR API and
-    /// similar. The IPASIR variable will have idx+1. Panics if the literal does not fit into a `c_int`.
+    /// Converts the variable to an integer as accepted by
+    /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
+    /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR variable
+    /// will have idx+1. Panics if the literal does not fit into a `c_int`.
     pub fn to_ipasir(self) -> c_int {
-        (self.idx() + 1)
+        (self.idx32() + 1)
             .try_into()
             .expect("variable index too high to fit in c_int")
+    }
+
+    /// Converts the variable to an integer as accepted by
+    /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
+    /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
+    /// will have idx+1 and be negative if the literal is negated. Returns
+    /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
+    /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
+    /// mostly safe to simply use [`to_ipasir`] instead.
+    pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
+        (self.idx32() + 1)
+            .try_into()
+            .map_err(|_| TypeError::IdxTooHigh(self.idx32() + 1, c_int::MAX as u32))
     }
 }
 
@@ -205,14 +220,17 @@ macro_rules! var {
 }
 
 /// Type representing literals, possibly negated boolean variables.
+///
+/// # Representation in Memory
+///
+/// Literal representation is `idx << 1` with the last bit representing
+/// whether the literal is negated or not. This way the literal can directly
+/// be used to index data structures with the two literals of a variable
+/// being close together.
 #[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct Lit {
-    /// Literal representation is `idx << 1` with the last bit representing
-    /// whether the literal is negated or not. This way the literal can directly
-    /// be used to index data structures with the two literals of a variable
-    /// being close together.
     lidx: u32,
 }
 
@@ -270,14 +288,14 @@ impl Lit {
     }
 
     /// Creates a new positive literal with a given index.
-    /// Panics if `idx > Var::MAX_IDX`.
+    /// Returns an error if `idx > Var::MAX_IDX`.
     #[inline]
     pub fn positive_with_error(idx: u32) -> Result<Lit, TypeError> {
         Lit::new_with_error(idx, false)
     }
 
     /// Creates a new negated literal with a given index.
-    /// Panics if `idx > Var::MAX_IDX`.
+    /// Returns an error if `idx > Var::MAX_IDX`.
     #[inline]
     pub fn negative_with_error(idx: u32) -> Result<Lit, TypeError> {
         Lit::new_with_error(idx, true)
@@ -299,8 +317,9 @@ impl Lit {
         Lit::new_unchecked(idx, true)
     }
 
-    /// Create a literal from an IPASIR integer value. Returns an error if
-    /// the value is zero or the index too high.
+    /// Create a literal from an
+    /// [IPASIR](https://github.com/biotomas/ipasir)/[DIMACS](http://www.satcompetition.org/2011/format-benchmarks2011.html)
+    /// integer value. Returns an error if the value is zero or the index too high.
     pub fn from_ipasir(val: c_int) -> Result<Lit, TypeError> {
         if val == 0 {
             return Err(TypeError::IpasirZero);
@@ -355,9 +374,11 @@ impl Lit {
         (self.lidx & 1u32) == 1
     }
 
-    /// Converts the literal to an integer as accepted by the IPASIR API and
-    /// similar. The IPASIR literal will have idx+1 and be negative if the
-    /// literal is negated. Panics if the literal does not fit into a `c_int`.
+    /// Converts the literal to an integer as accepted by
+    /// [IPASIR](https://github.com/biotomas/ipasir) and the
+    /// [DIMACS file format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The
+    /// IPASIR literal will have idx+1 and be negative if the literal is negated. Panics if the
+    /// literal does not fit into a `c_int`.
     pub fn to_ipasir(self) -> c_int {
         let negated = self.is_neg();
         let idx: c_int = (self.vidx() + 1)
@@ -370,10 +391,13 @@ impl Lit {
         }
     }
 
-    /// Converts the literal to an integer as accepted by the IPASIR API and
-    /// similar. The IPASIR literal will have idx+1 and be negative if the
-    /// literal is negated. Returns `Err(TypeError::IdxTooHigh(_, _))` if the
-    /// literal does not fit into a `c_int`.
+    /// Converts the literal to an integer as accepted by
+    /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
+    /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
+    /// will have idx+1 and be negative if the literal is negated. Returns
+    /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
+    /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
+    /// mostly safe to simply use [`to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
         let negated = self.is_neg();
         let idx: c_int = match (self.vidx() + 1).try_into() {
@@ -471,7 +495,7 @@ impl Lit {
         hasher.finish()
     }
 
-    /// Gets the IPASIR representation of the literal
+    /// Gets the IPASIR/DIMACS representation of the literal
     #[pyo3(name = "to_ipasir")]
     fn py_ipasir(&self) -> c_int {
         let negated = self.is_neg();
@@ -502,8 +526,9 @@ macro_rules! lit {
     };
 }
 
-/// More easily creates literals with IPASIR indexing (starts from 1) and
-/// negation (negative value is negation). Mainly used in tests.
+/// More easily creates literals with
+/// [IPASIR](https://github.com/biotomas/ipasir)/[DIMACS](http://www.satcompetition.org/2011/format-benchmarks2011.html)
+/// indexing (starts from 1) and negation (negative value is negation). Mainly used in tests.
 ///
 /// # Examples
 ///
@@ -746,8 +771,8 @@ pub enum TypeError {
     /// Contains the requested and the maximum index.
     #[error("index {0} is too high (maximum {1})")]
     IdxTooHigh(u32, u32),
-    /// IPASIR index is zero
-    #[error("zero is an invalid IPASIR literal")]
+    /// IPASIR/DIMACS index is zero
+    #[error("zero is an invalid IPASIR/DIMACS literal")]
     IpasirZero,
 }
 
