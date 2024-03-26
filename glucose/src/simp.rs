@@ -5,7 +5,7 @@
 
 use core::ffi::{c_int, CStr};
 
-use super::{InternalSolverState, InvalidApiReturn, Limit};
+use super::{AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
 use ffi::Glucose4Handle;
 use rustsat::{
@@ -176,6 +176,11 @@ impl SolveIncremental for Glucose {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         let start = ProcessTime::now();
         // Solve with glucose backend
+        for a in assumps {
+            if self.var_eliminated(a.var()) {
+                return Err(AssumpEliminated(a.var()).into());
+            }
+        }
         for a in assumps {
             unsafe { ffi::cglucosesimp4_assume(self.handle, a.to_ipasir()) }
         }
