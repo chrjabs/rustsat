@@ -11,7 +11,7 @@ fn main() {
     build(
         "https://github.com/chrjabs/minisat.git",
         "master",
-        "809d350ff282e695014e96a2afd3625196f58dff",
+        "8237c54e97272d16531e785dd8031c27c2360904",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -34,9 +34,10 @@ fn build(repo: &str, branch: &str, commit: &str) {
     {
         let mut conf = cmake::Config::new(minisat_dir);
         conf.define("BUILD_BINARIES", "OFF");
-        if cfg!(not(feature = "debug")) {
-            conf.profile("Release");
-        }
+        #[cfg(feature = "quiet")]
+        conf.define("QUIET", "ON");
+        #[cfg(not(feature = "debug"))]
+        conf.profile("Release");
         conf.build();
     };
 

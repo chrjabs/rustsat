@@ -5,6 +5,7 @@
 //! ## Features
 //!
 //! - `debug`: if this feature is enables, the C++ library will be built with debug and check functionality if the Rust project is built in debug mode
+//! - `quiet`: disable all glucose-internal printing to stdout during solving (on by default)
 //!
 //! ## Glucose Version
 //!
