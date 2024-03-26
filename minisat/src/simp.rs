@@ -10,8 +10,9 @@ use cpu_time::ProcessTime;
 use ffi::MinisatHandle;
 use rustsat::{
     solvers::{
-        GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations, PhaseLit,
-        Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
+        FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
+        PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats,
+        StateError,
     },
     types::{Clause, Lit, TernaryVal, Var},
 };
@@ -74,19 +75,9 @@ impl Minisat {
         unsafe { ffi::cminisatsimp_n_learnts(self.handle) }
     }
 
-    /// Freezes a literal.
-    pub fn freeze_lit(&mut self, lit: Lit) {
-        unsafe { ffi::cminisatsimp_set_frozen(self.handle, lit.var().to_ipasir(), true) }
-    }
-
-    /// Melts a literal.
-    pub fn melt_lit(&mut self, lit: Lit) {
-        unsafe { ffi::cminisatsimp_set_frozen(self.handle, lit.var().to_ipasir(), false) }
-    }
-
     /// Checks if a variable has been eliminated by preprocessing.
     pub fn var_eliminated(&mut self, var: Var) -> bool {
-        (unsafe { ffi::cminisatsimp_is_eliminated(self.handle, var.to_ipasir()) } > 0)
+        (unsafe { ffi::cminisatsimp_is_eliminated(self.handle, var.to_ipasir()) } != 0)
     }
 }
 
@@ -264,6 +255,22 @@ impl PhaseLit for Minisat {
     }
 }
 
+impl FreezeVar for Minisat {
+    fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
+        unsafe { ffi::cminisatsimp_set_frozen(self.handle, var.to_ipasir(), true) };
+        Ok(())
+    }
+
+    fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
+        unsafe { ffi::cminisatsimp_set_frozen(self.handle, var.to_ipasir(), false) };
+        Ok(())
+    }
+
+    fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool> {
+        Ok(unsafe { ffi::cminisatsimp_is_frozen(self.handle, var.to_ipasir()) } != 0)
+    }
+}
+
 impl LimitConflicts for Minisat {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
@@ -430,6 +437,7 @@ mod ffi {
         pub fn cminisatsimp_set_no_limit(solver: *mut MinisatHandle);
         pub fn cminisatsimp_interrupt(solver: *mut MinisatHandle);
         pub fn cminisatsimp_set_frozen(solver: *mut MinisatHandle, var: c_int, frozen: bool);
+        pub fn cminisatsimp_is_frozen(solver: *mut MinisatHandle, var: c_int) -> c_int;
         pub fn cminisatsimp_is_eliminated(solver: *mut MinisatHandle, var: c_int) -> c_int;
         pub fn cminisatsimp_propagations(solver: *mut MinisatHandle) -> u64;
         pub fn cminisatsimp_decisions(solver: *mut MinisatHandle) -> u64;

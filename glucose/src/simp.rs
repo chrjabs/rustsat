@@ -10,8 +10,9 @@ use cpu_time::ProcessTime;
 use ffi::Glucose4Handle;
 use rustsat::{
     solvers::{
-        GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations, PhaseLit,
-        Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
+        FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
+        PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats,
+        StateError,
     },
     types::{Clause, Lit, TernaryVal, Var},
 };
@@ -74,19 +75,9 @@ impl Glucose {
         unsafe { ffi::cglucosesimp4_n_learnts(self.handle) }
     }
 
-    /// Freezes a literal.
-    pub fn freeze_lit(&mut self, lit: Lit) {
-        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, lit.var().to_ipasir(), true) }
-    }
-
-    /// Melts a literal.
-    pub fn melt_lit(&mut self, lit: Lit) {
-        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, lit.var().to_ipasir(), false) }
-    }
-
     /// Checks if a variable has been eliminated by preprocessing.
     pub fn var_eliminated(&mut self, var: Var) -> bool {
-        (unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) } > 0)
+        (unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) } != 0)
     }
 }
 
@@ -264,6 +255,22 @@ impl PhaseLit for Glucose {
     }
 }
 
+impl FreezeVar for Glucose {
+    fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
+        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, var.to_ipasir(), true) };
+        Ok(())
+    }
+
+    fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
+        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, var.to_ipasir(), false) };
+        Ok(())
+    }
+
+    fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool> {
+        Ok(unsafe { ffi::cglucosesimp4_is_frozen(self.handle, var.to_ipasir()) } != 0)
+    }
+}
+
 impl LimitConflicts for Glucose {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
@@ -430,6 +437,7 @@ mod ffi {
         pub fn cglucosesimp4_set_no_limit(solver: *mut Glucose4Handle);
         pub fn cglucosesimp4_interrupt(solver: *mut Glucose4Handle);
         pub fn cglucosesimp4_set_frozen(solver: *mut Glucose4Handle, var: c_int, frozen: bool);
+        pub fn cglucosesimp4_is_frozen(solver: *mut Glucose4Handle, var: c_int) -> c_int;
         pub fn cglucosesimp4_is_eliminated(solver: *mut Glucose4Handle, var: c_int) -> c_int;
         pub fn cglucosesimp4_propagations(solver: *mut Glucose4Handle) -> u64;
         pub fn cglucosesimp4_decisions(solver: *mut Glucose4Handle) -> u64;

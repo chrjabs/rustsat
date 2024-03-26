@@ -621,17 +621,17 @@ impl PhaseLit for CaDiCaL<'_, '_> {
 
 impl FreezeVar for CaDiCaL<'_, '_> {
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::ccadical_freeze(self.handle, var.pos_lit().to_ipasir()) };
+        unsafe { ffi::ccadical_freeze(self.handle, var.to_ipasir()) };
         Ok(())
     }
 
     fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::ccadical_melt(self.handle, var.pos_lit().to_ipasir()) };
+        unsafe { ffi::ccadical_melt(self.handle, var.to_ipasir()) };
         Ok(())
     }
 
     fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool> {
-        Ok(unsafe { ffi::ccadical_frozen(self.handle, var.pos_lit().to_ipasir()) } != 0)
+        Ok(unsafe { ffi::ccadical_frozen(self.handle, var.to_ipasir()) } != 0)
     }
 }
 
