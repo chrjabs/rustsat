@@ -11,7 +11,7 @@ fn main() {
     build(
         "https://github.com/chrjabs/glucose4.git",
         "main",
-        "7446ea43cd7b0beb8778de00fc373849983ad067",
+        "2c41a6d2e9c8db7b5bdebc8dc65760d01bc938e9",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -35,9 +35,10 @@ fn build(repo: &str, branch: &str, commit: &str) {
         let mut conf = cmake::Config::new(glucose_dir);
         conf.define("BUILD_SYRUP", "OFF")
             .define("BUILD_EXECUTABLES", "OFF");
-        if cfg!(not(feature = "debug")) {
-            conf.profile("Release");
-        }
+        #[cfg(feature = "quiet")]
+        conf.define("QUIET", "ON");
+        #[cfg(not(feature = "debug"))]
+        conf.profile("Release");
         conf.build();
     };
 
