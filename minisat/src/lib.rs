@@ -12,7 +12,10 @@
 //! The version of minisat in this crate is Version 2.2.0.
 //! The used C++ source repository can be found [here](https://github.com/chrjabs/minisat).
 
-use rustsat::{solvers::SolverState, types::Lit};
+use rustsat::{
+    solvers::SolverState,
+    types::{Lit, Var},
+};
 use std::{ffi::c_int, fmt};
 use thiserror::Error;
 
@@ -25,6 +28,10 @@ pub struct InvalidApiReturn {
     api_call: &'static str,
     value: c_int,
 }
+
+#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[error("assumption variable {0} has been eliminated by minisat simplification")]
+pub struct AssumpEliminated(Var);
 
 #[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
