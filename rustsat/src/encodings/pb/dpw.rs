@@ -129,7 +129,18 @@ impl BoundUpper for DynamicPolyWatchdog {
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
         match &self.structure {
             Some(structure) => enforce_ub(structure, ub, &self.db),
-            None => Ok(vec![]),
+            None => {
+                if self.weight_sum() <= ub {
+                    return Ok(vec![]);
+                }
+                if self.in_lits.len() > 1 {
+                    return Err(Error::NotEncoded);
+                }
+                debug_assert_eq!(self.in_lits.len(), 1);
+                let (l, w) = self.in_lits.iter().next().unwrap();
+                debug_assert!(*w > ub);
+                Ok(vec![-(*l)])
+            }
         }
     }
 
@@ -161,7 +172,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
-        if range.is_empty() {
+        if range.is_empty() || self.in_lits.len() <= 1 {
             return;
         }
         let n_vars_before = var_manager.n_used();
@@ -659,6 +670,7 @@ mod tests {
         instances::{BasicVarManager, Cnf},
         lit,
         types::RsHashMap,
+        types::Var,
     };
 
     use super::DynamicPolyWatchdog;
@@ -671,11 +683,40 @@ mod tests {
         lits.insert(lit![2], 2);
         lits.insert(lit![3], 2);
         let mut dpw = DynamicPolyWatchdog::from(lits);
-        let mut var_manager = BasicVarManager::default();
+        let mut var_manager = BasicVarManager::from_next_free(Var::new(4));
         let mut cnf = Cnf::new();
         dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
         assert_eq!(dpw.n_vars(), 9);
         assert_eq!(cnf.len(), 13);
+    }
+
+    #[test]
+    fn single_lit() {
+        let mut lits = RsHashMap::default();
+        lits.insert(lit![0], 4);
+        let mut dpw = DynamicPolyWatchdog::from(lits);
+        let mut var_manager = BasicVarManager::from_next_free(Var::new(1));
+        let mut cnf = Cnf::new();
+        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
+        assert_eq!(dpw.n_vars(), 0);
+        assert_eq!(cnf.len(), 0);
+        debug_assert!(dpw.enforce_ub(4).unwrap().is_empty());
+        let assumps = dpw.enforce_ub(2).unwrap();
+        debug_assert_eq!(assumps.len(), 1);
+        debug_assert_eq!(assumps[0], -lit![0]);
+    }
+
+    #[test]
+    fn no_lit() {
+        let lits = RsHashMap::default();
+        let mut dpw = DynamicPolyWatchdog::from(lits);
+        let mut var_manager = BasicVarManager::default();
+        let mut cnf = Cnf::new();
+        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
+        assert_eq!(dpw.n_vars(), 0);
+        assert_eq!(cnf.len(), 0);
+        debug_assert!(dpw.enforce_ub(4).unwrap().is_empty());
+        debug_assert!(dpw.enforce_ub(0).unwrap().is_empty());
     }
 
     #[test]
