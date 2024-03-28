@@ -34,7 +34,7 @@ pyo3 = { version = "0.20.0", optional = true, features = [
 
 [build-dependencies]
 cbindgen = "0.26.0"
-pyo3-build-config = { version = "0.20.0", optional = true }
+pyo3-build-config = { version = "0.21.0", optional = true }
 
 [dev-dependencies]
 inline-c = "0.1.7"
