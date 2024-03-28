@@ -25,3 +25,8 @@ publish_allow_dirty = false
 
 # disable running `cargo-semver-checks`
 semver_check = true
+
+[[package]]
+name = "rustsat-ipasir"
+release = false
+git_release_enable = false
