@@ -85,8 +85,8 @@ impl Minisat {
     }
 
     /// Checks if a variable has been eliminated by preprocessing.
-    pub fn var_eliminated(&mut self, var: Var) {
-        unsafe { ffi::cminisatsimp_is_eliminated(self.handle, var.to_ipasir()) }
+    pub fn var_eliminated(&mut self, var: Var) -> bool {
+        (unsafe { ffi::cminisatsimp_is_eliminated(self.handle, var.to_ipasir()) } > 0)
     }
 }
 
@@ -430,7 +430,7 @@ mod ffi {
         pub fn cminisatsimp_set_no_limit(solver: *mut MinisatHandle);
         pub fn cminisatsimp_interrupt(solver: *mut MinisatHandle);
         pub fn cminisatsimp_set_frozen(solver: *mut MinisatHandle, var: c_int, frozen: bool);
-        pub fn cminisatsimp_is_eliminated(solver: *mut MinisatHandle, var: c_int);
+        pub fn cminisatsimp_is_eliminated(solver: *mut MinisatHandle, var: c_int) -> c_int;
         pub fn cminisatsimp_propagations(solver: *mut MinisatHandle) -> u64;
         pub fn cminisatsimp_decisions(solver: *mut MinisatHandle) -> u64;
         pub fn cminisatsimp_conflicts(solver: *mut MinisatHandle) -> u64;
