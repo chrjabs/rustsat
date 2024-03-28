@@ -85,8 +85,8 @@ impl Glucose {
     }
 
     /// Checks if a variable has been eliminated by preprocessing.
-    pub fn var_eliminated(&mut self, var: Var) {
-        unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) }
+    pub fn var_eliminated(&mut self, var: Var) -> bool {
+        (unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) } > 0)
     }
 }
 
@@ -430,7 +430,7 @@ mod ffi {
         pub fn cglucosesimp4_set_no_limit(solver: *mut Glucose4Handle);
         pub fn cglucosesimp4_interrupt(solver: *mut Glucose4Handle);
         pub fn cglucosesimp4_set_frozen(solver: *mut Glucose4Handle, var: c_int, frozen: bool);
-        pub fn cglucosesimp4_is_eliminated(solver: *mut Glucose4Handle, var: c_int);
+        pub fn cglucosesimp4_is_eliminated(solver: *mut Glucose4Handle, var: c_int) -> c_int;
         pub fn cglucosesimp4_propagations(solver: *mut Glucose4Handle) -> u64;
         pub fn cglucosesimp4_decisions(solver: *mut Glucose4Handle) -> u64;
         pub fn cglucosesimp4_conflicts(solver: *mut Glucose4Handle) -> u64;
