@@ -73,3 +73,10 @@ For an example of how to use the C-API, see `rustsat/examples/capi*.cpp`.
 Similarly, for an example of using the Python API, see `rustsat/examples/pyapi*.py`.
 
 <!-- cargo-rdme end -->
+
+## Python Bindings
+
+This library also comes with experimental Python bindings to use its encodings
+from Python. The Python bindings are available at
+[PyPI](https://pypi.org/project/rustsat/). For more details see the [Python API
+documentation](https://christophjabs.info/rustsat/pyapi/).
