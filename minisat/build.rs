@@ -11,7 +11,7 @@ fn main() {
     build(
         "https://github.com/chrjabs/minisat.git",
         "master",
-        "f91df3ab8f9eeaebe351f4a1890cf92831b8b636",
+        "e168f6e72600f4b04769b0f3bbb7f89b1a200a67",
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
