@@ -178,6 +178,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Writes the instance to a DIMACS MCNF file at a path
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.to_dimacs(&mut writer)
@@ -211,6 +215,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Writes the instance to an OPB file at a path
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,

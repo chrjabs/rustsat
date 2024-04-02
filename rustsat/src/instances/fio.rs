@@ -43,24 +43,26 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
     path: P,
 ) -> Result<Box<dyn io::Write>, io::Error> {
     let path = path.as_ref();
-    let raw_reader = File::create(path)?;
+    let raw_writer = File::create(path)?;
     #[cfg(feature = "compression")]
     if let Some(ext) = path.extension() {
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("bz2")) {
-            return Ok(Box::new(bzip2::write::BzEncoder::new(
-                raw_reader,
+            return Ok(Box::new(io::BufWriter::new(bzip2::write::BzEncoder::new(
+                raw_writer,
                 bzip2::Compression::fast(),
-            )));
+            ))));
         }
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("gz")) {
-            return Ok(Box::new(flate2::write::GzEncoder::new(
-                raw_reader,
+            return Ok(Box::new(io::BufWriter::new(flate2::write::GzEncoder::new(
+                raw_writer,
                 flate2::Compression::fast(),
-            )));
+            ))));
         }
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("xz")) {
-            return Ok(Box::new(xz2::write::XzEncoder::new(raw_reader, 1)));
+            return Ok(Box::new(io::BufWriter::new(xz2::write::XzEncoder::new(
+                raw_writer, 1,
+            ))));
         }
     }
-    Ok(Box::new(raw_reader))
+    Ok(Box::new(io::BufWriter::new(raw_writer)))
 }
