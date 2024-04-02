@@ -84,6 +84,8 @@ pub struct IpasirSolver<'term, 'learn> {
     stats: SolverStats,
 }
 
+unsafe impl Send for IpasirSolver<'_, '_> {}
+
 impl Default for IpasirSolver<'_, '_> {
     fn default() -> Self {
         Self {
