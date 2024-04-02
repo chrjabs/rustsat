@@ -154,3 +154,22 @@ mod pb_enc {
         b.iter(|| build_full_ub::<DynamicPolyWatchdog>(&lits!()));
     }
 }
+
+mod fio {
+    extern crate test;
+
+    use test::Bencher;
+
+    use crate::instances::SatInstance;
+
+    fn read_write_dimacs() {
+        let inst: SatInstance =
+            SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
+        inst.to_dimacs_path("/tmp/rustsat-test.cnf").unwrap();
+    }
+
+    #[bench]
+    fn read_write(b: &mut Bencher) {
+        b.iter(|| read_write_dimacs());
+    }
+}
