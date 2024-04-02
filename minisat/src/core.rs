@@ -23,6 +23,8 @@ pub struct Minisat {
     stats: SolverStats,
 }
 
+unsafe impl Send for Minisat {}
+
 impl Default for Minisat {
     fn default() -> Self {
         Self {
@@ -321,6 +323,11 @@ impl Drop for Minisat {
 
 #[cfg(test)]
 mod test {
+    use std::{
+        sync::{Arc, Mutex},
+        thread,
+    };
+
     use super::Minisat;
     use rustsat::{
         lit,
@@ -359,6 +366,61 @@ mod test {
         solver.add_binary(lit![1], !lit![2]).unwrap();
         solver.add_unit(lit![2]).unwrap();
         let ret = solver.solve();
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
+        }
+    }
+
+    #[test]
+    fn tiny_instance_multithreaded_sat() {
+        let mutex_solver = Arc::new(Mutex::new(Minisat::default()));
+        let ret = {
+            let mut solver = mutex_solver.lock().unwrap();
+            solver.add_binary(lit![0], !lit![1]).unwrap();
+            solver.add_binary(lit![1], !lit![2]).unwrap();
+            solver.solve()
+        };
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::Sat),
+        }
+
+        // Now in another thread
+        let s = mutex_solver.clone();
+        let ret = thread::spawn(move || {
+            let mut solver = s.lock().unwrap();
+            solver.solve()
+        })
+        .join()
+        .unwrap();
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::Sat),
+        }
+
+        // Now add to solver in other thread
+        let s = mutex_solver.clone();
+        let ret = thread::spawn(move || {
+            let mut solver = s.lock().unwrap();
+            solver.add_unit(!lit![0]).unwrap();
+            solver.add_unit(lit![2]).unwrap();
+            solver.solve()
+        })
+        .join()
+        .unwrap();
+        match ret {
+            Err(e) => panic!("got error when solving: {}", e),
+            Ok(res) => assert_eq!(res, SolverResult::Unsat),
+        }
+
+        // Finally, back in the main thread
+        let ret = {
+            let mut solver = mutex_solver.lock().unwrap();
+            solver.add_binary(lit![0], !lit![1]).unwrap();
+            solver.add_binary(lit![1], !lit![2]).unwrap();
+            solver.solve()
+        };
         match ret {
             Err(e) => panic!("got error when solving: {}", e),
             Ok(res) => assert_eq!(res, SolverResult::Unsat),
