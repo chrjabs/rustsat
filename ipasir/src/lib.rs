@@ -98,7 +98,7 @@ impl Default for IpasirSolver<'_, '_> {
 
 impl IpasirSolver<'_, '_> {
     fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, InvalidApiReturn> {
-        let mut core = Vec::new();
+        let mut core = Vec::with_capacity(assumps.len());
         core.reserve(assumps.len());
         for a in assumps {
             match unsafe { ffi::ipasir_failed(self.handle, a.to_ipasir()) } {
