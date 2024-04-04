@@ -21,6 +21,14 @@ fn small_unsat_instance<S: Solve>(mut solver: S) {
     assert_eq!(res, SolverResult::Unsat);
 }
 
+fn ms_segfault_instance<S: Solve>(mut solver: S) {
+    let inst: SatInstance<BasicVarManager> =
+        SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
+    solver.add_cnf(inst.as_cnf().0).unwrap();
+    let res = solver.solve().unwrap();
+    assert_eq!(res, SolverResult::Unsat);
+}
+
 #[test]
 fn core_small_sat() {
     let solver = core::Glucose::default();
@@ -36,6 +44,12 @@ fn core_small_unsat() {
 }
 
 #[test]
+fn core_ms_segfault() {
+    let solver = core::Glucose::default();
+    ms_segfault_instance(solver);
+}
+
+#[test]
 fn simp_small_sat() {
     let solver = simp::Glucose::default();
     small_sat_instance(solver);
@@ -47,4 +61,10 @@ fn simp_small_sat() {
 fn simp_small_unsat() {
     let solver = simp::Glucose::default();
     small_unsat_instance(solver);
+}
+
+#[test]
+fn simp_ms_segfault() {
+    let solver = simp::Glucose::default();
+    ms_segfault_instance(solver);
 }

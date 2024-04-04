@@ -28,6 +28,16 @@ fn core_small_unsat() {
 }
 
 #[test]
+fn core_ms_segfault() {
+    let mut solver = core::Minisat::default();
+    let inst: SatInstance<BasicVarManager> =
+        SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
+    solver.add_cnf(inst.as_cnf().0).unwrap();
+    let res = solver.solve().unwrap();
+    assert_eq!(res, SolverResult::Unsat);
+}
+
+#[test]
 fn simp_small_sat() {
     let mut solver = simp::Minisat::default();
     let inst: SatInstance<BasicVarManager> =
@@ -45,6 +55,16 @@ fn simp_small_unsat() {
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path("./data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf")
             .unwrap();
+    solver.add_cnf(inst.as_cnf().0).unwrap();
+    let res = solver.solve().unwrap();
+    assert_eq!(res, SolverResult::Unsat);
+}
+
+#[test]
+fn simp_ms_segfault() {
+    let mut solver = simp::Minisat::default();
+    let inst: SatInstance<BasicVarManager> =
+        SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
     solver.add_cnf(inst.as_cnf().0).unwrap();
     let res = solver.solve().unwrap();
     assert_eq!(res, SolverResult::Unsat);

@@ -21,6 +21,14 @@ fn small_unsat_instance<S: Solve>(mut solver: S) {
     assert_eq!(res, SolverResult::Unsat);
 }
 
+fn ms_segfault_instance<S: Solve>(mut solver: S) {
+    let inst: SatInstance<BasicVarManager> =
+        SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
+    solver.add_cnf(inst.as_cnf().0).unwrap();
+    let res = solver.solve().unwrap();
+    assert_eq!(res, SolverResult::Unsat);
+}
+
 #[test]
 fn small_sat() {
     let solver = CaDiCaL::default();
@@ -31,6 +39,12 @@ fn small_sat() {
 fn small_unsat() {
     let solver = CaDiCaL::default();
     small_unsat_instance(solver);
+}
+
+#[test]
+fn ms_segfault() {
+    let solver = CaDiCaL::default();
+    ms_segfault_instance(solver);
 }
 
 #[test]
@@ -52,6 +66,15 @@ fn sat_small_unsat() {
 }
 
 #[test]
+fn sat_ms_segfault() {
+    let mut solver = CaDiCaL::default();
+    solver
+        .set_configuration(rustsat_cadical::Config::SAT)
+        .unwrap();
+    ms_segfault_instance(solver);
+}
+
+#[test]
 fn unsat_small_sat() {
     let mut solver = CaDiCaL::default();
     solver
@@ -67,4 +90,13 @@ fn unsat_small_unsat() {
         .set_configuration(rustsat_cadical::Config::UNSAT)
         .unwrap();
     small_unsat_instance(solver);
+}
+
+#[test]
+fn unsat_ms_segfault() {
+    let mut solver = CaDiCaL::default();
+    solver
+        .set_configuration(rustsat_cadical::Config::UNSAT)
+        .unwrap();
+    ms_segfault_instance(solver);
 }
