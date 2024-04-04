@@ -30,3 +30,6 @@ git2 = "0.18.1"
 glob = "0.3.1"
 chrono = "0.4.31"
 cmake = "0.1.50"
+
+[dev-dependencies]
+rustsat-solvertests = { path = "../solvertests" }

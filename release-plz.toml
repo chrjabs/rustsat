@@ -30,3 +30,8 @@ semver_check = true
 name = "rustsat-ipasir"
 release = false
 git_release_enable = false
+
+[[package]]
+name = "rustsat-solvertests"
+release = false
+git_release_enable = false
