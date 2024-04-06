@@ -606,33 +606,63 @@ impl Objective {
         }
     }
 
+    /// Converts the objective to soft literals in place, returning hardened clauses produced in
+    /// the conversion.
+    pub fn to_soft_lits<VM>(&mut self, var_manager: &mut VM) -> Cnf
+    where
+        VM: ManageVars,
+    {
+        let mut cnf = Cnf::new();
+        match &mut self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                cnf.clauses.reserve(soft_clauses.len());
+                soft_lits.reserve(soft_clauses.len());
+                for (mut cl, w) in soft_clauses.drain() {
+                    debug_assert!(cl.len() > 1);
+                    let relax_lit = var_manager.new_var().pos_lit();
+                    cl.add(relax_lit);
+                    cnf.add_clause(cl);
+                    soft_lits.insert(relax_lit, w);
+                }
+            }
+            IntObj::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                cnf.clauses.reserve(soft_clauses.len());
+                soft_lits.reserve(soft_clauses.len());
+                for mut cl in soft_clauses.drain(..) {
+                    debug_assert!(cl.len() > 1);
+                    let relax_lit = var_manager.new_var().pos_lit();
+                    cl.add(relax_lit);
+                    cnf.add_clause(cl);
+                    soft_lits.push(relax_lit);
+                }
+            }
+        }
+        cnf
+    }
+
     /// Converts the objective to a set of hard clauses, soft literals and an offset
     pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
     where
         VM: ManageVars,
     {
+        let cnf = self.to_soft_lits(var_manager);
         self.unweighted_2_weighted();
         match self.0 {
             IntObj::Unweighted { .. } => panic!(),
             IntObj::Weighted {
-                mut soft_lits,
+                soft_lits,
                 soft_clauses,
                 offset,
             } => {
-                let mut cnf = Cnf::new();
-                cnf.clauses.reserve(soft_clauses.len());
-                soft_lits.reserve(soft_clauses.len());
-                for (mut cl, w) in soft_clauses {
-                    if cl.len() > 1 {
-                        let relax_lit = var_manager.new_var().pos_lit();
-                        cl.add(relax_lit);
-                        cnf.add_clause(cl);
-                        soft_lits.insert(relax_lit, w);
-                    } else {
-                        assert!(cl.len() == 1);
-                        soft_lits.insert(!cl[0], w);
-                    }
-                }
+                debug_assert!(soft_clauses.is_empty());
                 (cnf, (soft_lits, offset))
             }
         }
@@ -642,43 +672,34 @@ impl Objective {
     /// weight and an offset. If the objective is weighted, the soft literals
     /// will appear as often as its weight in the output vector.
     pub fn as_unweighted_soft_lits<VM>(
-        self,
+        mut self,
         var_manager: &mut VM,
     ) -> (Cnf, impl LitIter, usize, isize)
     where
         VM: ManageVars,
     {
+        let cnf = self.to_soft_lits(var_manager);
         match self.0 {
-            IntObj::Weighted { .. } => {
-                let (cnf, softs) = self.as_soft_lits(var_manager);
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                offset,
+            } => {
+                debug_assert!(soft_clauses.is_empty());
                 let mut soft_unit_lits = vec![];
-                softs
-                    .0
+                soft_lits
                     .into_iter()
                     .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
-                (cnf, soft_unit_lits, 1, softs.1)
+                (cnf, soft_unit_lits, 1, offset)
             }
             IntObj::Unweighted {
                 offset,
                 unit_weight,
-                mut soft_lits,
+                soft_lits,
                 soft_clauses,
             } => {
+                debug_assert!(soft_clauses.is_empty());
                 if let Some(unit_weight) = unit_weight {
-                    let mut cnf = Cnf::new();
-                    cnf.clauses.reserve(soft_clauses.len());
-                    soft_lits.reserve(soft_clauses.len());
-                    for mut cl in soft_clauses {
-                        if cl.len() > 1 {
-                            let relax_lit = var_manager.new_var().pos_lit();
-                            cl.add(relax_lit);
-                            cnf.add_clause(cl);
-                            soft_lits.push(relax_lit);
-                        } else {
-                            assert!(cl.len() == 1);
-                            soft_lits.push(!cl[0]);
-                        }
-                    }
                     (cnf, soft_lits, unit_weight, offset)
                 } else {
                     (Cnf::new(), vec![], 1, offset)
@@ -812,6 +833,35 @@ impl Objective {
             }
         };
         self
+    }
+
+    /// Gets a weighted literal iterator over only the soft literals
+    pub fn iter_soft_lits(&self) -> impl WLitIter + '_ {
+        match &self.0 {
+            IntObj::Weighted { soft_lits, .. } => ObjSoftLitIter::Weighted(soft_lits.iter()),
+            IntObj::Unweighted {
+                soft_lits,
+                unit_weight,
+                ..
+            } => ObjSoftLitIter::Unweighted(soft_lits.iter(), unit_weight.unwrap_or(0)),
+        }
+    }
+}
+
+/// A wrapper type for iterators over soft literals in an objective
+enum ObjSoftLitIter<'a> {
+    Weighted(std::collections::hash_map::Iter<'a, Lit, usize>),
+    Unweighted(std::slice::Iter<'a, Lit>, usize),
+}
+
+impl Iterator for ObjSoftLitIter<'_> {
+    type Item = (Lit, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ObjSoftLitIter::Weighted(iter) => iter.next().map(|(&l, &w)| (l, w)),
+            ObjSoftLitIter::Unweighted(iter, w) => iter.next().map(|&l| (l, *w)),
+        }
     }
 }
 
@@ -1029,11 +1079,27 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Writes the instance to an OPB file at a path
     ///
-    /// # Performance
+    /// # Mutability
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    /// Since the [`Objective`] class can contain soft clauses rather than just soft literals,
+    /// these need to be converted to soft literals first, which modifies the instance. This is why
+    /// this method has to take a _mutable_ reference.
+    ///
+    /// If you know that the internal objective only contains soft literals, you can avoid a mutable
+    /// borrow by directly accessing the [`fio::opb::write_opt`] function:
+    /// ```
+    /// # use rustsat::instances::{OptInstance, fio};
+    /// # let opt_inst: OptInstance = OptInstance::from_opb_path("./data/tiny-single-opt.opb", fio::opb::Options::default()).unwrap();
+    /// let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.opb").unwrap();
+    /// let constrs = opt_inst.constraints_ref();
+    /// debug_assert_eq!(opt_inst.objective_ref().n_clauses(), 0);
+    /// let offset = opt_inst.objective_ref().offset();
+    /// let obj = opt_inst.objective_ref().iter_soft_lits();
+    /// fio::opb::write_opt(&mut writer, opt_inst.constraints_ref(), (obj, offset), fio::opb::Options::default());
+    /// ```
+    /// Note that this will not write the entire instance if there are soft clauses present.
     pub fn to_opb_path<P: AsRef<Path>>(
-        self,
+        &mut self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
@@ -1042,12 +1108,41 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Writes the instance to an OPB file
+    ///
+    /// # Mutability
+    ///
+    /// Since the [`Objective`] class can contain soft clauses rather than just soft literals,
+    /// these need to be converted to soft literals first, which modifies the instance. This is why
+    /// this method has to take a _mutable_ reference.
+    ///
+    /// If you know that the internal objective only contains soft literals, you can avoid a mutable
+    /// borrow by directly accessing the [`fio::opb::write_opt`] function:
+    /// ```
+    /// # use rustsat::instances::{OptInstance, fio};
+    /// # let opt_inst: OptInstance = OptInstance::from_opb_path("./data/tiny-single-opt.opb", fio::opb::Options::default()).unwrap();
+    /// # let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.opb").unwrap();
+    /// let constrs = opt_inst.constraints_ref();
+    /// debug_assert_eq!(opt_inst.objective_ref().n_clauses(), 0);
+    /// let offset = opt_inst.objective_ref().offset();
+    /// let obj = opt_inst.objective_ref().iter_soft_lits();
+    /// fio::opb::write_opt(&mut writer, opt_inst.constraints_ref(), (obj, offset), fio::opb::Options::default());
+    /// ```
+    /// Note that this will not write the entire instance if there are soft clauses present.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance(crate).
     pub fn to_opb<W: io::Write>(
-        self,
+        &mut self,
         writer: &mut W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
-        fio::opb::write_opt::<W, VM>(writer, self, opts)
+        let vm = self.constrs.var_manager_mut();
+        let hardened = self.obj.to_soft_lits(vm);
+        self.constrs.cnf.extend(hardened);
+        let offset = self.obj.offset();
+        let iter = self.obj.iter_soft_lits();
+        fio::opb::write_opt::<W, VM, _>(writer, &self.constrs, (iter, offset), opts)
     }
 
     /// Calculates the objective value of an assignment. Returns [`None`] if the

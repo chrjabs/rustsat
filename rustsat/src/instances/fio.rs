@@ -17,7 +17,7 @@ pub struct ObjNoExist(usize);
 
 /// Opens a reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
-pub(crate) fn open_compressed_uncompressed_read<P: AsRef<Path>>(
+pub fn open_compressed_uncompressed_read<P: AsRef<Path>>(
     path: P,
 ) -> Result<Box<dyn io::Read>, io::Error> {
     let path = path.as_ref();
@@ -39,7 +39,7 @@ pub(crate) fn open_compressed_uncompressed_read<P: AsRef<Path>>(
 
 /// Opens a writer for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
-pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
+pub fn open_compressed_uncompressed_write<P: AsRef<Path>>(
     path: P,
 ) -> Result<Box<dyn io::Write>, io::Error> {
     let path = path.as_ref();
