@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use rustsat::instances::{self, BasicVarManager, ManageVars, RandReindVarManager};
+use rustsat::instances::{self, BasicVarManager, RandReindVarManager};
 
 macro_rules! print_usage {
     () => {{
@@ -28,9 +28,9 @@ fn main() {
 
     match determine_file_type(&in_path) {
         FileType::Cnf => {
-            let mut inst = instances::SatInstance::<BasicVarManager>::from_dimacs_path(in_path)
+            let inst = instances::SatInstance::<BasicVarManager>::from_dimacs_path(in_path)
                 .expect("Could not parse CNF");
-            let n_vars = inst.var_manager().n_used();
+            let n_vars = inst.n_vars();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
@@ -38,9 +38,9 @@ fn main() {
                 .expect("Could not write CNF");
         }
         FileType::Wcnf => {
-            let mut inst = instances::OptInstance::<BasicVarManager>::from_dimacs_path(in_path)
+            let inst = instances::OptInstance::<BasicVarManager>::from_dimacs_path(in_path)
                 .expect("Could not parse WCNF");
-            let n_vars = inst.get_constraints().var_manager().n_used();
+            let n_vars = inst.constraints_ref().n_vars();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
@@ -48,10 +48,9 @@ fn main() {
                 .expect("Could not write WCNF");
         }
         FileType::Mcnf => {
-            let mut inst =
-                instances::MultiOptInstance::<BasicVarManager>::from_dimacs_path(in_path)
-                    .expect("Could not parse MCNF");
-            let n_vars = inst.get_constraints().var_manager().n_used();
+            let inst = instances::MultiOptInstance::<BasicVarManager>::from_dimacs_path(in_path)
+                .expect("Could not parse MCNF");
+            let n_vars = inst.constraints_ref().n_vars();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()

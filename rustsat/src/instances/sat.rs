@@ -402,26 +402,45 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Gets a reference to the variable manager
+    #[deprecated(
+        since = "0.5.0",
+        note = "var_manager has been renamed to var_manager_mut and will be removed in a future release"
+    )]
     pub fn var_manager(&mut self) -> &mut VM {
         &mut self.var_manager
+    }
+
+    /// Gets a mutable reference to the variable manager
+    pub fn var_manager_mut(&mut self) -> &mut VM {
+        &mut self.var_manager
+    }
+
+    /// Gets a reference to the variable manager
+    pub fn var_manager_ref(&self) -> &VM {
+        &self.var_manager
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.var_manager().new_var()`.
     pub fn new_var(&mut self) -> Var {
-        self.var_manager().new_var()
+        self.var_manager_mut().new_var()
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.var_manager().new_lit()`.
     pub fn new_lit(&mut self) -> Lit {
-        self.var_manager().new_lit()
+        self.var_manager_mut().new_lit()
     }
 
     /// Gets the used variable with the highest index. This is a shortcut
     /// for `inst.var_manager().max_var()`.
-    pub fn max_var(&mut self) -> Option<Var> {
-        self.var_manager().max_var()
+    pub fn max_var(&self) -> Option<Var> {
+        self.var_manager_ref().max_var()
+    }
+
+    /// Returns the number of variables in the variable manager of the instance
+    pub fn n_vars(&self) -> u32 {
+        self.var_manager_ref().n_used()
     }
 
     /// Converts the included variable manager to a different type
