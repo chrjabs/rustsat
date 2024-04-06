@@ -494,6 +494,11 @@ impl CardUBConstr {
         (self.lits, self.b)
     }
 
+    /// Get references to the constraints internals
+    pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
+        (&self.lits, &self.b)
+    }
+
     /// Checks if the constraint is always satisfied
     pub fn is_tautology(&self) -> bool {
         self.b >= self.lits.len()
@@ -521,6 +526,11 @@ impl CardLBConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
     pub fn decompose(self) -> (Vec<Lit>, usize) {
         (self.lits, self.b)
+    }
+
+    /// Get references to the constraints internals
+    pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
+        (&self.lits, &self.b)
     }
 
     /// Checks if the constraint is always satisfied
@@ -555,6 +565,11 @@ impl CardEQConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
     pub fn decompose(self) -> (Vec<Lit>, usize) {
         (self.lits, self.b)
+    }
+
+    /// Get references to the constraints internals
+    pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
+        (&self.lits, &self.b)
     }
 
     /// Checks if the constraint is unsatisfiable
@@ -907,6 +922,11 @@ impl PBUBConstr {
         (self.lits, self.b)
     }
 
+    /// Gets references to the constraints internals
+    pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
+        (&self.lits, &self.b)
+    }
+
     /// Checks if the constraint is always satisfied
     pub fn is_tautology(&self) -> bool {
         if self.b < 0 {
@@ -975,6 +995,11 @@ impl PBLBConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
+    }
+
+    /// Gets references to the constraints internals
+    pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
+        (&self.lits, &self.b)
     }
 
     /// Checks if the constraint is always satisfied
@@ -1046,6 +1071,11 @@ impl PBEQConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
+    }
+
+    /// Gets references to the constraints internals
+    pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
+        (&self.lits, &self.b)
     }
 
     /// Checks if the constraint is unsatisfiable

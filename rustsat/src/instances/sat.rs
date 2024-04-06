@@ -563,12 +563,8 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Writes the instance to an OPB file at a path
-    ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_opb_path<P: AsRef<Path>>(
-        self,
+        &self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
@@ -577,8 +573,12 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Writes the instance to an OPB file
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_opb<W: io::Write>(
-        self,
+        &self,
         writer: &mut W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {

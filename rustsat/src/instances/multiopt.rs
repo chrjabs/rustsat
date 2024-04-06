@@ -248,11 +248,28 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Writes the instance to an OPB file at a path
     ///
-    /// # Performance
+    /// # Mutability
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    /// Since the [`Objective`] class can contain soft clauses rather than just soft literals,
+    /// these need to be converted to soft literals first, which modifies the instance. This is why
+    /// this method has to take a _mutable_ reference.
+    ///
+    /// If you know that the internal objective only contains soft literals, you can avoid a mutable
+    /// borrow by directly accessing the [`fio::opb::write_multi_opt`] function:
+    /// ```
+    /// # use rustsat::instances::{MultiOptInstance, fio};
+    /// # let mopt_inst: MultiOptInstance = MultiOptInstance::from_opb_path("./data/tiny-single-opt.opb", fio::opb::Options::default()).unwrap();
+    /// let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.opb").unwrap();
+    /// let constrs = mopt_inst.constraints_ref();
+    /// let iter = mopt_inst.iter_obj().map(|o| {
+    ///     debug_assert_eq!(o.n_clauses(), 0);
+    ///     let offset = o.offset();
+    ///     (o.iter_soft_lits(), offset)
+    /// });
+    /// fio::opb::write_multi_opt(&mut writer, mopt_inst.constraints_ref(), iter, fio::opb::Options::default());
+    /// ```
     pub fn to_opb_path<P: AsRef<Path>>(
-        self,
+        &mut self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
@@ -261,12 +278,46 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Writes the instance to an OPB file
+    ///
+    /// # Mutability
+    ///
+    /// Since the [`Objective`] class can contain soft clauses rather than just soft literals,
+    /// these need to be converted to soft literals first, which modifies the instance. This is why
+    /// this method has to take a _mutable_ reference.
+    ///
+    /// If you know that the internal objective only contains soft literals, you can avoid a mutable
+    /// borrow by directly accessing the [`fio::opb::write_multi_opt`] function:
+    /// ```
+    /// # use rustsat::instances::{MultiOptInstance, fio};
+    /// # let mopt_inst: MultiOptInstance = MultiOptInstance::from_opb_path("./data/tiny-opt.opb", fio::opb::Options::default()).unwrap();
+    /// # let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.opb").unwrap();
+    /// let constrs = mopt_inst.constraints_ref();
+    /// let iter = mopt_inst.iter_obj().map(|o| {
+    ///     debug_assert_eq!(o.n_clauses(), 0);
+    ///     let offset = o.offset();
+    ///     (o.iter_soft_lits(), offset)
+    /// });
+    /// fio::opb::write_multi_opt(&mut writer, mopt_inst.constraints_ref(), iter, fio::opb::Options::default());
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_opb<W: io::Write>(
-        self,
+        &mut self,
         writer: &mut W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
-        fio::opb::write_multi_opt::<W, VM>(writer, self, opts)
+        for obj in &mut self.objs {
+            let vm = self.constrs.var_manager_mut();
+            let hardened = obj.to_soft_lits(vm);
+            self.constrs.cnf.extend(hardened);
+        }
+        let iter = self.objs.iter().map(|o| {
+            let offset = o.offset();
+            (o.iter_soft_lits(), offset)
+        });
+        fio::opb::write_multi_opt::<W, VM, _, _>(writer, &self.constrs, iter, opts)
     }
 
     /// Calculates the objective values of an assignment. Returns [`None`] if the
