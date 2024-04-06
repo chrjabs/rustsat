@@ -40,7 +40,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     pub fn compose(mut constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
         objectives.iter().for_each(|o| {
             if let Some(mv) = o.max_var() {
-                constraints.var_manager().increase_next_free(mv + 1);
+                constraints.var_manager_mut().increase_next_free(mv + 1);
             }
         });
         MultiOptInstance {
@@ -67,33 +67,65 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_constraints has been renamed to constraints_mut and will be removed in a future release"
+    )]
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
+    }
+
+    /// Gets a mutable reference to the hard constraints for modifying them
+    pub fn constraints_mut(&mut self) -> &mut SatInstance<VM> {
+        &mut self.constrs
+    }
+
+    /// Gets a reference to the hard constraints
+    pub fn constraints_ref(&self) -> &SatInstance<VM> {
+        &self.constrs
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_var()`.
     pub fn new_var(&mut self) -> Var {
-        self.get_constraints().var_manager().new_var()
+        self.constraints_mut().var_manager_mut().new_var()
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_lit()`.
     pub fn new_lit(&mut self) -> Lit {
-        self.get_constraints().var_manager().new_lit()
+        self.constraints_mut().var_manager_mut().new_lit()
     }
 
     /// Gets the used variable with the highest index. This is a shortcut
     /// for `inst.get_constraints().var_manager().max_var()`.
-    pub fn max_var(&mut self) -> Option<Var> {
-        self.get_constraints().var_manager().max_var()
+    pub fn max_var(&self) -> Option<Var> {
+        self.constraints_ref().var_manager_ref().max_var()
     }
 
     /// Gets a mutable reference to the first objective for modifying it.
     /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_objective has been renamed to objective_mut and will be removed in a future release"
+    )]
     pub fn get_objective(&mut self, obj_idx: usize) -> &mut Objective {
         assert!(obj_idx < self.objs.len());
         &mut self.objs[obj_idx]
+    }
+
+    /// Gets a mutable reference to the objective with index `obj_idx` for modifying it.
+    /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    pub fn objective_mut(&mut self, obj_idx: usize) -> &mut Objective {
+        assert!(obj_idx < self.objs.len());
+        &mut self.objs[obj_idx]
+    }
+
+    /// Gets a reference to the objective with index `obj_idx`.
+    /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    pub fn objective_ref(&self, obj_idx: usize) -> &Objective {
+        assert!(obj_idx < self.objs.len());
+        &self.objs[obj_idx]
     }
 
     /// Returns an iterator over references to the objectives
@@ -321,12 +353,12 @@ impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
         for line in iter {
             match line {
                 McnfLine::Comment(_) => (),
-                McnfLine::Hard(cl) => inst.get_constraints().add_clause(cl),
+                McnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
                 McnfLine::Soft(cl, w, oidx) => {
                     if oidx >= inst.objs.len() {
                         inst.objs.resize(oidx + 1, Default::default())
                     }
-                    inst.get_objective(oidx).add_soft_clause(w, cl);
+                    inst.objective_mut(oidx).add_soft_clause(w, cl);
                 }
             }
         }

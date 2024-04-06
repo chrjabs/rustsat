@@ -865,7 +865,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Creates a new optimization instance from constraints and an objective
     pub fn compose(mut constraints: SatInstance<VM>, objective: Objective) -> Self {
         if let Some(mv) = objective.max_var() {
-            constraints.var_manager().increase_next_free(mv);
+            constraints.var_manager_mut().increase_next_free(mv);
         }
         OptInstance {
             constrs: constraints,
@@ -876,37 +876,65 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
     pub fn decompose(mut self) -> (SatInstance<VM>, Objective) {
         if let Some(mv) = self.obj.max_var() {
-            self.constrs.var_manager.increase_next_free(mv + 1);
+            self.constrs.var_manager_mut().increase_next_free(mv + 1);
         }
         (self.constrs, self.obj)
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_constraints has been renamed to constraints_mut and will be removed in a future release"
+    )]
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
     }
 
+    /// Gets a mutable reference to the hard constraints for modifying them
+    pub fn constraints_mut(&mut self) -> &mut SatInstance<VM> {
+        &mut self.constrs
+    }
+
+    /// Gets a reference to the hard constraints
+    pub fn constraints_ref(&self) -> &SatInstance<VM> {
+        &self.constrs
+    }
+
     /// Gets a mutable reference to the objective for modifying it
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_objective has been renamed to objective_mut and will be removed in a future release"
+    )]
     pub fn get_objective(&mut self) -> &mut Objective {
         &mut self.obj
+    }
+
+    /// Gets a mutable reference to the objective for modifying it
+    pub fn objective_mut(&mut self) -> &mut Objective {
+        &mut self.obj
+    }
+
+    /// Gets a reference to the objective
+    pub fn objective_ref(&self) -> &Objective {
+        &self.obj
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_var()`.
     pub fn new_var(&mut self) -> Var {
-        self.get_constraints().var_manager().new_var()
+        self.constraints_mut().var_manager_mut().new_var()
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_lit()`.
     pub fn new_lit(&mut self) -> Lit {
-        self.get_constraints().var_manager().new_lit()
+        self.constraints_mut().var_manager_mut().new_lit()
     }
 
     /// Gets the used variable with the highest index. This is a shortcut
     /// for `inst.get_constraints().var_manager().max_var()`.
-    pub fn max_var(&mut self) -> Option<Var> {
-        self.get_constraints().var_manager().max_var()
+    pub fn max_var(&self) -> Option<Var> {
+        self.constraints_ref().var_manager_ref().max_var()
     }
 
     /// Converts the instance to a set of hard and soft clauses, an objective
@@ -1134,9 +1162,9 @@ impl<VM: ManageVars + Default> FromIterator<WcnfLine> for OptInstance<VM> {
         for line in iter {
             match line {
                 WcnfLine::Comment(_) => (),
-                WcnfLine::Hard(cl) => inst.get_constraints().add_clause(cl),
+                WcnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
                 WcnfLine::Soft(cl, w) => {
-                    inst.get_objective().add_soft_clause(w, cl);
+                    inst.objective_mut().add_soft_clause(w, cl);
                 }
             }
         }
