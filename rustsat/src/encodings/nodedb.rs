@@ -291,6 +291,7 @@ impl NodeCon {
 }
 
 /// Trait for a database managing [`NodeLike`]s by their [`NodeId`]s
+#[allow(dead_code)]
 pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// The type of node in the database
     type Node: NodeLike;
