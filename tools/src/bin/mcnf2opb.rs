@@ -28,7 +28,7 @@ fn main() {
         no_negated_lits: args.avoid_negated_lits,
     };
 
-    let inst: MultiOptInstance = if let Some(in_path) = args.in_path {
+    let mut inst: MultiOptInstance = if let Some(in_path) = args.in_path {
         MultiOptInstance::from_dimacs_path(in_path).expect("error parsing the input file")
     } else {
         MultiOptInstance::from_dimacs(io::stdin()).expect("error parsing input")

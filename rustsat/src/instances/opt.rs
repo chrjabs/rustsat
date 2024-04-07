@@ -1,6 +1,6 @@
 //! # Optimization Instance Representations
 
-use std::{cmp, io, path::Path};
+use std::{cmp, collections::hash_map, io, path::Path, slice};
 
 use crate::{
     clause,
@@ -846,12 +846,33 @@ impl Objective {
             } => ObjSoftLitIter::Unweighted(soft_lits.iter(), unit_weight.unwrap_or(0)),
         }
     }
+
+    /// Gets an iterator over the entire objective as soft clauses
+    pub fn iter_soft_cls(&self) -> impl WClsIter + '_ {
+        match &self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => ObjSoftClauseIter::Weighted(soft_lits.iter(), soft_clauses.iter()),
+            IntObj::Unweighted {
+                unit_weight,
+                soft_lits,
+                soft_clauses,
+                ..
+            } => ObjSoftClauseIter::Unweighted(
+                soft_lits.iter(),
+                soft_clauses.iter(),
+                unit_weight.unwrap_or(0),
+            ),
+        }
+    }
 }
 
 /// A wrapper type for iterators over soft literals in an objective
 enum ObjSoftLitIter<'a> {
-    Weighted(std::collections::hash_map::Iter<'a, Lit, usize>),
-    Unweighted(std::slice::Iter<'a, Lit>, usize),
+    Weighted(hash_map::Iter<'a, Lit, usize>),
+    Unweighted(slice::Iter<'a, Lit>, usize),
 }
 
 impl Iterator for ObjSoftLitIter<'_> {
@@ -861,6 +882,36 @@ impl Iterator for ObjSoftLitIter<'_> {
         match self {
             ObjSoftLitIter::Weighted(iter) => iter.next().map(|(&l, &w)| (l, w)),
             ObjSoftLitIter::Unweighted(iter, w) => iter.next().map(|&l| (l, *w)),
+        }
+    }
+}
+
+/// A wrapper type for iterators over soft clauses in an objective
+enum ObjSoftClauseIter<'a> {
+    Weighted(
+        hash_map::Iter<'a, Lit, usize>,
+        hash_map::Iter<'a, Clause, usize>,
+    ),
+    Unweighted(slice::Iter<'a, Lit>, slice::Iter<'a, Clause>, usize),
+}
+
+impl Iterator for ObjSoftClauseIter<'_> {
+    type Item = (Clause, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ObjSoftClauseIter::Weighted(lit_iter, cl_iter) => {
+                if let Some((&l, &w)) = lit_iter.next() {
+                    return Some((clause![!l], w));
+                }
+                cl_iter.next().map(|(cl, &w)| (cl.clone(), w))
+            }
+            ObjSoftClauseIter::Unweighted(lit_iter, cl_iter, w) => {
+                if let Some(&l) = lit_iter.next() {
+                    return Some((clause![!l], *w));
+                }
+                cl_iter.next().map(|cl| (cl.clone(), *w))
+            }
         }
     }
 }
@@ -1042,16 +1093,56 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Writes the instance to a DIMACS WCNF file at a path
     ///
-    /// # Performance
+    /// # Mutability
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+    /// Since the [`SatInstance`] class (used for the internal constraints) can contain cardinality
+    /// and pseudo-boolean constraints that cannot be directly written to DIMACS, these constraints
+    /// need to be converted to CNF first. This is why this method has to take a _mutable_
+    /// reference.
+    ///
+    /// If you know that the instance only contains clauses, you can avoid a mutable
+    /// borrow by directly using [`fio::dimacs::write_wcnf_annotated`].
+    /// ```
+    /// # use rustsat::instances::{OptInstance, fio};
+    /// # let opt_inst: OptInstance = OptInstance::from_dimacs_path("./data/small.wcnf").unwrap();
+    /// let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.wcnf").unwrap();
+    /// debug_assert_eq!(opt_inst.constraints_ref().n_cards(), 0);
+    /// debug_assert_eq!(opt_inst.constraints_ref().n_pbs(), 0);
+    /// let offset = opt_inst.objective_ref().offset();
+    /// let soft_cls = opt_inst.objective_ref().iter_soft_cls();
+    /// fio::dimacs::write_wcnf_annotated(&mut writer, opt_inst.constraints_ref().cnf(), (soft_cls, offset), None);
+    /// ```
+    pub fn to_dimacs_path<P: AsRef<Path>>(&mut self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.to_dimacs(&mut writer)
     }
 
     /// Write to DIMACS WCNF (post 22)
-    pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
+    ///
+    /// # Mutability
+    ///
+    /// Since the [`SatInstance`] class (used for the internal constraints) can contain cardinality
+    /// and pseudo-boolean constraints that cannot be directly written to DIMACS, these constraints
+    /// need to be converted to CNF first. This is why this method has to take a _mutable_
+    /// reference.
+    ///
+    /// If you know that the instance only contains clauses, you can avoid a mutable
+    /// borrow by directly using [`fio::dimacs::write_wcnf_annotated`].
+    /// ```
+    /// # use rustsat::instances::{OptInstance, fio};
+    /// # let opt_inst: OptInstance = OptInstance::from_dimacs_path("./data/small.wcnf").unwrap();
+    /// # let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.wcnf").unwrap();
+    /// debug_assert_eq!(opt_inst.constraints_ref().n_cards(), 0);
+    /// debug_assert_eq!(opt_inst.constraints_ref().n_pbs(), 0);
+    /// let offset = opt_inst.objective_ref().offset();
+    /// let soft_cls = opt_inst.objective_ref().iter_soft_cls();
+    /// fio::dimacs::write_wcnf_annotated(&mut writer, opt_inst.constraints_ref().cnf(), (soft_cls, offset), None);
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    pub fn to_dimacs<W: io::Write>(&mut self, writer: &mut W) -> Result<(), io::Error> {
         self.to_dimacs_with_encoders(
             card::default_encode_cardinality_constraint,
             pb::default_encode_pb_constraint,
@@ -1061,8 +1152,19 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Writes the instance to DIMACS WCNF (post 22) converting non-clausal
     /// constraints with specific encoders.
+    ///
+    /// # Mutability
+    ///
+    /// Since the [`SatInstance`] class (used for the internal constraints) can contain cardinality
+    /// and pseudo-boolean constraints that cannot be directly written to DIMACS, these constraints
+    /// need to be converted to CNF first. This is why this method has to take a _mutable_
+    /// reference.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
-        self,
+        &mut self,
         card_encoder: CardEnc,
         pb_encoder: PBEnc,
         writer: &mut W,
@@ -1072,9 +1174,16 @@ impl<VM: ManageVars> OptInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
-        let soft_cls = self.obj.as_soft_cls();
-        fio::dimacs::write_wcnf_annotated(writer, cnf, soft_cls, vm.max_var())
+        self.constrs.to_cnf_with_encoders(card_encoder, pb_encoder);
+        let n_vars = self.constrs.n_vars();
+        let offset = self.obj.offset();
+        let soft_cls = self.obj.iter_soft_cls();
+        fio::dimacs::write_wcnf_annotated(
+            writer,
+            &self.constrs.cnf,
+            (soft_cls, offset),
+            Some(n_vars),
+        )
     }
 
     /// Writes the instance to an OPB file at a path

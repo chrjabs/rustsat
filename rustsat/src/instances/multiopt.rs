@@ -211,16 +211,60 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Writes the instance to a DIMACS MCNF file at a path
     ///
-    /// # Performance
+    /// # Mutability
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
+    /// Since the [`SatInstance`] class (used for the internal constraints) can contain cardinality
+    /// and pseudo-boolean constraints that cannot be directly written to DIMACS, these constraints
+    /// need to be converted to CNF first. This is why this method has to take a _mutable_
+    /// reference.
+    ///
+    /// If you know that the instance only contains clauses, you can avoid a mutable
+    /// borrow by directly using [`fio::dimacs::write_mcnf_annotated`].
+    /// ```
+    /// # use rustsat::instances::{MultiOptInstance, fio};
+    /// # let mopt_inst: MultiOptInstance = MultiOptInstance::from_dimacs_path("./data/small.mcnf").unwrap();
+    /// let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.mcnf").unwrap();
+    /// debug_assert_eq!(mopt_inst.constraints_ref().n_cards(), 0);
+    /// debug_assert_eq!(mopt_inst.constraints_ref().n_pbs(), 0);
+    /// let iter = mopt_inst.iter_obj().map(|o| {
+    ///     let offset = o.offset();
+    ///     (o.iter_soft_cls(), offset)
+    /// });
+    /// fio::dimacs::write_mcnf_annotated(&mut writer, mopt_inst.constraints_ref().cnf(), iter, None);
+    /// ```
+    pub fn to_dimacs_path<P: AsRef<Path>>(&mut self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.to_dimacs(&mut writer)
     }
 
     /// Write to DIMACS MCNF
-    pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
+    ///
+    /// # Mutability
+    ///
+    /// Since the [`SatInstance`] class (used for the internal constraints) can contain cardinality
+    /// and pseudo-boolean constraints that cannot be directly written to DIMACS, these constraints
+    /// need to be converted to CNF first. This is why this method has to take a _mutable_
+    /// reference.
+    ///
+    /// If you know that the instance only contains clauses, you can avoid a mutable
+    /// borrow by directly using [`fio::dimacs::write_mcnf_annotated`].
+    /// ```
+    /// # use rustsat::instances::{MultiOptInstance, fio};
+    /// # let mopt_inst: MultiOptInstance = MultiOptInstance::from_dimacs_path("./data/small.mcnf").unwrap();
+    /// # let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.mcnf").unwrap();
+    /// debug_assert_eq!(mopt_inst.constraints_ref().n_cards(), 0);
+    /// debug_assert_eq!(mopt_inst.constraints_ref().n_pbs(), 0);
+    /// let iter = mopt_inst.iter_obj().map(|o| {
+    ///     let offset = o.offset();
+    ///     (o.iter_soft_cls(), offset)
+    /// });
+    /// fio::dimacs::write_mcnf_annotated(&mut writer, mopt_inst.constraints_ref().cnf(), iter, None);
+    /// ```
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    pub fn to_dimacs<W: io::Write>(&mut self, writer: &mut W) -> Result<(), io::Error> {
         self.to_dimacs_with_encoders(
             card::default_encode_cardinality_constraint,
             pb::default_encode_pb_constraint,
@@ -230,8 +274,12 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Writes the instance to DIMACS MCNF converting non-clausal constraints
     /// with specific encoders.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
-        self,
+        &mut self,
         card_encoder: CardEnc,
         pb_encoder: PBEnc,
         writer: &mut W,
@@ -241,9 +289,13 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
-        let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
-        fio::dimacs::write_mcnf_annotated(writer, cnf, soft_cls, vm.max_var())
+        self.constrs.to_cnf_with_encoders(card_encoder, pb_encoder);
+        let n_vars = self.constrs.n_vars();
+        let iter = self.objs.iter().map(|o| {
+            let offset = o.offset();
+            (o.iter_soft_cls(), offset)
+        });
+        fio::dimacs::write_mcnf_annotated(writer, &self.constrs.cnf, iter, Some(n_vars))
     }
 
     /// Writes the instance to an OPB file at a path

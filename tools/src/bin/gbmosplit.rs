@@ -467,7 +467,7 @@ fn main() {
         panic!()
     });
 
-    let (mo_inst, split_stats) = split(so_inst, &cli);
+    let (mut mo_inst, split_stats) = split(so_inst, &cli);
 
     cli.print_split_stats(split_stats);
 

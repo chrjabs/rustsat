@@ -38,7 +38,7 @@ fn main() {
     println!("c {} cards", constrs.n_cards());
     println!("c {} pbs", constrs.n_pbs());
 
-    let inst = OptInstance::compose(constrs, obj);
+    let mut inst = OptInstance::compose(constrs, obj);
 
     if let Some(out_path) = args.out_path {
         inst.to_dimacs_path(out_path)

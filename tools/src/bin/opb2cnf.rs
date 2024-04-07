@@ -25,7 +25,7 @@ fn main() {
         ..Default::default()
     };
 
-    let inst: SatInstance = if let Some(in_path) = args.in_path {
+    let mut inst: SatInstance = if let Some(in_path) = args.in_path {
         SatInstance::from_opb_path(in_path, opb_opts).expect("error parsing the input file")
     } else {
         SatInstance::from_opb(io::stdin(), opb_opts).expect("error parsing input")

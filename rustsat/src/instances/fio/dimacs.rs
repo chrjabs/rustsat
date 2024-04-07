@@ -12,7 +12,7 @@
 
 use crate::{
     instances::{Cnf, ManageVars, SatInstance},
-    types::{Clause, Lit, Var},
+    types::{Clause, Lit},
 };
 use anyhow::Context;
 use nom::{
@@ -472,22 +472,12 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
 /// Writes a CNF to a DIMACS CNF file
 pub fn write_cnf_annotated<W: Write>(
     writer: &mut W,
-    cnf: Cnf,
-    max_var: Option<Var>,
+    cnf: &Cnf,
+    n_vars: u32,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
-    writeln!(
-        writer,
-        "p cnf {} {}",
-        if let Some(max_var) = max_var {
-            max_var.pos_lit().to_ipasir()
-        } else {
-            0
-        },
-        cnf.len()
-    )?;
-    cnf.into_iter()
-        .try_for_each(|cl| write_clause(writer, cl))?;
+    writeln!(writer, "p cnf {} {}", n_vars, cnf.len())?;
+    cnf.iter().try_for_each(|cl| write_clause(writer, cl))?;
     writer.flush()
 }
 
@@ -506,7 +496,7 @@ pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
         CnfLine::Comment(c) => write!(writer, "c {}", c),
-        CnfLine::Clause(cl) => write_clause(writer, cl),
+        CnfLine::Clause(cl) => write_clause(writer, &cl),
     })
 }
 
@@ -514,26 +504,26 @@ pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
 /// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
 pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
     writer: &mut W,
-    cnf: Cnf,
+    cnf: &Cnf,
     softs: (CI, isize),
-    max_var: Option<Var>,
+    n_vars: Option<u32>,
 ) -> Result<(), io::Error> {
     let (soft_cls, offset) = softs;
     let soft_cls: Vec<(Clause, usize)> = soft_cls.into_iter().collect();
     writeln!(writer, "c WCNF file written by RustSAT")?;
-    if let Some(mv) = max_var {
-        writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
+    if let Some(n_vars) = n_vars {
+        writeln!(writer, "c {} variables", n_vars)?;
     }
     writeln!(writer, "c {} hard clauses", cnf.len())?;
     writeln!(writer, "c {} soft clauses", soft_cls.len())?;
     writeln!(writer, "c objective offset: {}", offset)?;
-    cnf.into_iter().try_for_each(|cl| {
+    cnf.iter().try_for_each(|cl| {
         write!(writer, "h ")?;
         write_clause(writer, cl)
     })?;
     soft_cls.into_iter().try_for_each(|(cl, w)| {
         write!(writer, "{} ", w)?;
-        write_clause(writer, cl)
+        write_clause(writer, &cl)
     })?;
     writer.flush()
 }
@@ -559,22 +549,22 @@ pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
         WcnfLine::Comment(c) => write!(writer, "c {}", c),
         WcnfLine::Hard(cl) => {
             write!(writer, "h ")?;
-            write_clause(writer, cl)
+            write_clause(writer, &cl)
         }
         WcnfLine::Soft(cl, w) => {
             write!(writer, "{} ", w)?;
-            write_clause(writer, cl)
+            write_clause(writer, &cl)
         }
     })
 }
 
 #[cfg(feature = "multiopt")]
 /// Writes a CNF and multiple objectives as sets of soft clauses to a DIMACS MCNF file
-pub fn write_mcnf_annotated<W: Write, CI: WClsIter>(
+pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WClsIter>(
     writer: &mut W,
-    cnf: Cnf,
-    softs: Vec<(CI, isize)>,
-    max_var: Option<Var>,
+    cnf: &Cnf,
+    softs: Iter,
+    n_vars: Option<u32>,
 ) -> Result<(), io::Error> {
     let (soft_cls, offsets) = softs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
     let soft_cls: Vec<Vec<(Clause, usize)>> = soft_cls
@@ -582,8 +572,8 @@ pub fn write_mcnf_annotated<W: Write, CI: WClsIter>(
         .map(|ci| ci.into_iter().collect())
         .collect();
     writeln!(writer, "c MCNF file written by RustSAT")?;
-    if let Some(mv) = max_var {
-        writeln!(writer, "c highest var: {}", mv.pos_lit().to_ipasir())?;
+    if let Some(n_vars) = n_vars {
+        writeln!(writer, "c {} variables", n_vars)?;
     }
     writeln!(writer, "c {} hard clauses", cnf.len())?;
     writeln!(writer, "c {} objectives", soft_cls.len())?;
@@ -597,7 +587,7 @@ pub fn write_mcnf_annotated<W: Write, CI: WClsIter>(
         .into_iter()
         .try_for_each(|o| write!(writer, "{} ", o))?;
     writeln!(writer, ")")?;
-    cnf.into_iter().try_for_each(|cl| {
+    cnf.iter().try_for_each(|cl| {
         write!(writer, "h ")?;
         write_clause(writer, cl)
     })?;
@@ -607,7 +597,7 @@ pub fn write_mcnf_annotated<W: Write, CI: WClsIter>(
         .try_for_each(|(idx, sft_cls)| {
             sft_cls.into_iter().try_for_each(|(cl, w)| {
                 write!(writer, "o{} {} ", idx + 1, w)?;
-                write_clause(writer, cl)
+                write_clause(writer, &cl)
             })
         })?;
     writer.flush()
@@ -634,16 +624,16 @@ pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
         McnfLine::Comment(c) => writeln!(writer, "c {}", c),
         McnfLine::Hard(cl) => {
             write!(writer, "h ")?;
-            write_clause(writer, cl)
+            write_clause(writer, &cl)
         }
         McnfLine::Soft(cl, w, oidx) => {
             write!(writer, "o{} {} ", oidx + 1, w)?;
-            write_clause(writer, cl)
+            write_clause(writer, &cl)
         }
     })
 }
 
-fn write_clause<W: Write>(writer: &mut W, clause: Clause) -> Result<(), io::Error> {
+fn write_clause<W: Write>(writer: &mut W, clause: &Clause) -> Result<(), io::Error> {
     clause
         .into_iter()
         .try_for_each(|l| write!(writer, "{} ", l.to_ipasir()))?;
@@ -659,7 +649,7 @@ mod tests {
     use crate::{
         clause,
         instances::{Cnf, SatInstance},
-        ipasir_lit, var,
+        ipasir_lit,
     };
     use nom::error::Error as NomError;
     use std::io::{Cursor, Seek};
@@ -1093,7 +1083,7 @@ mod tests {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_cnf_annotated(&mut cursor, true_cnf.clone(), Some(var![1])).unwrap();
+        write_cnf_annotated(&mut cursor, &true_cnf, 2).unwrap();
 
         cursor.rewind().unwrap();
 
@@ -1110,14 +1100,15 @@ mod tests {
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        let offset = true_obj.offset();
 
         let mut cursor = Cursor::new(vec![]);
 
         write_wcnf_annotated(
             &mut cursor,
-            true_constrs.clone().as_cnf().0,
-            true_obj.clone().as_soft_cls(),
-            Some(var![1]),
+            &true_constrs.clone().as_cnf().0,
+            (true_obj.iter_soft_cls(), offset),
+            Some(5),
         )
         .unwrap();
 
@@ -1136,18 +1127,21 @@ mod tests {
         let mut true_obj1 = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
+        let offset0 = true_obj0.offset();
         true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        let offset1 = true_obj1.offset();
 
         let mut cursor = Cursor::new(vec![]);
 
         write_mcnf_annotated(
             &mut cursor,
-            true_constrs.clone().as_cnf().0,
+            &true_constrs.clone().as_cnf().0,
             vec![
-                true_obj0.clone().as_soft_cls(),
-                true_obj1.clone().as_soft_cls(),
-            ],
-            Some(var![4]),
+                (true_obj0.iter_soft_cls(), offset0),
+                (true_obj1.iter_soft_cls(), offset1),
+            ]
+            .into_iter(),
+            Some(5),
         )
         .unwrap();
 
