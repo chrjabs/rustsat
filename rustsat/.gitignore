@@ -1,1 +1,4 @@
 rustsat-test.opb
+rustsat-test.cnf
+rustsat-test.wcnf
+rustsat-test.mcnf

@@ -39,7 +39,7 @@ fn main() {
     println!("c {} pbs", constrs.n_pbs());
     println!("c {} objectives", objs.len());
 
-    let inst = MultiOptInstance::compose(constrs, objs);
+    let mut inst = MultiOptInstance::compose(constrs, objs);
 
     if let Some(out_path) = args.out_path {
         inst.to_dimacs_path(out_path)
