@@ -158,7 +158,7 @@ impl Solve for Minisat {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -166,7 +166,7 @@ impl Solve for Minisat {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call minisat backend
-        clause.into_iter().for_each(|l| unsafe {
+        clause.iter().for_each(|l| unsafe {
             ffi::cminisatsimp_add(self.handle, l.to_ipasir());
         });
         unsafe { ffi::cminisatsimp_add(self.handle, 0) };

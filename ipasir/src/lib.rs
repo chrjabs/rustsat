@@ -186,7 +186,7 @@ impl Solve for IpasirSolver<'_, '_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         clause.iter().for_each(|l| match self.stats.max_var {
@@ -202,7 +202,7 @@ impl Solve for IpasirSolver<'_, '_> {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call IPASIR backend
-        for lit in &clause {
+        for lit in clause {
             unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
         }
         unsafe { ffi::ipasir_add(self.handle, 0) };

@@ -260,7 +260,7 @@ impl Solve for Kissat<'_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Kissat is non-incremental, so only add if in input or configuring state
         if !matches!(
             self.state,
@@ -288,7 +288,7 @@ impl Solve for Kissat<'_> {
         self.state = InternalSolverState::Input;
         // Call Kissat backend
         clause
-            .into_iter()
+            .iter()
             .for_each(|l| unsafe { ffi::kissat_add(self.handle, l.to_ipasir()) });
         unsafe { ffi::kissat_add(self.handle, 0) };
         Ok(())
