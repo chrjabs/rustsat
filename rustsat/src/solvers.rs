@@ -175,10 +175,19 @@ pub trait Solve: Extend<Clause> {
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal>;
-    /// Adds a clause to the solver
+    /// Adds a clause to the solver.
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()>;
+    ///
+    /// This method can be implemented by solvers that can truly take ownership of the clause.
+    /// Otherwise, it will fall back to the mandatory [`Solve::add_clause_ref`] method.
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+        self.add_clause_ref(&clause)
+    }
+    /// Adds a clause to the solver by reference.
+    /// If the solver is in the satisfied or unsatisfied state before, it is in
+    /// the input state afterwards.
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()>;
     /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
     fn add_unit(&mut self, lit: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit])
@@ -194,6 +203,10 @@ pub trait Solve: Extend<Clause> {
     /// Adds all clauses from a [`Cnf`] instance.
     fn add_cnf(&mut self, cnf: Cnf) -> anyhow::Result<()> {
         cnf.into_iter().try_for_each(|cl| self.add_clause(cl))
+    }
+    /// Adds all clauses from a [`Cnf`] instance by reference.
+    fn add_cnf_ref(&mut self, cnf: &Cnf) -> anyhow::Result<()> {
+        cnf.iter().try_for_each(|cl| self.add_clause_ref(cl))
     }
 }
 
