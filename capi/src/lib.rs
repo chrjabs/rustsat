@@ -2,16 +2,18 @@
 //!
 //! In the C-API, literals are represented as IPASIR literals.
 //!
-//! This is the C-API for RustSAT. Currently this API is very minimal and not
-//! the focus of this project. For now, only the API of certain encodings is
-//! available.
+//! This is the C-API for RustSAT. Currently this API is very minimal and not the focus of this
+//! project. For now, only the API of certain encodings is available.
+//!
+//! For the API itself, see `rustsat.h`. To use RustSAT from an external project, build this crate
+//! and link against `librustsat.a` (produced by `cargo` in `target/release`).
 
 pub mod encodings {
     //! # C-API For Encodings
 
     use std::ffi::{c_int, c_void};
 
-    use crate::{
+    use rustsat::{
         encodings::{self, CollectClauses},
         instances::ManageVars,
         types::{Clause, Var},
@@ -129,7 +131,7 @@ pub mod encodings {
 
         use std::ffi::{c_int, c_void};
 
-        use crate::{
+        use rustsat::{
             encodings::card::{BoundUpper, BoundUpperIncremental, DbTotalizer},
             types::Lit,
         };
@@ -286,7 +288,7 @@ pub mod encodings {
 
         use std::ffi::{c_int, c_void};
 
-        use crate::{
+        use rustsat::{
             encodings::pb::{BoundUpper, BoundUpperIncremental, DynamicPolyWatchdog},
             types::Lit,
         };
@@ -314,16 +316,16 @@ pub mod encodings {
             weight: usize,
         ) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            if boxed.structure.is_some() {
-                return MaybeError::InvalidState;
-            }
-            boxed.in_lits.insert(
+            let res = boxed.add_input(
                 Lit::from_ipasir(lit).expect("invalid IPASIR literal"),
                 weight,
             );
-            boxed.weight_sum += weight;
             Box::into_raw(boxed);
-            MaybeError::Ok
+            if res.is_ok() {
+                MaybeError::Ok
+            } else {
+                MaybeError::InvalidState
+            }
         }
 
         /// Lazily builds the _change in_ pseudo-boolean encoding to enable

@@ -35,3 +35,8 @@ git_release_enable = false
 name = "rustsat-solvertests"
 release = false
 git_release_enable = false
+
+[[package]]
+name = "rustsat-capi"
+release = false
+git_release_enable = false

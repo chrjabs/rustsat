@@ -10,8 +10,6 @@ repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 rust-version = "1.66.1"
 
-build = "build.rs"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -34,11 +32,9 @@ pyo3 = { version = "0.21.0", optional = true, features = [
 ] }
 
 [build-dependencies]
-cbindgen = "0.26.0"
 pyo3-build-config = { version = "0.21.0", optional = true }
 
 [dev-dependencies]
-inline-c = "0.1.7"
 rustsat-minisat = { version = "0.2", path = "../minisat" }
 rustsat-tools = { version = "0.2", path = "../tools" }
 
@@ -55,7 +51,7 @@ pyapi = ["dep:pyo3", "dep:pyo3-build-config"]
 all = ["multiopt", "compression", "rand", "fxhash"]
 
 [lib]
-crate-type = ["lib", "staticlib", "cdylib"]
+crate-type = ["lib", "cdylib"]
 
 [package.metadata.docs.rs]
 features = ["all"]

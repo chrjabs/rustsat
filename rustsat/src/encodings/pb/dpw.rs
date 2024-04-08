@@ -53,11 +53,11 @@ use pyo3::prelude::*;
 #[derive(Default)]
 pub struct DynamicPolyWatchdog {
     /// Input literals and weights for the encoding
-    pub(crate) in_lits: RsHashMap<Lit, usize>,
+    in_lits: RsHashMap<Lit, usize>,
     /// The encoding root and the tares
-    pub(crate) structure: Option<Structure>,
+    structure: Option<Structure>,
     /// Sum of all input weight
-    pub(crate) weight_sum: usize,
+    weight_sum: usize,
     /// The number of variables
     n_vars: u32,
     /// The number of clauses
@@ -73,6 +73,24 @@ impl DynamicPolyWatchdog {
             Some(Structure { root, .. }) => self.db[*root].depth(),
             None => 0,
         }
+    }
+
+    /// Helper for the C-API to add input literals to an already existing object. Errors if the
+    /// object is already encoded.
+    #[cfg(feature = "internals")]
+    pub fn add_input(&mut self, lit: Lit, weight: usize) -> Result<(), crate::NotAllowed> {
+        if self.structure.is_some() {
+            return Err(crate::NotAllowed(
+                "cannot add inputs after building the encoding",
+            ));
+        }
+        if let Some(lweight) = self.in_lits.get_mut(&lit) {
+            *lweight += weight;
+        } else {
+            self.in_lits.insert(lit, weight);
+        }
+        self.weight_sum += weight;
+        Ok(())
     }
 }
 
