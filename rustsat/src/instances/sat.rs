@@ -12,14 +12,7 @@ use crate::{
     },
 };
 
-#[cfg(feature = "pyapi")]
-use crate::pyapi::{SingleOrList, SliceOrInt};
 use anyhow::Context;
-#[cfg(feature = "pyapi")]
-use pyo3::{
-    exceptions::{PyIndexError, PyRuntimeError},
-    prelude::*,
-};
 
 use super::{
     fio::{self, dimacs::CnfLine},
@@ -28,18 +21,9 @@ use super::{
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
-#[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Clone, Eq, Default)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
-    #[cfg(feature = "pyapi")]
-    modified: bool,
-}
-
-impl PartialEq for Cnf {
-    fn eq(&self, other: &Self) -> bool {
-        self.clauses == other.clauses
-    }
 }
 
 impl std::fmt::Debug for Cnf {
@@ -60,8 +44,6 @@ impl Cnf {
     pub fn with_capacity(capacity: usize) -> Cnf {
         Cnf {
             clauses: Vec::with_capacity(capacity),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 
@@ -168,8 +150,6 @@ impl Cnf {
         norm_clauses.dedup();
         Self {
             clauses: norm_clauses,
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 
@@ -178,8 +158,6 @@ impl Cnf {
     pub fn sanitize(self) -> Self {
         Self {
             clauses: self.into_iter().filter_map(|cl| cl.sanitize()).collect(),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 
@@ -190,6 +168,27 @@ impl Cnf {
         let mut rng = rand::thread_rng();
         self.clauses[..].shuffle(&mut rng);
         self
+    }
+
+    /// Adds a clause to the CNF
+    #[inline]
+    pub fn add_clause(&mut self, clause: Clause) {
+        self.clauses.push(clause);
+    }
+
+    /// Adds a unit clause to the CNF
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the CNF
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the CNF
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
     }
 }
 
@@ -213,8 +212,6 @@ impl FromIterator<Clause> for Cnf {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
         Self {
             clauses: iter.into_iter().collect(),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 }
@@ -239,205 +236,6 @@ impl Index<usize> for Cnf {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.clauses[index]
-    }
-}
-
-#[cfg_attr(feature = "pyapi", pymethods)]
-impl Cnf {
-    /// Adds a clause to the CNF
-    #[inline]
-    pub fn add_clause(&mut self, clause: Clause) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.clauses.push(clause);
-    }
-
-    /// Adds a unit clause to the CNF
-    pub fn add_unit(&mut self, unit: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.add_clause(clause![unit])
-    }
-
-    /// Adds a binary clause to the CNF
-    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.add_clause(clause![lit1, lit2])
-    }
-
-    /// Adds a ternary clause to the CNF
-    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.add_clause(clause![lit1, lit2, lit3])
-    }
-
-    #[cfg(feature = "pyapi")]
-    #[new]
-    fn pynew(clauses: Vec<Clause>) -> Self {
-        Self::from_iter(clauses)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __repr__(&self) -> String {
-        format!("{:?}", self)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __len__(&self) -> usize {
-        self.len()
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
-        match idx {
-            SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.len().try_into().unwrap())?;
-                Ok(SingleOrList::List(
-                    (indices.start as usize..indices.stop as usize)
-                        .step_by(indices.step as usize)
-                        .map(|idx| self[idx].clone())
-                        .collect(),
-                ))
-            }
-            SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.len() || idx >= 0 && idx.unsigned_abs() >= self.len() {
-                    return Err(PyIndexError::new_err("out of bounds"));
-                }
-                let idx = if idx >= 0 {
-                    idx.unsigned_abs()
-                } else {
-                    self.len() - idx.unsigned_abs()
-                };
-                Ok(SingleOrList::Single(self[idx].clone()))
-            }
-        }
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `a -> b`
-    #[pyo3(name = "add_lit_impl_lit")]
-    fn py_add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.modified = true;
-        self.add_clause(atomics::lit_impl_lit(a, b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `a -> (b1 | b2 | ... | bm)`
-    #[pyo3(name = "add_lit_impl_clause")]
-    fn py_add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
-        self.modified = true;
-        self.add_clause(atomics::lit_impl_clause(a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `a -> (b1 & b2 & ... & bm)`
-    #[pyo3(name = "add_lit_impl_cube")]
-    fn py_add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::lit_impl_cube(a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 & a2 & ... & an) -> b`
-    #[pyo3(name = "add_cube_impl_lit")]
-    fn py_add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        self.modified = true;
-        self.add_clause(atomics::cube_impl_lit(&a, b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 | a2 | ... | an) -> b`
-    #[pyo3(name = "add_clause_impl_lit")]
-    fn py_add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        self.modified = true;
-        self.extend(atomics::clause_impl_lit(&a, b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
-    #[pyo3(name = "add_cube_impl_clause")]
-    fn py_add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.add_clause(atomics::cube_impl_clause(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
-    #[pyo3(name = "add_clause_impl_clause")]
-    fn py_add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::clause_impl_clause(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)`
-    #[pyo3(name = "add_clause_impl_cube")]
-    fn py_add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::clause_impl_cube(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
-    #[pyo3(name = "add_cube_impl_cube")]
-    fn py_add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::cube_impl_cube(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __iter__(mut slf: PyRefMut<'_, Self>) -> CnfIter {
-        slf.modified = false;
-        CnfIter {
-            cnf: slf.into(),
-            index: 0,
-        }
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __eq__(&self, other: &Cnf) -> bool {
-        self == other
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __ne__(&self, other: &Cnf) -> bool {
-        self != other
-    }
-}
-
-#[cfg(feature = "pyapi")]
-#[pyclass]
-struct CnfIter {
-    cnf: Py<Cnf>,
-    index: usize,
-}
-
-#[cfg(feature = "pyapi")]
-#[pymethods]
-impl CnfIter {
-    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Clause>> {
-        if slf.cnf.borrow(slf.py()).modified {
-            return Err(PyRuntimeError::new_err("cnf modified during iteration"));
-        }
-        if slf.index < slf.cnf.borrow(slf.py()).len() {
-            slf.index += 1;
-            return Ok(Some(slf.cnf.borrow(slf.py())[slf.index - 1].clone()));
-        }
-        return Ok(None);
     }
 }
 

@@ -32,19 +32,3 @@ jobs:
         run: cargo test -p rustsat --verbose --features=all
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
-
-  pystubs:
-    name: Test python stubs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - name: Install maturin from PyPI
-        uses: install-pinned/maturin@dfebcaa782a69944b584ec164e97fbbd09885352
-      - name: Install mypy from PyPI
-        uses: install-pinned/mypy@c2223951641cbb406fa8526d08f0690899f130e4
-      - name: Install python project
-        run: maturin build -m rustsat/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
-      - name: Test stubs
-        run: stubtest --mypy-config-file rustsat/pyproject.toml --allowlist rustsat/stubtest-allowlist.txt rustsat

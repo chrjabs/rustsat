@@ -9,6 +9,7 @@ members = [
   "ipasir",
   "solvertests",
   "capi",
+  "pyapi",
 ]
 resolver = "2"
 
