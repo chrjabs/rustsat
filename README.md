@@ -80,3 +80,10 @@ This library also comes with experimental Python bindings to use its encodings
 from Python. The Python bindings are available at
 [PyPI](https://pypi.org/project/rustsat/). For more details see the [Python API
 documentation](https://christophjabs.info/rustsat/pyapi/).
+
+## Contributing
+
+We are welcoming contributions in the form of pull requests and suggestions.
+Kindly make sure to read
+[`CONTRIBUTING.md`](https://github.com/chrjabs/rustsat/blob/main/CONTRIBUTING.md)
+first.
