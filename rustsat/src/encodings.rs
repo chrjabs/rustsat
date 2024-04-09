@@ -29,18 +29,6 @@ pub enum Error {
     Unsat,
 }
 
-#[cfg(feature = "pyapi")]
-impl From<Error> for pyo3::PyErr {
-    fn from(value: Error) -> Self {
-        match value {
-            Error::NotEncoded => {
-                pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
-            }
-            Error::Unsat => pyo3::exceptions::PyValueError::new_err("encoding is unsat"),
-        }
-    }
-}
-
 /// Trait for encodings that track statistics.
 pub trait EncodeStats {
     /// Gets the number of clauses in the encoding

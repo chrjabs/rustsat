@@ -25,14 +25,6 @@ rand = { version = "0.8.5", optional = true }
 visibility = { version = "0.1.0" }
 anyhow = { version = "1.0.80" }
 thiserror = { version = "1.0.50" }
-pyo3 = { version = "0.21.0", optional = true, features = [
-  "extension-module",
-  "abi3",
-  "abi3-py37",
-] }
-
-[build-dependencies]
-pyo3-build-config = { version = "0.21.0", optional = true }
 
 [dev-dependencies]
 rustsat-minisat = { version = "0.2", path = "../minisat" }
@@ -47,11 +39,7 @@ multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
-pyapi = ["dep:pyo3", "dep:pyo3-build-config"]
 all = ["multiopt", "compression", "rand", "fxhash"]
-
-[lib]
-crate-type = ["lib", "cdylib"]
 
 [package.metadata.docs.rs]
 features = ["all"]

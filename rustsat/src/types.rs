@@ -10,9 +10,6 @@ use std::{
 
 use thiserror::Error;
 
-#[cfg(feature = "pyapi")]
-use pyo3::{exceptions::PyValueError, prelude::*};
-
 pub mod constraints;
 pub use constraints::Clause;
 
@@ -227,7 +224,6 @@ macro_rules! var {
 /// whether the literal is negated or not. This way the literal can directly
 /// be used to index data structures with the two literals of a variable
 /// being close together.
-#[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
 #[repr(transparent)]
 pub struct Lit {
@@ -460,52 +456,6 @@ impl fmt::Display for Lit {
         match self.is_neg() {
             true => write!(f, "~x{}", self.vidx()),
             false => write!(f, "x{}", self.vidx()),
-        }
-    }
-}
-
-#[cfg(feature = "pyapi")]
-#[pymethods]
-impl Lit {
-    #[new]
-    fn pynew(ipasir: c_int) -> PyResult<Self> {
-        Self::from_ipasir(ipasir).map_err(|_| PyValueError::new_err("invalid ipasir lit"))
-    }
-
-    fn __str__(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn __neg__(&self) -> Lit {
-        !*self
-    }
-
-    fn __richcmp__(&self, other: &Lit, op: pyo3::basic::CompareOp) -> bool {
-        op.matches(self.cmp(&other))
-    }
-
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    /// Gets the IPASIR/DIMACS representation of the literal
-    #[pyo3(name = "to_ipasir")]
-    fn py_ipasir(&self) -> c_int {
-        let negated = self.is_neg();
-        let idx: c_int = (self.vidx() + 1)
-            .try_into()
-            .expect("variable index too high to fit in c_int");
-        if negated {
-            -idx
-        } else {
-            idx
         }
     }
 }

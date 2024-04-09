@@ -5,3 +5,5 @@ SED_PATTERN="s/^version = \"[[:digit:]]\+.[[:digit:]]\+.[[:digit:]]\+\"$/version
 
 # sync C-API version
 sed -e "${SED_PATTERN}" -i capi/Cargo.toml
+# sync Python API version
+sed -e "${SED_PATTERN}" -i pyapi/Cargo.toml

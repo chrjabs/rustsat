@@ -13,7 +13,7 @@ input_lits = [
 
 # Getting unused variables is handled by a VarManager. Create one that has 5
 # variables already used.
-vm = VarManager.used(5)
+vm = VarManager(n_used = 5)
 
 dpw = Dpw(input_lits)
 

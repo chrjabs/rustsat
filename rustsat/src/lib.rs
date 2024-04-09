@@ -74,9 +74,6 @@ pub mod instances;
 pub mod solvers;
 pub mod types;
 
-#[cfg(feature = "pyapi")]
-pub mod pyapi;
-
 pub mod utils;
 
 #[derive(Error, Debug)]

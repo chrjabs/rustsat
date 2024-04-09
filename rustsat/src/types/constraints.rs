@@ -13,29 +13,12 @@ use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
-#[cfg(feature = "pyapi")]
-use crate::pyapi::{SingleOrList, SliceOrInt};
-#[cfg(feature = "pyapi")]
-use pyo3::{
-    exceptions::{PyIndexError, PyRuntimeError},
-    prelude::*,
-};
-
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
-#[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Eq, PartialOrd, Ord, Clone, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     lits: Vec<Lit>,
-    #[cfg(feature = "pyapi")]
-    modified: bool,
-}
-
-impl PartialEq for Clause {
-    fn eq(&self, other: &Self) -> bool {
-        self.lits == other.lits
-    }
 }
 
 impl std::hash::Hash for Clause {
@@ -160,14 +143,54 @@ impl Clause {
         }
         false
     }
+
+    /// Checks if the clause is a unit clause
+    #[inline]
+    pub fn is_unit(&self) -> bool {
+        self.lits.len() == 1
+    }
+
+    /// Checks if the clause is binary
+    pub fn is_binary(&self) -> bool {
+        self.lits.len() == 2
+    }
+
+    /// Adds a literal to the clause
+    pub fn add(&mut self, lit: Lit) {
+        self.lits.push(lit)
+    }
+
+    /// Removes the first occurrence of a literal from the clause
+    /// Returns true if an occurrence was found
+    pub fn remove(&mut self, lit: &Lit) -> bool {
+        for (i, l) in self.lits.iter().enumerate() {
+            if l == lit {
+                self.lits.swap_remove(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Removes all occurrences of a literal from the clause
+    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
+        let mut idxs = Vec::new();
+        for (i, l) in self.lits.iter().enumerate() {
+            if l == lit {
+                idxs.push(i);
+            }
+        }
+        for i in idxs.iter().rev() {
+            self.lits.remove(*i);
+        }
+        !idxs.is_empty()
+    }
 }
 
 impl<const N: usize> From<[Lit; N]> for Clause {
     fn from(value: [Lit; N]) -> Self {
         Self {
             lits: Vec::from(value),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 }
@@ -176,8 +199,6 @@ impl From<&[Lit]> for Clause {
     fn from(value: &[Lit]) -> Self {
         Self {
             lits: Vec::from(value),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 }
@@ -241,8 +262,6 @@ impl FromIterator<Lit> for Clause {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         Self {
             lits: Vec::from_iter(iter),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 }
@@ -275,135 +294,6 @@ impl fmt::Debug for Clause {
     }
 }
 
-#[cfg_attr(feature = "pyapi", pymethods)]
-impl Clause {
-    /// Checks if the clause is a unit clause
-    #[inline]
-    pub fn is_unit(&self) -> bool {
-        self.lits.len() == 1
-    }
-
-    /// Checks if the clause is binary
-    pub fn is_binary(&self) -> bool {
-        self.lits.len() == 2
-    }
-
-    /// Adds a literal to the clause
-    pub fn add(&mut self, lit: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.lits.push(lit)
-    }
-
-    /// Removes the first occurrence of a literal from the clause
-    /// Returns true if an occurrence was found
-    pub fn remove(&mut self, lit: &Lit) -> bool {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
-                self.lits.swap_remove(i);
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Removes all occurrences of a literal from the clause
-    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        let mut idxs = Vec::new();
-        for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
-                idxs.push(i);
-            }
-        }
-        for i in idxs.iter().rev() {
-            self.lits.remove(*i);
-        }
-        !idxs.is_empty()
-    }
-
-    #[cfg(feature = "pyapi")]
-    #[new]
-    fn pynew(lits: Vec<Lit>) -> Self {
-        Self::from_iter(lits)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __str__(&self) -> String {
-        format!("{}", self)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __repr__(&self) -> String {
-        format!("{}", self)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __len__(&self) -> usize {
-        self.len()
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
-        match idx {
-            SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.len().try_into().unwrap())?;
-                Ok(SingleOrList::List(
-                    (indices.start as usize..indices.stop as usize)
-                        .step_by(indices.step as usize)
-                        .map(|idx| self[idx])
-                        .collect(),
-                ))
-            }
-            SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.len() || idx >= 0 && idx.unsigned_abs() >= self.len() {
-                    return Err(PyIndexError::new_err("out of bounds"));
-                }
-                let idx = if idx >= 0 {
-                    idx.unsigned_abs()
-                } else {
-                    self.len() - idx.unsigned_abs()
-                };
-                Ok(SingleOrList::Single(self[idx]))
-            }
-        }
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __iter__(mut slf: PyRefMut<'_, Self>) -> ClauseIter {
-        slf.modified = false;
-        ClauseIter {
-            clause: slf.into(),
-            index: 0,
-        }
-    }
-
-    #[cfg(feature = "pyapi")]
-    #[pyo3(name = "extend")]
-    fn py_extend(&mut self, lits: Vec<Lit>) {
-        self.extend(lits)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __eq__(&self, other: &Clause) -> bool {
-        self == other
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __ne__(&self, other: &Clause) -> bool {
-        self != other
-    }
-}
-
 #[macro_export]
 macro_rules! clause {
     ( $($l:expr),* ) => {
@@ -415,32 +305,6 @@ macro_rules! clause {
             tmp_clause
         }
     };
-}
-
-#[cfg(feature = "pyapi")]
-#[pyclass]
-struct ClauseIter {
-    clause: Py<Clause>,
-    index: usize,
-}
-
-#[cfg(feature = "pyapi")]
-#[pymethods]
-impl ClauseIter {
-    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Lit>> {
-        if slf.clause.borrow(slf.py()).modified {
-            return Err(PyRuntimeError::new_err("clause modified during iteration"));
-        }
-        if slf.index < slf.clause.borrow(slf.py()).len() {
-            slf.index += 1;
-            return Ok(Some(slf.clause.borrow(slf.py())[slf.index - 1]));
-        }
-        return Ok(None);
-    }
 }
 
 /// Type representing a cardinality constraint.

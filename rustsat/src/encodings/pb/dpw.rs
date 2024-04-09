@@ -32,11 +32,6 @@ use crate::{
 
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 
-#[cfg(feature = "pyapi")]
-use crate::instances::{BasicVarManager, Cnf};
-#[cfg(feature = "pyapi")]
-use pyo3::prelude::*;
-
 /// Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
 ///
 /// **Note**:
@@ -49,7 +44,6 @@ use pyo3::prelude::*;
 ///
 /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
-#[cfg_attr(feature = "pyapi", pyclass)]
 #[derive(Default)]
 pub struct DynamicPolyWatchdog {
     /// Input literals and weights for the encoding
@@ -625,60 +619,6 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Er
     debug_assert!(ub == enforced_weight);
 
     Ok(assumps)
-}
-
-#[cfg(feature = "pyapi")]
-#[pymethods]
-impl DynamicPolyWatchdog {
-    #[new]
-    fn new(lits: Vec<(Lit, usize)>) -> Self {
-        Self::from_iter(lits)
-    }
-
-    /// Gets the sum of weights in the encoding
-    #[pyo3(name = "weight_sum")]
-    fn py_weight_sum(&self) -> usize {
-        self.weight_sum()
-    }
-
-    /// Gets the number of clauses in the encoding
-    #[pyo3(name = "n_clauses")]
-    fn py_n_clauses(&self) -> usize {
-        self.n_clauses()
-    }
-
-    /// Gets the number of variables in the encoding
-    #[pyo3(name = "n_vars")]
-    fn py_n_vars(&self) -> u32 {
-        self.n_vars()
-    }
-
-    /// Incrementally builds the DPW encoding to that upper bounds
-    /// in the range `max_ub..=min_ub` can be enforced. New variables will
-    /// be taken from `var_manager`.
-    #[pyo3(name = "encode_ub")]
-    fn py_encode_ub(
-        &mut self,
-        max_ub: usize,
-        min_ub: usize,
-        var_manager: &mut BasicVarManager,
-    ) -> Cnf {
-        let mut cnf = Cnf::new();
-        <Self as BoundUpperIncremental>::encode_ub_change(
-            self,
-            max_ub..=min_ub,
-            &mut cnf,
-            var_manager,
-        );
-        cnf
-    }
-
-    /// Gets assumptions to enforce the given upper bound. Make sure that
-    /// the required encoding is built first.
-    #[pyo3(name = "enforce_ub")]
-    fn py_enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-        Ok(self.enforce_ub(ub)?)
-    }
 }
 
 #[cfg(test)]

@@ -4,42 +4,23 @@
 //! not the focus of this project. For now, only the API of certain encodings is
 //! available.
 //!
-//! ## Classes
+//! ## Installation
 //!
-//! The following classes are available as Python bindings.
+//! The Python bindings can be installed from [PyPI](https://pypi.org/project/rustsat/).
 //!
-//! ```bash
-//! rustsat
-//! ├── Clause
-//! ├── Cnf
-//! ├── Lit
-//! ├── VarManager
-//! └── encodings
-//!     ├── DynamicPolyWatchdog
-//!     ├── GeneralizedTotalizer
-//!     └── Totalizer
-//! ```
+//! ## Documentation
 //!
-//! They have similar APIs (but reduced functionality) to the following Rust types:
-//!
-//! | Python Class | Rust Type |
-//! | --- | --- |
-//! | `rustsat.Clause` | [`crate::types::Clause`] |
-//! | `rustsat.Cnf` | [`crate::instances::Cnf`] |
-//! | `rustsat.Lit` | [`crate::types::Lit`] |
-//! | `rustsat.VarManager` | [`crate::instances::BasicVarManager`] |
-//! | `rustsat.encodings.DynamicPolyWatchdog` | [`crate::encodings::pb::DynamicPolyWatchdog`] |
-//! | `rustsat.encodings.GeneralizedTotalizer` | [`crate::encodings::pb::GeneralizedTotalizer`] |
-//! | `rustsat.encodings.Totalizer` | [`crate::encodings::card::Totalizer`] |
+//! Documentation for this API can be found [here](https://christophjabs.info/rustsat/pyapi/).
 
 use pyo3::{prelude::*, types::PySlice};
 
+mod encodings;
+mod instances;
+mod types;
+
 use crate::{
-    encodings::{
-        card::DbTotalizer,
-        pb::{DbGte, DynamicPolyWatchdog},
-    },
-    instances::{BasicVarManager, Cnf},
+    encodings::{DynamicPolyWatchdog, GeneralizedTotalizer, Totalizer},
+    instances::{Cnf, VarManager},
     types::{Clause, Lit},
 };
 
@@ -72,11 +53,11 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Lit>()?;
     m.add_class::<Clause>()?;
     m.add_class::<Cnf>()?;
-    m.add_class::<BasicVarManager>()?;
+    m.add_class::<VarManager>()?;
 
     let encodings = PyModule::new_bound(py, "rustsat.encodings")?;
-    encodings.add_class::<DbTotalizer>()?;
-    encodings.add_class::<DbGte>()?;
+    encodings.add_class::<Totalizer>()?;
+    encodings.add_class::<GeneralizedTotalizer>()?;
     encodings.add_class::<DynamicPolyWatchdog>()?;
     m.add("encodings", &encodings)?;
 
