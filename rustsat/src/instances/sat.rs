@@ -77,6 +77,11 @@ impl Cnf {
         self.clauses.len()
     }
 
+    /// Adds a clause from a slice of literals
+    pub fn add_nary(&mut self, lits: &[Lit]) {
+        self.add_clause(lits.into())
+    }
+
     /// See [`atomics::lit_impl_lit`]
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
         self.add_clause(atomics::lit_impl_lit(a, b))
@@ -296,6 +301,11 @@ impl<VM: ManageVars> SatInstance<VM> {
             self.var_manager.mark_used(l.var());
         });
         self.cnf.add_clause(cl);
+    }
+
+    /// Adds a clause from a slice of literals
+    pub fn add_nary(&mut self, lits: &[Lit]) {
+        self.add_clause(lits.into())
     }
 
     /// Adds a unit clause to the instance
