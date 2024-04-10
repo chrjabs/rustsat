@@ -359,6 +359,7 @@ mod ffi {
         _private: [u8; 0],
     }
 
+    #[link(name = "glucose4", kind = "static")]
     extern "C" {
         // Redefinitions of Glucose C API
         pub fn cglucose4_signature() -> *const c_char;

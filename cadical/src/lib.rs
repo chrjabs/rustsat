@@ -873,6 +873,7 @@ mod ffi {
         _private: [u8; 0],
     }
 
+    #[link(name = "cadical", kind = "static")]
     extern "C" {
         // Redefinitions of CaDiCaL C API
         pub fn ccadical_signature() -> *const c_char;
@@ -941,6 +942,7 @@ mod ffi {
             not(feature = "v1-5-0")
         )
     ))]
+    #[link(name = "cadical", kind = "static")]
     extern "C" {
         pub fn ccadical_flip(solver: *mut CaDiCaLHandle, lit: c_int) -> bool;
         pub fn ccadical_flippable(solver: *mut CaDiCaLHandle, lit: c_int) -> bool;
