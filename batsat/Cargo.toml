@@ -1,0 +1,22 @@
+[package]
+name = "rustsat-batsat"
+version = "0.2.4"
+edition = "2021"
+authors = ["Noah Bruns <nbruns@efs.at>"]
+license = "MIT"
+description = "Interface to the SAT solver BatSat for the RustSAT library. BatSat is fully implemented in Rust"
+keywords = ["sat-solver", "rustsat", "batsat"]
+repository = "https://github.com/chrjabs/rustsat"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+debug = []
+
+[dependencies]
+batsat = "0.5.0"
+rustsat = { version = "0.4.3", path = "../rustsat", default-features = false, features = [
+] }
+anyhow = { version = "1.0.80" }
+thiserror = { version = "1.0.57" }
