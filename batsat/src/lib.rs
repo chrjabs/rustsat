@@ -1,6 +1,6 @@
-//! # Minisat Solver Interface Without Preprocessing (Core)
+//! # BatSat Solver Interface
 //!
-//! Interface to the [Minisat](https://github.com/niklasso/minisat) incremental
+//! Interface to the [Minisat](https://github.com/c-cube/batsat) incremental
 //! SAT solver.
 
 use batsat::{intmap::AsIndex, lbool, BasicSolver, SolverInterface};
