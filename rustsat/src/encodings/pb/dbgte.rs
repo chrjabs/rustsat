@@ -212,6 +212,7 @@ impl BoundUpper for DbGte {
                                 }
                             }
                         }
+                        Node::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?
@@ -486,6 +487,7 @@ pub mod referenced {
                                 }
                             }
                         }
+                        Node::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -542,6 +544,7 @@ pub mod referenced {
                                 }
                             }
                         }
+                        Node::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
