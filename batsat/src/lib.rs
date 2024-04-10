@@ -1,7 +1,6 @@
 //! # BatSat Solver Interface
 //!
-//! Interface to the [Minisat](https://github.com/c-cube/batsat) incremental
-//! SAT solver.
+//! Interface to the [BatSat](https://github.com/c-cube/batsat) incremental SAT-Solver
 
 use batsat::{intmap::AsIndex, lbool, BasicSolver, SolverInterface};
 use rustsat::{

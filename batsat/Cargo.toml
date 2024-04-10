@@ -15,7 +15,7 @@ readme = "README.md"
 debug = []
 
 [dependencies]
-batsat = "0.5.0"
+batsat = "0.5.0" # when changing this version, do not forget to update signature
 rustsat = { version = "0.4.3", path = "../rustsat", default-features = false, features = [
 ] }
 anyhow = { version = "1.0.80" }
