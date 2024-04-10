@@ -76,6 +76,12 @@ fn main() {
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
+    #[cfg(target_os = "macos")]
+    println!("cargo:rustc-flags=-l dylib=c++");
+
+    #[cfg(not(target_os = "macos"))]
+    println!("cargo:rustc-flags=-l dylib=stdc++");
+
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={}", out_dir);
     println!("cargo:rustc-link-search={}/lib", out_dir);
@@ -149,14 +155,6 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
             .files(src_files)
             .compile("cadical");
     };
-
-    println!("cargo:rustc-link-lib=static=cadical");
-
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-flags=-l dylib=c++");
-
-    #[cfg(not(target_os = "macos"))]
-    println!("cargo:rustc-flags=-l dylib=stdc++");
 }
 
 /// Returns true if there were changes, false if not

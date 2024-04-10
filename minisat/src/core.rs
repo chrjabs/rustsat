@@ -358,7 +358,7 @@ mod ffi {
     pub struct MinisatHandle {
         _private: [u8; 0],
     }
-
+    #[link(name = "minisat", kind = "static")]
     extern "C" {
         // Redefinitions of Minisat C API
         pub fn cminisat_signature() -> *const c_char;

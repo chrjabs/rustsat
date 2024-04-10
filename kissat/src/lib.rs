@@ -475,6 +475,7 @@ mod ffi {
         _private: [u8; 0],
     }
 
+    #[link(name = "kissat", kind = "static")]
     extern "C" {
         // Redefinitions of Kissat API
         pub fn kissat_signature() -> *const c_char;

@@ -110,8 +110,6 @@ fn build(repo: &str, branch: &str, reference: &str) {
             .files(src_files)
             .compile("kissat");
     };
-
-    println!("cargo:rustc-link-lib=static=kissat");
 }
 
 /// Returns true if there were changes, false if not
