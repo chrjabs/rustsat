@@ -142,7 +142,7 @@ pub trait NodeLike {
 }
 
 /// A connection to another node.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeCon {
     /// The child node
     pub id: NodeId,
