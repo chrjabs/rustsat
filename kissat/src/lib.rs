@@ -424,91 +424,13 @@ impl fmt::Display for Limit {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        sync::{Arc, Mutex},
-        thread,
-    };
-
     use super::{Config, Kissat, Limit};
     use rustsat::{
         lit,
-        solvers::{Solve, SolverResult, SolverState, StateError},
-        types::{TernaryVal, Var},
+        solvers::{Solve, SolverState, StateError},
     };
 
-    #[test]
-    fn build_destroy() {
-        let _solver = Kissat::default();
-    }
-
-    #[test]
-    fn build_two() {
-        let _solver1 = Kissat::default();
-        let _solver2 = Kissat::default();
-    }
-
-    #[test]
-    fn tiny_instance_sat() {
-        let mut solver = Kissat::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_unsat() {
-        let mut solver = Kissat::default();
-        solver.add_unit(!lit![0]).unwrap();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_unit(lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_multithreaded_sat() {
-        let mutex_solver = Arc::new(Mutex::new(Kissat::default()));
-
-        {
-            // Build in one thread
-            let mut solver = mutex_solver.lock().unwrap();
-            solver.add_binary(lit![0], !lit![1]).unwrap();
-            solver.add_unit(lit![0]).unwrap();
-            solver.add_binary(lit![1], !lit![2]).unwrap();
-        }
-
-        // Now in another thread
-        let s = mutex_solver.clone();
-        let ret = thread::spawn(move || {
-            let mut solver = s.lock().unwrap();
-            solver.solve()
-        })
-        .join()
-        .unwrap();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-
-        // Finally, back in the main thread
-        let ret = {
-            let solver = mutex_solver.lock().unwrap();
-            solver.full_solution()
-        };
-
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res.var_value(Var::new(0)), TernaryVal::True),
-        }
-    }
+    rustsat_solvertests::basic_unittests!(Kissat);
 
     #[test]
     fn configure() {
