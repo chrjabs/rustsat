@@ -6,8 +6,10 @@ use core::ffi::c_int;
 use std::{
     fmt,
     ops::{self, Index, IndexMut},
+    path::Path,
 };
 
+use anyhow::Context;
 use thiserror::Error;
 
 #[cfg(feature = "pyapi")]
@@ -15,6 +17,8 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 
 pub mod constraints;
 pub use constraints::Clause;
+
+use crate::instances;
 
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
@@ -695,6 +699,39 @@ impl Assignment {
             None
         } else {
             Some(var![self.assignment.len() as u32 - 1])
+        }
+    }
+
+    pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let reader = instances::fio::open_compressed_uncompressed_read(path)
+            .context("failed to open reader")?;
+        match instances::fio::parse_sat_solver_output(reader) {
+            Ok(instances::fio::SolverOutput::Sat(assignment)) => Ok(assignment),
+            _ => Err(anyhow::anyhow!(
+                instances::fio::SatSolverOutputError::Nonsolution
+            )), // return some error
+        }
+    }
+
+    pub fn from_vline(&mut self, line: &str) {
+        // parse the actual vline
+
+        for number in line.split(' ') {
+            let mut number_v = 0;
+            if number.parse::<i32>().is_ok() {
+                let number_v = number.parse::<i32>().unwrap();
+            }
+            //End of the value lines
+            if number_v == 0 {
+                continue;
+            }
+
+            let literal = match Lit::from_ipasir(number_v) {
+                Ok(lit) => lit,
+                Err(error) => panic!("Error creating the literal {:?}", error),
+            };
+
+            self.assign_lit(literal);
         }
     }
 }

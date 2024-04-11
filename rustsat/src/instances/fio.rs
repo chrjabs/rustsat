@@ -4,8 +4,14 @@
 //! through the interface of instance types rather than using these functions
 //! directly.
 
-use std::{fs::File, io, path::Path};
+use std::{
+    fs::File,
+    io::{self, BufRead},
+    path::Path,
+};
 use thiserror::Error;
+
+use crate::types;
 
 pub mod dimacs;
 pub mod opb;
@@ -65,4 +71,59 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
         }
     }
     Ok(Box::new(io::BufWriter::new(raw_writer)))
+}
+
+pub enum SolverOutput {
+    Sat(types::Assignment),
+    Unsat,
+    Unknown,
+}
+
+#[derive(Debug)]
+pub enum SatSolverOutputError {
+    //The output of the SAT solver is incorrect.
+    Nonsolution,
+}
+
+impl std::fmt::Display for SatSolverOutputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Nonsolution => write!(f, "The output of the SAT solver is incorrect."),
+        }
+    }
+}
+
+pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
+    // Parsing code goes here
+    // when encoutering vline, call `Assignment::from_vline`
+
+    let sat_solver_output = SolverOutput::Sat(Default::default());
+
+    for line in reader.lines() {
+        let line_ls = line.as_ref().expect("Couldn't read SAT solution line");
+
+        //Solution line
+        if line_ls.starts_with('s') {
+            match line_ls {
+                line_ls if line_ls.contains("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
+                line_ls if line_ls.contains("UNKNOWN") => return Ok(SolverOutput::Unknown),
+                line_ls if line_ls.contains("SATISFIABLE") => (),
+                _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
+            }
+        }
+
+        //Value line
+        if line_ls.starts_with('v') {
+            // There is a solution and the literals have values
+            //I assume that the output literal is 2*variable_index + signe
+            let current_assignment = match sat_solver_output {
+                SolverOutput::Sat(assign) => &assign,
+                _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
+            };
+
+            current_assignment.from_vline(&line_ls);
+        }
+    }
+
+    Ok(sat_solver_output)
 }
