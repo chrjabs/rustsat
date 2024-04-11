@@ -705,7 +705,7 @@ impl Assignment {
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader = instances::fio::open_compressed_uncompressed_read(path)
             .context("failed to open reader")?;
-        match instances::fio::parse_sat_solver_output(reader) {
+        match instances::fio::parse_sat_solver_output(std::io::BufReader::new(reader)) {
             Ok(instances::fio::SolverOutput::Sat(assignment)) => Ok(assignment),
             _ => Err(anyhow::anyhow!(
                 instances::fio::SatSolverOutputError::Nonsolution
@@ -719,7 +719,7 @@ impl Assignment {
         for number in line.split(' ') {
             let mut number_v = 0;
             if number.parse::<i32>().is_ok() {
-                let number_v = number.parse::<i32>().unwrap();
+                number_v = number.parse::<i32>().unwrap();
             }
             //End of the value lines
             if number_v == 0 {

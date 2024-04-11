@@ -97,7 +97,7 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
     // Parsing code goes here
     // when encoutering vline, call `Assignment::from_vline`
 
-    let sat_solver_output = SolverOutput::Sat(Default::default());
+    let mut sat_solver_output = SolverOutput::Sat(Default::default());
 
     for line in reader.lines() {
         let line_ls = line.as_ref().expect("Couldn't read SAT solution line");
@@ -114,10 +114,8 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
 
         //Value line
         if line_ls.starts_with('v') {
-            // There is a solution and the literals have values
-            //I assume that the output literal is 2*variable_index + signe
-            let current_assignment = match sat_solver_output {
-                SolverOutput::Sat(assign) => &assign,
+            let mut current_assignment = match sat_solver_output {
+                SolverOutput::Sat(ref mut assign) => assign,
                 _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
             };
 
