@@ -13,6 +13,8 @@ use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
+use crate::RequiresClausal;
+
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
@@ -433,16 +435,25 @@ impl CardConstraint {
     }
 
     /// Converts the constraint into a clause, if possible
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
+    )]
     pub fn as_clause(self) -> Option<Clause> {
+        self.into_clause().ok()
+    }
+
+    /// Converts the constraint into a clause, if possible
+    pub fn into_clause(self) -> Result<Clause, RequiresClausal> {
         if !self.is_clause() {
-            return None;
+            return Err(RequiresClausal);
         }
         match self {
             CardConstraint::UB(constr) => {
-                Some(Clause::from_iter(constr.lits.into_iter().map(Lit::not)))
+                Ok(Clause::from_iter(constr.lits.into_iter().map(Lit::not)))
             }
-            CardConstraint::LB(constr) => Some(Clause::from_iter(constr.lits)),
-            CardConstraint::EQ(_) => panic!(),
+            CardConstraint::LB(constr) => Ok(Clause::from_iter(constr.lits)),
+            CardConstraint::EQ(_) => unreachable!(),
         }
     }
 
@@ -778,7 +789,16 @@ impl PBConstraint {
     }
 
     /// Converts the pseudo-boolean constraint into a cardinality constraint, if possible
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_card_constr has been renamed to into_card_constr"
+    )]
     pub fn as_card_constr(self) -> Result<CardConstraint, PBToCardError> {
+        self.into_card_constr()
+    }
+
+    /// Converts the pseudo-boolean constraint into a cardinality constraint, if possible
+    pub fn into_card_constr(self) -> Result<CardConstraint, PBToCardError> {
         if self.is_tautology() {
             return Err(PBToCardError::Tautology);
         }
@@ -831,18 +851,27 @@ impl PBConstraint {
     }
 
     /// Converts the constraint into a clause, if possible
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
+    )]
     pub fn as_clause(self) -> Option<Clause> {
+        self.into_clause().ok()
+    }
+
+    /// Converts the constraint into a clause, if possible
+    pub fn into_clause(self) -> Result<Clause, RequiresClausal> {
         if !self.is_clause() {
-            return None;
+            return Err(RequiresClausal);
         }
         match self {
-            PBConstraint::UB(constr) => Some(Clause::from_iter(
+            PBConstraint::UB(constr) => Ok(Clause::from_iter(
                 constr.lits.into_iter().map(|(lit, _)| !lit),
             )),
-            PBConstraint::LB(constr) => Some(Clause::from_iter(
+            PBConstraint::LB(constr) => Ok(Clause::from_iter(
                 constr.lits.into_iter().map(|(lit, _)| lit),
             )),
-            PBConstraint::EQ(_) => panic!(),
+            PBConstraint::EQ(_) => unreachable!(),
         }
     }
 

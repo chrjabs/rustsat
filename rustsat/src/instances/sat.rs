@@ -10,6 +10,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, Lit, Var,
     },
+    RequiresClausal,
 };
 
 use anyhow::Context;
@@ -197,9 +198,9 @@ impl Cnf {
     }
 
     /// Writes the CNF to a DIMACS CNF file at a path
-    pub fn to_dimacs_path<P: AsRef<Path>>(&self, path: P, n_vars: u32) -> Result<(), io::Error> {
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P, n_vars: u32) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        self.to_dimacs(&mut writer, n_vars)
+        self.write_dimacs(&mut writer, n_vars)
     }
 
     /// Writes the CNF to DIMACS CNF
@@ -207,7 +208,7 @@ impl Cnf {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
-    pub fn to_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
         fio::dimacs::write_cnf_annotated(writer, self, n_vars)
     }
 }
@@ -492,8 +493,20 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Converts the instance to a set of clauses.
     /// Uses the default encoders from the `encodings` module.
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_cnf has been renamed to into_cnf and will be removed in a future release"
+    )]
     pub fn as_cnf(self) -> (Cnf, VM) {
-        self.as_cnf_with_encoders(
+        self.into_cnf()
+    }
+
+    /// Converts the instance to a set of clauses.
+    /// Uses the default encoders from the `encodings` module.
+    ///
+    /// See [`Self::convert_to_cnf`] for converting in place
+    pub fn into_cnf(self) -> (Cnf, VM) {
+        self.into_cnf_with_encoders(
             card::default_encode_cardinality_constraint,
             pb::default_encode_pb_constraint,
         )
@@ -501,8 +514,10 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Converts the instance to a set of clauses inplace.
     /// Uses the default encoders from the `encodings` module.
-    pub fn to_cnf(&mut self) {
-        self.to_cnf_with_encoders(
+    ///
+    /// See [`Self::into_cnf`] if you don't need to convert in place
+    pub fn convert_to_cnf(&mut self) {
+        self.convert_to_cnf_with_encoders(
             card::default_encode_cardinality_constraint,
             pb::default_encode_pb_constraint,
         )
@@ -510,7 +525,27 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Converts the instance to a set of clauses with explicitly specified
     /// converters for non-clausal constraints.
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_cnf_with_encoders has been renamed to into_cnf_with_encoders and will be removed in a future release"
+    )]
     pub fn as_cnf_with_encoders<CardEnc, PBEnc>(
+        self,
+        card_encoder: CardEnc,
+        pb_encoder: PBEnc,
+    ) -> (Cnf, VM)
+    where
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+    {
+        self.into_cnf_with_encoders(card_encoder, pb_encoder)
+    }
+
+    /// Converts the instance to a set of clauses with explicitly specified
+    /// converters for non-clausal constraints.
+    ///
+    /// See [`Self::into_cnf_with_encoders`] to convert in place
+    pub fn into_cnf_with_encoders<CardEnc, PBEnc>(
         mut self,
         card_encoder: CardEnc,
         pb_encoder: PBEnc,
@@ -519,13 +554,15 @@ impl<VM: ManageVars> SatInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        self.to_cnf_with_encoders(card_encoder, pb_encoder);
+        self.convert_to_cnf_with_encoders(card_encoder, pb_encoder);
         (self.cnf, self.var_manager)
     }
 
     /// Converts the instance inplace to a set of clauses with explicitly specified
     /// converters for non-clausal constraints.
-    pub fn to_cnf_with_encoders<CardEnc, PBEnc>(
+    ///
+    /// See [`Self::into_cnf_with_encoders`] if you don't need to convert in place
+    pub fn convert_to_cnf_with_encoders<CardEnc, PBEnc>(
         &mut self,
         mut card_encoder: CardEnc,
         mut pb_encoder: PBEnc,
@@ -580,51 +617,20 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Writes the instance to a DIMACS CNF file at a path
     ///
-    /// # Mutability
+    /// # Performance
     ///
-    /// Since the [`SatInstance`] class can contain cardinality and pseudo-boolean constraints that
-    /// cannot be directly written to DIMACS, these constraints need to be converted to CNF first.
-    /// This is why this method has to take a _mutable_ reference.
-    ///
-    /// If you know that the instance only contains clauses, you can avoid a mutable
-    /// borrow by using [`SatInstance::cnf_ref()`] and [`Cnf::to_dimacs`].
-    /// ```
-    /// # use rustsat::instances::SatInstance;
-    /// # let inst: SatInstance = SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
-    /// debug_assert_eq!(inst.n_cards(), 0);
-    /// debug_assert_eq!(inst.n_pbs(), 0);
-    /// let n_vars = inst.n_vars();
-    /// inst.cnf().to_dimacs_path("./rustsat-test.cnf", n_vars);
-    /// ```
-    pub fn to_dimacs_path<P: AsRef<Path>>(&mut self, path: P) -> Result<(), io::Error> {
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
+    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_dimacs(&mut writer)
     }
 
     /// Writes the instance to DIMACS CNF
-    ///
-    /// # Mutability
-    ///
-    /// Since the [`SatInstance`] class can contain cardinality and pseudo-boolean constraints that
-    /// cannot be directly written to DIMACS, these constraints need to be converted to CNF first.
-    /// This is why this method has to take a _mutable_ reference.
-    ///
-    /// If you know that the instance only contains clauses, you can avoid a mutable
-    /// borrow by using [`SatInstance::cnf_ref()`] and [`Cnf::to_dimacs`].
-    /// ```
-    /// # use rustsat::instances::{SatInstance, fio};
-    /// # let inst: SatInstance = SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
-    /// # let mut writer = fio::open_compressed_uncompressed_write("./rustsat-test.cnf").unwrap();
-    /// debug_assert_eq!(inst.n_cards(), 0);
-    /// debug_assert_eq!(inst.n_pbs(), 0);
-    /// let n_vars = inst.n_vars();
-    /// inst.cnf().to_dimacs(&mut writer, n_vars);
-    /// ```
-    ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    pub fn to_dimacs<W: io::Write>(&mut self, writer: &mut W) -> Result<(), io::Error> {
+    #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
+    pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        #[allow(deprecated)]
         self.to_dimacs_with_encoders(
             card::default_encode_cardinality_constraint,
             pb::default_encode_pb_constraint,
@@ -634,18 +640,12 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Writes the instance to DIMACS CNF converting non-clausal constraints
     /// with specific encoders.
-    ///
-    /// # Mutability
-    ///
-    /// Since the [`SatInstance`] class can contain cardinality and pseudo-boolean constraints that
-    /// cannot be directly written to DIMACS, these constraints need to be converted to CNF first.
-    /// This is why this method has to take a _mutable_ reference.
-    ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(
+        since = "0.5.0",
+        note = "use convert_to_cnf_with_encoders and write_dimacs instead"
+    )]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
-        &mut self,
+        self,
         card_encoder: CardEnc,
         pb_encoder: PBEnc,
         writer: &mut W,
@@ -655,19 +655,81 @@ impl<VM: ManageVars> SatInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        self.to_cnf_with_encoders(card_encoder, pb_encoder);
+        let (cnf, vm) = self.into_cnf_with_encoders(card_encoder, pb_encoder);
+        fio::dimacs::write_cnf_annotated(writer, &cnf, vm.n_used())
+    }
+
+    /// Writes the instance to a DIMACS CNF file at a path
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`Self::convert_to_cnf`] or [`Self::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`NonClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_dimacs(&mut writer)
+    }
+
+    /// Writes the instance to DIMACS CNF
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`Self::convert_to_cnf`] or [`Self::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`NonClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+        if self.n_cards() > 0 || self.n_pbs() > 0 {
+            return Err(RequiresClausal.into());
+        }
         let n_vars = self.n_vars();
-        fio::dimacs::write_cnf_annotated(writer, &self.cnf, n_vars)
+        Ok(fio::dimacs::write_cnf_annotated(writer, &self.cnf, n_vars)?)
     }
 
     /// Writes the instance to an OPB file at a path
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
     pub fn to_opb_path<P: AsRef<Path>>(
+        self,
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
+        self.to_opb(&mut writer, opts)
+    }
+
+    /// Writes the instance to an OPB file
+    #[deprecated(since = "0.5.0", note = "use write_opb instead")]
+    pub fn to_opb<W: io::Write>(
+        self,
+        writer: &mut W,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
+        fio::opb::write_sat(writer, &self, opts)
+    }
+
+    /// Writes the instance to an OPB file at a path
+    pub fn write_opb_path<P: AsRef<Path>>(
         &self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        self.to_opb(&mut writer, opts)
+        self.write_opb(&mut writer, opts)
     }
 
     /// Writes the instance to an OPB file
@@ -675,7 +737,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
-    pub fn to_opb<W: io::Write>(
+    pub fn write_opb<W: io::Write>(
         &self,
         writer: &mut W,
         opts: fio::opb::Options,
@@ -716,11 +778,11 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if pb.is_clause() {
-                    cnf.add_clause(pb.as_clause().unwrap());
+                    cnf.add_clause(pb.into_clause().unwrap());
                     return None;
                 }
                 if pb.is_card() {
-                    cards.push(pb.as_card_constr().unwrap());
+                    cards.push(pb.into_card_constr().unwrap());
                     return None;
                 }
                 Some(pb)
@@ -747,7 +809,7 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if card.is_clause() {
-                    cnf.add_clause(card.as_clause().unwrap());
+                    cnf.add_clause(card.into_clause().unwrap());
                     return None;
                 }
                 Some(card)

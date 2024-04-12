@@ -50,7 +50,7 @@ fn main() {
 
     let inst: SatInstance =
         SatInstance::from_dimacs_path(in_path).expect("error parsing the input file");
-    let (cnf, vm) = inst.as_cnf();
+    let (cnf, vm) = inst.into_cnf();
 
     let mut solver = rustsat_tools::Solver::default();
     solver

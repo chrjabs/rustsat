@@ -405,11 +405,11 @@ pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: Co
         return;
     }
     if constr.is_clause() {
-        collector.extend([constr.as_clause().unwrap()]);
+        collector.extend([constr.into_clause().unwrap()]);
         return;
     }
     if constr.is_card() {
-        let card = constr.as_card_constr().unwrap();
+        let card = constr.into_card_constr().unwrap();
         return card::default_encode_cardinality_constraint(card, collector, var_manager);
     }
     PBE::encode_constr(constr, collector, var_manager).unwrap()

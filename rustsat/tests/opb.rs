@@ -14,7 +14,7 @@ use rustsat::{
 macro_rules! opb_test {
     ($path:expr, $expect:expr) => {{
         let inst: SatInstance = SatInstance::from_opb_path($path, Options::default()).unwrap();
-        let (cnf, _) = inst.as_cnf();
+        let (cnf, _) = inst.into_cnf();
         println!("{:?}", cnf);
         let mut solver = rustsat_minisat::core::Minisat::default();
         solver.add_cnf(cnf).unwrap();

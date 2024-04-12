@@ -88,3 +88,11 @@ impl fmt::Display for NotAllowed {
 #[cfg(feature = "bench")]
 #[cfg(test)]
 mod bench;
+
+#[derive(Error, Debug)]
+#[error("operation requires a clausal constraint(s) but it is not")]
+pub struct RequiresClausal;
+
+#[derive(Error, Debug)]
+#[error("operation requires an objective only consisting of soft literals")]
+pub struct RequiresSoftLits;

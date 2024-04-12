@@ -34,7 +34,7 @@ fn main() {
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
-                .to_dimacs_path(out_path)
+                .write_dimacs_path(out_path)
                 .expect("Could not write CNF");
         }
         FileType::Wcnf => {
@@ -44,7 +44,7 @@ fn main() {
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
-                .to_dimacs_path(out_path)
+                .write_dimacs_path(out_path)
                 .expect("Could not write WCNF");
         }
         FileType::Mcnf => {
@@ -54,7 +54,7 @@ fn main() {
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
-                .to_dimacs_path(out_path)
+                .write_dimacs_path(out_path)
                 .expect("Could not write MCNF");
         }
     }

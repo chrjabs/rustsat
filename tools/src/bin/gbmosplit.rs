@@ -252,7 +252,7 @@ fn split<VM: ManageVars>(
         );
     }
 
-    let (softs, offset) = obj.as_soft_cls();
+    let (softs, offset) = obj.into_soft_cls();
 
     if offset != 0 {
         cli.warning(&format!(
@@ -467,7 +467,7 @@ fn main() {
         panic!()
     });
 
-    let (mut mo_inst, split_stats) = split(so_inst, &cli);
+    let (mo_inst, split_stats) = split(so_inst, &cli);
 
     cli.print_split_stats(split_stats);
 
@@ -475,7 +475,7 @@ fn main() {
 
     if let Some(out_path) = &cli.out_path {
         if found_split || cli.always_dump {
-            mo_inst.to_dimacs_path(out_path).unwrap_or_else(|e| {
+            mo_inst.write_dimacs_path(out_path).unwrap_or_else(|e| {
                 cli.error(&format!("io error writing the output file: {}", e));
                 panic!()
             });
