@@ -867,7 +867,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     ///
     /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
     /// are ignored and only the constraints returned.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         fio::dimacs::parse_cnf(reader)
     }
 
@@ -887,7 +887,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean satisfaction instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         fio::opb::parse_sat(reader, opts)
     }
 

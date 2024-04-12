@@ -455,7 +455,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// positive number preceded by an 'o', indicating what objective this soft
     /// clause belongs to. After that, the format is identical to a soft clause
     /// in a WCNF file.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         fio::dimacs::parse_mcnf(reader)
     }
 
@@ -474,7 +474,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// pseudo-boolean optimization instances with multiple objectives defined.
     /// For details on the file format see
     /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         fio::opb::parse_multi_opt(reader, opts)
     }
 

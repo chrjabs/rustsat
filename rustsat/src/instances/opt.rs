@@ -1351,14 +1351,14 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ///
     /// If a DIMACS MCNF file is passed to this function, all objectives but the
     /// first are ignored.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         Self::from_dimacs_with_idx(reader, 0)
     }
 
     /// Parses a DIMACS instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
     /// For more details see [`OptInstance::from_dimacs`].
-    pub fn from_dimacs_with_idx<R: io::Read>(reader: R, obj_idx: usize) -> anyhow::Result<Self> {
+    pub fn from_dimacs_with_idx<R: io::BufRead>(reader: R, obj_idx: usize) -> anyhow::Result<Self> {
         fio::dimacs::parse_wcnf_with_idx(reader, obj_idx)
     }
 
@@ -1388,14 +1388,14 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean optimization instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         Self::from_opb_with_idx(reader, 0, opts)
     }
 
     /// Parses an OPB instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
     /// For more details see [`OptInstance::from_opb`].
-    pub fn from_opb_with_idx<R: io::Read>(
+    pub fn from_opb_with_idx<R: io::BufRead>(
         reader: R,
         obj_idx: usize,
         opts: fio::opb::Options,

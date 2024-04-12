@@ -29,7 +29,8 @@ fn main() -> anyhow::Result<()> {
     let inst: OptInstance = if let Some(in_path) = args.in_path {
         OptInstance::from_opb_path(in_path, opb_opts).context("error parsing the input file")?
     } else {
-        OptInstance::from_opb(io::stdin(), opb_opts).context("error parsing input")?
+        OptInstance::from_opb(io::BufReader::new(io::stdin()), opb_opts)
+            .context("error parsing input")?
     };
 
     let (constrs, obj) = inst.decompose();

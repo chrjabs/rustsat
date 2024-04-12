@@ -27,7 +27,7 @@ use nom::{
 };
 use std::{
     convert::TryFrom,
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{self, BufRead, Write},
 };
 use thiserror::Error;
 
@@ -53,10 +53,9 @@ pub struct InvalidPLine(String);
 /// Parses a CNF instance from a reader (typically a (compressed) file)
 pub fn parse_cnf<R, VM>(reader: R) -> anyhow::Result<SatInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
-    let reader = BufReader::new(reader);
     let content = parse_dimacs(reader)?;
     #[cfg(not(feature = "optimization"))]
     {
@@ -73,12 +72,11 @@ where
 /// (compressed) file). The objective with the index obj_idx is used.
 pub fn parse_wcnf_with_idx<R, VM>(reader: R, obj_idx: usize) -> anyhow::Result<OptInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     use super::ObjNoExist;
 
-    let reader = BufReader::new(reader);
     let (constrs, mut objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
         objs.push(Objective::default());
@@ -95,10 +93,9 @@ where
 /// Parses a MCNF instance (old or new format) from a reader (typically a (compressed) file)
 pub fn parse_mcnf<R, VM>(reader: R) -> anyhow::Result<MultiOptInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
-    let reader = BufReader::new(reader);
     let (constrs, objs) = parse_dimacs(reader)?;
     Ok(MultiOptInstance::compose(constrs, objs))
 }

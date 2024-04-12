@@ -27,7 +27,7 @@ use nom::{
     IResult,
 };
 use std::{
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{self, BufRead, Write},
     num::TryFromIntError,
 };
 
@@ -92,7 +92,7 @@ enum OpbData {
 /// Parses the constraints from an OPB file as a [`SatInstance`]
 pub fn parse_sat<R, VM>(reader: R, opts: Options) -> anyhow::Result<SatInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     let data = parse_opb_data(reader, opts)?;
@@ -114,7 +114,7 @@ pub fn parse_opt_with_idx<R, VM>(
     opts: Options,
 ) -> anyhow::Result<OptInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     use super::ObjNoExist;
@@ -149,7 +149,7 @@ where
 /// index (starting from 0).
 pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     let data = parse_opb_data(reader, opts)?;
@@ -164,8 +164,7 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: Read>(reader: R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
-    let mut reader = BufReader::new(reader);
+fn parse_opb_data<R: BufRead>(mut reader: R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
     let mut buf = String::new();
     let mut data = vec![];
     // TODO: consider not necessarily reading a full line
