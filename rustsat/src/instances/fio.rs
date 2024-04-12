@@ -93,6 +93,7 @@ impl std::fmt::Display for SatSolverOutputError {
     }
 }
 
+//Parse a SAT solver's output
 pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
     // Parsing code goes here
     // when encoutering vline, call `Assignment::from_vline`
@@ -100,7 +101,10 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
     let mut sat_solver_output = SolverOutput::Sat(Default::default());
 
     for line in reader.lines() {
-        let line_ls = line.as_ref().expect("Couldn't read SAT solution line");
+        let line_ls = match line {
+            Ok(ref value) => value,
+            Err(error) => return Err(anyhow::anyhow!(error)),
+        };
 
         //Solution line
         if line_ls.starts_with('s') {
@@ -119,7 +123,7 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
                 _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
             };
 
-            current_assignment.from_vline(&line_ls);
+            current_assignment.from_vline(&line_ls)?;
         }
     }
 

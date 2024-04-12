@@ -702,6 +702,7 @@ impl Assignment {
         }
     }
 
+    //Read a solution from a SAT solver's output
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader = instances::fio::open_compressed_uncompressed_read(path)
             .context("failed to open reader")?;
@@ -713,9 +714,8 @@ impl Assignment {
         }
     }
 
-    pub fn from_vline(&mut self, line: &str) {
-        // parse the actual vline
-
+    /// Parses and saves literals from value line.
+    pub fn from_vline(&mut self, line: &str) -> anyhow::Result<()> {
         for number in line.split(' ') {
             let mut number_v = 0;
             if number.parse::<i32>().is_ok() {
@@ -728,11 +728,13 @@ impl Assignment {
 
             let literal = match Lit::from_ipasir(number_v) {
                 Ok(lit) => lit,
-                Err(error) => panic!("Error creating the literal {:?}", error),
+                Err(error) => return Err(anyhow::anyhow!(error)),
             };
 
             self.assign_lit(literal);
         }
+
+        return Ok(());
     }
 }
 
