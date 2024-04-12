@@ -2,6 +2,7 @@
 //!
 //! A small tool for converting OPB files to DIMACS WCNF.
 
+use anyhow::Context;
 use clap::Parser;
 use rustsat::instances::{fio::opb::Options as OpbOptions, OptInstance};
 use std::{io, path::PathBuf};
@@ -18,7 +19,7 @@ struct Args {
     first_var_idx: usize,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let opb_opts = OpbOptions {
         first_var_idx: 0,
@@ -26,9 +27,9 @@ fn main() {
     };
 
     let inst: OptInstance = if let Some(in_path) = args.in_path {
-        OptInstance::from_opb_path(in_path, opb_opts).expect("error parsing the input file")
+        OptInstance::from_opb_path(in_path, opb_opts).context("error parsing the input file")?
     } else {
-        OptInstance::from_opb(io::stdin(), opb_opts).expect("error parsing input")
+        OptInstance::from_opb(io::stdin(), opb_opts).context("error parsing input")?
     };
 
     let (constrs, obj) = inst.decompose();
@@ -43,9 +44,10 @@ fn main() {
 
     if let Some(out_path) = args.out_path {
         inst.write_dimacs_path(out_path)
-            .expect("io error writing the output file");
+            .context("io error writing the output file")?;
     } else {
         inst.write_dimacs(&mut io::stdout())
-            .expect("io error writing to stdout");
+            .context("io error writing to stdout")?;
     }
+    Ok(())
 }
