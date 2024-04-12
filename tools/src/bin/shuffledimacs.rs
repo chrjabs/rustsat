@@ -7,6 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
+use anyhow::Context;
 use rustsat::instances::{self, BasicVarManager, RandReindVarManager};
 
 macro_rules! print_usage {
@@ -22,42 +23,43 @@ enum FileType {
     Mcnf,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let in_path = PathBuf::from(&std::env::args().nth(1).unwrap_or_else(|| print_usage!()));
     let out_path = PathBuf::from(&std::env::args().nth(2).unwrap_or_else(|| print_usage!()));
 
     match determine_file_type(&in_path) {
         FileType::Cnf => {
             let inst = instances::SatInstance::<BasicVarManager>::from_dimacs_path(in_path)
-                .expect("Could not parse CNF");
+                .context("Could not parse CNF")?;
             let n_vars = inst.n_vars();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
                 .write_dimacs_path(out_path)
-                .expect("Could not write CNF");
+                .context("Could not write CNF")?;
         }
         FileType::Wcnf => {
             let inst = instances::OptInstance::<BasicVarManager>::from_dimacs_path(in_path)
-                .expect("Could not parse WCNF");
+                .context("Could not parse WCNF")?;
             let n_vars = inst.constraints_ref().n_vars();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
                 .write_dimacs_path(out_path)
-                .expect("Could not write WCNF");
+                .context("Could not write WCNF")?;
         }
         FileType::Mcnf => {
             let inst = instances::MultiOptInstance::<BasicVarManager>::from_dimacs_path(in_path)
-                .expect("Could not parse MCNF");
+                .context("Could not parse MCNF")?;
             let n_vars = inst.constraints_ref().n_vars();
             let rand_reindexer = RandReindVarManager::init(n_vars);
             inst.reindex(rand_reindexer)
                 .shuffle()
                 .write_dimacs_path(out_path)
-                .expect("Could not write MCNF");
+                .context("Could not write MCNF")?;
         }
     }
+    Ok(())
 }
 
 macro_rules! is_one_of {

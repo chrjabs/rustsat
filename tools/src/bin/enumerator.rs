@@ -4,6 +4,7 @@
 //!
 //! Usage: enumerator [dimacs cnf file]
 
+use anyhow::Context;
 use rustsat::{
     instances::{ManageVars, SatInstance},
     solvers::{self, Solve, SolveIncremental},
@@ -45,17 +46,17 @@ impl<S: SolveIncremental> Iterator for Enumerator<S> {
     }
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let in_path = std::env::args().nth(1).unwrap_or_else(|| print_usage!());
 
     let inst: SatInstance =
-        SatInstance::from_dimacs_path(in_path).expect("error parsing the input file");
+        SatInstance::from_dimacs_path(in_path).context("error parsing the input file")?;
     let (cnf, vm) = inst.into_cnf();
 
     let mut solver = rustsat_tools::Solver::default();
     solver
         .reserve(vm.max_var().expect("no variables in instance"))
-        .expect("error reserving memory in solver");
+        .context("error reserving memory in solver")?;
     solver.add_cnf(cnf).expect("error adding cnf to solver");
 
     let enumerator = Enumerator {
@@ -63,5 +64,6 @@ fn main() {
         max_var: vm.max_var().unwrap(),
     };
 
-    enumerator.for_each(|sol| println!("s {}", sol))
+    enumerator.for_each(|sol| println!("s {}", sol));
+    Ok(())
 }
