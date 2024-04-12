@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
     let inst: OptInstance = if let Some(in_path) = args.in_path {
         OptInstance::from_dimacs_path(in_path).context("error parsing the input file")?
     } else {
-        OptInstance::from_dimacs(io::stdin()).context("error parsing input")?
+        OptInstance::from_dimacs(io::BufReader::new(io::stdin())).context("error parsing input")?
     };
 
     let (mut constr, mut obj) = inst.decompose();

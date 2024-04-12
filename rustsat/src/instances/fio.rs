@@ -19,22 +19,28 @@ pub struct ObjNoExist(usize);
 /// With feature `compression` supports bzip2 and gzip compression.
 pub fn open_compressed_uncompressed_read<P: AsRef<Path>>(
     path: P,
-) -> Result<Box<dyn io::Read>, io::Error> {
+) -> Result<Box<dyn io::BufRead>, io::Error> {
     let path = path.as_ref();
     let raw_reader = File::open(path)?;
     #[cfg(feature = "compression")]
     if let Some(ext) = path.extension() {
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("bz2")) {
-            return Ok(Box::new(bzip2::read::BzDecoder::new(raw_reader)));
+            return Ok(Box::new(io::BufReader::new(bzip2::read::BzDecoder::new(
+                raw_reader,
+            ))));
         }
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("gz")) {
-            return Ok(Box::new(flate2::read::GzDecoder::new(raw_reader)));
+            return Ok(Box::new(io::BufReader::new(flate2::read::GzDecoder::new(
+                raw_reader,
+            ))));
         }
         if ext.eq_ignore_ascii_case(std::ffi::OsStr::new("xz")) {
-            return Ok(Box::new(xz2::read::XzDecoder::new(raw_reader)));
+            return Ok(Box::new(io::BufReader::new(xz2::read::XzDecoder::new(
+                raw_reader,
+            ))));
         }
     }
-    Ok(Box::new(raw_reader))
+    Ok(Box::new(io::BufReader::new(raw_reader)))
 }
 
 /// Opens a writer for the file at Path.
