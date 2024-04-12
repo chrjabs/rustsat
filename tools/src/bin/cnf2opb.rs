@@ -35,10 +35,10 @@ fn main() {
     };
 
     if let Some(out_path) = args.out_path {
-        inst.to_opb_path(out_path, opb_opts)
+        inst.write_opb_path(out_path, opb_opts)
             .expect("io error writing the output file");
     } else {
-        inst.to_opb(&mut io::stdout(), opb_opts)
+        inst.write_opb(&mut io::stdout(), opb_opts)
             .expect("io error writing the output file");
     }
 }

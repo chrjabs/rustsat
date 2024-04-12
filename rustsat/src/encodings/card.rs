@@ -356,7 +356,7 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: Col
         return;
     }
     if constr.is_clause() {
-        collector.extend([constr.as_clause().unwrap()]);
+        collector.extend([constr.into_clause().unwrap()]);
         return;
     }
     CE::encode_constr(constr, collector, var_manager).unwrap()

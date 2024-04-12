@@ -32,19 +32,20 @@ fn main() {
     };
 
     let (constrs, obj) = inst.decompose();
-    let constrs = constrs.sanitize();
+    let mut constrs = constrs.sanitize();
 
     println!("c {} clauses", constrs.n_clauses());
     println!("c {} cards", constrs.n_cards());
     println!("c {} pbs", constrs.n_pbs());
 
-    let mut inst = OptInstance::compose(constrs, obj);
+    constrs.convert_to_cnf();
+    let inst = OptInstance::compose(constrs, obj);
 
     if let Some(out_path) = args.out_path {
-        inst.to_dimacs_path(out_path)
+        inst.write_dimacs_path(out_path)
             .expect("io error writing the output file");
     } else {
-        inst.to_dimacs(&mut io::stdout())
+        inst.write_dimacs(&mut io::stdout())
             .expect("io error writing to stdout");
     }
 }

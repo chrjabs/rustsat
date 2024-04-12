@@ -28,17 +28,22 @@ fn main() {
         no_negated_lits: args.avoid_negated_lits,
     };
 
-    let mut inst: OptInstance = if let Some(in_path) = args.in_path {
+    let inst: OptInstance = if let Some(in_path) = args.in_path {
         OptInstance::from_dimacs_path(in_path).expect("error parsing the input file")
     } else {
         OptInstance::from_dimacs(io::stdin()).expect("error parsing input")
     };
 
+    let (mut constr, mut obj) = inst.decompose();
+    let hardened = obj.convert_to_soft_lits(constr.var_manager_mut());
+    constr.extend(hardened.into());
+    let inst = OptInstance::compose(constr, obj);
+
     if let Some(out_path) = args.out_path {
-        inst.to_opb_path(out_path, opb_opts)
+        inst.write_opb_path(out_path, opb_opts)
             .expect("io error writing the output file");
     } else {
-        inst.to_opb(&mut io::stdout(), opb_opts)
+        inst.write_opb(&mut io::stdout(), opb_opts)
             .expect("io error writing to stdout");
     };
 }

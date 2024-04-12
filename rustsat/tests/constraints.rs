@@ -12,7 +12,7 @@ macro_rules! test_card {
     ( $constr:expr, $sat_assump:expr, $unsat_assump:expr ) => {{
         let mut inst: SatInstance = SatInstance::new();
         inst.add_card_constr($constr);
-        let (cnf, _) = inst.as_cnf();
+        let (cnf, _) = inst.into_cnf();
         println!("{:?}", cnf);
         let mut solver = rustsat_tools::Solver::default();
         solver.add_cnf(cnf).unwrap();
@@ -31,7 +31,7 @@ macro_rules! test_pb {
     ( $constr:expr, $sat_assump:expr, $unsat_assump:expr ) => {{
         let mut inst: SatInstance = SatInstance::new();
         inst.add_pb_constr($constr);
-        let (cnf, _) = inst.as_cnf();
+        let (cnf, _) = inst.into_cnf();
         println!("{:?}", cnf);
         let mut solver = rustsat_tools::Solver::default();
         solver.add_cnf(cnf).unwrap();

@@ -923,7 +923,7 @@ mod test {
 
         let (cnf, _) = super::parse_sat::<_, BasicVarManager>(cursor, Options::default())
             .unwrap()
-            .as_cnf();
+            .into_cnf();
 
         assert_eq!(cnf.len(), 1);
         assert_eq!(cnf.into_iter().next().unwrap().normalize(), cl.normalize());
@@ -938,8 +938,8 @@ mod test {
 
         let parsed_inst: SatInstance = super::parse_sat(cursor, opts).unwrap();
 
-        let (parsed_cnf, parsed_vm) = parsed_inst.as_cnf();
-        let (true_cnf, true_vm) = true_inst.as_cnf();
+        let (parsed_cnf, parsed_vm) = parsed_inst.into_cnf();
+        let (true_cnf, true_vm) = true_inst.into_cnf();
 
         assert_eq!(parsed_vm, true_vm);
         assert_eq!(parsed_cnf.normalize(), true_cnf.normalize());

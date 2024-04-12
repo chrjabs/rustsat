@@ -35,11 +35,13 @@ fn main() {
     println!("{} cards", inst.n_cards());
     println!("{} pbs", inst.n_pbs());
 
+    inst.convert_to_cnf();
+
     if let Some(out_path) = args.out_path {
-        inst.to_dimacs_path(out_path)
+        inst.write_dimacs_path(out_path)
             .expect("io error writing the output file");
     } else {
-        inst.to_dimacs(&mut io::stdout())
+        inst.write_dimacs(&mut io::stdout())
             .expect("io error writing to stdout");
     }
 }

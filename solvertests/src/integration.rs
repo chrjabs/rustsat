@@ -21,7 +21,7 @@ pub fn base(input: MacroInput) -> TokenStream {
                 let mut solver = <$slv>::default();
                 let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path($inst)
                     .expect("failed to parse instance");
-                rustsat::solvers::Solve::add_cnf(&mut solver, inst.as_cnf().0)
+                rustsat::solvers::Solve::add_cnf(&mut solver, inst.into_cnf().0)
                     .expect("failed to add cnf to solver");
                 let res = rustsat::solvers::Solve::solve(&mut solver).expect("failed solving");
                 assert_eq!(res, $res);
@@ -30,7 +30,7 @@ pub fn base(input: MacroInput) -> TokenStream {
                 let mut solver = $init;
                 let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path($inst)
                     .expect("failed to parse instance");
-                rustsat::solvers::Solve::add_cnf(&mut solver, inst.as_cnf().0)
+                rustsat::solvers::Solve::add_cnf(&mut solver, inst.into_cnf().0)
                     .expect("failed to add cnf to solver");
                 let res = rustsat::solvers::Solve::solve(&mut solver).expect("failed solving");
                 assert_eq!(res, $res);
@@ -97,7 +97,7 @@ pub fn incremental(input: MacroInput) -> TokenStream {
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
-            solver.add_cnf(inst.as_cnf().0).unwrap();
+            solver.add_cnf(inst.into_cnf().0).unwrap();
             let res = solver.solve().unwrap();
             assert_eq!(res, Sat);
             let res = solver.solve_assumps(&[!lit![0], !lit![1]]).unwrap();
@@ -205,7 +205,7 @@ pub fn phasing(input: MacroInput) -> TokenStream {
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
-            solver.add_cnf(inst.as_cnf().0).unwrap();
+            solver.add_cnf(inst.into_cnf().0).unwrap();
             solver.phase_lit(lit![0]).unwrap();
             solver.phase_lit(!lit![1]).unwrap();
             solver.phase_lit(lit![2]).unwrap();
