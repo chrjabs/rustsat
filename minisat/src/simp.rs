@@ -90,6 +90,15 @@ impl Extend<Clause> for Minisat {
     }
 }
 
+impl<'a> Extend<&'a Clause> for Minisat {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 impl Solve for Minisat {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::cminisat_signature() };

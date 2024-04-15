@@ -96,7 +96,7 @@ use thiserror::Error;
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
-pub trait Solve: Extend<Clause> {
+pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     /// Gets a signature of the solver implementation
     fn signature(&self) -> &'static str;
     /// Reserves memory in the solver until a maximum variables, if the solver

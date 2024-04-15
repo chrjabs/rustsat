@@ -369,6 +369,15 @@ impl Extend<Clause> for IpasirSolver<'_, '_> {
     }
 }
 
+impl<'a> Extend<&'a Clause> for IpasirSolver<'_, '_> {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 /// cbindgen:ignore
 mod ffi {
     use super::{LearnCallbackPtr, TermCallbackPtr};

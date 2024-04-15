@@ -351,6 +351,15 @@ impl Extend<Clause> for CaDiCaL<'_, '_> {
     }
 }
 
+impl<'a> Extend<&'a Clause> for CaDiCaL<'_, '_> {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 impl Solve for CaDiCaL<'_, '_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ccadical_signature() };
