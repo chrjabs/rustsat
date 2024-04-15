@@ -11,7 +11,10 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::types;
+use crate::{
+    solvers::Solve,
+    types::{self, Assignment},
+};
 
 pub mod dimacs;
 pub mod opb;
@@ -79,18 +82,17 @@ pub enum SolverOutput {
     Unknown,
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum SatSolverOutputError {
     //The output of the SAT solver is incorrect.
+    #[error("The output of the SAT solver is incorrect.")]
     Nonsolution,
-}
-
-impl std::fmt::Display for SatSolverOutputError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Nonsolution => write!(f, "The output of the SAT solver is incorrect."),
-        }
-    }
+    #[error("No solution line found in the output.")]
+    NoSline,
+    #[error("No value line found in the output.")]
+    NoVline,
+    #[error("Invalid solution line found in the output.")]
+    InvalidSLine,
 }
 
 //Parse a SAT solver's output
@@ -98,34 +100,57 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
     // Parsing code goes here
     // when encoutering vline, call `Assignment::from_vline`
 
-    let mut sat_solver_output = SolverOutput::Sat(Default::default());
+    let mut is_sat = false;
+    let mut have_vline = false;
+    let mut solution = None;
 
     for line in reader.lines() {
-        let line_ls = match line {
-            Ok(ref value) => value,
-            Err(error) => return Err(anyhow::anyhow!(error)),
-        };
+        let line = &line?;
+        //let line = &line;
 
         //Solution line
-        if line_ls.starts_with('s') {
-            match line_ls {
-                line_ls if line_ls.contains("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
-                line_ls if line_ls.contains("UNKNOWN") => return Ok(SolverOutput::Unknown),
-                line_ls if line_ls.contains("SATISFIABLE") => (),
-                _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
+        if line.starts_with('s') {
+            match line {
+                line if line.contains("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
+                line if line.contains("UNKNOWN") => {
+                    return Err(anyhow::anyhow!(SatSolverOutputError::InvalidSLine))
+                }
+                line if line.contains("SATISFIABLE") => {
+                    if let Some(solution) = solution {
+                        return Ok(SolverOutput::Sat(solution));
+                    }
+                    is_sat = true;
+                }
+                _ => return Err(anyhow::anyhow!(SatSolverOutputError::InvalidSLine)),
             }
         }
 
         //Value line
-        if line_ls.starts_with('v') {
-            let mut current_assignment = match sat_solver_output {
-                SolverOutput::Sat(ref mut assign) => assign,
-                _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
-            };
+        if line.starts_with('v') {
+            if have_vline {
+                let mut current_assignment = match solution {
+                    Some(ref mut assign) => assign,
+                    _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
+                };
 
-            current_assignment.from_vline(&line_ls)?;
+                current_assignment.extend_from_vline(&line)?;
+            } else {
+                solution = Some(Assignment::from_vline(&line)?);
+            }
+
+            have_vline = true;
         }
     }
 
-    Ok(sat_solver_output)
+    if have_vline {
+        if let Some(solution) = solution {
+            return Ok(SolverOutput::Sat(solution));
+        }
+    }
+
+    if is_sat {
+        Err(anyhow::anyhow!(SatSolverOutputError::NoSline))
+    } else {
+        Err(anyhow::anyhow!(SatSolverOutputError::NoVline))
+    }
 }

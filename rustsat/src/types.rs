@@ -18,7 +18,10 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 pub mod constraints;
 pub use constraints::Clause;
 
-use crate::instances;
+use crate::instances::{
+    self,
+    fio::{SatSolverOutputError, SolverOutput},
+};
 
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
@@ -703,19 +706,32 @@ impl Assignment {
     }
 
     //Read a solution from a SAT solver's output
-    pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let reader = instances::fio::open_compressed_uncompressed_read(path)
-            .context("failed to open reader")?;
-        match instances::fio::parse_sat_solver_output(std::io::BufReader::new(reader)) {
-            Ok(instances::fio::SolverOutput::Sat(assignment)) => Ok(assignment),
-            _ => Err(anyhow::anyhow!(
-                instances::fio::SatSolverOutputError::Nonsolution
-            )), // return some error
+    pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<SolverOutput> {
+        let reader = std::io::BufReader::new(
+            instances::fio::open_compressed_uncompressed_read(path)
+                .context("failed to open reader")?,
+        );
+        instances::fio::parse_sat_solver_output(reader)
+    }
+
+    pub fn from_vline(line: &str) -> anyhow::Result<Self> {
+        let line = &line[2..];
+        let mut assignment = Assignment::default();
+        for number in line.split(' ') {
+            let number = number.parse::<i32>()?;
+            //End of the value lines
+            if number == 0 {
+                continue;
+            }
+            let literal = Lit::from_ipasir(number)?;
+            assignment.assign_lit(literal);
         }
+
+        Ok(assignment)
     }
 
     /// Parses and saves literals from value line.
-    pub fn from_vline(&mut self, line: &str) -> anyhow::Result<()> {
+    pub fn extend_from_vline(&mut self, line: &str) -> anyhow::Result<()> {
         for number in line.split(' ') {
             let mut number_v = 0;
             if number.parse::<i32>().is_ok() {
@@ -726,10 +742,7 @@ impl Assignment {
                 continue;
             }
 
-            let literal = match Lit::from_ipasir(number_v) {
-                Ok(lit) => lit,
-                Err(error) => return Err(anyhow::anyhow!(error)),
-            };
+            let literal = Lit::from_ipasir(number_v)?;
 
             self.assign_lit(literal);
         }
