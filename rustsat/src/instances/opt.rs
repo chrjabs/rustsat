@@ -306,10 +306,10 @@ impl Objective {
                 if let Some(unit_weight) = unit_weight {
                     *self = IntObj::Weighted {
                         offset: *offset,
-                        soft_lits: soft_lits.iter_mut().map(|l| (*l, *unit_weight)).collect(),
+                        soft_lits: soft_lits.drain(..).map(|l| (l, *unit_weight)).collect(),
                         soft_clauses: soft_clauses
-                            .iter_mut()
-                            .map(|cl| (cl.clone(), *unit_weight))
+                            .drain(..)
+                            .map(|cl| (cl, *unit_weight))
                             .collect(),
                     }
                     .into()
@@ -336,12 +336,12 @@ impl Objective {
             } => {
                 let mut soft_unit_lits = vec![];
                 soft_lits
-                    .iter_mut()
-                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + *w, *l));
+                    .drain()
+                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
                 let mut soft_unit_clauses = vec![];
-                soft_clauses.iter_mut().for_each(|(cl, w)| {
-                    soft_unit_clauses.resize(soft_unit_clauses.len() + *w, cl.clone())
-                });
+                soft_clauses
+                    .drain()
+                    .for_each(|(cl, w)| soft_unit_clauses.resize(soft_unit_clauses.len() + w, cl));
                 *self = IntObj::Unweighted {
                     offset: *offset,
                     unit_weight: Some(1),
