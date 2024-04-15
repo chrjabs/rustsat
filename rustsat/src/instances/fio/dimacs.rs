@@ -1103,7 +1103,7 @@ mod tests {
 
         write_wcnf_annotated(
             &mut cursor,
-            &true_constrs.clone().into_cnf().0,
+            &true_constrs.cnf(),
             (true_obj.iter_soft_cls(), offset),
             Some(5),
         )
@@ -1132,7 +1132,7 @@ mod tests {
 
         write_mcnf_annotated(
             &mut cursor,
-            &true_constrs.clone().into_cnf().0,
+            &true_constrs.cnf(),
             vec![
                 (true_obj0.iter_soft_cls(), offset0),
                 (true_obj1.iter_soft_cls(), offset1),
