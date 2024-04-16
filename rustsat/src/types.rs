@@ -718,12 +718,16 @@ impl Assignment {
         let line = &line[2..];
         let mut assignment = Assignment::default();
         for number in line.split(' ') {
-            let number = number.parse::<i32>()?;
+            let mut number_v = 0;
+            if number.parse::<i32>().is_ok() {
+                number_v = number.parse::<i32>().unwrap();
+            }
             //End of the value lines
-            if number == 0 {
+            if number_v == 0 {
                 continue;
             }
-            let literal = Lit::from_ipasir(number)?;
+
+            let literal = Lit::from_ipasir(number_v)?;
             assignment.assign_lit(literal);
         }
 
@@ -743,7 +747,6 @@ impl Assignment {
             }
 
             let literal = Lit::from_ipasir(number_v)?;
-
             self.assign_lit(literal);
         }
 

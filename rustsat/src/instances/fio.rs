@@ -76,6 +76,7 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
     Ok(Box::new(io::BufWriter::new(raw_writer)))
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum SolverOutput {
     Sat(types::Assignment),
     Unsat,
@@ -112,8 +113,8 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
         if line.starts_with('s') {
             match line {
                 line if line.contains("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
-                line if line.contains("UNKNOWN") => {
-                    return Err(anyhow::anyhow!(SatSolverOutputError::InvalidSLine))
+                line if line.contains("UNKNOWN") || line.contains("INDETERMINATE") => {
+                    return Ok(SolverOutput::Unknown);
                 }
                 line if line.contains("SATISFIABLE") => {
                     if let Some(solution) = solution {
@@ -142,6 +143,10 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
         }
     }
 
+    if !is_sat {
+        return Err(anyhow::anyhow!(SatSolverOutputError::NoSline));
+    }
+
     if have_vline {
         if let Some(solution) = solution {
             return Ok(SolverOutput::Sat(solution));
@@ -149,8 +154,84 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
     }
 
     if is_sat {
-        Err(anyhow::anyhow!(SatSolverOutputError::NoSline))
-    } else {
         Err(anyhow::anyhow!(SatSolverOutputError::NoVline))
+    } else {
+        Err(anyhow::anyhow!(SatSolverOutputError::NoSline))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use crate::types::{Assignment, TernaryVal};
+
+    use super::{parse_sat_solver_output, SolverOutput};
+
+    #[test]
+    fn parse_solver_output_sat() {
+        let ground_truth = SolverOutput::Sat(Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+        ]));
+
+        let data = "c this is a comment\ns SATISFIABLE\nv 1 -2 4 -5 6 0\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, ground_truth);
+
+        let data = "c this is a comment\nv 1 -2 4 -5 6 0\ns SATISFIABLE\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, ground_truth);
+
+        let data = "c this is a comment\ns SATISFIABLE\nv 1 -2 4 \nv -5 6 0\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, ground_truth);
+    }
+
+    #[test]
+    fn parse_solver_output_unsat() {
+        let data = "c this is a comment\ns UNSATISFIABLE\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, SolverOutput::Unsat);
+    }
+
+    #[test]
+    fn parse_solver_output_unknown() {
+        let data = "c this is a comment\ns UNKNOWN\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, SolverOutput::Unknown);
+    }
+
+    #[test]
+    fn parse_solver_output_indeterminate() {
+        let data = "c this is a comment\ns INDETERMINATE\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, SolverOutput::Unknown);
+    }
+
+    #[test]
+    fn parse_solver_output_noslinewithvline() {
+        let data = "c this is a comment\nv 1 -2 4 -5 6 0\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn parse_solver_output_novlinewithsatisfy() {
+        let data = "c this is a comment\ns SATISFIABLE\n";
+        let reader = io::Cursor::new(data);
+        let res = parse_sat_solver_output(reader);
+        assert!(res.is_err());
     }
 }
