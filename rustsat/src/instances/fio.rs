@@ -85,7 +85,6 @@ pub enum SolverOutput {
 
 #[derive(Error, Debug)]
 pub enum SatSolverOutputError {
-    //The output of the SAT solver is incorrect.
     #[error("The output of the SAT solver is incorrect.")]
     Nonsolution,
     #[error("No solution line found in the output.")]
@@ -94,30 +93,28 @@ pub enum SatSolverOutputError {
     NoVline,
     #[error("Invalid solution line found in the output.")]
     InvalidSLine,
-    #[error("Empty solution.")]
-    Novalues,
 }
 
 //Parse a SAT solver's output
 pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
-
     let mut is_sat = false;
     let mut have_vline = false;
     let mut solution = None;
 
     for line in reader.lines() {
         let line = &line?;
-        //let line = &line;
 
         //Solution line
         if line.starts_with('s') {
             match line {
                 line if line.contains("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
-                line if line.contains("UNKNOWN") || line.contains("INDETERMINATE") => return Ok(SolverOutput::Unknown),
+                line if line.contains("UNKNOWN") || line.contains("INDETERMINATE") => {
+                    return Ok(SolverOutput::Unknown)
+                }
                 line if line.contains("SATISFIABLE") => {
-                    if let Some(solution) = solution {
+                    /*if let Some(solution) = solution {
                         return Ok(SolverOutput::Sat(solution));
-                    }
+                    }*/
                     is_sat = true;
                 }
                 _ => return Err(anyhow::anyhow!(SatSolverOutputError::InvalidSLine)),
@@ -128,7 +125,7 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
         if line.starts_with('v') {
             //Did I already have vline?
             if have_vline {
-                let current_assignment = match solution {
+                let current_assignment: &mut Assignment = match solution {
                     Some(ref mut assign) => assign,
                     _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
                 };
@@ -146,28 +143,24 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
     if !is_sat {
         return Err(anyhow::anyhow!(SatSolverOutputError::NoSline));
     }
-    else if have_vline {
+
+    if have_vline {
         if let Some(solution) = solution {
-            if solution.max_var() != None {
-                return Ok(SolverOutput::Sat(solution));
-            } else {
-                return Err(anyhow::anyhow!(SatSolverOutputError::Novalues));
-            }
+            return Ok(SolverOutput::Sat(solution));
         }
     }
 
-    if is_sat {
-        Err(anyhow::anyhow!(SatSolverOutputError::NoVline))
-    } else {
-        Err(anyhow::anyhow!(SatSolverOutputError::NoSline))
-    }
+    Err(anyhow::anyhow!(SatSolverOutputError::NoVline))
 }
 
 #[cfg(test)]
 mod tests {
     use std::io;
 
-    use crate::{instances::fio::SatSolverOutputError, types::{Assignment, TernaryVal}};
+    use crate::{
+        instances::fio::SatSolverOutputError,
+        types::{Assignment, TernaryVal},
+    };
 
     use super::{parse_sat_solver_output, SolverOutput};
 
@@ -242,7 +235,7 @@ mod tests {
     fn parse_solver_output_emptysolution() {
         let data = "c this is a comment\ns SATISFIABLE\nv 0\n";
         let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader);
-        assert!(res.is_err());
+        let res = parse_sat_solver_output(reader).unwrap();
+        assert_eq!(res, SolverOutput::Sat(Assignment::default()));
     }
 }

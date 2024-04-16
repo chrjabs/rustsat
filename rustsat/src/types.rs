@@ -715,13 +715,15 @@ impl Assignment {
     }
 
     pub fn from_vline(line: &str) -> anyhow::Result<Self> {
+        if !line.starts_with('v') {
+            panic!("Value line does not start with v.");
+        }
+
         let line = &line[2..];
         let mut assignment = Assignment::default();
-        for number in line.split(' ') {
-            let mut number_v = 0;
-            if number.parse::<i32>().is_ok() {
-                number_v = number.parse::<i32>().unwrap();
-            }
+        for number in line.trim().split(' ').filter(|x| !x.is_empty()) {
+            let number_v = number.parse::<i32>().unwrap();
+
             //End of the value lines
             if number_v == 0 {
                 continue;
@@ -736,11 +738,14 @@ impl Assignment {
 
     /// Parses and saves literals from value line.
     pub fn extend_from_vline(&mut self, line: &str) -> anyhow::Result<()> {
-        for number in line.split(' ') {
-            let mut number_v = 0;
-            if number.parse::<i32>().is_ok() {
-                number_v = number.parse::<i32>().unwrap();
-            }
+        if !line.starts_with('v') {
+            panic!("Value line does not start with v.");
+        }
+
+        let line = &line[2..];
+        for number in line.trim().split(' ').filter(|x| !x.is_empty()) {
+            let number_v = number.parse::<i32>().unwrap();
+
             //End of the value lines
             if number_v == 0 {
                 continue;
@@ -1035,5 +1040,57 @@ mod tests {
     #[test]
     fn ternary_val_size() {
         assert_eq!(size_of::<TernaryVal>(), 1);
+    }
+
+    #[test]
+    fn parse_vline() {
+        let vline = "v 1 -2 4 -5 6 0";
+        let ground_truth = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+        ]);
+        assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
+        assert_eq!(
+            {
+                let mut asign = Assignment::default();
+                asign.extend_from_vline(vline).unwrap();
+                asign
+            },
+            ground_truth
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn vline_invalid_lit_from() {
+        let vline = "v 1 -2 4 foo -5 bar 6 0";
+        Assignment::from_vline(vline).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn vline_invalid_lit_extend() {
+        let vline = "v 1 -2 4 foo -5 bar 6 0";
+        let mut assign = Assignment::default();
+        assign.extend_from_vline(vline).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn vline_invalid_tag_from() {
+        let vline = "b 1 -2 4 -5 6 0";
+        Assignment::from_vline(vline).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn vline_invalid_tag_extend() {
+        let vline = "b 1 -2 4 -5 6 0";
+        let mut assign = Assignment::default();
+        assign.extend_from_vline(vline).unwrap();
     }
 }
