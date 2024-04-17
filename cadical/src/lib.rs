@@ -35,6 +35,26 @@ use rustsat::solvers::{
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
 
+const OUT_OF_MEM: c_int = 50;
+
+macro_rules! handle_oom {
+    ($val:expr) => {{
+        let val = $val;
+        if val == crate::OUT_OF_MEM {
+            return anyhow::Context::context(Err(rustsat::OutOfMemory), "cadical out of memory");
+        }
+        val
+    }};
+    ($val:expr, noanyhow) => {{
+        let val = $val;
+        if val == crate::OUT_OF_MEM {
+            return Err(rustsat::OutOfMemory::ExternalApi);
+        }
+        val
+    }};
+}
+pub(crate) use handle_oom;
+
 /// Fatal error returned if the CaDiCaL API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("cadical c-api returned an invalid value: {api_call} -> {value}")]
@@ -83,6 +103,10 @@ unsafe impl Send for CaDiCaL<'_, '_> {}
 
 impl Default for CaDiCaL<'_, '_> {
     fn default() -> Self {
+        let handle = unsafe { ffi::ccadical_init() };
+        if handle.is_null() {
+            panic!("not enough memory to initialize CaDiCaL solver")
+        }
         let solver = Self {
             handle: unsafe { ffi::ccadical_init() },
             state: Default::default(),
@@ -120,7 +144,7 @@ impl CaDiCaL<'_, '_> {
     /// _Note_: If this is used, in addition to [`SolveIncremental::core`],
     /// [`CaDiCaL::tmp_clause_in_core`] needs to be checked to determine if the
     /// temporary clause is part of the core.
-    pub fn add_tmp_clause(&mut self, clause: Clause) {
+    pub fn add_tmp_clause(&mut self, clause: Clause) -> Result<(), rustsat::OutOfMemory> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -129,9 +153,16 @@ impl CaDiCaL<'_, '_> {
         self.state = InternalSolverState::Input;
         // Call CaDiCaL backend
         for lit in &clause {
-            unsafe { ffi::ccadical_constrain(self.handle, lit.to_ipasir()) }
+            handle_oom!(
+                unsafe { ffi::ccadical_constrain_mem(self.handle, lit.to_ipasir()) },
+                noanyhow
+            );
         }
-        unsafe { ffi::ccadical_constrain(self.handle, 0) }
+        handle_oom!(
+            unsafe { ffi::ccadical_constrain_mem(self.handle, 0) },
+            noanyhow
+        );
+        Ok(())
     }
 
     /// Checks whether the temporary clause is part of the core if in
@@ -347,7 +378,7 @@ impl CaDiCaL<'_, '_> {
         let rounds: c_int = rounds.try_into()?;
         // Simplify with CaDiCaL backend under assumptions
         for a in &assumps {
-            unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
+            handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
         }
         match unsafe { ffi::ccadical_simplify_rounds(self.handle, rounds) } {
             0 => {
@@ -398,7 +429,7 @@ impl Solve for CaDiCaL<'_, '_> {
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
         self.state = InternalSolverState::Input;
-        unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) };
+        handle_oom!(unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) });
         Ok(())
     }
 
@@ -414,7 +445,7 @@ impl Solve for CaDiCaL<'_, '_> {
         }
         let start = ProcessTime::now();
         // Solve with CaDiCaL backend
-        let res = unsafe { ffi::ccadical_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -471,10 +502,10 @@ impl Solve for CaDiCaL<'_, '_> {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call CaDiCaL backend
-        clause
-            .iter()
-            .for_each(|l| unsafe { ffi::ccadical_add(self.handle, l.to_ipasir()) });
-        unsafe { ffi::ccadical_add(self.handle, 0) };
+        for &l in clause {
+            handle_oom!(unsafe { ffi::ccadical_add_mem(self.handle, l.to_ipasir()) });
+        }
+        handle_oom!(unsafe { ffi::ccadical_add_mem(self.handle, 0) });
         Ok(())
     }
 }
@@ -484,9 +515,9 @@ impl SolveIncremental for CaDiCaL<'_, '_> {
         let start = ProcessTime::now();
         // Solve with CaDiCaL backend
         for a in assumps {
-            unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
+            handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
         }
-        let res = unsafe { ffi::ccadical_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -915,9 +946,9 @@ mod ffi {
         pub fn ccadical_signature() -> *const c_char;
         pub fn ccadical_init() -> *mut CaDiCaLHandle;
         pub fn ccadical_release(solver: *mut CaDiCaLHandle);
-        pub fn ccadical_add(solver: *mut CaDiCaLHandle, lit_or_zero: c_int);
-        pub fn ccadical_assume(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_solve(solver: *mut CaDiCaLHandle) -> c_int;
+        pub fn ccadical_add_mem(solver: *mut CaDiCaLHandle, lit_or_zero: c_int) -> c_int;
+        pub fn ccadical_assume_mem(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
+        pub fn ccadical_solve_mem(solver: *mut CaDiCaLHandle) -> c_int;
         pub fn ccadical_val(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_failed(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_set_terminate(
@@ -931,7 +962,7 @@ mod ffi {
             max_length: c_int,
             learn: Option<extern "C" fn(state: *const c_void, clause: *const c_int)>,
         );
-        pub fn ccadical_constrain(solver: *mut CaDiCaLHandle, lit: c_int);
+        pub fn ccadical_constrain_mem(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_constraint_failed(solver: *mut CaDiCaLHandle) -> c_int;
         pub fn ccadical_set_option_ret(
             solver: *mut CaDiCaLHandle,
@@ -958,7 +989,7 @@ mod ffi {
         pub fn ccadical_phase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_unphase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_vars(solver: *mut CaDiCaLHandle) -> c_int;
-        pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int);
+        pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int) -> c_int;
         pub fn ccadical_propagations(solver: *mut CaDiCaLHandle) -> i64;
         pub fn ccadical_decisions(solver: *mut CaDiCaLHandle) -> i64;
         pub fn ccadical_conflicts(solver: *mut CaDiCaLHandle) -> i64;
