@@ -5,7 +5,7 @@
 
 use core::ffi::{c_int, CStr};
 
-use super::{AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
+use super::{handle_oom, AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
 use ffi::MinisatHandle;
 use rustsat::{
@@ -28,8 +28,12 @@ unsafe impl Send for Minisat {}
 
 impl Default for Minisat {
     fn default() -> Self {
+        let handle = unsafe { ffi::cminisatsimp_init() };
+        if handle.is_null() {
+            panic!("not enough memory to initialize minisat solver")
+        }
         Self {
-            handle: unsafe { ffi::cminisatsimp_init() },
+            handle,
             state: Default::default(),
             stats: Default::default(),
         }
@@ -120,7 +124,7 @@ impl Solve for Minisat {
         }
         let start = ProcessTime::now();
         // Solve with minisat backend
-        let res = unsafe { ffi::cminisatsimp_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::cminisatsimp_solve(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -175,10 +179,10 @@ impl Solve for Minisat {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call minisat backend
-        clause.iter().for_each(|l| unsafe {
-            ffi::cminisatsimp_add(self.handle, l.to_ipasir());
-        });
-        unsafe { ffi::cminisatsimp_add(self.handle, 0) };
+        for l in clause {
+            handle_oom!(unsafe { ffi::cminisatsimp_add(self.handle, l.to_ipasir()) });
+        }
+        handle_oom!(unsafe { ffi::cminisatsimp_add(self.handle, 0) });
         Ok(())
     }
 }
@@ -195,7 +199,7 @@ impl SolveIncremental for Minisat {
         for a in assumps {
             unsafe { ffi::cminisatsimp_assume(self.handle, a.to_ipasir()) }
         }
-        let res = unsafe { ffi::cminisatsimp_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::cminisatsimp_solve(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -260,7 +264,7 @@ impl InterruptSolver for Interrupter {
 impl PhaseLit for Minisat {
     /// Forces the default decision phase of a variable to a certain value
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
-        unsafe { ffi::cminisatsimp_phase(self.handle, lit.to_ipasir()) };
+        handle_oom!(unsafe { ffi::cminisatsimp_phase(self.handle, lit.to_ipasir()) });
         Ok(())
     }
 
@@ -405,12 +409,12 @@ mod ffi {
         pub fn cminisat_signature() -> *const c_char;
         pub fn cminisatsimp_init() -> *mut MinisatHandle;
         pub fn cminisatsimp_release(solver: *mut MinisatHandle);
-        pub fn cminisatsimp_add(solver: *mut MinisatHandle, lit_or_zero: c_int);
+        pub fn cminisatsimp_add(solver: *mut MinisatHandle, lit_or_zero: c_int) -> c_int;
         pub fn cminisatsimp_assume(solver: *mut MinisatHandle, lit: c_int);
         pub fn cminisatsimp_solve(solver: *mut MinisatHandle) -> c_int;
         pub fn cminisatsimp_val(solver: *mut MinisatHandle, lit: c_int) -> c_int;
         pub fn cminisatsimp_failed(solver: *mut MinisatHandle, lit: c_int) -> c_int;
-        pub fn cminisatsimp_phase(solver: *mut MinisatHandle, lit: c_int);
+        pub fn cminisatsimp_phase(solver: *mut MinisatHandle, lit: c_int) -> c_int;
         pub fn cminisatsimp_unphase(solver: *mut MinisatHandle, lit: c_int);
         pub fn cminisatsimp_n_assigns(solver: *mut MinisatHandle) -> c_int;
         pub fn cminisatsimp_n_clauses(solver: *mut MinisatHandle) -> c_int;

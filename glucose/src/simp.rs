@@ -5,6 +5,8 @@
 
 use core::ffi::{c_int, CStr};
 
+use crate::handle_oom;
+
 use super::{AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
 use ffi::Glucose4Handle;
@@ -28,8 +30,12 @@ unsafe impl Send for Glucose {}
 
 impl Default for Glucose {
     fn default() -> Self {
+        let handle = unsafe { ffi::cglucosesimp4_init() };
+        if handle.is_null() {
+            panic!("not enough memory to initialize glucose solver")
+        }
         Self {
-            handle: unsafe { ffi::cglucosesimp4_init() },
+            handle,
             state: Default::default(),
             stats: Default::default(),
         }
@@ -120,7 +126,7 @@ impl Solve for Glucose {
         }
         let start = ProcessTime::now();
         // Solve with glucose backend
-        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::cglucosesimp4_solve(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -175,10 +181,10 @@ impl Solve for Glucose {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call glucose backend
-        clause.iter().for_each(|l| unsafe {
-            ffi::cglucosesimp4_add(self.handle, l.to_ipasir());
-        });
-        unsafe { ffi::cglucosesimp4_add(self.handle, 0) };
+        for l in clause {
+            handle_oom!(unsafe { ffi::cglucosesimp4_add(self.handle, l.to_ipasir()) });
+        }
+        handle_oom!(unsafe { ffi::cglucosesimp4_add(self.handle, 0) });
         Ok(())
     }
 }
@@ -195,7 +201,7 @@ impl SolveIncremental for Glucose {
         for a in assumps {
             unsafe { ffi::cglucosesimp4_assume(self.handle, a.to_ipasir()) }
         }
-        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::cglucosesimp4_solve(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -260,7 +266,7 @@ impl InterruptSolver for Interrupter {
 impl PhaseLit for Glucose {
     /// Forces the default decision phase of a variable to a certain value
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
-        unsafe { ffi::cglucosesimp4_phase(self.handle, lit.to_ipasir()) };
+        handle_oom!(unsafe { ffi::cglucosesimp4_phase(self.handle, lit.to_ipasir()) });
         Ok(())
     }
 
@@ -404,12 +410,12 @@ mod ffi {
         pub fn cglucose4_signature() -> *const c_char;
         pub fn cglucosesimp4_init() -> *mut Glucose4Handle;
         pub fn cglucosesimp4_release(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int);
+        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int) -> c_int;
         pub fn cglucosesimp4_assume(solver: *mut Glucose4Handle, lit: c_int);
         pub fn cglucosesimp4_solve(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
         pub fn cglucosesimp4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_phase(solver: *mut Glucose4Handle, lit: c_int);
+        pub fn cglucosesimp4_phase(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
         pub fn cglucosesimp4_unphase(solver: *mut Glucose4Handle, lit: c_int);
         pub fn cglucosesimp4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
