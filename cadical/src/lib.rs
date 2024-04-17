@@ -705,18 +705,11 @@ impl FreezeVar for CaDiCaL<'_, '_> {
 }
 
 // >= v1.5.4
-#[cfg(any(
-    feature = "v1-5-4",
-    feature = "v1-5-5",
-    feature = "v1-5-6",
-    feature = "v1-6-0",
-    feature = "v1-7-0",
-    all(
-        not(feature = "v1-5-3"),
-        not(feature = "v1-5-2"),
-        not(feature = "v1-5-1"),
-        not(feature = "v1-5-0")
-    )
+#[cfg(all(
+    not(feature = "v1-5-3"),
+    not(feature = "v1-5-2"),
+    not(feature = "v1-5-1"),
+    not(feature = "v1-5-0")
 ))]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
@@ -996,18 +989,11 @@ mod ffi {
     }
 
     // >= v1.5.4
-    #[cfg(any(
-        feature = "v1-5-4",
-        feature = "v1-5-5",
-        feature = "v1-5-6",
-        feature = "v1-6-0",
-        feature = "v1-7-0",
-        all(
-            not(feature = "v1-5-3"),
-            not(feature = "v1-5-2"),
-            not(feature = "v1-5-1"),
-            not(feature = "v1-5-0")
-        )
+    #[cfg(all(
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-0")
     ))]
     #[link(name = "cadical", kind = "static")]
     extern "C" {
