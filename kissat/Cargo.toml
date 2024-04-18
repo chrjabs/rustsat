@@ -38,3 +38,5 @@ chrono = "0.4.31"
 
 [dev-dependencies]
 rustsat-solvertests = { path = "../solvertests" }
+clap = { version = "4.5.4", features = ["derive"] }
+signal-hook = { version = "0.3.17" }
