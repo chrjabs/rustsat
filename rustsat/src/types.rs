@@ -20,7 +20,7 @@ pub use constraints::Clause;
 
 use crate::instances::{
     self,
-    fio::{SatSolverOutputError, SolverOutput},
+    fio::{InvalidVLine, SatSolverOutputError, SolverOutput},
 };
 
 /// The hash map to use throughout the library
@@ -705,7 +705,7 @@ impl Assignment {
         }
     }
 
-    //Read a solution from a SAT solver's output
+    /// Read a solution from a SAT solver's output given the path
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<SolverOutput> {
         let reader = std::io::BufReader::new(
             instances::fio::open_compressed_uncompressed_read(path)
@@ -714,48 +714,45 @@ impl Assignment {
         instances::fio::parse_sat_solver_output(reader)
     }
 
+    /// Given a value line of a SAT solver's solution create an Assignment with
+    /// this line's literal values already included
     pub fn from_vline(line: &str) -> anyhow::Result<Self> {
-        if !line.starts_with('v') {
-            panic!("Value line does not start with v.");
-        }
-
-        let line = &line[2..];
         let mut assignment = Assignment::default();
-        for number in line.trim().split(' ').filter(|x| !x.is_empty()) {
-            let number_v = number.parse::<i32>().unwrap();
-
-            //End of the value lines
-            if number_v == 0 {
-                continue;
-            }
-
-            let literal = Lit::from_ipasir(number_v)?;
-            assignment.assign_lit(literal);
-        }
-
+        assignment.extend_from_vline(line)?;
         Ok(assignment)
     }
 
-    /// Parses and saves literals from value line.
+    /// Parses and saves literals from a value line.
     pub fn extend_from_vline(&mut self, line: &str) -> anyhow::Result<()> {
-        if !line.starts_with('v') {
-            panic!("Value line does not start with v.");
+        if !line.starts_with("v ") {
+            if line.is_empty() {
+                anyhow::bail!(InvalidVLine::Emptyline);
+            }
+
+            anyhow::bail!(InvalidVLine::InvalidTag(line.chars().next().unwrap()));
         }
 
-        let line = &line[2..];
+        let line = &line[1..].trim_start();
         for number in line.trim().split(' ').filter(|x| !x.is_empty()) {
-            let number_v = number.parse::<i32>().unwrap();
+            let number = number.parse::<i32>()?;
 
             //End of the value lines
-            if number_v == 0 {
+            if number == 0 {
                 continue;
             }
 
-            let literal = Lit::from_ipasir(number_v)?;
+            let literal = Lit::from_ipasir(number)?;
+            let val = self.lit_value(literal);
+            if val == TernaryVal::True && literal.is_neg()
+                || val == TernaryVal::False && literal.is_pos()
+            {
+                // Catch conflicting assignments
+                anyhow::bail!(InvalidVLine::ConflictingAssignment(literal.var()));
+            }
             self.assign_lit(literal);
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -855,7 +852,9 @@ impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 
 #[cfg(test)]
 mod tests {
-    use std::mem::size_of;
+    use std::{mem::size_of, num::ParseIntError};
+
+    use crate::instances::fio::InvalidVLine;
 
     use super::{Assignment, Lit, TernaryVal, Var};
 
@@ -1065,32 +1064,69 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn vline_invalid_lit_from() {
         let vline = "v 1 -2 4 foo -5 bar 6 0";
-        Assignment::from_vline(vline).unwrap();
+        let res = Assignment::from_vline(vline);
+        match res.unwrap_err().downcast::<ParseIntError>() {
+            Ok(err) => match err {
+                ParseIntError => assert!(true),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
     }
 
     #[test]
-    #[should_panic]
     fn vline_invalid_lit_extend() {
         let vline = "v 1 -2 4 foo -5 bar 6 0";
         let mut assign = Assignment::default();
-        assign.extend_from_vline(vline).unwrap();
+        let res = assign.extend_from_vline(vline);
+        match res.unwrap_err().downcast::<ParseIntError>() {
+            Ok(err) => match err {
+                ParseIntError => assert!(true),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
     }
 
     #[test]
-    #[should_panic]
     fn vline_invalid_tag_from() {
         let vline = "b 1 -2 4 -5 6 0";
-        Assignment::from_vline(vline).unwrap();
+        let res = Assignment::from_vline(vline);
+        match res.unwrap_err().downcast::<InvalidVLine>() {
+            Ok(err) => match err {
+                InvalidVLine::InvalidTag(ck) => assert_eq!(ck, 'b'),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
     }
 
     #[test]
-    #[should_panic]
     fn vline_invalid_tag_extend() {
         let vline = "b 1 -2 4 -5 6 0";
         let mut assign = Assignment::default();
-        assign.extend_from_vline(vline).unwrap();
+        let res = assign.extend_from_vline(vline);
+        match res.unwrap_err().downcast::<InvalidVLine>() {
+            Ok(err) => match err {
+                InvalidVLine::InvalidTag(ck) => assert_eq!(ck, 'b'),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
+    }
+
+    #[test]
+    fn vline_invalid_empty() {
+        let vline = "";
+        let res = Assignment::from_vline(vline);
+        match res.unwrap_err().downcast::<InvalidVLine>() {
+            Ok(err) => match err {
+                InvalidVLine::Emptyline => assert!(true),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
     }
 }

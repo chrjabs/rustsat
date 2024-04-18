@@ -95,62 +95,59 @@ pub enum SatSolverOutputError {
     InvalidSLine,
 }
 
+#[derive(Error, Debug)]
+pub enum InvalidVLine {
+    #[error("The value line does not start with 'v ' ")]
+    InvalidTag(char),
+    #[error("The output of the SAT solver assigned the same variable different values.")]
+    ConflictingAssignment(types::Var),
+    #[error("Empty value line.")]
+    Emptyline,
+}
+
 //Parse a SAT solver's output
 pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
     let mut is_sat = false;
-    let mut have_vline = false;
-    let mut solution = None;
+    let mut solution: Option<Assignment> = None;
 
     for line in reader.lines() {
         let line = &line?;
 
         //Solution line
-        if line.starts_with('s') {
+        if line.starts_with("s ") {
+            let line = &line[1..].trim_start();
             match line {
-                line if line.contains("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
-                line if line.contains("UNKNOWN") || line.contains("INDETERMINATE") => {
+                line if line.starts_with("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
+                line if line.starts_with("UNKNOWN") || line.starts_with("INDETERMINATE") => {
                     return Ok(SolverOutput::Unknown)
                 }
-                line if line.contains("SATISFIABLE") => {
-                    /*if let Some(solution) = solution {
-                        return Ok(SolverOutput::Sat(solution));
-                    }*/
+                line if line.starts_with("SATISFIABLE") => {
                     is_sat = true;
                 }
-                _ => return Err(anyhow::anyhow!(SatSolverOutputError::InvalidSLine)),
+                _ => anyhow::bail!(SatSolverOutputError::InvalidSLine),
             }
         }
 
         //Value line
-        if line.starts_with('v') {
-            //Did I already have vline?
-            if have_vline {
-                let current_assignment: &mut Assignment = match solution {
-                    Some(ref mut assign) => assign,
-                    _ => return Err(anyhow::anyhow!(SatSolverOutputError::Nonsolution)),
-                };
-
-                current_assignment.extend_from_vline(&line)?;
-            } else {
-                solution = Some(Assignment::from_vline(&line)?);
+        if line.starts_with("v ") {
+            //Have we already see a vline?
+            match &mut solution {
+                Some(assign) => assign.extend_from_vline(&line)?,
+                _ => solution = Some(Assignment::from_vline(&line)?),
             }
-
-            have_vline = true;
         }
     }
 
     //There is no solution line so we can not trust the output
     if !is_sat {
-        return Err(anyhow::anyhow!(SatSolverOutputError::NoSline));
+        return anyhow::bail!(SatSolverOutputError::NoSline);
     }
 
-    if have_vline {
-        if let Some(solution) = solution {
-            return Ok(SolverOutput::Sat(solution));
-        }
+    if let Some(solution) = solution {
+        return Ok(SolverOutput::Sat(solution));
     }
 
-    Err(anyhow::anyhow!(SatSolverOutputError::NoVline))
+    anyhow::bail!(SatSolverOutputError::NoVline);
 }
 
 #[cfg(test)]
@@ -220,7 +217,13 @@ mod tests {
         let data = "c this is a comment\nv 1 -2 4 -5 6 0\n";
         let reader = io::Cursor::new(data);
         let res = parse_sat_solver_output(reader);
-        assert!(res.is_err());
+        match res.unwrap_err().downcast::<SatSolverOutputError>() {
+            Ok(err) => match err {
+                SatSolverOutputError::NoSline => assert!(true),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
     }
 
     #[test]
@@ -228,7 +231,13 @@ mod tests {
         let data = "c this is a comment\ns SATISFIABLE\n";
         let reader = io::Cursor::new(data);
         let res = parse_sat_solver_output(reader);
-        assert!(res.is_err());
+        match res.unwrap_err().downcast::<SatSolverOutputError>() {
+            Ok(err) => match err {
+                SatSolverOutputError::NoVline => assert!(true),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
     }
 
     #[test]
