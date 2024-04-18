@@ -434,6 +434,20 @@ impl fmt::Display for Limit {
     }
 }
 
+extern "C" fn panic_instead_of_abort() {
+    panic!("kissat called kissat_abort");
+}
+
+/// Changes Kissat's abort behaviour to cause a Rust panic instead
+pub fn panic_intead_of_abort() {
+    unsafe { ffi::kissat_call_function_instead_of_abort(Some(panic_instead_of_abort)) };
+}
+
+/// Changes Kissat's abort behaviour to call the given function instead
+pub fn call_instead_of_abort(abort: Option<extern "C" fn()>) {
+    unsafe { ffi::kissat_call_function_instead_of_abort(abort) };
+}
+
 #[cfg(test)]
 mod test {
     use super::{Config, Kissat, Limit};
@@ -516,6 +530,8 @@ mod ffi {
         pub fn kissat_set_conflict_limit(solver: *mut KissatHandle, limit: c_uint);
         pub fn kissat_set_decision_limit(solver: *mut KissatHandle, limit: c_uint);
         pub fn kissat_print_statistics(solver: *mut KissatHandle);
+        // This is from `error.h`
+        pub fn kissat_call_function_instead_of_abort(abort: Option<extern "C" fn()>);
     }
 
     // Raw callbacks forwarding to user callbacks
