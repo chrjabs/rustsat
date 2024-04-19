@@ -42,7 +42,7 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 /// RustSAT starts from 0 and the maximum index is `(u32::MAX - 1) / 2`. This is
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
-#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord, Debug)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
 #[repr(transparent)]
 pub struct Var {
     idx: u32,
@@ -212,6 +212,13 @@ impl fmt::Display for Var {
     }
 }
 
+/// Variables can be printed with the [`Debug`](std::fmt::Debug) trait
+impl fmt::Debug for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "x{}", self.idx)
+    }
+}
+
 /// More easily creates variables. Mainly used in tests.
 ///
 /// # Examples
@@ -235,7 +242,7 @@ macro_rules! var {
 /// whether the literal is negated or not. This way the literal can directly
 /// be used to index data structures with the two literals of a variable
 /// being close together.
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
 #[repr(transparent)]
 pub struct Lit {
     lidx: u32,
@@ -465,6 +472,16 @@ impl ops::Sub<u32> for Lit {
 impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", if self.is_neg() { "~" } else { "" }, self.var())
+    }
+}
+
+/// Literals can be printed with the [`Debug`](std::fmt::Debug) trait
+impl fmt::Debug for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.is_neg() {
+            true => write!(f, "~x{}", self.vidx()),
+            false => write!(f, "x{}", self.vidx()),
+        }
     }
 }
 
