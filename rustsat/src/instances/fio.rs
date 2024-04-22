@@ -76,6 +76,7 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
     Ok(Box::new(io::BufWriter::new(raw_writer)))
 }
 
+/// The possible values a corretly working SAT solver outputs.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SolverOutput {
     Sat(types::Assignment),
@@ -83,6 +84,7 @@ pub enum SolverOutput {
     Unknown,
 }
 
+/// The possible errors that can happen to a SAT solver's output.
 #[derive(Error, Debug)]
 pub enum SatSolverOutputError {
     #[error("The output of the SAT solver is incorrect.")]
@@ -95,6 +97,7 @@ pub enum SatSolverOutputError {
     InvalidSLine,
 }
 
+/// The possible errors that can happen to a value line in the SAT solver's output.
 #[derive(Error, Debug)]
 pub enum InvalidVLine {
     #[error("The value line does not start with 'v ' ")]
@@ -130,7 +133,7 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
 
         //Value line
         if line.starts_with("v ") {
-            //Have we already see a vline?
+            //Have we already seen a vline?
             match &mut solution {
                 Some(assign) => assign.extend_from_vline(&line)?,
                 _ => solution = Some(Assignment::from_vline(&line)?),
