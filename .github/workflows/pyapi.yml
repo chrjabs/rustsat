@@ -88,7 +88,7 @@ jobs:
         uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - name: Install maturin from PyPI
-        uses: install-pinned/maturin@dfebcaa782a69944b584ec164e97fbbd09885352
+        uses: install-pinned/maturin@9ef429e73235cb3ab68a9f8677ca10a189592a5e
       - name: Install mypy from PyPI
         uses: install-pinned/mypy@1b1dc20bbf8c461442db4527e6f98e2ae995826f
       - name: Install python project
