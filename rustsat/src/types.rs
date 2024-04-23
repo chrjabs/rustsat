@@ -840,22 +840,22 @@ mod tests {
     #[test]
     fn ternary_var_true() {
         let tv = TernaryVal::True;
-        assert_eq!(tv.to_bool_with_def(true), true);
-        assert_eq!(tv.to_bool_with_def(false), true);
+        assert!(tv.to_bool_with_def(true));
+        assert!(tv.to_bool_with_def(false));
     }
 
     #[test]
     fn ternary_var_false() {
         let tv = TernaryVal::False;
-        assert_eq!(tv.clone().to_bool_with_def(true), false);
-        assert_eq!(tv.to_bool_with_def(false), false);
+        assert!(!tv.to_bool_with_def(true));
+        assert!(!tv.to_bool_with_def(false));
     }
 
     #[test]
     fn ternary_var_dnc() {
         let tv = TernaryVal::DontCare;
-        assert_eq!(tv.clone().to_bool_with_def(true), true);
-        assert_eq!(tv.to_bool_with_def(false), false);
+        assert!(tv.to_bool_with_def(true));
+        assert!(!tv.to_bool_with_def(false));
     }
 
     #[test]
