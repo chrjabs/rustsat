@@ -21,19 +21,29 @@ pub fn base(input: MacroInput) -> TokenStream {
                 let mut solver = <$slv>::default();
                 let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path($inst)
                     .expect("failed to parse instance");
-                rustsat::solvers::Solve::add_cnf(&mut solver, inst.into_cnf().0)
+                rustsat::solvers::Solve::add_cnf_ref(&mut solver, inst.cnf())
                     .expect("failed to add cnf to solver");
                 let res = rustsat::solvers::Solve::solve(&mut solver).expect("failed solving");
                 assert_eq!(res, $res);
+                if $res == rustsat::solvers::SolverResult::Sat {
+                    let sol = rustsat::solvers::Solve::solution(&solver, inst.max_var().expect("no variables in instance"))
+                        .expect("failed to get solution from solver");
+                    assert!(inst.is_sat(&sol));
+                }
             }};
             ($init:expr, $inst:expr, $res:expr) => {{
                 let mut solver = $init;
                 let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path($inst)
                     .expect("failed to parse instance");
-                rustsat::solvers::Solve::add_cnf(&mut solver, inst.into_cnf().0)
+                rustsat::solvers::Solve::add_cnf_ref(&mut solver, inst.cnf())
                     .expect("failed to add cnf to solver");
                 let res = rustsat::solvers::Solve::solve(&mut solver).expect("failed solving");
                 assert_eq!(res, $res);
+                if $res == rustsat::solvers::SolverResult::Sat {
+                    let sol = rustsat::solvers::Solve::solution(&solver, inst.max_var().expect("no variables in instance"))
+                        .expect("failed to get solution from solver");
+                    assert!(inst.is_sat(&sol));
+                }
             }};
         }
     };
