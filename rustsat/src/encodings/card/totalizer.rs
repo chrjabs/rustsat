@@ -321,10 +321,12 @@ pub(super) type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 /// accessed but only through [`Totalizer`].
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 enum Node {
+    /// An input literal, i.e., a leaf node of the tree
     Leaf {
         /// The input literal to the tree
         lit: Lit,
     },
+    /// An internal node of the tree
     Internal {
         /// The output literals of this node
         out_lits: Vec<Option<Lit>>,

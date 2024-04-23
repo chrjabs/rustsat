@@ -59,6 +59,7 @@ mod nodedb {
 
 /// Iterate over encoding inputs
 pub trait IterInputs {
+    /// The iterator type
     type Iter<'a>: Iterator<Item = Lit>
     where
         Self: 'a;
@@ -68,6 +69,7 @@ pub trait IterInputs {
 
 /// Iterate over weighted encoding inputs
 pub trait IterWeightedInputs {
+    /// The iterator type
     type Iter<'a>: Iterator<Item = (Lit, usize)>
     where
         Self: 'a;

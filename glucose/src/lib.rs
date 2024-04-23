@@ -12,6 +12,8 @@
 //! The version of Glucose in this crate is Version 4.2.1.
 //! The used C++ source repository can be found [here](https://github.com/chrjabs/glucose4).
 
+#![warn(missing_docs)]
+
 use rustsat::{
     solvers::SolverState,
     types::{Lit, Var},
@@ -22,6 +24,7 @@ use thiserror::Error;
 pub mod core;
 pub mod simp;
 
+/// Fatal error returned if the Glucose API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("glucose c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
@@ -29,6 +32,10 @@ pub struct InvalidApiReturn {
     value: c_int,
 }
 
+/// Error returned if a provided assumption variable was eliminated in preprocessing by the solver
+///
+/// Glucose does not support assumptions over eliminated variables. To prevent this, variables that
+/// will be used as assumptions can be frozen via [`rustsat::solvers::FreezeVar`]
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("assumption variable {0} has been eliminated by glucose simplification")]
 pub struct AssumpEliminated(Var);

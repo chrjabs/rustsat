@@ -16,18 +16,21 @@ pub use constraints::Clause;
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHashMap<K, V> = rustc_hash::FxHashMap<K, V>;
+/// The hash map to use throughout the library
 #[cfg(not(feature = "fxhash"))]
 pub type RsHashMap<K, V> = std::collections::HashMap<K, V>;
 
 /// The hash set to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHashSet<V> = rustc_hash::FxHashSet<V>;
+/// The hash set to use throughout the library
 #[cfg(not(feature = "fxhash"))]
 pub type RsHashSet<V> = std::collections::HashSet<V>;
 
-/// The hasher to use throught the library
+/// The hasher to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHasher = rustc_hash::FxHasher;
+/// The hasher to use throughout the library
 #[cfg(not(feature = "fxhash"))]
 pub type RsHasher = std::collections::hash_map::DefaultHasher;
 
@@ -603,6 +606,7 @@ impl Assignment {
         }
     }
 
+    /// Replaces unassigned variables in the assignment with a default value
     pub fn replace_dont_care(&mut self, def: bool) {
         self.assignment.iter_mut().for_each(|tv| {
             if tv == &TernaryVal::DontCare {
@@ -836,7 +840,7 @@ mod tests {
     #[test]
     fn ternary_var_true() {
         let tv = TernaryVal::True;
-        assert_eq!(tv.clone().to_bool_with_def(true), true);
+        assert_eq!(tv.to_bool_with_def(true), true);
         assert_eq!(tv.to_bool_with_def(false), true);
     }
 

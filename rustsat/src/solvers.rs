@@ -248,6 +248,7 @@ pub trait Learn<'learn> {
 
 /// Trait for all solvers that can be asynchronously interrupt.
 pub trait Interrupt {
+    /// The interrupter of the solver
     type Interrupter: InterruptSolver + Send + 'static;
     /// Gets a thread safe interrupter object that can be used to terminate the solver
     fn interrupter(&mut self) -> Self::Interrupter;
@@ -452,7 +453,9 @@ pub enum ControlSignal {
 /// A solver state error
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub struct StateError {
+    /// The state required for the operation
     pub required_state: SolverState,
+    /// The state that the solver is actually in
     pub actual_state: SolverState,
 }
 

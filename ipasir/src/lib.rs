@@ -27,6 +27,8 @@
 //! println!("cargo:rustc-flags=-l dylib=stdc++");
 //! ```
 
+#![warn(missing_docs)]
+
 use core::ffi::{c_int, c_void, CStr};
 
 use cpu_time::ProcessTime;
@@ -40,6 +42,7 @@ use rustsat::{
 };
 use thiserror::Error;
 
+/// Fatal error returned if the IPASIR API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("ipasir c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {

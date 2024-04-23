@@ -20,6 +20,8 @@
 //! Without any features selected, the newest version will be used.
 //! If conflicting CaDiCaL versions are requested, the newest requested version will be selected.
 
+#![warn(missing_docs)]
+
 use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
@@ -33,6 +35,7 @@ use rustsat::solvers::{
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
 
+/// Fatal error returned if the CaDiCaL API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("cadical c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
@@ -274,6 +277,18 @@ impl CaDiCaL<'_, '_> {
         unsafe { ffi::ccadical_print_statistics(self.handle) }
     }
 
+    /// Executes the given number of preprocessing rounds
+    ///
+    /// # CaDiCaL Documentation
+    ///
+    /// This function executes the given number of preprocessing rounds. It is
+    /// similar to 'solve' with 'limits ("preprocessing", rounds)' except that
+    /// no CDCL nor local search, nor lucky phases are executed.  The result
+    /// values are also the same: 0=UNKNOWN, 10=SATISFIABLE, 20=UNSATISFIABLE.
+    /// As 'solve' it resets current assumptions and limits before returning.
+    /// The numbers of rounds should not be negative.  If the number of rounds
+    /// is zero only clauses are restored (if necessary) and top level unit
+    /// propagation is performed, which both take some time.
     pub fn simplify(&mut self, rounds: u32) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
@@ -305,6 +320,18 @@ impl CaDiCaL<'_, '_> {
         }
     }
 
+    /// Executes the given number of preprocessing rounds under assumptions
+    ///
+    /// # CaDiCaL Documentation
+    ///
+    /// This function executes the given number of preprocessing rounds. It is
+    /// similar to 'solve' with 'limits ("preprocessing", rounds)' except that
+    /// no CDCL nor local search, nor lucky phases are executed.  The result
+    /// values are also the same: 0=UNKNOWN, 10=SATISFIABLE, 20=UNSATISFIABLE.
+    /// As 'solve' it resets current assumptions and limits before returning.
+    /// The numbers of rounds should not be negative.  If the number of rounds
+    /// is zero only clauses are restored (if necessary) and top level unit
+    /// propagation is performed, which both take some time.
     pub fn simplify_assumps(
         &mut self,
         assumps: Vec<Lit>,

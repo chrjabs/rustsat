@@ -64,6 +64,7 @@
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(feature = "bench", feature(test))]
+#![warn(missing_docs)]
 
 use core::fmt;
 
@@ -76,6 +77,9 @@ pub mod types;
 
 pub mod utils;
 
+/// Error returned if the user tries to perform an action that is not allowed
+///
+/// The parameter will hold an explanation of why the action is not allowed
 #[derive(Error, Debug)]
 pub struct NotAllowed(&'static str);
 
@@ -89,10 +93,13 @@ impl fmt::Display for NotAllowed {
 #[cfg(test)]
 mod bench;
 
+/// Error returned if an operation requires clausal constraints, but this is not the case
 #[derive(Error, Debug)]
 #[error("operation requires a clausal constraint(s) but it is not")]
 pub struct RequiresClausal;
 
+/// Error returned if an operation requires an objective represented as soft literals, but this is
+/// not the case
 #[derive(Error, Debug)]
 #[error("operation requires an objective only consisting of soft literals")]
 pub struct RequiresSoftLits;

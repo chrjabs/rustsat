@@ -104,6 +104,7 @@ impl SubAssign<usize> for NodeId {
 /// Trait for nodes in the tree
 #[allow(clippy::len_without_is_empty)]
 pub trait NodeLike {
+    /// The type of iterator over the node's values
     type ValIter: DoubleEndedIterator<Item = usize>;
 
     /// Returns true if the node is a leaf
@@ -183,6 +184,7 @@ impl NodeCon {
         }
     }
 
+    /// Creates a node connection that is offset and weighted
     #[cfg(any(test, feature = "internals"))]
     pub fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
         NodeCon {
@@ -218,6 +220,7 @@ impl NodeCon {
         }
     }
 
+    /// Changes the weight of a node connection
     #[inline]
     #[cfg(feature = "internals")]
     pub fn reweight(self, weight: usize) -> NodeCon {
@@ -227,17 +230,20 @@ impl NodeCon {
         }
     }
 
+    /// Gets the offset of the connection
     #[inline]
     pub fn offset(&self) -> usize {
         self.offset
     }
 
+    /// Gets the divisor of the connection
     #[inline]
     pub fn divisor(&self) -> usize {
         let div: u8 = self.divisor.into();
         div.into()
     }
 
+    /// Gets the multiplier of the connection
     #[inline]
     pub fn multiplier(&self) -> usize {
         self.multiplier.into()
@@ -266,6 +272,7 @@ impl NodeCon {
         }
     }
 
+    /// Maps an output value of the connection to its input value, rounding up
     #[inline]
     pub fn rev_map_round_up(&self, mut val: usize) -> usize {
         if let Some(limit) = self.len_limit {
