@@ -137,6 +137,7 @@ impl Clause {
         Some(self)
     }
 
+    /// Checks whether the clause is satisfied by the given assignment
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         for &lit in &self.lits {
             if assign.lit_value(lit) == TernaryVal::True {
@@ -296,6 +297,7 @@ impl fmt::Debug for Clause {
     }
 }
 
+/// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
     ( $($l:expr),* ) => {
@@ -477,6 +479,7 @@ impl CardConstraint {
         }
     }
 
+    /// Checks whether the cardinality constraint is satisfied by the given assignment
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         let count = self.iter().fold(0, |cnt, lit| {
             if assign.lit_value(*lit) == TernaryVal::True {
@@ -904,6 +907,7 @@ impl PBConstraint {
         }
     }
 
+    /// Checks whether the PB constraint is satisfied by the given assignment
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         let sum = self.iter().fold(0, |sum, (lit, coeff)| {
             if assign.lit_value(*lit) == TernaryVal::True {

@@ -831,6 +831,7 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
+    /// Checks whether the instance is satisfied by the given assignment
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         for clause in self.cnf.iter() {
             if !clause.is_sat(assign) {

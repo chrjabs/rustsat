@@ -12,6 +12,8 @@
 //!
 //! Documentation for this API can be found [here](https://christophjabs.info/rustsat/pyapi/).
 
+#![warn(missing_docs)]
+
 use pyo3::{prelude::*, types::PySlice};
 
 mod encodings;

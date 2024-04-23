@@ -331,12 +331,14 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
 /// [`super::InvertedGeneralizedTotalizer`] structs.
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 enum Node {
+    /// A weighted input literal, i.e., a leaf node of the tree
     Leaf {
         /// The input literal to the tree
         lit: Lit,
         /// The weight of the input literal
         weight: usize,
     },
+    /// An internal weighted node of the tree
     Internal {
         /// The weighted output literals of this node
         out_lits: BTreeMap<usize, Lit>,

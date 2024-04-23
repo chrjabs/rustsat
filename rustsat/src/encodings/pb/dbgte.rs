@@ -46,6 +46,7 @@ pub struct DbGte {
 }
 
 impl DbGte {
+    /// Creates a generalized totalizer from its internal parts
     #[cfg(feature = "internals")]
     pub fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
         Self {
@@ -105,6 +106,7 @@ impl DbGte {
         }
     }
 
+    /// Gets the depth of the encoding, i.e., the longest path from the root to a leaf
     pub fn depth(&self) -> usize {
         self.root.map_or(0, |con| self.db[con.id].depth())
     }
@@ -287,6 +289,7 @@ impl Extend<(Lit, usize)> for DbGte {
     }
 }
 
+/// Generalized totalizer encoding types that do not own but reference their [`TotDb`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};

@@ -23,6 +23,8 @@
 //! Without any features selected, the newest version will be used.
 //! If conflicting Kissat versions are requested, the newest requested version will be selected.
 
+#![warn(missing_docs)]
+
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
@@ -37,6 +39,7 @@ use rustsat::{
 };
 use thiserror::Error;
 
+/// Fatal error returned if the Kissat API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("kissat c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {

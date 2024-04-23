@@ -88,6 +88,7 @@ impl DynamicPolyWatchdog {
     }
 }
 
+/// Type containing information about the DPW encoding structure
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[derive(Clone)]
 pub(crate) struct Structure {
@@ -242,6 +243,7 @@ impl FromIterator<(Lit, usize)> for DynamicPolyWatchdog {
     }
 }
 
+/// Dynamic polynomial watchdog encoding types that do not own but reference their [`TotDb`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
@@ -444,6 +446,7 @@ type DpwIter<'a> = std::iter::Map<
     fn((&Lit, &usize)) -> (Lit, usize),
 >;
 
+/// Builds a DPW [`Structure`] over weighted input literals
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn build_lit_structure<LI: Iterator<Item = (Lit, usize)>>(
     lits: LI,
@@ -458,6 +461,7 @@ fn build_lit_structure<LI: Iterator<Item = (Lit, usize)>>(
     build_structure(cons.into_iter(), tot_db, var_manager)
 }
 
+/// Builds a DPW [`Structure`] from [Node connections](NodeCon)
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn build_structure<CI: Iterator<Item = NodeCon>>(
     cons: CI,
@@ -574,6 +578,7 @@ fn build_structure<CI: Iterator<Item = NodeCon>>(
     }
 }
 
+/// Encodes an output of the DPW [`Structure`]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn encode_output<Col>(
     dpw: &Structure,
@@ -590,6 +595,7 @@ fn encode_output<Col>(
     tot_db.define_pos_tot(dpw.root, oidx, collector, var_manager);
 }
 
+/// Enforces an upper bound value on a DPW [`Structure`]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Error> {
     let output_weight = 1 << (dpw.output_power());

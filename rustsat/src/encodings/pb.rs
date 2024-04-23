@@ -51,7 +51,9 @@ pub mod gte;
 pub use gte::GeneralizedTotalizer;
 
 pub mod simulators;
+/// Inverted generalized totalizer that can be used for lower bounding PB expressions
 pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
+/// Double generalized totalizer that can be used for upper and lower bounding PB expressions
 pub type DoubleGeneralizedTotalizer =
     simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
 

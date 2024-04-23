@@ -45,6 +45,7 @@ pub struct DbTotalizer {
 }
 
 impl DbTotalizer {
+    /// Creates a totalizer from its internal parts
     #[cfg(feature = "internals")]
     pub fn from_raw(root: NodeId, db: TotDb) -> Self {
         Self {
@@ -204,8 +205,11 @@ impl Extend<Lit> for DbTotalizer {
 /// A totalizer adder node
 #[derive(Clone)]
 pub enum Node {
+    /// An input literal, i.e., a leaf of the tree
     Leaf(Lit),
+    /// An internal node with unit weight
     Unit(UnitNode),
+    /// An internal weighted node
     General(GeneralNode),
 }
 
@@ -742,6 +746,10 @@ impl TotDb {
         }
     }
 
+    /// Defines a positive output, assuming that the structure is a non-weighted totalizer
+    ///
+    /// The `idx` parameter is the output index, i.e., not the value represented by the output, but
+    /// `value - 1`.
     pub fn define_pos_tot<Col>(
         &mut self,
         id: NodeId,
@@ -936,6 +944,7 @@ impl TotDb {
     }
 }
 
+/// Totalizer encoding types that do not own but reference their [`TotDb`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::cell::RefCell;
