@@ -283,7 +283,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`NonClausal`]
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
     /// - Returns [`io::Error`] on errors during writing
     pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
@@ -302,7 +302,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`NonClausal`]
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
     /// - Returns [`io::Error`] on errors during writing
     pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
         if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {

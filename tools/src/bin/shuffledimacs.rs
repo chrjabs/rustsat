@@ -3,7 +3,7 @@
 //! A small tool for shuffling the order of constraints and the variable
 //! indexing in a DIMACS file.
 //!
-//! Usage: shuffledimacs [dimacs [m,w]cnf file] [output path]
+//! Usage: `shuffledimacs [dimacs [m,w]cnf file] [output path]`
 
 use std::path::{Path, PathBuf};
 
