@@ -155,7 +155,7 @@ impl Var {
     /// will have idx+1 and be negative if the literal is negated. Returns
     /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
     /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
-    /// mostly safe to simply use [`to_ipasir`] instead.
+    /// mostly safe to simply use [`Self::to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
         (self.idx32() + 1)
             .try_into()
@@ -396,7 +396,7 @@ impl Lit {
     /// will have idx+1 and be negative if the literal is negated. Returns
     /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
     /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
-    /// mostly safe to simply use [`to_ipasir`] instead.
+    /// mostly safe to simply use [`Self::to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
         let negated = self.is_neg();
         let idx: c_int = match (self.vidx() + 1).try_into() {
