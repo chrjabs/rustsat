@@ -37,6 +37,8 @@ jobs:
     name: Ensure C-API crate version is in sync
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Check
         run: "[ \"$(grep '^version = ' rustsat/Cargo.toml)\" = \"$(grep '^version = ' capi/Cargo.toml)\" ]"
 
