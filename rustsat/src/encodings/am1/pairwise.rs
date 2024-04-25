@@ -7,7 +7,7 @@
 use super::Encode;
 use crate::{
     clause,
-    encodings::{CollectClauses, EncodeStats, Error, IterInputs},
+    encodings::{CollectClauses, EncodeStats, IterInputs},
     instances::ManageVars,
     types::Lit,
 };
@@ -34,7 +34,7 @@ impl Encode for Pairwise {
         &mut self,
         collector: &mut Col,
         _var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
     {
@@ -43,7 +43,7 @@ impl Encode for Pairwise {
         let clause_iter = (0..self.in_lits.len()).flat_map(|first| {
             (first + 1..self.in_lits.len()).map(move |second| clause![!lits[first], !lits[second]])
         });
-        collector.extend(clause_iter);
+        collector.extend_clauses(clause_iter)?;
         self.n_clauses = collector.n_clauses() - prev_clauses;
         Ok(())
     }

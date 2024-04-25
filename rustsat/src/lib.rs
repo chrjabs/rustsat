@@ -67,6 +67,7 @@
 #![warn(missing_docs)]
 
 use core::fmt;
+use std::collections::TryReserveError;
 
 use thiserror::Error;
 
@@ -93,11 +94,29 @@ impl fmt::Display for NotAllowed {
 #[cfg(test)]
 mod bench;
 
-/// Error returned if an operation requires clausal constraints, but this is not the case
-#[derive(Error, Debug)]
-#[error("operation ran out of memory")]
-pub struct OutOfMemory;
+/// Error returned when an operation ran out of memory
+///
+/// The library is not _fully_ memory safe, meaning there are cases where memory allocation failing
+/// can lead to a panic instead to an error. Mainly add clauses to solvers and collecting clauses
+/// from encodings are done in a safe way. This is intended, e.g., for anytime solvers that might
+/// want a change to print a final output if they run out of memory.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum OutOfMemory {
+    /// A `try_reserve` operation in Rust ran out of memory
+    #[error("try reserve error: {0}")]
+    TryReserve(TryReserveError),
+    /// An external API (typically a solver) ran out of memory
+    #[error("external API operation ran out of memory")]
+    ExternalApi,
+}
 
+impl From<TryReserveError> for OutOfMemory {
+    fn from(value: TryReserveError) -> Self {
+        OutOfMemory::TryReserve(value)
+    }
+}
+
+/// Error returned if an operation requires clausal constraints, but this is not the case
 #[derive(Error, Debug)]
 #[error("operation requires a clausal constraint(s) but it is not")]
 pub struct RequiresClausal;

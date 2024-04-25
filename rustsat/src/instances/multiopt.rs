@@ -149,6 +149,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
     pub fn into_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
         let (cnf, mut vm) = self.constrs.into_cnf();
         let omv = self.objs.iter().fold(Var::new(0), |v, o| {
@@ -172,6 +176,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
     pub fn into_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
         let (mut cnf, mut vm) = self.constrs.into_cnf();
         let omv = self.objs.iter().fold(Var::new(0), |v, o| {
@@ -245,8 +253,14 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
             writer,
         )
     }

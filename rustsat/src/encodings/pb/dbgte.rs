@@ -158,13 +158,18 @@ impl EncodeIncremental for DbGte {
 }
 
 impl BoundUpper for DbGte {
-    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    fn encode_ub<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         self.db.reset_encoded();
-        self.encode_ub_change(range, collector, var_manager);
+        self.encode_ub_change(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -221,13 +226,14 @@ impl BoundUpperIncremental for DbGte {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
@@ -238,14 +244,16 @@ impl BoundUpperIncremental for DbGte {
                     con.rev_map_round_up(range.start + 1)
                         ..=con.rev_map(range.end + self.max_leaf_weight),
                 )
-                .for_each(|val| {
+                .try_for_each(|val| {
                     self.db
-                        .define_pos(con.id, val, collector, var_manager)
+                        .define_pos(con.id, val, collector, var_manager)?
                         .unwrap();
-                })
+                    Ok::<(), crate::OutOfMemory>(())
+                })?
         }
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(())
     }
 }
 
@@ -435,7 +443,8 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
@@ -490,7 +499,8 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
@@ -545,24 +555,27 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
-                return;
+                return Ok(());
             }
             self.db[self.root.id]
                 .vals(
                     self.root.rev_map_round_up(range.start + 1)
                         ..=self.root.rev_map(range.end + self.max_leaf_weight),
                 )
-                .for_each(|val| {
+                .try_for_each(|val| {
                     self.db
-                        .define_pos(self.root.id, val, collector, var_manager)
+                        .define_pos(self.root.id, val, collector, var_manager)?
                         .unwrap();
-                });
+                    Ok::<(), crate::OutOfMemory>(())
+                })?;
+            Ok(())
         }
     }
 
@@ -572,24 +585,27 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
-                return;
+                return Ok(());
             }
-            let vals = self.db.borrow()[self.root.id].vals(
+            let mut vals = self.db.borrow()[self.root.id].vals(
                 self.root.rev_map_round_up(range.start + 1)
                     ..=self.root.rev_map(range.end + self.max_leaf_weight),
             );
-            vals.for_each(|val| {
+            vals.try_for_each(|val| {
                 self.db
                     .borrow_mut()
-                    .define_pos(self.root.id, val, collector, var_manager)
+                    .define_pos(self.root.id, val, collector, var_manager)?
                     .unwrap();
-            });
+                Ok::<(), crate::OutOfMemory>(())
+            })?;
+            Ok(())
         }
     }
 }
@@ -620,7 +636,8 @@ mod tests {
         gte.extend(lits);
         assert_eq!(gte.enforce_ub(4), Err(Error::NotEncoded));
         let mut var_manager = BasicVarManager::default();
-        gte.encode_ub(0..7, &mut Cnf::new(), &mut var_manager);
+        gte.encode_ub(0..7, &mut Cnf::new(), &mut var_manager)
+            .unwrap();
         assert_eq!(gte.depth(), 3);
         assert_eq!(gte.n_vars(), 10);
     }
@@ -636,13 +653,14 @@ mod tests {
         gte1.extend(lits.clone());
         let mut var_manager = BasicVarManager::default();
         let mut cnf1 = Cnf::new();
-        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager);
+        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut gte2 = DbGte::default();
         gte2.extend(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf2 = Cnf::new();
-        gte2.encode_ub(0..3, &mut cnf2, &mut var_manager);
-        gte2.encode_ub_change(0..5, &mut cnf2, &mut var_manager);
+        gte2.encode_ub(0..3, &mut cnf2, &mut var_manager).unwrap();
+        gte2.encode_ub_change(0..5, &mut cnf2, &mut var_manager)
+            .unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), gte1.n_clauses());
         assert_eq!(cnf2.len(), gte2.n_clauses());
@@ -659,7 +677,7 @@ mod tests {
         gte1.extend(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf1 = Cnf::new();
-        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager);
+        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut gte2 = DbGte::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 10);
@@ -669,7 +687,7 @@ mod tests {
         gte2.extend(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf2 = Cnf::new();
-        gte2.encode_ub(0..9, &mut cnf2, &mut var_manager);
+        gte2.encode_ub(0..9, &mut cnf2, &mut var_manager).unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), gte1.n_clauses());
         assert_eq!(cnf2.len(), gte2.n_clauses());
@@ -692,7 +710,8 @@ mod tests {
         lits.insert(lit![6], 1);
         gte.extend(lits);
         let mut gte_cnf = Cnf::new();
-        gte.encode_ub(3..8, &mut gte_cnf, &mut var_manager_gte);
+        gte.encode_ub(3..8, &mut gte_cnf, &mut var_manager_gte)
+            .unwrap();
         // Set up Tot
         let mut tot = card::Totalizer::default();
         tot.extend(vec![
@@ -705,7 +724,7 @@ mod tests {
             lit![6],
         ]);
         let mut tot_cnf = Cnf::new();
-        card::BoundUpper::encode_ub(&mut tot, 3..8, &mut tot_cnf, &mut var_manager_tot);
+        card::BoundUpper::encode_ub(&mut tot, 3..8, &mut tot_cnf, &mut var_manager_tot).unwrap();
         println!("{:?}", gte_cnf);
         println!("{:?}", tot_cnf);
         assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());

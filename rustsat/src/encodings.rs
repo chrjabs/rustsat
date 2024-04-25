@@ -4,7 +4,7 @@
 
 use thiserror::Error;
 
-use crate::types::Lit;
+use crate::types::{Clause, Lit};
 
 pub mod am1;
 pub mod atomics;
@@ -13,9 +13,21 @@ pub mod pb;
 
 /// Trait for collecting clauses. Mainly used when generating encodings and implemented by
 /// [`crate::instances::Cnf`], and solvers.
-pub trait CollectClauses: Extend<crate::types::Clause> {
+pub trait CollectClauses {
     /// Gets the number of clauses in the collection
     fn n_clauses(&self) -> usize;
+    /// Extends the clause collector with an iterator of clauses
+    ///
+    /// # Error
+    ///
+    /// If the collector runs out of memory, return an [`crate::OutOfMemory`] error.
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>;
+    /// Adds one clause to the collector
+    fn add_clause(&mut self, cl: Clause) -> Result<(), crate::OutOfMemory> {
+        self.extend_clauses([cl])
+    }
 }
 
 /// Errors from encodings

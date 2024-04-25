@@ -469,8 +469,34 @@ impl fmt::Display for StateError {
     }
 }
 
+macro_rules! pass_oom_or_panic {
+    ($result:expr) => {{
+        match $result {
+            Ok(res) => res,
+            Err(err) => match err.downcast::<crate::OutOfMemory>() {
+                Ok(oom) => return Err(oom),
+                Err(err) => panic!("unexpected error in clause collector: {err}"),
+            },
+        }
+    }};
+}
+
 impl<S: Solve + SolveStats> CollectClauses for S {
     fn n_clauses(&self) -> usize {
         self.n_clauses()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        for cl in cl_iter {
+            pass_oom_or_panic!(self.add_clause(cl));
+        }
+        Ok(())
+    }
+
+    fn add_clause(&mut self, cl: Clause) -> Result<(), crate::OutOfMemory> {
+        Ok(pass_oom_or_panic!(self.add_clause(cl)))
     }
 }
