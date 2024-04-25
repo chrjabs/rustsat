@@ -27,11 +27,8 @@ fn main() {
     // Setup inline-c
     let include_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ld_dir = target_dir().unwrap();
-    #[cfg(feature = "pyapi")]
-    let python_lib = pyo3_build_config::get().lib_name.as_ref().unwrap();
 
     let cflags = format!("cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat_capi -D_DEBUG -D_CRT_SECURE_NO_WARNINGS", I=include_dir, L=ld_dir.to_string_lossy());
-    #[cfg(feature = "compression")]
     let cflags = format!("{} -llzma -lbz2", cflags);
     println!("{}", cflags);
 
@@ -39,7 +36,6 @@ fn main() {
         "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat_capi.a",
         L = ld_dir.to_string_lossy()
     );
-    #[cfg(feature = "compression")]
     let ldflags = format!("{} -llzma -lbz2", ldflags);
     println!("{}", ldflags);
 }
