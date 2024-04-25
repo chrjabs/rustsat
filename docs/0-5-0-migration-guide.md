@@ -45,3 +45,20 @@ There have been some API changes to improve usability, even though they are brea
 - Methods providing references to internal data are now named `_ref` and `_mut`
   if mutability is allowed. If only a non-mutable accessor is present, the `_ref`
   suffix is omitted (e.g., for `SatInstance::cnf`).
+
+## Handling Out-Of-Memory
+
+This release also includes a push towards catching the most common cases where
+this library could run out of memory. The two main cases of this are adding
+clauses to solvers and generating CNF encodings. For the first, C++ error
+exceptions are now caught in the C-API wrapper and a Rust error
+(`rustsat::OutOfMemory::ExternalApi`) is returned. The other case is if a
+clause collector used when generating an encoding runs out of memory. For this
+reason, the `CollectClauses` trait now does not use Rust's standard `Extend`
+crate any more, but has the functions `extend_clauses` and `add_clause`.
+`CollectClauses` is mainly implemented by `Cnf` and solver (and newly by
+`SatInstance`). In the Rust types, `try_reserve` is now used and
+`rustsat::OutOfMemory::TryReserve` will be returned if memory allocation fails.
+For most use cases, there are at most some more errors that you can treat with
+`unwrap` or `expect` to get the same behaviour as previously. This just enables
+more sophisticated memory error handling now.
