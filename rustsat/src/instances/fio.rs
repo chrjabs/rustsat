@@ -12,7 +12,7 @@ use std::{
 use thiserror::Error;
 
 use crate::{
-    solvers::Solve,
+    solvers::{Solve, SolverResult},
     types::{self, Assignment},
 };
 
@@ -76,7 +76,7 @@ pub(crate) fn open_compressed_uncompressed_write<P: AsRef<Path>>(
     Ok(Box::new(io::BufWriter::new(raw_writer)))
 }
 
-/// The possible values a corretly working SAT solver outputs.
+/// Possible results from SAT solver output parsing
 #[derive(Debug, PartialEq, Eq)]
 pub enum SolverOutput {
     Sat(types::Assignment),
@@ -84,31 +84,29 @@ pub enum SolverOutput {
     Unknown,
 }
 
-/// The possible errors that can happen to a SAT solver's output.
+/// Possible errors in SAT solver output parsing
 #[derive(Error, Debug)]
 pub enum SatSolverOutputError {
-    #[error("The output of the SAT solver is incorrect.")]
-    Nonsolution,
     #[error("No solution line found in the output.")]
-    NoSline,
+    NoSLine,
     #[error("No value line found in the output.")]
-    NoVline,
+    NoVLine,
     #[error("Invalid solution line found in the output.")]
     InvalidSLine,
 }
 
-/// The possible errors that can happen to a value line in the SAT solver's output.
+/// Possible errors in parsing a SAT solver value line
 #[derive(Error, Debug)]
 pub enum InvalidVLine {
-    #[error("The value line does not start with 'v ' ")]
+    #[error("The value line does not start with 'v ' but with {0}")]
     InvalidTag(char),
-    #[error("The output of the SAT solver assigned the same variable different values.")]
+    #[error("The output of the SAT solver assigned different values to variable {0}")]
     ConflictingAssignment(types::Var),
-    #[error("Empty value line.")]
-    Emptyline,
+    #[error("Empty value line")]
+    EmptyLine,
 }
 
-//Parse a SAT solver's output
+/// Parses SAT solver output
 pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
     let mut is_sat = false;
     let mut solution: Option<Assignment> = None;
@@ -143,14 +141,14 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
 
     //There is no solution line so we can not trust the output
     if !is_sat {
-        return anyhow::bail!(SatSolverOutputError::NoSline);
+        return anyhow::bail!(SatSolverOutputError::NoSLine);
     }
 
     if let Some(solution) = solution {
         return Ok(SolverOutput::Sat(solution));
     }
 
-    anyhow::bail!(SatSolverOutputError::NoVline);
+    anyhow::bail!(SatSolverOutputError::NoVLine);
 }
 
 #[cfg(test)]
@@ -158,7 +156,7 @@ mod tests {
     use std::io;
 
     use crate::{
-        instances::fio::SatSolverOutputError,
+        instances::{self, fio::SatSolverOutputError, SatInstance},
         types::{Assignment, TernaryVal},
     };
 
@@ -222,7 +220,7 @@ mod tests {
         let res = parse_sat_solver_output(reader);
         match res.unwrap_err().downcast::<SatSolverOutputError>() {
             Ok(err) => match err {
-                SatSolverOutputError::NoSline => assert!(true),
+                SatSolverOutputError::NoSLine => assert!(true),
                 _ => panic!(),
             },
             Err(_) => panic!(),
@@ -236,7 +234,7 @@ mod tests {
         let res = parse_sat_solver_output(reader);
         match res.unwrap_err().downcast::<SatSolverOutputError>() {
             Ok(err) => match err {
-                SatSolverOutputError::NoVline => assert!(true),
+                SatSolverOutputError::NoVLine => assert!(true),
                 _ => panic!(),
             },
             Err(_) => panic!(),
