@@ -41,7 +41,10 @@ macro_rules! handle_oom {
     ($val:expr) => {{
         let val = $val;
         if val == crate::OUT_OF_MEM {
-            return anyhow::Context::context(Err(rustsat::OutOfMemory), "cadical out of memory");
+            return anyhow::Context::context(
+                Err(rustsat::OutOfMemory::ExternalApi),
+                "cadical out of memory",
+            );
         }
         val
     }};

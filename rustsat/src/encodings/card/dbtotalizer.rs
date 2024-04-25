@@ -99,7 +99,12 @@ impl EncodeIncremental for DbTotalizer {
 }
 
 impl BoundUpper for DbTotalizer {
-    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    fn encode_ub<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: RangeBounds<usize>,
@@ -141,24 +146,26 @@ impl BoundUpperIncremental for DbTotalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
         self.extend_tree();
         if let Some(id) = self.root {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                self.db.define_pos_tot(id, idx, collector, var_manager);
+                self.db.define_pos_tot(id, idx, collector, var_manager)?;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
-        }
+        };
+        Ok(())
     }
 }
 
@@ -639,7 +646,7 @@ impl TotDb {
         val: usize,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Option<Lit>
+    ) -> Result<Option<Lit>, crate::OutOfMemory>
     where
         Col: CollectClauses,
     {
@@ -649,23 +656,28 @@ impl TotDb {
             Node::Leaf(lit) => {
                 debug_assert_eq!(val, 1);
                 if val != 1 {
-                    return None;
+                    return Ok(None);
                 }
-                Some(*lit)
+                Ok(Some(*lit))
             }
             Node::Unit(node) => {
                 if val > node.lits.len() || val == 0 {
-                    return None;
+                    return Ok(None);
                 }
 
                 // Check if already encoded
                 if let LitData::Lit { lit, enc_pos, .. } = node.lits[val - 1] {
                     if enc_pos {
-                        return Some(lit);
+                        return Ok(Some(lit));
                     }
                 }
 
-                Some(self.define_pos_tot(id, val - 1, collector, var_manager))
+                Ok(Some(self.define_pos_tot(
+                    id,
+                    val - 1,
+                    collector,
+                    var_manager,
+                )?))
             }
             Node::General(node) => {
                 // Check if already encoded
@@ -674,10 +686,10 @@ impl TotDb {
                         lit, enc_pos: true, ..
                     } = lit_data
                     {
-                        return Some(*lit);
+                        return Ok(Some(*lit));
                     }
                 } else {
-                    return None;
+                    return Ok(None);
                 }
 
                 debug_assert!(val <= node.max_val);
@@ -698,16 +710,16 @@ impl TotDb {
                 // Propagate value
                 if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
                     if let Some(llit) =
-                        self.define_pos(lcon.id, lcon.rev_map(val), collector, var_manager)
+                        self.define_pos(lcon.id, lcon.rev_map(val), collector, var_manager)?
                     {
-                        collector.extend([atomics::lit_impl_lit(llit, olit)]);
+                        collector.add_clause(atomics::lit_impl_lit(llit, olit))?;
                     }
                 }
                 if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
                     if let Some(rlit) =
-                        self.define_pos(rcon.id, rcon.rev_map(val), collector, var_manager)
+                        self.define_pos(rcon.id, rcon.rev_map(val), collector, var_manager)?
                     {
-                        collector.extend([atomics::lit_impl_lit(rlit, olit)]);
+                        collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
                     };
                 }
 
@@ -721,15 +733,16 @@ impl TotDb {
                         let rval_rev = rcon.rev_map(rval);
                         if rcon.is_possible(rval) && rval_rev <= rmax {
                             if let Some(rlit) =
-                                self.define_pos(rcon.id, rval_rev, collector, var_manager)
+                                self.define_pos(rcon.id, rval_rev, collector, var_manager)?
                             {
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
                                 let llit = self
-                                    .define_pos(lcon.id, lval, collector, var_manager)
+                                    .define_pos(lcon.id, lval, collector, var_manager)?
                                     .unwrap();
-                                collector.extend([atomics::cube_impl_lit(&[llit, rlit], olit)]);
+                                collector
+                                    .add_clause(atomics::cube_impl_lit(&[llit, rlit], olit))?;
                             }
                         }
                     }
@@ -741,7 +754,7 @@ impl TotDb {
                     LitData::Lit { enc_pos, .. } => *enc_pos = true,
                 };
 
-                Some(olit)
+                Ok(Some(olit))
             }
         }
     }
@@ -756,7 +769,7 @@ impl TotDb {
         idx: usize,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Lit
+    ) -> Result<Lit, crate::OutOfMemory>
     where
         Col: CollectClauses,
     {
@@ -764,7 +777,7 @@ impl TotDb {
         debug_assert!(idx < node.max_val());
         if node.is_leaf() {
             debug_assert_eq!(idx, 0);
-            return node[1];
+            return Ok(node[1]);
         }
         let lcon = node.left().unwrap();
         let rcon = node.right().unwrap();
@@ -777,7 +790,7 @@ impl TotDb {
         // Check if already encoded
         if let LitData::Lit { lit, enc_pos, .. } = node.lits[idx] {
             if enc_pos {
-                return lit;
+                return Ok(lit);
             }
         }
 
@@ -803,10 +816,10 @@ impl TotDb {
 
         // Encode children (recurse)
         for lidx in l_min_idx..=l_max_idx {
-            self.define_pos_tot(lcon.id, con_idx(lidx, lcon), collector, var_manager);
+            self.define_pos_tot(lcon.id, con_idx(lidx, lcon), collector, var_manager)?;
         }
         for ridx in r_min_idx..=r_max_idx {
-            self.define_pos_tot(rcon.id, con_idx(ridx, rcon), collector, var_manager);
+            self.define_pos_tot(rcon.id, con_idx(ridx, rcon), collector, var_manager)?;
         }
 
         // Reserve variable for this node, if needed
@@ -840,16 +853,16 @@ impl TotDb {
 
         // Encode this node
         if l_max_idx == idx {
-            collector.extend([atomics::lit_impl_lit(
+            collector.add_clause(atomics::lit_impl_lit(
                 *llits[con_idx(idx, lcon)].lit().unwrap(),
                 olit,
-            )]);
+            ))?;
         }
         if r_max_idx == idx {
-            collector.extend([atomics::lit_impl_lit(
+            collector.add_clause(atomics::lit_impl_lit(
                 *rlits[con_idx(idx, rcon)].lit().unwrap(),
                 olit,
-            )]);
+            ))?;
         }
         let clause_for_lidx = |lidx: usize| {
             let ridx = idx - lidx - 1;
@@ -859,7 +872,7 @@ impl TotDb {
             atomics::cube_impl_lit(&[llit, rlit], olit)
         };
         let clause_iter = (l_min_idx..cmp::min(l_max_idx + 1, idx)).map(clause_for_lidx);
-        collector.extend(clause_iter);
+        collector.extend_clauses(clause_iter)?;
 
         // Mark positive literal as encoded
         match &mut self[id].mut_unit().lits[idx] {
@@ -867,7 +880,7 @@ impl TotDb {
             LitData::Lit { enc_pos, .. } => *enc_pos = true,
         };
 
-        olit
+        Ok(olit)
     }
 
     /// Recursively reserves all variables in the subtree rooted at the given node
@@ -1045,7 +1058,8 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: std::ops::RangeBounds<usize>,
         {
@@ -1081,7 +1095,8 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: std::ops::RangeBounds<usize>,
         {
@@ -1117,18 +1132,20 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: std::ops::RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
-                return;
+                return Ok(());
             }
             for idx in range {
                 self.db
-                    .define_pos_tot(self.root, idx, collector, var_manager);
+                    .define_pos_tot(self.root, idx, collector, var_manager)?;
             }
+            Ok(())
         }
     }
 
@@ -1138,19 +1155,21 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: std::ops::RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
-                return;
+                return Ok(());
             }
             for idx in range {
                 self.db
                     .borrow_mut()
-                    .define_pos_tot(self.root, idx, collector, var_manager);
+                    .define_pos_tot(self.root, idx, collector, var_manager)?;
             }
+            Ok(())
         }
     }
 }
@@ -1177,22 +1196,26 @@ mod tests {
         var_manager.increase_next_free(var![4]);
 
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 0, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 0, &mut cnf, &mut var_manager)
+            .unwrap();
         debug_assert_eq!(cnf.len(), 6);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 1, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 1, &mut cnf, &mut var_manager)
+            .unwrap();
         debug_assert_eq!(cnf.len(), 9);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 2, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 2, &mut cnf, &mut var_manager)
+            .unwrap();
         debug_assert_eq!(cnf.len(), 8);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 3, &mut cnf, &mut var_manager);
+        db.define_pos_tot(root, 3, &mut cnf, &mut var_manager)
+            .unwrap();
         debug_assert_eq!(cnf.len(), 3);
     }
 
@@ -1209,32 +1232,32 @@ mod tests {
         var_manager.increase_next_free(var![4]);
 
         let mut cnf = Cnf::new();
-        db.define_pos(root, 1, &mut cnf, &mut var_manager);
+        db.define_pos(root, 1, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 0);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 4, &mut cnf, &mut var_manager);
+        db.define_pos(root, 4, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 7, &mut cnf, &mut var_manager);
+        db.define_pos(root, 7, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 8, &mut cnf, &mut var_manager);
+        db.define_pos(root, 8, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 15, &mut cnf, &mut var_manager);
+        db.define_pos(root, 15, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 4);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 22, &mut cnf, &mut var_manager);
+        db.define_pos(root, 22, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
     }
 
@@ -1251,32 +1274,32 @@ mod tests {
         var_manager.increase_next_free(var![3]);
 
         let mut cnf = Cnf::new();
-        db.define_pos(root, 1, &mut cnf, &mut var_manager);
+        db.define_pos(root, 1, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 2, &mut cnf, &mut var_manager);
+        db.define_pos(root, 2, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 3, &mut cnf, &mut var_manager);
+        db.define_pos(root, 3, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 4, &mut cnf, &mut var_manager);
+        db.define_pos(root, 4, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 5, &mut cnf, &mut var_manager);
+        db.define_pos(root, 5, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
         db.reset_encoded();
         let mut cnf = Cnf::new();
-        db.define_pos(root, 6, &mut cnf, &mut var_manager);
+        db.define_pos(root, 6, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
     }
 
@@ -1288,7 +1311,7 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
-        tot.encode_ub(0..5, &mut cnf, &mut var_manager);
+        tot.encode_ub(0..5, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(tot.depth(), 3);
         println!("len: {}, {:?}", cnf.len(), cnf);
         assert_eq!(cnf.len(), 14);
@@ -1304,7 +1327,7 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
-        tot.encode_ub(3..4, &mut cnf, &mut var_manager);
+        tot.encode_ub(3..4, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(tot.depth(), 3);
         assert_eq!(cnf.len(), 3);
         assert_eq!(cnf.len(), tot.n_clauses());
@@ -1317,14 +1340,15 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf1 = Cnf::new();
-        tot1.encode_ub(0..5, &mut cnf1, &mut var_manager);
+        tot1.encode_ub(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut tot2 = DbTotalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf2 = Cnf::new();
-        tot2.encode_ub(0..3, &mut cnf2, &mut var_manager);
-        tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager);
+        tot2.encode_ub(0..3, &mut cnf2, &mut var_manager).unwrap();
+        tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager)
+            .unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
         assert_eq!(cnf2.len(), tot2.n_clauses());

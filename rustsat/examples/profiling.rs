@@ -73,7 +73,7 @@ fn build_full_ub<PBE: BoundUpper + FromIterator<(Lit, usize)>>(lits: &[(Lit, usi
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(max_var + 1);
     let mut collector = Cnf::new();
-    enc.encode_ub(.., &mut collector, &mut var_manager);
+    enc.encode_ub(.., &mut collector, &mut var_manager).unwrap();
 }
 
 fn main() {

@@ -1,6 +1,6 @@
 //! # Satsifiability Instance Representations
 
-use std::{collections::TryReserveError, io, ops::Index, path::Path};
+use std::{cmp, collections::TryReserveError, io, ops::Index, path::Path};
 
 use crate::{
     clause,
@@ -10,6 +10,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, Lit, Var,
     },
+    utils::LimitedIter,
     RequiresClausal,
 };
 
@@ -216,6 +217,28 @@ impl Cnf {
 impl CollectClauses for Cnf {
     fn n_clauses(&self) -> usize {
         self.clauses.len()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        let cl_iter = cl_iter.into_iter();
+        if let Some(ub) = cl_iter.size_hint().1 {
+            self.try_reserve(ub)?;
+            self.extend(cl_iter);
+        } else {
+            // Extend by reserving in exponential chunks
+            let mut cl_iter = cl_iter.peekable();
+            while cl_iter.peek().is_some() {
+                let additional = (self.len() + cmp::max(cl_iter.size_hint().0, 1))
+                    .next_power_of_two()
+                    - self.len();
+                self.try_reserve(additional)?;
+                self.extend(LimitedIter::new(&mut cl_iter, additional));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -505,10 +528,20 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Uses the default encoders from the `encodings` module.
     ///
     /// See [`Self::convert_to_cnf`] for converting in place
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
     pub fn into_cnf(self) -> (Cnf, VM) {
         self.into_cnf_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
         )
     }
 
@@ -516,10 +549,20 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Uses the default encoders from the `encodings` module.
     ///
     /// See [`Self::into_cnf`] if you don't need to convert in place
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
     pub fn convert_to_cnf(&mut self) {
         self.convert_to_cnf_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
         )
     }
 
@@ -545,6 +588,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// converters for non-clausal constraints.
     ///
     /// See [`Self::into_cnf_with_encoders`] to convert in place
+    ///
+    /// # Panic
+    ///
+    /// The encoder functions might panic if the conversion runs out of memory.
     pub fn into_cnf_with_encoders<CardEnc, PBEnc>(
         mut self,
         card_encoder: CardEnc,
@@ -562,6 +609,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// converters for non-clausal constraints.
     ///
     /// See [`Self::into_cnf_with_encoders`] if you don't need to convert in place
+    ///
+    /// # Panic
+    ///
+    /// The encoder functions might panic if the conversion runs out of memory.
     pub fn convert_to_cnf_with_encoders<CardEnc, PBEnc>(
         &mut self,
         mut card_encoder: CardEnc,
@@ -632,8 +683,14 @@ impl<VM: ManageVars> SatInstance<VM> {
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
             writer,
         )
     }
@@ -942,5 +999,18 @@ impl<VM: ManageVars + Default> From<Cnf> for SatInstance<VM> {
             })
         });
         inst
+    }
+}
+
+impl CollectClauses for SatInstance {
+    fn n_clauses(&self) -> usize {
+        self.n_clauses()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        self.cnf.extend_clauses(cl_iter)
     }
 }

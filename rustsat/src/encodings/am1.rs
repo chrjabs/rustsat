@@ -20,7 +20,7 @@
 //! enc.encode(&mut encoding, &mut var_manager).unwrap();
 //! ```
 
-use super::{CollectClauses, Error};
+use super::CollectClauses;
 use crate::instances::ManageVars;
 
 mod pairwise;
@@ -35,7 +35,7 @@ pub trait Encode {
         &mut self,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses;
 }

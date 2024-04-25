@@ -70,3 +70,13 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
+
+macro_rules! handle_oom {
+    ($result:expr) => {{
+        match $result {
+            Ok(val) => val,
+            Err(err) => return Err(pyo3::exceptions::PyMemoryError::new_err(format!("{}", err))),
+        }
+    }};
+}
+pub(crate) use handle_oom;

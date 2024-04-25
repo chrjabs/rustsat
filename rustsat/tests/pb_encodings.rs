@@ -49,17 +49,19 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     let mut enc = PBE::default();
     enc.extend(lits);
 
-    enc.encode_ub(0..3, &mut solver, &mut var_manager);
+    enc.encode_ub(0..3, &mut solver, &mut var_manager).unwrap();
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..5, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..5, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..6, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..6, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -68,12 +70,14 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     lits.insert(lit![5], 4);
     enc.extend(lits);
 
-    enc.encode_ub_change(0..6, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..6, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..10, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..10, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -86,12 +90,14 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     lits.insert(lit![10], 2);
     enc.extend(lits);
 
-    enc.encode_ub_change(0..10, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..10, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..15, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..15, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(14).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -109,7 +115,8 @@ fn test_pb_eq<PBE: BoundBothIncremental + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 2);
     let mut enc = PBE::from(lits);
 
-    enc.encode_both(4..5, &mut solver, &mut var_manager);
+    enc.encode_both(4..5, &mut solver, &mut var_manager)
+        .unwrap();
 
     let mut assumps = enc.enforce_eq(4).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
@@ -170,7 +177,7 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 3);
     let mut enc = PBE::from(lits);
 
-    enc.encode_lb(0..11, &mut solver, &mut var_manager);
+    enc.encode_lb(0..11, &mut solver, &mut var_manager).unwrap();
     let assumps = enc.enforce_lb(10).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
@@ -193,7 +200,7 @@ fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 1);
     let mut enc = PBE::from(lits);
 
-    enc.encode_ub(2..3, &mut solver, &mut var_manager);
+    enc.encode_ub(2..3, &mut solver, &mut var_manager).unwrap();
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
     let res = solver.solve_assumps(&assumps).unwrap();
@@ -291,7 +298,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
-    let max_val = weights.iter().fold(0, |sum, &w| sum + w);
+    let max_val = weights.iter().sum::<usize>();
     let expected = |assign: usize, bound: usize| {
         let sum = (0..4).fold(0, |sum, idx| sum + ((assign >> idx) & 1) * weights[3 - idx]);
         if sum <= bound {
@@ -306,7 +313,8 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
             bound = max_val - bound;
         }
 
-        enc.encode_ub_change(bound..bound + 1, &mut solver, &mut var_manager);
+        enc.encode_ub_change(bound..bound + 1, &mut solver, &mut var_manager)
+            .unwrap();
         let assumps = enc.enforce_ub(bound).unwrap();
 
         test_all!(

@@ -19,6 +19,7 @@ use rustsat::{
 };
 
 use crate::{
+    handle_oom,
     instances::{Cnf, VarManager},
     types::Lit,
 };
@@ -89,12 +90,18 @@ impl Totalizer {
     /// Incrementally builds the totalizer encoding to that upper bounds
     /// in the range `max_ub..=min_ub` can be enforced. New variables will
     /// be taken from `var_manager`.
-    fn encode_ub(&mut self, max_ub: usize, min_ub: usize, var_manager: &mut VarManager) -> Cnf {
+    fn encode_ub(
+        &mut self,
+        max_ub: usize,
+        min_ub: usize,
+        var_manager: &mut VarManager,
+    ) -> PyResult<Cnf> {
         let mut cnf = RsCnf::new();
         let var_manager: &mut BasicVarManager = var_manager.into();
-        self.0
-            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager);
-        cnf.into()
+        handle_oom!(self
+            .0
+            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager));
+        Ok(cnf.into())
     }
 
     /// Gets assumptions to enforce the given upper bound. Make sure that
@@ -165,12 +172,18 @@ impl GeneralizedTotalizer {
     /// Incrementally builds the GTE encoding to that upper bounds
     /// in the range `max_ub..=min_ub` can be enforced. New variables will
     /// be taken from `var_manager`.
-    fn encode_ub(&mut self, max_ub: usize, min_ub: usize, var_manager: &mut VarManager) -> Cnf {
+    fn encode_ub(
+        &mut self,
+        max_ub: usize,
+        min_ub: usize,
+        var_manager: &mut VarManager,
+    ) -> PyResult<Cnf> {
         let mut cnf = RsCnf::new();
         let var_manager: &mut BasicVarManager = var_manager.into();
-        self.0
-            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager);
-        cnf.into()
+        handle_oom!(self
+            .0
+            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager));
+        Ok(cnf.into())
     }
 
     /// Gets assumptions to enforce the given upper bound. Make sure that
@@ -235,12 +248,18 @@ impl DynamicPolyWatchdog {
     /// Incrementally builds the DPW encoding to that upper bounds
     /// in the range `max_ub..=min_ub` can be enforced. New variables will
     /// be taken from `var_manager`.
-    fn encode_ub(&mut self, max_ub: usize, min_ub: usize, var_manager: &mut VarManager) -> Cnf {
+    fn encode_ub(
+        &mut self,
+        max_ub: usize,
+        min_ub: usize,
+        var_manager: &mut VarManager,
+    ) -> PyResult<Cnf> {
         let mut cnf = RsCnf::new();
         let var_manager: &mut BasicVarManager = var_manager.into();
-        self.0
-            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager);
-        cnf.into()
+        handle_oom!(self
+            .0
+            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager));
+        Ok(cnf.into())
     }
 
     /// Gets assumptions to enforce the given upper bound. Make sure that

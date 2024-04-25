@@ -87,7 +87,10 @@ macro_rules! handle_oom {
     ($val:expr) => {{
         let val = $val;
         if val == crate::OUT_OF_MEM {
-            return anyhow::Context::context(Err(rustsat::OutOfMemory), "minisat out of memory");
+            return anyhow::Context::context(
+                Err(rustsat::OutOfMemory::ExternalApi),
+                "minisat out of memory",
+            );
         }
         val
     }};

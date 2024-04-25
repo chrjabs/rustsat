@@ -130,7 +130,12 @@ impl EncodeIncremental for DynamicPolyWatchdog {
 }
 
 impl BoundUpper for DynamicPolyWatchdog {
-    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    fn encode_ub<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: RangeBounds<usize>,
@@ -180,13 +185,14 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() || self.in_lits.len() <= 1 {
-            return;
+            return Ok(());
         }
         let n_vars_before = var_manager.n_used();
         if self.structure.is_none() && !self.in_lits.is_empty() {
@@ -202,13 +208,14 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
                 let output_weight = 1 << (structure.output_power());
                 let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
                 for oidx in output_range {
-                    encode_output(structure, oidx, &mut self.db, collector, var_manager);
+                    encode_output(structure, oidx, &mut self.db, collector, var_manager)?;
                 }
                 self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
             }
             None => (),
-        }
+        };
+        Ok(())
     }
 }
 
@@ -345,7 +352,8 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
@@ -369,7 +377,8 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
@@ -393,19 +402,21 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
-                return;
+                return Ok(());
             }
             let output_weight = 1 << self.structure.output_power();
             let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
             for oidx in output_range {
-                encode_output(self.structure, oidx, self.db, collector, var_manager);
+                encode_output(self.structure, oidx, self.db, collector, var_manager)?;
             }
+            Ok(())
         }
     }
 
@@ -415,13 +426,14 @@ pub mod referenced {
             range: R,
             collector: &mut Col,
             var_manager: &mut dyn ManageVars,
-        ) where
+        ) -> Result<(), crate::OutOfMemory>
+        where
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
-                return;
+                return Ok(());
             }
             let output_weight = 1 << self.structure.output_power();
             let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
@@ -432,8 +444,9 @@ pub mod referenced {
                     &mut self.db.borrow_mut(),
                     collector,
                     var_manager,
-                );
+                )?;
             }
+            Ok(())
         }
     }
 }
@@ -586,13 +599,15 @@ fn encode_output<Col>(
     tot_db: &mut TotDb,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) where
+) -> Result<(), crate::OutOfMemory>
+where
     Col: CollectClauses,
 {
     if oidx >= tot_db[dpw.root].max_val() {
-        return;
+        return Ok(());
     }
-    tot_db.define_pos_tot(dpw.root, oidx, collector, var_manager);
+    tot_db.define_pos_tot(dpw.root, oidx, collector, var_manager)?;
+    Ok(())
 }
 
 /// Enforces an upper bound value on a DPW [`Structure`]
@@ -649,7 +664,7 @@ mod tests {
         let mut dpw = DynamicPolyWatchdog::from(lits);
         let mut var_manager = BasicVarManager::from_next_free(Var::new(4));
         let mut cnf = Cnf::new();
-        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
+        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(dpw.n_vars(), 9);
         assert_eq!(cnf.len(), 13);
     }
@@ -661,7 +676,7 @@ mod tests {
         let mut dpw = DynamicPolyWatchdog::from(lits);
         let mut var_manager = BasicVarManager::from_next_free(Var::new(1));
         let mut cnf = Cnf::new();
-        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
+        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(dpw.n_vars(), 0);
         assert_eq!(cnf.len(), 0);
         debug_assert!(dpw.enforce_ub(4).unwrap().is_empty());
@@ -676,7 +691,7 @@ mod tests {
         let mut dpw = DynamicPolyWatchdog::from(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager);
+        dpw.encode_ub(0..=6, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(dpw.n_vars(), 0);
         assert_eq!(cnf.len(), 0);
         debug_assert!(dpw.enforce_ub(4).unwrap().is_empty());
@@ -693,7 +708,7 @@ mod tests {
         let mut dpw = DynamicPolyWatchdog::from(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        dpw.encode_ub(0..23, &mut cnf, &mut var_manager);
+        dpw.encode_ub(0..23, &mut cnf, &mut var_manager).unwrap();
         for ub in 7..23 {
             let coarse_ub = dpw.coarse_ub(ub);
             debug_assert!(coarse_ub <= ub);
@@ -715,7 +730,7 @@ mod tests {
         let mut dpw = DynamicPolyWatchdog::from(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        dpw.encode_ub(0..=4, &mut cnf, &mut var_manager);
+        dpw.encode_ub(0..=4, &mut cnf, &mut var_manager).unwrap();
         for ub in 0..4 {
             let coarse_ub = dpw.coarse_ub(ub);
             debug_assert_eq!(coarse_ub, ub);

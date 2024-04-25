@@ -63,6 +63,25 @@ pub mod encodings {
         fn n_clauses(&self) -> usize {
             self.n_clauses
         }
+
+        fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), rustsat::OutOfMemory>
+        where
+            T: IntoIterator<Item = Clause>,
+        {
+            cl_iter.into_iter().for_each(|cl| {
+                cl.into_iter()
+                    .for_each(|l| (self.ccol)(l.to_ipasir(), self.cdata));
+                (self.ccol)(0, self.cdata);
+            });
+            Ok(())
+        }
+
+        fn add_clause(&mut self, cl: Clause) -> Result<(), rustsat::OutOfMemory> {
+            cl.into_iter()
+                .for_each(|l| (self.ccol)(l.to_ipasir(), self.cdata));
+            (self.ccol)(0, self.cdata);
+            Ok(())
+        }
     }
 
     impl Extend<Clause> for ClauseCollector {
@@ -186,7 +205,9 @@ pub mod encodings {
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(tot) };
-            boxed.encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager);
+            boxed
+                .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+                .expect("clause collector returned out of memory");
             Box::into_raw(boxed);
         }
 
@@ -358,7 +379,9 @@ pub mod encodings {
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            boxed.encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager);
+            boxed
+                .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+                .expect("clause collector returned out of memory");
             Box::into_raw(boxed);
         }
 
