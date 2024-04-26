@@ -13,6 +13,6 @@ readme = "README.md"
 
 [dependencies]
 cpu-time = "1.0.0"
-rustsat = { version = "0.4.3", path = "../rustsat", default-features = false }
+rustsat = { version = "0.4.4", path = "../rustsat", default-features = false }
 thiserror = { version = "1.0.57" }
 anyhow = { version = "1.0.80" }

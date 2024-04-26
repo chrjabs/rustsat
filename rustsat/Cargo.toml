@@ -1,6 +1,6 @@
 [package]
 name = "rustsat"
-version = "0.4.3"
+version = "0.4.4"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
