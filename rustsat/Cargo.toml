@@ -1,6 +1,6 @@
 [package]
 name = "rustsat"
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
@@ -27,8 +27,8 @@ anyhow = { version = "1.0.80" }
 thiserror = { version = "1.0.50" }
 
 [dev-dependencies]
-rustsat-minisat = { version = "0.2", path = "../minisat" }
-rustsat-tools = { version = "0.2", path = "../tools" }
+rustsat-minisat = { version = "0.3", path = "../minisat" }
+rustsat-tools = { version = "0.3", path = "../tools" }
 
 [features]
 default = ["optimization", "fxhash"]

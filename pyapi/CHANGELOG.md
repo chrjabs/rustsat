@@ -2,6 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.0] - 2024-04-30
+## [0.5.0] - 2024-04-30
 
-Factor IPASIR API out from RustSAT into its own crate.
+Factor Python API out into its own crate.
