@@ -47,13 +47,14 @@
 //!
 //! | Feature name | Description |
 //! | --- | --- |
-//! | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
-//! | `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
 //! | `optimization` | Include optimization (MaxSAT) data structures etc. |
 //! | `multiopt` | Include data structures etc. for multi-objective optimization. |
 //! | `compression` | Enable parsing and writing compressed input. |
-//! | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
+//! | `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
 //! | `rand` | Enable randomization features. (Shuffling clauses etc.) |
+//! | `ipasir-display` | Changes `Display` trait for `Lit` and `Var` types to follow IPASIR variables indexing. |
+//! | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
+//! | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
 //!
 //! ## Examples
 //!

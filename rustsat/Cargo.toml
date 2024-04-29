@@ -39,6 +39,7 @@ multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
+ipasir-display = []
 all = ["multiopt", "compression", "rand", "fxhash"]
 
 [package.metadata.docs.rs]

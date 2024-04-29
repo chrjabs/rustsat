@@ -204,7 +204,11 @@ impl ops::SubAssign<u32> for Var {
 /// Variables can be printed with the [`Display`](std::fmt::Display) trait
 impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "x{}", self.idx)
+        if cfg!(feature = "ipasir-display") {
+            write!(f, "x{}", self.to_ipasir())
+        } else {
+            write!(f, "x{}", self.idx())
+        }
     }
 }
 
@@ -460,10 +464,7 @@ impl ops::Sub<u32> for Lit {
 /// Literals can be printed with the [`Display`](std::fmt::Display) trait
 impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.is_neg() {
-            true => write!(f, "~x{}", self.vidx()),
-            false => write!(f, "x{}", self.vidx()),
-        }
+        write!(f, "{}{}", if self.is_neg() { "~" } else { "" }, self.var())
     }
 }
 
