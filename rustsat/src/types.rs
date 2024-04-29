@@ -15,10 +15,7 @@ use thiserror::Error;
 pub mod constraints;
 pub use constraints::Clause;
 
-use crate::instances::{
-    self,
-    fio::{InvalidVLine, SatSolverOutputError, SolverOutput},
-};
+use crate::instances::fio::{self, SolverOutput};
 
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
@@ -582,6 +579,20 @@ impl ops::Neg for TernaryVal {
     }
 }
 
+/// Possible errors in parsing a SAT solver value (`v`) line
+#[derive(Error, Debug)]
+pub enum InvalidVLine {
+    /// The given `v` line starts with an invalid character
+    #[error("The value line does not start with 'v ' but with {0}")]
+    InvalidTag(char),
+    /// The `v` line contains a conflicting assignment on the given variable
+    #[error("The output of the SAT solver assigned different values to variable {0}")]
+    ConflictingAssignment(Var),
+    /// The given `v` line is empty
+    #[error("Empty value line")]
+    EmptyLine,
+}
+
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
@@ -661,13 +672,12 @@ impl Assignment {
 
     /// Reads a solution from SAT solver output given the path
     ///
-    /// If it is unclear whether the SAT solver indicated satisfiability, use [`instances::fio::parse_sat_solver_output`] instead.
+    /// If it is unclear whether the SAT solver indicated satisfiability, use [`fio::parse_sat_solver_output`] instead.
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader = std::io::BufReader::new(
-            instances::fio::open_compressed_uncompressed_read(path)
-                .context("failed to open reader")?,
+            fio::open_compressed_uncompressed_read(path).context("failed to open reader")?,
         );
-        let output = instances::fio::parse_sat_solver_output(reader)?;
+        let output = fio::parse_sat_solver_output(reader)?;
         match output {
             SolverOutput::Sat(solution) => Ok(solution),
             _ => anyhow::bail!("solver output does not indicate satisfiability"),
@@ -684,19 +694,17 @@ impl Assignment {
     /// Parses and saves literals from a value line.
     pub fn extend_from_vline(&mut self, lines: &str) -> anyhow::Result<()> {
         for line in lines.lines() {
-            if !line.starts_with("v ") {
-                if line.is_empty() {
-                    anyhow::bail!(InvalidVLine::EmptyLine);
-                }
-
-                anyhow::bail!(InvalidVLine::InvalidTag(line.chars().next().unwrap()));
-            }
+            anyhow::ensure!(!line.is_empty(), InvalidVLine::EmptyLine);
+            anyhow::ensure!(
+                line.starts_with("v "),
+                InvalidVLine::InvalidTag(line.chars().next().unwrap())
+            );
 
             let line = &line[1..];
             for number in line.split_whitespace() {
                 let number = number.parse::<i32>()?;
 
-                //End of the value lines
+                // End of the value lines
                 if number == 0 {
                     continue;
                 }
@@ -713,10 +721,7 @@ impl Assignment {
             }
         }
 
-        if lines.is_empty() {
-            anyhow::bail!(InvalidVLine::EmptyLine)
-        }
-
+        anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
         Ok(())
     }
 }
@@ -819,9 +824,7 @@ impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 mod tests {
     use std::{mem::size_of, num::ParseIntError};
 
-    use crate::instances::fio::InvalidVLine;
-
-    use super::{Assignment, Lit, TernaryVal, Var};
+    use super::{Assignment, InvalidVLine, Lit, TernaryVal, Var};
 
     #[test]
     fn var_index() {
@@ -1032,13 +1035,7 @@ mod tests {
     fn vline_invalid_lit_from() {
         let vline = "v 1 -2 4 foo -5 bar 6 0";
         let res = Assignment::from_vline(vline);
-        match res.unwrap_err().downcast::<ParseIntError>() {
-            Ok(err) => match err {
-                ParseIntError => assert!(true),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        res.unwrap_err().downcast::<ParseIntError>().unwrap();
     }
 
     #[test]
@@ -1046,13 +1043,7 @@ mod tests {
         let vline = "v 1 -2 4 foo -5 bar 6 0";
         let mut assign = Assignment::default();
         let res = assign.extend_from_vline(vline);
-        match res.unwrap_err().downcast::<ParseIntError>() {
-            Ok(err) => match err {
-                ParseIntError => assert!(true),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        res.unwrap_err().downcast::<ParseIntError>().unwrap();
     }
 
     #[test]
@@ -1088,7 +1079,7 @@ mod tests {
         let res = Assignment::from_vline(vline);
         match res.unwrap_err().downcast::<InvalidVLine>() {
             Ok(err) => match err {
-                InvalidVLine::EmptyLine => assert!(true),
+                InvalidVLine::EmptyLine => (),
                 _ => panic!(),
             },
             Err(_) => panic!(),
@@ -1108,58 +1099,5 @@ mod tests {
         ]);
         let res = Assignment::from_vline(vline).unwrap();
         assert_eq!(res, ground_truth);
-    }
-
-    #[test]
-    fn sat_solveable_solution_output_reading() {
-        use crate::instances::{BasicVarManager, SatInstance};
-        let instance =
-            SatInstance::<BasicVarManager>::from_dimacs_path("../data/AProVE11-12.cnf").unwrap();
-
-        let assign_gimsatul =
-            Assignment::from_solver_output_path("../data/gimsatul-AProVE11-12.txt").unwrap();
-        let assign_kissat =
-            Assignment::from_solver_output_path("../data/kissat-AProVE11-12.txt").unwrap();
-        let assign_cadical =
-            Assignment::from_solver_output_path("../data/cadical-AProVW11-12.txt").unwrap();
-
-        assert!(instance.is_sat(&assign_gimsatul));
-        assert!(instance.is_sat(&assign_kissat));
-        assert!(instance.is_sat(&assign_cadical));
-    }
-
-    #[test]
-    fn sat_unsolveable_solution_output_reading() {
-        use crate::instances::{BasicVarManager, SatInstance};
-        let instance = SatInstance::<BasicVarManager>::from_dimacs_path(
-            "../data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf",
-        )
-        .unwrap();
-
-        let assign_gimsatul = Assignment::from_solver_output_path(
-            "../data/gimsatul-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.txt",
-        )
-        .unwrap_err();
-        let assign_kissat = Assignment::from_solver_output_path(
-            "../data/kissat-smtlib-qfbv-aigs-exp_con_032_008_0256-tseitin.txt",
-        )
-        .unwrap_err();
-        let assign_cadical = Assignment::from_solver_output_path(
-            "../data/cadical-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.txt",
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            format!("{}", assign_gimsatul),
-            "solver output does not indicate satisfiability"
-        );
-        assert_eq!(
-            format!("{}", assign_kissat),
-            "solver output does not indicate satisfiability"
-        );
-        assert_eq!(
-            format!("{}", assign_cadical),
-            "solver output does not indicate satisfiability"
-        );
     }
 }

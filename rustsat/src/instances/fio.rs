@@ -11,10 +11,7 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::{
-    solvers::{Solve, SolverResult},
-    types::{self, Assignment},
-};
+use crate::types::{self, Assignment};
 
 pub mod dimacs;
 pub mod opb;
@@ -85,31 +82,26 @@ pub fn open_compressed_uncompressed_write<P: AsRef<Path>>(
 /// Possible results from SAT solver output parsing
 #[derive(Debug, PartialEq, Eq)]
 pub enum SolverOutput {
+    /// The solver indicates satisfiability with the given assignment
     Sat(types::Assignment),
+    /// The solver indicates unsatisfiability
     Unsat,
+    /// The solver did not solve the instance
     Unknown,
 }
 
 /// Possible errors in SAT solver output parsing
 #[derive(Error, Debug)]
 pub enum SatSolverOutputError {
+    /// The solver output does not contain an `s` line
     #[error("No solution line found in the output.")]
     NoSLine,
+    /// The solver output does indicate satisfiability but does not contain an assignment
     #[error("No value line found in the output.")]
     NoVLine,
+    /// The solver output contains an invalid `s` line
     #[error("Invalid solution line found in the output.")]
     InvalidSLine,
-}
-
-/// Possible errors in parsing a SAT solver value line
-#[derive(Error, Debug)]
-pub enum InvalidVLine {
-    #[error("The value line does not start with 'v ' but with {0}")]
-    InvalidTag(char),
-    #[error("The output of the SAT solver assigned different values to variable {0}")]
-    ConflictingAssignment(types::Var),
-    #[error("Empty value line")]
-    EmptyLine,
 }
 
 /// Parses SAT solver output
@@ -120,7 +112,7 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
     for line in reader.lines() {
         let line = &line?;
 
-        //Solution line
+        // Solution line
         if line.starts_with("s ") {
             let line = &line[1..].trim_start();
             match line {
@@ -135,20 +127,17 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOu
             }
         }
 
-        //Value line
+        // Value line
         if line.starts_with("v ") {
-            //Have we already seen a vline?
             match &mut solution {
-                Some(assign) => assign.extend_from_vline(&line)?,
-                _ => solution = Some(Assignment::from_vline(&line)?),
+                Some(assign) => assign.extend_from_vline(line)?,
+                _ => solution = Some(Assignment::from_vline(line)?),
             }
         }
     }
 
-    //There is no solution line so we can not trust the output
-    if !is_sat {
-        return anyhow::bail!(SatSolverOutputError::NoSLine);
-    }
+    // There is no solution line so we can not trust the output
+    anyhow::ensure!(is_sat, SatSolverOutputError::NoSLine);
 
     if let Some(solution) = solution {
         return Ok(SolverOutput::Sat(solution));
@@ -162,11 +151,11 @@ mod tests {
     use std::io;
 
     use crate::{
-        instances::{self, fio::SatSolverOutputError, SatInstance},
+        instances::SatInstance,
         types::{Assignment, TernaryVal},
     };
 
-    use super::{parse_sat_solver_output, SolverOutput};
+    use super::{parse_sat_solver_output, SatSolverOutputError, SolverOutput};
 
     #[test]
     fn parse_solver_output_sat() {
@@ -226,7 +215,7 @@ mod tests {
         let res = parse_sat_solver_output(reader);
         match res.unwrap_err().downcast::<SatSolverOutputError>() {
             Ok(err) => match err {
-                SatSolverOutputError::NoSLine => assert!(true),
+                SatSolverOutputError::NoSLine => (),
                 _ => panic!(),
             },
             Err(_) => panic!(),
@@ -240,7 +229,7 @@ mod tests {
         let res = parse_sat_solver_output(reader);
         match res.unwrap_err().downcast::<SatSolverOutputError>() {
             Ok(err) => match err {
-                SatSolverOutputError::NoVLine => assert!(true),
+                SatSolverOutputError::NoVLine => (),
                 _ => panic!(),
             },
             Err(_) => panic!(),
@@ -253,5 +242,63 @@ mod tests {
         let reader = io::Cursor::new(data);
         let res = parse_sat_solver_output(reader).unwrap();
         assert_eq!(res, SolverOutput::Sat(Assignment::default()));
+    }
+
+    #[test]
+    fn parse_solver_output_sat_logs() {
+        let instance: SatInstance =
+            SatInstance::from_dimacs_path("./data/AProVE11-12.cnf").unwrap();
+
+        let reader =
+            super::open_compressed_uncompressed_read("./data/gimsatul-AProVE11-12.log").unwrap();
+        let res = parse_sat_solver_output(reader).unwrap();
+        match res {
+            SolverOutput::Sat(sol) => assert!(instance.is_sat(&sol)),
+            _ => panic!(),
+        }
+
+        let reader =
+            super::open_compressed_uncompressed_read("./data/kissat-AProVE11-12.log").unwrap();
+        let res = parse_sat_solver_output(reader).unwrap();
+        match res {
+            SolverOutput::Sat(sol) => assert!(instance.is_sat(&sol)),
+            _ => panic!(),
+        }
+
+        let reader =
+            super::open_compressed_uncompressed_read("./data/cadical-AProVE11-12.log").unwrap();
+        let res = parse_sat_solver_output(reader).unwrap();
+        match res {
+            SolverOutput::Sat(sol) => assert!(instance.is_sat(&sol)),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_solver_output_unsat_logs() {
+        let reader = super::open_compressed_uncompressed_read(
+            "./data/gimsatul-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log",
+        )
+        .unwrap();
+        assert_eq!(
+            parse_sat_solver_output(reader).unwrap(),
+            SolverOutput::Unsat
+        );
+        let reader = super::open_compressed_uncompressed_read(
+            "./data/kissat-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log",
+        )
+        .unwrap();
+        assert_eq!(
+            parse_sat_solver_output(reader,).unwrap(),
+            SolverOutput::Unsat
+        );
+        let reader = super::open_compressed_uncompressed_read(
+            "./data/cadical-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log",
+        )
+        .unwrap();
+        assert_eq!(
+            parse_sat_solver_output(reader,).unwrap(),
+            SolverOutput::Unsat
+        );
     }
 }
