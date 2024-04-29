@@ -6,7 +6,7 @@
 //! project. For now, only the API of certain encodings is available.
 //!
 //! For the API itself, see `rustsat.h`. To use RustSAT from an external project, build this crate
-//! and link against `librustsat.a` (produced by `cargo` in `target/release`).
+//! and link against `librustsat_capi.a` (produced by `cargo` in `target/release`).
 
 pub mod encodings {
     //! # C-API For Encodings
