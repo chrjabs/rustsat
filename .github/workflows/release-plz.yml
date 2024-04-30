@@ -15,6 +15,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PLZ_TOKEN }}
+          submodules: "recursive"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
