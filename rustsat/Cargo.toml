@@ -27,8 +27,8 @@ anyhow = { version = "1.0.80" }
 thiserror = { version = "1.0.50" }
 
 [dev-dependencies]
-rustsat-minisat = { version = "0.3", path = "../minisat" }
-rustsat-tools = { version = "0.3", path = "../tools" }
+rustsat-minisat = { path = "../minisat" }
+rustsat-tools = { path = "../tools" }
 
 [features]
 default = ["optimization", "fxhash"]
