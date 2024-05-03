@@ -8,6 +8,7 @@ pub mod utils;
 pub mod encodings {
     //! # Encodings for Encoding Generators
 
+    pub mod assignment;
     pub mod knapsack;
 
     pub mod cnf {
@@ -20,6 +21,7 @@ pub mod encodings {
     pub mod pb {
         //! PB Encodings
 
+        pub mod assignment;
         pub mod knapsack;
     }
 }

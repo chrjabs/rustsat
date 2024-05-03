@@ -25,6 +25,7 @@ use rustsat::{
     types::{Lit, WLitIter},
 };
 use rustsat_tools::encodings::{
+    assignment,
     cnf::{
         self,
         clustering::{self, saturating_map, scaling_map, Encoding, Variant},
@@ -82,6 +83,8 @@ struct PbArgs {
 enum PbEncoding {
     /// Generate a knapsack encoding
     Knapsack(KnapsackArgs),
+    /// Generate a assignment problem encoding
+    Assignment(AssignmentArgs),
 }
 
 #[derive(Args)]
@@ -130,7 +133,6 @@ enum KnapsackCommand {
 #[derive(Args)]
 struct InputKnapsackArgs {
     /// The input file
-    // TODO: specify file format
     in_path: Option<PathBuf>,
     #[arg(long, default_value_t = KnapsackInputFormat::default())]
     in_format: KnapsackInputFormat,
@@ -143,6 +145,12 @@ enum KnapsackInputFormat {
     MooLibrary,
     /// Input files as provided by [vOptLib](https://github.com/vOptSolver/vOptLib/tree/master/UKP)
     VOptLib,
+}
+
+#[derive(Args)]
+struct AssignmentArgs {
+    /// The input file in the format as provided by [MOO-Library](http://home.ku.edu.tr/~moolibrary/)
+    in_path: Option<PathBuf>,
 }
 
 impl fmt::Display for KnapsackInputFormat {
@@ -245,6 +253,21 @@ fn pb_knapsack(
     pb::knapsack::Encoding::new(inst)
 }
 
+fn input_assignment(args: &AssignmentArgs) -> anyhow::Result<assignment::Assignment> {
+    if let Some(path) = &args.in_path {
+        let reader = io::BufReader::new(File::open(path)?);
+        assignment::Assignment::from_file(reader)
+    } else {
+        assignment::Assignment::from_file(io::BufReader::new(io::stdin()))
+    }
+}
+
+fn pb_assignment(
+    inst: assignment::Assignment,
+) -> impl Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+    pb::assignment::Encoding::new(inst)
+}
+
 fn write_cnf(
     encoding: impl Iterator<Item = dimacs::McnfLine>,
     path: Option<PathBuf>,
@@ -285,13 +308,17 @@ fn write_pb<LI: WLitIter>(
     Ok(())
 }
 
+type BoxedDimacsIter = Box<dyn Iterator<Item = dimacs::McnfLine>>;
+type BoxedOpbIter =
+    Box<dyn Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>>>;
+
 fn main() -> anyhow::Result<()> {
     let args = CliArgs::parse();
 
     let out_path = args.out_path;
     match args.fmt {
         Format::Cnf(args) => {
-            let enc: Box<dyn Iterator<Item = dimacs::McnfLine>> = match args.enc {
+            let enc: BoxedDimacsIter = match args.enc {
                 CnfEncoding::Clustering(args) => Box::new(clustering(args)?),
                 CnfEncoding::Knapsack(args) => {
                     let inst = match args.variant {
@@ -308,13 +335,17 @@ fn main() -> anyhow::Result<()> {
                 first_var_idx: args.first_var_idx,
                 no_negated_lits: args.avoid_negated_lits,
             };
-            let enc = match args.enc {
+            let enc: BoxedOpbIter = match args.enc {
                 PbEncoding::Knapsack(args) => {
                     let inst = match args.variant {
                         KnapsackCommand::Input(args) => input_knapsack(&args)?,
                         KnapsackCommand::Random(args) => random_knapsack(&args),
                     };
-                    pb_knapsack(inst)
+                    Box::new(pb_knapsack(inst))
+                }
+                PbEncoding::Assignment(args) => {
+                    let inst = input_assignment(&args)?;
+                    Box::new(pb_assignment(inst))
                 }
             };
             write_pb(enc, out_path, opts)
