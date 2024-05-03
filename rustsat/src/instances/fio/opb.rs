@@ -346,6 +346,39 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
     ))(input)
 }
 
+/// Possible lines that can be written to OPB
+pub enum OpbLine<LI: WLitIter> {
+    /// A comment line
+    Comment(String),
+    /// A clausal constraint line
+    Clause(Clause),
+    /// A cardinality constraint line
+    Card(CardConstraint),
+    /// A PB constraint line
+    Pb(PBConstraint),
+    #[cfg(feature = "optimization")]
+    /// An objective line
+    Objective(LI),
+}
+
+/// Writes an OPB file from an interator over [`OpbLine`]s
+pub fn write_opb_lines<W: Write, LI: WLitIter, Iter: Iterator<Item = OpbLine<LI>>>(
+    writer: &mut W,
+    data: Iter,
+    opts: Options,
+) -> Result<(), io::Error> {
+    for dat in data {
+        match dat {
+            OpbLine::Comment(c) => writeln!(writer, "* {c}")?,
+            OpbLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            OpbLine::Card(card) => write_card(writer, &card, opts)?,
+            OpbLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+            OpbLine::Objective(obj) => write_objective(writer, (obj, 0), opts)?,
+        }
+    }
+    Ok(())
+}
+
 /// Writes a [`SatInstance`] to an OPB file
 pub fn write_sat<W, VM>(
     writer: &mut W,
