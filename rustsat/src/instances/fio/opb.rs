@@ -207,8 +207,8 @@ fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
 /// Parses a literal. The spec for linear OPB instances only allows for
 /// variables but we allow negated literals with '~' as in non-linear OPB
 /// instances.
-fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
-    match tag::<_, _, NomError<_>>("~")(input) {
+pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
+    match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
         Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),
         Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit()))(input),
     }
