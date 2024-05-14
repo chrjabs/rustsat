@@ -594,6 +594,19 @@ pub enum InvalidVLine {
     EmptyLine,
 }
 
+/// Different possible v-line fomats
+enum VLineFormat {
+    /// Assignment specified as a space-spearated sequence of IPASIR literals. This is the format
+    /// used in the SAT competition.
+    SatComp,
+    /// Assignment specified as a sequence of zeroes and ones. This is the format used in the
+    /// MaxSAT Evaluation.
+    MaxSatEval,
+    /// Assignment specified as a sequence of space-separated OPB literals. This is the format used
+    /// in the PB competition.
+    PbComp,
+}
+
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
@@ -692,8 +705,35 @@ impl Assignment {
         Ok(assignment)
     }
 
-    /// Parses and saves literals from a value line.
+    /// Parses an assignment from a value line returned by a solver
+    ///
+    /// The following value line formats are supported:
+    /// - [SAT Competition](https://satcompetition.github.io/2024/output.html): `v 1 -2 -3 4 0`
+    /// - [MaxSAT Evaluation](https://maxsat-evaluations.github.io/2024/rules.html): `v 1001`
+    /// - [PB Competition](https://www.cril.univ-artois.fr/PB24/competitionRequirements.pdf): `v x1 -x2 -x3 x4`
     pub fn extend_from_vline(&mut self, lines: &str) -> anyhow::Result<()> {
+        anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
+        // determine line format
+        let format = if lines.contains('x') {
+            VLineFormat::PbComp
+        } else if !lines[1..].trim().contains(' ')
+            && lines[1..]
+                .trim()
+                .chars()
+                .try_for_each(|c| {
+                    if c == '1' || c == '0' {
+                        Ok(())
+                    } else {
+                        Err(())
+                    }
+                })
+                .is_ok()
+        {
+            VLineFormat::MaxSatEval
+        } else {
+            VLineFormat::SatComp
+        };
+
         for line in lines.lines() {
             anyhow::ensure!(!line.is_empty(), InvalidVLine::EmptyLine);
             anyhow::ensure!(
@@ -701,28 +741,67 @@ impl Assignment {
                 InvalidVLine::InvalidTag(line.chars().next().unwrap())
             );
 
-            let line = &line[1..];
-            for number in line.split_whitespace() {
-                let number = number.parse::<i32>()?;
+            match format {
+                VLineFormat::SatComp => self.extend_sat_comp_vline(line),
+                VLineFormat::MaxSatEval => self.extend_maxsat_eval_vline(line),
+                VLineFormat::PbComp => self.extend_pb_comp_vline(line),
+            }?
+        }
+        Ok(())
+    }
 
-                // End of the value lines
-                if number == 0 {
-                    continue;
-                }
+    /// Parses a single SAT Competition v-line
+    fn extend_sat_comp_vline(&mut self, line: &str) -> anyhow::Result<()> {
+        let line = &line[1..];
+        for number in line.split_whitespace() {
+            let number = number.parse::<i32>()?;
 
-                let literal = Lit::from_ipasir(number)?;
-                let val = self.lit_value(literal);
-                if val == TernaryVal::True && literal.is_neg()
-                    || val == TernaryVal::False && literal.is_pos()
-                {
-                    // Catch conflicting assignments
-                    anyhow::bail!(InvalidVLine::ConflictingAssignment(literal.var()));
-                }
-                self.assign_lit(literal);
+            // End of the value lines
+            if number == 0 {
+                continue;
+            }
+
+            let literal = Lit::from_ipasir(number)?;
+            let val = self.lit_value(literal);
+            if val == TernaryVal::True && literal.is_neg()
+                || val == TernaryVal::False && literal.is_pos()
+            {
+                // Catch conflicting assignments
+                anyhow::bail!(InvalidVLine::ConflictingAssignment(literal.var()));
+            }
+            self.assign_lit(literal);
+        }
+        Ok(())
+    }
+
+    /// Parses a single MaxSAT Evaluation v-line
+    fn extend_maxsat_eval_vline(&mut self, line: &str) -> anyhow::Result<()> {
+        let line = line[1..].trim();
+        self.assignment.reserve(line.len());
+        for char in line.chars() {
+            match char {
+                '0' => self.assignment.push(TernaryVal::False),
+                '1' => self.assignment.push(TernaryVal::True),
+                _ => anyhow::bail!("unexpected character in MaxSAT Evaluation v-line"),
             }
         }
+        Ok(())
+    }
 
-        anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
+    /// Parses a single PB Competition v-line
+    fn extend_pb_comp_vline(&mut self, line: &str) -> anyhow::Result<()> {
+        let line = &line[1..];
+        for number in line.split_whitespace() {
+            let (_, lit) = fio::opb::literal(number, fio::opb::Options::default())
+                .map_err(|e| e.to_owned())
+                .with_context(|| format!("failed to parse pb literal '{}'", number))?;
+            let val = self.lit_value(lit);
+            if val == TernaryVal::True && lit.is_neg() || val == TernaryVal::False && lit.is_pos() {
+                // Catch conflicting assignments
+                anyhow::bail!(InvalidVLine::ConflictingAssignment(lit.var()));
+            }
+            self.assign_lit(lit);
+        }
         Ok(())
     }
 }
@@ -1011,8 +1090,52 @@ mod tests {
     }
 
     #[test]
-    fn parse_vline() {
+    fn parse_sat_comp_vline() {
         let vline = "v 1 -2 4 -5 6 0";
+        let ground_truth = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+        ]);
+        assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
+        assert_eq!(
+            {
+                let mut asign = Assignment::default();
+                asign.extend_from_vline(vline).unwrap();
+                asign
+            },
+            ground_truth
+        );
+    }
+
+    #[test]
+    fn parse_maxsat_eval_vline() {
+        let vline = "v 100101";
+        let ground_truth = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::False,
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+        ]);
+        assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
+        assert_eq!(
+            {
+                let mut asign = Assignment::default();
+                asign.extend_from_vline(vline).unwrap();
+                asign
+            },
+            ground_truth
+        );
+    }
+
+    #[test]
+    fn parse_pb_comp_vline() {
+        let vline = "v x1 -x2 x4 -x5 x6";
         let ground_truth = Assignment::from(vec![
             TernaryVal::True,
             TernaryVal::False,
