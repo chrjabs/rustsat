@@ -15,6 +15,27 @@ use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter
 
 use crate::RequiresClausal;
 
+/// A reference to any type of constraint throughout RustSAT
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConstraintRef<'constr> {
+    /// A clausal constraint
+    Clause(&'constr Clause),
+    /// A cardinality constraint
+    Card(&'constr CardConstraint),
+    /// A pseudo-Boolean constraint
+    Pb(&'constr PBConstraint),
+}
+
+impl fmt::Display for ConstraintRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConstraintRef::Clause(cl) => write!(f, "{cl}"),
+            ConstraintRef::Card(card) => write!(f, "{card}"),
+            ConstraintRef::Pb(pb) => write!(f, "{pb}"),
+        }
+    }
+}
+
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
@@ -322,6 +343,28 @@ pub enum CardConstraint {
     EQ(CardEQConstr),
 }
 
+impl fmt::Display for CardConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CardConstraint::UB(c) => write!(f, "{c}"),
+            CardConstraint::LB(c) => write!(f, "{c}"),
+            CardConstraint::EQ(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+macro_rules! write_lit_sum {
+    ($f:expr, $vec:expr) => {{
+        for i in 0..$vec.len() {
+            if i < $vec.len() - 1 {
+                write!($f, "{} + ", $vec[i])?;
+            } else {
+                write!($f, "{}", $vec[i])?;
+            }
+        }
+    }};
+}
+
 impl CardConstraint {
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
     pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
@@ -502,6 +545,13 @@ pub struct CardUBConstr {
     b: usize,
 }
 
+impl fmt::Display for CardUBConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " <= {}", self.b)
+    }
+}
+
 impl CardUBConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -534,6 +584,13 @@ impl CardUBConstr {
 pub struct CardLBConstr {
     lits: Vec<Lit>,
     b: usize,
+}
+
+impl fmt::Display for CardLBConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " >= {}", self.b)
+    }
 }
 
 impl CardLBConstr {
@@ -573,6 +630,13 @@ impl CardLBConstr {
 pub struct CardEQConstr {
     lits: Vec<Lit>,
     b: usize,
+}
+
+impl fmt::Display for CardEQConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " = {}", self.b)
+    }
 }
 
 impl CardEQConstr {
@@ -627,6 +691,28 @@ pub enum PBConstraint {
     LB(PBLBConstr),
     /// An equality pseudo-boolean constraint
     EQ(PBEQConstr),
+}
+
+impl fmt::Display for PBConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PBConstraint::UB(c) => write!(f, "{c}"),
+            PBConstraint::LB(c) => write!(f, "{c}"),
+            PBConstraint::EQ(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+macro_rules! write_wlit_sum {
+    ($f:expr, $vec:expr) => {{
+        for i in 0..$vec.len() {
+            if i < $vec.len() - 1 {
+                write!($f, "{} {} + ", $vec[i].1, $vec[i].0)?;
+            } else {
+                write!($f, "{} {}", $vec[i].1, $vec[i].0)?;
+            }
+        }
+    }};
 }
 
 impl PBConstraint {
@@ -949,6 +1035,13 @@ pub struct PBUBConstr {
     b: isize,
 }
 
+impl fmt::Display for PBUBConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " <= {}", self.b)
+    }
+}
+
 impl PBUBConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
@@ -1022,6 +1115,13 @@ pub struct PBLBConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
+}
+
+impl fmt::Display for PBLBConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " >= {}", self.b)
+    }
 }
 
 impl PBLBConstr {
@@ -1098,6 +1198,13 @@ pub struct PBEQConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
+}
+
+impl fmt::Display for PBEQConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " = {}", self.b)
+    }
 }
 
 impl PBEQConstr {

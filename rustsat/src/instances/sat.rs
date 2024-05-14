@@ -7,7 +7,7 @@ use crate::{
     encodings::{atomics, card, pb, CollectClauses},
     lit,
     types::{
-        constraints::{CardConstraint, PBConstraint},
+        constraints::{CardConstraint, ConstraintRef, PBConstraint},
         Assignment, Clause, Lit, Var,
     },
     utils::LimitedIter,
@@ -906,6 +906,26 @@ impl<VM: ManageVars> SatInstance<VM> {
             }
         }
         true
+    }
+
+    /// Returns an unsatisfied constraint, if one exists
+    pub fn unsat_constraint(&self, assign: &Assignment) -> Option<ConstraintRef> {
+        for clause in self.cnf.iter() {
+            if !clause.is_sat(assign) {
+                return Some(ConstraintRef::Clause(clause));
+            }
+        }
+        for card in &self.cards {
+            if !card.is_sat(assign) {
+                return Some(ConstraintRef::Card(card));
+            }
+        }
+        for pb in &self.pbs {
+            if !pb.is_sat(assign) {
+                return Some(ConstraintRef::Pb(pb));
+            }
+        }
+        None
     }
 }
 
