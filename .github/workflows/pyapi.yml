@@ -57,7 +57,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check
-        run: "[ \"$(grep '^version = ' rustsat/Cargo.toml)\" = \"$(grep '^version = ' pyapi/Cargo.toml)\" ]"
+        run: "[ \"$(grep '^version = ' Cargo.toml)\" = \"$(grep '^version = ' pyapi/Cargo.toml)\" ]"
 
   linux:
     runs-on: ubuntu-latest

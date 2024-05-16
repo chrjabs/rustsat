@@ -1,9 +1,9 @@
 [package]
 name = "rustsat-cadical"
 version = "0.3.0"
-edition = "2021"
+edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
-license = "MIT"
+license.workspace = true
 description = "Interface to the SAT solver CaDiCaL for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
@@ -40,16 +40,16 @@ v1-9-4 = []
 v1-9-5 = []
 
 [dependencies]
-cpu-time = "1.0.0"
-rustsat = { version = "0.5.0", path = "../rustsat", default-features = false }
-thiserror = { version = "1.0.57" }
-anyhow = { version = "1.0.80" }
+anyhow.workspace = true
+cpu-time.workspace = true
+thiserror.workspace = true
+rustsat.workspace = true
 
 [build-dependencies]
-cc = { version = "1.0.83", features = ["parallel"] }
-git2 = "0.18.1"
-glob = "0.3.1"
-chrono = "0.4.31"
+cc.workspace = true
+git2.workspace = true
+glob.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 rustsat-solvertests = { path = "../solvertests" }

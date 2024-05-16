@@ -1,9 +1,9 @@
 [package]
 name = "rustsat-capi"
 version = "0.5.0"
-edition = "2021"
+edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
-license = "MIT"
+license.workspace = true
 description = "C-API for the RustSAT library"
 keywords = ["sat", "satisfiability", "encodings"]
 
@@ -12,9 +12,7 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsat = { version = "0.5.0", path = "../rustsat", default-features = false, features = [
-  "internals",
-] }
+rustsat = { workspace = true, features = ["internals"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
