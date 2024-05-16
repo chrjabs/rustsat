@@ -5,6 +5,7 @@
 //! [`CardConstraint`].
 
 use std::{
+    collections::TryReserveError,
     fmt,
     ops::{self, Not, RangeBounds},
 };
@@ -33,6 +34,43 @@ impl Clause {
     /// Creates a new empty clause
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates a new empty clause with at least the specified capacity.
+    ///
+    /// Uses [`Vec::with_capacity`] internally.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            lits: Vec::with_capacity(capacity),
+        }
+    }
+
+    /// Reserves capacity for at least `additional` more literals.
+    ///
+    /// Uses [`Vec::reserve`] internally.
+    pub fn reserve(&mut self, additional: usize) {
+        self.lits.reserve(additional)
+    }
+
+    /// Reserves the minimum capacity for at least `additional` more literals.
+    ///
+    /// Uses [`Vec::reserve_exact`] internally.
+    pub fn reserve_exact(&mut self, additional: usize) {
+        self.lits.reserve_exact(additional)
+    }
+
+    /// Tries to reserve capacity for at least `additional` more literals.
+    ///
+    /// Uses [`Vec::try_reserve`] internally.
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.lits.try_reserve(additional)
+    }
+
+    /// Tries to reserve the minimum capacity for at least `additional` more literals.
+    ///
+    /// Uses [`Vec::try_reserve_exact`] internally.
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        self.lits.try_reserve_exact(additional)
     }
 
     /// Gets the clause as a slice of literals
