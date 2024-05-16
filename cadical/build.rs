@@ -128,8 +128,6 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
                 .define("NDEBUG", None)
                 .warnings(false);
         }
-        #[cfg(feature = "safe")]
-        cadical_build.define("SAFE", None); // --safe
         #[cfg(feature = "quiet")]
         cadical_build.define("QUIET", None); // --quiet
         #[cfg(feature = "logging")]
