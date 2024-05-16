@@ -40,7 +40,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check
-        run: "[ \"$(grep '^version = ' rustsat/Cargo.toml)\" = \"$(grep '^version = ' capi/Cargo.toml)\" ]"
+        run: "[ \"$(grep '^version = ' Cargo.toml)\" = \"$(grep '^version = ' capi/Cargo.toml)\" ]"
 
   cbindgen:
     name: Test generated C header
