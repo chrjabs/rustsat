@@ -27,6 +27,7 @@
 //! println!("cargo:rustc-flags=-l dylib=stdc++");
 //! ```
 
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
 use core::ffi::{c_int, c_void, CStr};
@@ -93,10 +94,10 @@ impl Default for IpasirSolver<'_, '_> {
     fn default() -> Self {
         Self {
             handle: unsafe { ffi::ipasir_init() },
-            state: Default::default(),
-            terminate_cb: Default::default(),
-            learner_cb: Default::default(),
-            stats: Default::default(),
+            state: InternalSolverState::default(),
+            terminate_cb: None,
+            learner_cb: None,
+            stats: SolverStats::default(),
         }
     }
 }
@@ -118,6 +119,14 @@ impl IpasirSolver<'_, '_> {
             }
         }
         Ok(core)
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    #[inline]
+    fn update_avg_clause_len(&mut self, clause: &Clause) {
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
     }
 }
 
@@ -196,13 +205,11 @@ impl Solve for IpasirSolver<'_, '_> {
             None => self.stats.max_var = Some(l.var()),
             Some(var) => {
                 if l.var() > var {
-                    self.stats.max_var = Some(l.var())
+                    self.stats.max_var = Some(l.var());
                 }
             }
         });
-        self.stats.avg_clause_len =
-            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
-                / self.stats.n_clauses as f32;
+        self.update_avg_clause_len(clause);
         self.state = InternalSolverState::Input;
         // Call IPASIR backend
         for lit in clause {
@@ -295,7 +302,8 @@ impl<'term> Terminate<'term> for IpasirSolver<'term, '_> {
         CB: FnMut() -> ControlSignal + 'term,
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
-        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        let cb_ptr =
+            std::ptr::from_ref(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe { ffi::ipasir_set_terminate(self.handle, cb_ptr, Some(ffi::ipasir_terminate_cb)) }
     }
 
@@ -336,14 +344,15 @@ impl<'learn> Learn<'learn> for IpasirSolver<'_, 'learn> {
         CB: FnMut(Clause) + 'learn,
     {
         self.learner_cb = Some(Box::new(Box::new(cb)));
-        let cb_ptr = self.learner_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        let cb_ptr =
+            std::ptr::from_ref(self.learner_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe {
             ffi::ipasir_set_learn(
                 self.handle,
                 cb_ptr,
                 max_len.try_into().unwrap(),
                 Some(ffi::ipasir_learn_cb),
-            )
+            );
         }
     }
 
@@ -368,7 +377,7 @@ impl Drop for IpasirSolver<'_, '_> {
 impl Extend<Clause> for IpasirSolver<'_, '_> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         iter.into_iter()
-            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
 }
 
@@ -376,8 +385,8 @@ impl<'a> Extend<&'a Clause> for IpasirSolver<'_, '_> {
     fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
-                .expect("Error adding clause in extend")
-        })
+                .expect("Error adding clause in extend");
+        });
     }
 }
 
@@ -441,6 +450,6 @@ mod ffi {
                 Lit::from_ipasir(*il).expect("Invalid literal in learned clause from IPASIR solver")
             })
             .collect();
-        cb(clause)
+        cb(clause);
     }
 }

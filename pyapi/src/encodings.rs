@@ -24,6 +24,7 @@ use crate::{
     types::Lit,
 };
 
+#[allow(clippy::needless_pass_by_value)]
 fn convert_error(err: Error) -> PyErr {
     match err {
         Error::NotEncoded => {
@@ -69,7 +70,7 @@ impl Totalizer {
     /// Adds additional input literals to the totalizer
     fn extend(&mut self, lits: Vec<Lit>) {
         let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
-        self.0.extend(lits)
+        self.0.extend(lits);
     }
 
     /// Gets the number of input literals in the encoding
@@ -151,7 +152,7 @@ impl GeneralizedTotalizer {
     /// Adds additional input literals to the generalized totalizer
     fn extend(&mut self, lits: Vec<(Lit, usize)>) {
         let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
-        self.0.extend(lits)
+        self.0.extend(lits);
     }
 
     /// Gets the sum of weights in the encoding
@@ -189,7 +190,8 @@ impl GeneralizedTotalizer {
     /// Gets assumptions to enforce the given upper bound. Make sure that
     /// the required encoding is built first.
     fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-        let assumps = unsafe { std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_error)?) };
+        let assumps: Vec<Lit> =
+            unsafe { std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_error)?) };
         Ok(assumps)
     }
 }
@@ -266,6 +268,6 @@ impl DynamicPolyWatchdog {
     /// the required encoding is built first.
     fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
         let assumps = self.0.enforce_ub(ub).map_err(convert_error)?;
-        Ok(assumps.into_iter().map(|l| l.into()).collect())
+        Ok(assumps.into_iter().map(Into::into).collect())
     }
 }

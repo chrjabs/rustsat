@@ -108,32 +108,36 @@ impl Cnf {
     #[inline]
     pub fn add_clause(&mut self, clause: Clause) {
         self.modified = true;
-        self.cnf.add_clause(clause.into())
+        self.cnf.add_clause(clause.into());
     }
 
     /// Adds a unit clause to the CNF
     pub fn add_unit(&mut self, unit: Lit) {
         self.modified = true;
-        self.cnf.add_clause(clause![unit.into()])
+        self.cnf.add_clause(clause![unit.into()]);
     }
 
     /// Adds a binary clause to the CNF
     pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
         self.modified = true;
-        self.cnf.add_clause(clause![lit1.into(), lit2.into()])
+        self.cnf.add_clause(clause![lit1.into(), lit2.into()]);
     }
 
     /// Adds a ternary clause to the CNF
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
         self.modified = true;
         self.cnf
-            .add_clause(clause![lit1.into(), lit2.into(), lit3.into()])
+            .add_clause(clause![lit1.into(), lit2.into(), lit3.into()]);
     }
 
     #[new]
     #[pyo3(text_signature = "(clauses = [])")]
     fn new(clauses: Vec<Clause>) -> Self {
-        RsCnf::from_iter(clauses.into_iter().map(Into::<RsClause>::into)).into()
+        clauses
+            .into_iter()
+            .map(Into::<RsClause>::into)
+            .collect::<RsCnf>()
+            .into()
     }
 
     fn __repr__(&self) -> String {
@@ -145,9 +149,13 @@ impl Cnf {
     }
 
     fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
+        #![allow(clippy::cast_sign_loss)]
         match idx {
             SliceOrInt::Slice(slice) => {
                 let indices = slice.indices(self.__len__().try_into().unwrap())?;
+                debug_assert!(indices.start >= 0);
+                debug_assert!(indices.stop >= 0);
+                debug_assert!(indices.step >= 0);
                 Ok(SingleOrList::List(
                     (indices.start as usize..indices.stop as usize)
                         .step_by(indices.step as usize)
@@ -174,35 +182,35 @@ impl Cnf {
     /// Adds an implication of form `a -> b`
     fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
         self.modified = true;
-        self.cnf.add_lit_impl_lit(a.into(), b.into())
+        self.cnf.add_lit_impl_lit(a.into(), b.into());
     }
 
     /// Adds an implication of form `a -> (b1 | b2 | ... | bm)`
     fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
         self.modified = true;
         let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
-        self.cnf.add_lit_impl_clause(a.into(), &b)
+        self.cnf.add_lit_impl_clause(a.into(), &b);
     }
 
     /// Adds an implication of form `a -> (b1 & b2 & ... & bm)`
     fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
         self.modified = true;
         let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
-        self.cnf.add_lit_impl_cube(a.into(), &b)
+        self.cnf.add_lit_impl_cube(a.into(), &b);
     }
 
     /// Adds an implication of form `(a1 & a2 & ... & an) -> b`
     fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.modified = true;
         let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
-        self.cnf.add_cube_impl_lit(&a, b.into())
+        self.cnf.add_cube_impl_lit(&a, b.into());
     }
 
     /// Adds an implication of form `(a1 | a2 | ... | an) -> b`
     fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
         self.modified = true;
         let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
-        self.cnf.add_clause_impl_lit(&a, b.into())
+        self.cnf.add_clause_impl_lit(&a, b.into());
     }
 
     /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
@@ -210,7 +218,7 @@ impl Cnf {
         self.modified = true;
         let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
         let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
-        self.cnf.add_cube_impl_clause(&a, &b)
+        self.cnf.add_cube_impl_clause(&a, &b);
     }
 
     /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
@@ -218,7 +226,7 @@ impl Cnf {
         self.modified = true;
         let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
         let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
-        self.cnf.add_clause_impl_clause(&a, &b)
+        self.cnf.add_clause_impl_clause(&a, &b);
     }
 
     /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)`
@@ -226,7 +234,7 @@ impl Cnf {
         self.modified = true;
         let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
         let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
-        self.cnf.add_clause_impl_cube(&a, &b)
+        self.cnf.add_clause_impl_cube(&a, &b);
     }
 
     /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
@@ -234,7 +242,7 @@ impl Cnf {
         self.modified = true;
         let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
         let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
-        self.cnf.add_cube_impl_cube(&a, &b)
+        self.cnf.add_cube_impl_cube(&a, &b);
     }
 
     fn __iter__(mut slf: PyRefMut<'_, Self>) -> CnfIter {

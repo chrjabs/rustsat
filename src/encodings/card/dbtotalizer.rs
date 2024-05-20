@@ -13,10 +13,12 @@ use crate::{
     encodings::{
         atomics,
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
+        nodedbimpl::DrainError,
         CollectClauses, EncodeStats, Error,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
+    utils::unreachable_none,
 };
 
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
@@ -47,6 +49,7 @@ pub struct DbTotalizer {
 impl DbTotalizer {
     /// Creates a totalizer from its internal parts
     #[cfg(feature = "internals")]
+    #[must_use]
     pub fn from_raw(root: NodeId, db: TotDb) -> Self {
         Self {
             root: Some(root),
@@ -72,6 +75,7 @@ impl DbTotalizer {
     }
 
     /// Gets the maximum depth of the tree
+    #[must_use]
     pub fn depth(&self) -> usize {
         match &self.root {
             None => 0,
@@ -93,7 +97,7 @@ impl Encode for DbTotalizer {
 impl EncodeIncremental for DbTotalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         if let Some(root) = self.root {
-            self.db.reserve_vars(root, var_manager)
+            self.db.reserve_vars(root, var_manager);
         }
     }
 }
@@ -183,10 +187,10 @@ impl From<Vec<Lit>> for DbTotalizer {
     fn from(lits: Vec<Lit>) -> Self {
         Self {
             lit_buffer: lits,
-            root: Default::default(),
-            n_vars: Default::default(),
-            n_clauses: Default::default(),
-            db: Default::default(),
+            root: None,
+            n_vars: 0,
+            n_clauses: 0,
+            db: TotDb::default(),
         }
     }
 }
@@ -195,17 +199,17 @@ impl FromIterator<Lit> for DbTotalizer {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         Self {
             lit_buffer: Vec::from_iter(iter),
-            root: Default::default(),
-            n_vars: Default::default(),
-            n_clauses: Default::default(),
-            db: Default::default(),
+            root: None,
+            n_vars: 0,
+            n_clauses: 0,
+            db: TotDb::default(),
         }
     }
 }
 
 impl Extend<Lit> for DbTotalizer {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
-        self.lit_buffer.extend(iter)
+        self.lit_buffer.extend(iter);
     }
 }
 
@@ -367,6 +371,7 @@ impl NodeLike for Node {
 
 impl Node {
     /// Panic-safe version of literal indexing
+    #[must_use]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
         match &self.0 {
             INode::Leaf(lit, ..) => {
@@ -382,6 +387,7 @@ impl Node {
     }
 
     /// Checks if a given output value is positively encoded
+    #[must_use]
     pub fn encoded_pos(&self, val: usize) -> bool {
         match &self.0 {
             INode::Leaf(..) => {
@@ -481,12 +487,14 @@ impl UnitNode {
 
     /// Panic-safe version of literal indexing
     #[inline]
+    #[must_use]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
         self.lits[val - 1].lit()
     }
 
     /// Checks if a given value is positively encoded
     #[inline]
+    #[must_use]
     pub fn encoded_pos(&self, val: usize) -> bool {
         self.lits[val - 1].encoded_pos()
     }
@@ -512,20 +520,20 @@ pub struct GeneralNode {
 
 impl GeneralNode {
     fn new(lvals: &[usize], rvals: &[usize], depth: usize, left: NodeCon, right: NodeCon) -> Self {
-        let mut lits = BTreeMap::from_iter(lvals.iter().map(|&val| (val, LitData::default())));
-        rvals.iter().for_each(|val| {
+        let mut lits: BTreeMap<_, _> = lvals.iter().map(|&val| (val, LitData::default())).collect();
+        for val in rvals {
             if !lits.contains_key(val) {
                 lits.insert(*val, LitData::default());
             }
-        });
+        }
         let mut max_val = 0;
-        lvals.iter().for_each(|lval| {
-            rvals.iter().for_each(|rval| {
+        for lval in lvals {
+            for rval in rvals {
                 let val = lval + rval;
                 max_val = val;
                 lits.entry(val).or_insert_with(LitData::default);
-            })
-        });
+            }
+        }
         Self {
             lits,
             depth,
@@ -536,17 +544,16 @@ impl GeneralNode {
     }
 
     /// Panic-safe version of literal indexing
+    #[must_use]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
         self.lits.get(&val).and_then(|dat| dat.lit())
     }
 
     /// Checks if a given value is positively encoded
     #[inline]
+    #[must_use]
     pub fn encoded_pos(&self, val: usize) -> bool {
-        self.lits
-            .get(&val)
-            .map(|dat| dat.encoded_pos())
-            .unwrap_or(false)
+        self.lits.get(&val).map_or(false, LitData::encoded_pos)
     }
 }
 
@@ -635,10 +642,7 @@ impl NodeById for TotDb {
 
     type Drain<'own> = std::vec::Drain<'own, Node>;
 
-    fn drain<R: RangeBounds<NodeId>>(
-        &mut self,
-        range: R,
-    ) -> Result<Self::Drain<'_>, (NodeId, NodeId)> {
+    fn drain<R: RangeBounds<NodeId>>(&mut self, range: R) -> Result<Self::Drain<'_>, DrainError> {
         let range = match range.start_bound() {
             Bound::Included(id) => *id,
             Bound::Excluded(id) => id + 1,
@@ -654,12 +658,15 @@ impl NodeById for TotDb {
         (range.end.0..self.nodes.len()).try_for_each(|idx| {
             self.nodes[idx]
                 .drain(range.clone())
-                .map_err(|con| (NodeId(idx), con))
+                .map_err(|con| DrainError {
+                    referencing: NodeId(idx),
+                    referenced: con,
+                })
         })?;
         self.lookup_leaf.retain(|_, id| !range.contains(id));
         self.lookup_leaf.values_mut().for_each(|id| {
             if *id >= range.end {
-                *id -= range.end - range.start
+                *id -= range.end - range.start;
             }
         });
         Ok(self.nodes.drain(range.start.0..range.end.0))
@@ -685,6 +692,10 @@ impl TotDb {
     /// `val`, if it is not already defined. Recurses down the tree. The
     /// returned literal is the output literal and the encoding is added to the
     /// `collector`.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn define_pos<Col>(
         &mut self,
         id: NodeId,
@@ -748,7 +759,8 @@ impl TotDb {
                     olit
                 } else {
                     let olit = var_manager.new_var().pos_lit();
-                    *self[id].mut_general().lits.get_mut(&val).unwrap() = LitData::new_lit(olit);
+                    *unreachable_none!(self[id].mut_general().lits.get_mut(&val)) =
+                        LitData::new_lit(olit);
                     olit
                 };
 
@@ -783,9 +795,12 @@ impl TotDb {
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
-                                let llit = self
-                                    .define_pos(lcon.id, lval, collector, var_manager)?
-                                    .unwrap();
+                                let llit = unreachable_none!(self.define_pos(
+                                    lcon.id,
+                                    lval,
+                                    collector,
+                                    var_manager
+                                )?);
                                 collector
                                     .add_clause(atomics::cube_impl_lit(&[llit, rlit], olit))?;
                             }
@@ -794,8 +809,8 @@ impl TotDb {
                 }
 
                 // Mark positive literal as encoded
-                match &mut self[id].mut_general().lits.get_mut(&val).unwrap() {
-                    LitData::None => panic!(),
+                match &mut unreachable_none!(self[id].mut_general().lits.get_mut(&val)) {
+                    LitData::None => unreachable!(),
                     LitData::Lit { enc_pos, .. } => *enc_pos = true,
                 };
 
@@ -809,6 +824,11 @@ impl TotDb {
     ///
     /// The `idx` parameter is the output index, i.e., not the value represented by the output, but
     /// `value - 1`.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    #[allow(clippy::too_many_lines)]
     pub fn define_pos_tot<Col>(
         &mut self,
         id: NodeId,
@@ -825,14 +845,14 @@ impl TotDb {
             debug_assert_eq!(idx, 0);
             return Ok(node[1]);
         }
-        let lcon = node.left().unwrap();
-        let rcon = node.right().unwrap();
+        let lcon = unreachable_none!(node.left());
+        let rcon = unreachable_none!(node.right());
         debug_assert!(matches!(
-            self[rcon.id].0,
+            self[lcon.id].0,
             INode::Leaf(_) | INode::Unit(_) | INode::Dummy
         ));
         debug_assert!(matches!(
-            self[lcon.id].0,
+            self[rcon.id].0,
             INode::Leaf(_) | INode::Unit(_) | INode::Dummy
         ));
         debug_assert_eq!(lcon.multiplier(), 1);
@@ -920,7 +940,7 @@ impl TotDb {
                 std::slice::from_ref(&tmp_olit_l)
             }
             INode::Unit(UnitNode { lits, .. }) => lits,
-            _ => panic!(),
+            INode::General(_) | INode::Dummy => unreachable!(),
         };
         let tmp_olit_r;
         let rlits = match &self[rcon.id].0 {
@@ -929,27 +949,27 @@ impl TotDb {
                 std::slice::from_ref(&tmp_olit_r)
             }
             INode::Unit(UnitNode { lits, .. }) => lits,
-            _ => panic!(),
+            INode::General(_) | INode::Dummy => unreachable!(),
         };
 
         // Encode this node
         if l_max_idx == idx {
             collector.add_clause(atomics::lit_impl_lit(
-                *llits[con_idx(idx, lcon)].lit().unwrap(),
+                *unreachable_none!(llits[con_idx(idx, lcon)].lit()),
                 olit,
             ))?;
         }
         if r_max_idx == idx {
             collector.add_clause(atomics::lit_impl_lit(
-                *rlits[con_idx(idx, rcon)].lit().unwrap(),
+                *unreachable_none!(rlits[con_idx(idx, rcon)].lit()),
                 olit,
             ))?;
         }
         let clause_for_lidx = |lidx: usize| {
             let ridx = idx - lidx - 1;
             debug_assert!(ridx <= r_max_idx);
-            let llit = *llits[con_idx(lidx, lcon)].lit().unwrap();
-            let rlit = *rlits[con_idx(ridx, rcon)].lit().unwrap();
+            let llit = *unreachable_none!(llits[con_idx(lidx, lcon)].lit());
+            let rlit = *unreachable_none!(rlits[con_idx(ridx, rcon)].lit());
             atomics::cube_impl_lit(&[llit, rlit], olit)
         };
         let clause_iter = (l_min_idx..cmp::min(l_max_idx + 1, idx)).map(clause_for_lidx);
@@ -957,7 +977,7 @@ impl TotDb {
 
         // Mark positive literal as encoded
         match &mut self[id].mut_unit().lits[idx] {
-            LitData::None => panic!(),
+            LitData::None => unreachable!(),
             LitData::Lit { enc_pos, .. } => *enc_pos = true,
         };
 
@@ -971,25 +991,25 @@ impl TotDb {
         }
 
         // Recurse
-        self.reserve_vars(self[id].left().unwrap().id, var_manager);
-        self.reserve_vars(self[id].right().unwrap().id, var_manager);
+        self.reserve_vars(unreachable_none!(self[id].left()).id, var_manager);
+        self.reserve_vars(unreachable_none!(self[id].right()).id, var_manager);
 
         match &mut self[id].0 {
             INode::Unit(UnitNode { lits, .. }) => {
                 for olit in lits {
                     if let LitData::None = olit {
-                        *olit = LitData::new_lit(var_manager.new_var().pos_lit())
+                        *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
                 }
             }
             INode::General(GeneralNode { lits, .. }) => {
                 for (_, olit) in lits.iter_mut() {
                     if let LitData::None = olit {
-                        *olit = LitData::new_lit(var_manager.new_var().pos_lit())
+                        *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
                 }
             }
-            INode::Leaf(_) | INode::Dummy => panic!(),
+            INode::Leaf(_) | INode::Dummy => unreachable!(),
         }
     }
 
@@ -1000,14 +1020,14 @@ impl TotDb {
                 INode::Unit(UnitNode { lits, .. }) => {
                     for lit in lits {
                         if let LitData::Lit { enc_pos, .. } = lit {
-                            *enc_pos = false
+                            *enc_pos = false;
                         }
                     }
                 }
                 INode::General(GeneralNode { lits, .. }) => {
                     for lit in lits.values_mut() {
                         if let LitData::Lit { enc_pos, .. } = lit {
-                            *enc_pos = false
+                            *enc_pos = false;
                         }
                     }
                 }
@@ -1092,6 +1112,7 @@ pub mod referenced {
         }
 
         /// Gets the maximum depth of the tree
+        #[must_use]
         pub fn depth(&self) -> usize {
             self.db[self.root].depth()
         }
@@ -1104,6 +1125,7 @@ pub mod referenced {
         }
 
         /// Gets the maximum depth of the tree
+        #[must_use]
         pub fn depth(&self) -> usize {
             self.db.borrow()[self.root].depth()
         }
@@ -1123,13 +1145,13 @@ pub mod referenced {
 
     impl EncodeIncremental for Tot<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.reserve_vars(self.root, var_manager)
+            self.db.reserve_vars(self.root, var_manager);
         }
     }
 
     impl EncodeIncremental for TotCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.borrow_mut().reserve_vars(self.root, var_manager)
+            self.db.borrow_mut().reserve_vars(self.root, var_manager);
         }
     }
 

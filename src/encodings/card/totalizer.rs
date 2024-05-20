@@ -53,6 +53,7 @@ impl Totalizer {
     /// Recursively builds the tree data structure. Attention, low level
     /// interface, might change!
     #[cfg_attr(feature = "internals", visibility::make(pub))]
+    #[must_use]
     fn build_tree(lits: &[Lit]) -> Node {
         debug_assert_ne!(lits.len(), 0);
 
@@ -83,6 +84,7 @@ impl Totalizer {
     }
 
     /// Gets the maximum depth of the tree
+    #[must_use]
     pub fn depth(&self) -> usize {
         match &self.root {
             None => 0,
@@ -92,6 +94,7 @@ impl Totalizer {
 
     /// Fully builds the tree, then returns it
     #[cfg(feature = "internals")]
+    #[must_use]
     pub fn tree(mut self) -> Option<Node> {
         self.extend_tree();
         self.root
@@ -305,9 +308,9 @@ impl From<Vec<Lit>> for Totalizer {
         Self {
             in_lits: lits,
             not_enc_idx: Default::default(),
-            root: Default::default(),
-            n_vars: Default::default(),
-            n_clauses: Default::default(),
+            root: None,
+            n_vars: 0,
+            n_clauses: 0,
         }
     }
 }
@@ -317,16 +320,16 @@ impl FromIterator<Lit> for Totalizer {
         Self {
             in_lits: Vec::from_iter(iter),
             not_enc_idx: Default::default(),
-            root: Default::default(),
-            n_vars: Default::default(),
-            n_clauses: Default::default(),
+            root: None,
+            n_vars: 0,
+            n_clauses: 0,
         }
     }
 }
 
 impl Extend<Lit> for Totalizer {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
-        self.in_lits.extend(iter)
+        self.in_lits.extend(iter);
     }
 }
 
@@ -365,11 +368,13 @@ enum Node {
 
 impl Node {
     /// Constructs a new leaf node
+    #[must_use]
     pub fn new_leaf(lit: Lit) -> Node {
         Node::Leaf { lit }
     }
 
     /// Constructs a new internal node
+    #[must_use]
     pub fn new_internal(left: Node, right: Node) -> Node {
         Node::Internal {
             out_lits: vec![],
@@ -384,6 +389,7 @@ impl Node {
     }
 
     /// Gets the maximum depth of the subtree rooted in this node
+    #[must_use]
     pub fn depth(&self) -> usize {
         match self {
             Node::Leaf { .. } => 1,
@@ -392,6 +398,7 @@ impl Node {
     }
 
     /// Gets the maximum value that the node represents
+    #[must_use]
     pub fn max_val(&self) -> usize {
         match self {
             Node::Leaf { .. } => 1,
@@ -557,6 +564,10 @@ impl Node {
     /// Encodes the upper bound adder from the children to this node in a given
     /// range. Recurses depth first. Always returns the full requested CNF
     /// encoding, i.e., non-incremental.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn rec_encode_ub<Col>(
         &mut self,
         range: Range<usize>,
@@ -601,6 +612,10 @@ impl Node {
     /// Encodes the lower bound adder from the children to this node in a given
     /// range. Recurses depth first. Always returns the full requested CNF
     /// encoding.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn rec_encode_lb<Col>(
         &mut self,
         range: Range<usize>,
@@ -645,6 +660,10 @@ impl Node {
 
     /// Encodes the upper bound adder from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn rec_encode_ub_change<Col>(
         &mut self,
         range: Range<usize>,
@@ -702,6 +721,10 @@ impl Node {
 
     /// Encodes the lower bound adder from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn rec_encode_lb_change<Col>(
         &mut self,
         range: Range<usize>,
@@ -792,6 +815,7 @@ impl Node {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
         };
+        #[allow(clippy::range_plus_one)]
         self.reserve_vars_range(0..max_val + 1, var_manager);
     }
 
@@ -806,7 +830,7 @@ impl Node {
                 right.reserve_all_vars_rec(var_manager);
             }
         };
-        self.reserve_all_vars(var_manager)
+        self.reserve_all_vars(var_manager);
     }
 
     /// Computes the required encoding range for a node given a requested range
@@ -833,8 +857,8 @@ impl Node {
     /// and updating the encoded ranges
     fn update_stats(
         &mut self,
-        new_ub_range: Range<usize>,
-        new_lb_range: Range<usize>,
+        new_upper_range: Range<usize>,
+        new_lower_range: Range<usize>,
         new_n_clauses: usize,
     ) {
         match self {
@@ -848,16 +872,16 @@ impl Node {
             } => {
                 *n_clauses += new_n_clauses;
                 *ub_range = if (*ub_range).is_empty() {
-                    new_ub_range.start..cmp::min(*max_val + 1, new_ub_range.end)
+                    new_upper_range.start..cmp::min(*max_val + 1, new_upper_range.end)
                 } else {
-                    cmp::min(new_ub_range.start, ub_range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(new_ub_range.end, ub_range.end))
+                    cmp::min(new_upper_range.start, ub_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(new_upper_range.end, ub_range.end))
                 };
                 *lb_range = if (*lb_range).is_empty() {
-                    new_lb_range.start..cmp::min(*max_val + 1, new_lb_range.end)
+                    new_lower_range.start..cmp::min(*max_val + 1, new_lower_range.end)
                 } else {
-                    cmp::min(new_lb_range.start, lb_range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(new_lb_range.end, lb_range.end))
+                    cmp::min(new_lower_range.start, lb_range.start)
+                        ..cmp::min(*max_val + 1, cmp::max(new_lower_range.end, lb_range.end))
                 };
             }
         }

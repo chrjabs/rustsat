@@ -31,6 +31,10 @@ pub trait Encode {
     /// Gets the number of literals in the encoding
     fn n_lits(&self) -> usize;
     /// Encodes and enforces the at-most-1 constraint
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode<Col>(
         &mut self,
         collector: &mut Col,
@@ -44,6 +48,7 @@ pub trait Encode {
 pub type Def = Pairwise;
 
 /// Constructs a default at-most-1 encoding.
-pub fn new_default_am1() -> impl Encode {
+#[must_use]
+pub fn new_default() -> impl Encode {
     Def::default()
 }

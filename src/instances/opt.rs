@@ -9,6 +9,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
     },
+    utils::unreachable_none,
     RequiresClausal, RequiresSoftLits,
 };
 
@@ -48,21 +49,23 @@ impl From<IntObj> for Objective {
 impl Default for Objective {
     fn default() -> Self {
         Self(IntObj::Unweighted {
-            offset: Default::default(),
-            unit_weight: Default::default(),
-            soft_lits: Default::default(),
-            soft_clauses: Default::default(),
+            offset: 0,
+            unit_weight: None,
+            soft_lits: Vec::default(),
+            soft_clauses: Vec::default(),
         })
     }
 }
 
 impl Objective {
     /// Creates a new empty objective
+    #[must_use]
     pub fn new() -> Self {
-        Default::default()
+        Objective::default()
     }
 
     /// Checks if the objective is empty, i.e., has constant value 0
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         match &self.0 {
             IntObj::Weighted {
@@ -80,6 +83,7 @@ impl Objective {
     }
 
     /// Checks if the objective is a constant
+    #[must_use]
     pub fn constant(&self) -> bool {
         match &self.0 {
             IntObj::Weighted {
@@ -96,6 +100,7 @@ impl Objective {
     }
 
     /// Gets the number of soft literals in the objective
+    #[must_use]
     pub fn n_lits(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_lits, .. } => soft_lits.len(),
@@ -104,6 +109,7 @@ impl Objective {
     }
 
     /// Gets the number of soft clauses in the objective
+    #[must_use]
     pub fn n_clauses(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_clauses, .. } => soft_clauses.len(),
@@ -112,11 +118,13 @@ impl Objective {
     }
 
     /// Gets the number of soft literals and clauses in the objective
+    #[must_use]
     pub fn n_softs(&self) -> usize {
         self.n_lits() + self.n_clauses()
     }
 
     /// Gets the weight sum of soft literals
+    #[must_use]
     pub fn lit_weight_sum(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_lits, .. } => soft_lits.iter().fold(0, |s, (_, w)| s + w),
@@ -129,6 +137,7 @@ impl Objective {
     }
 
     /// Gets the weight sum of soft clauses
+    #[must_use]
     pub fn clause_weight_sum(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_clauses, .. } => soft_clauses.iter().fold(0, |s, (_, w)| s + w),
@@ -141,11 +150,13 @@ impl Objective {
     }
 
     /// Gets the weight sum of all softs
+    #[must_use]
     pub fn weight_sum(&self) -> usize {
         self.lit_weight_sum() + self.clause_weight_sum()
     }
 
     /// Gets the maximum weight of a soft literal
+    #[must_use]
     pub fn max_lit_weight(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_lits, .. } => {
@@ -158,6 +169,7 @@ impl Objective {
     }
 
     /// Gets the maximum weight of a soft clause
+    #[must_use]
     pub fn max_clause_weight(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_clauses, .. } => {
@@ -170,11 +182,13 @@ impl Objective {
     }
 
     /// Gets the maximum weight of any soft
+    #[must_use]
     pub fn max_weight(&self) -> usize {
         cmp::max(self.max_lit_weight(), self.max_clause_weight())
     }
 
     /// Gets the minimum weight of a soft literal
+    #[must_use]
     pub fn min_lit_weight(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_lits, .. } => {
@@ -187,6 +201,7 @@ impl Objective {
     }
 
     /// Gets the minimum weight of a soft clause
+    #[must_use]
     pub fn min_clause_weight(&self) -> usize {
         match &self.0 {
             IntObj::Weighted { soft_clauses, .. } => soft_clauses
@@ -197,18 +212,28 @@ impl Objective {
     }
 
     /// Gets the minimum weight of any soft
+    #[must_use]
     pub fn min_weight(&self) -> usize {
         cmp::min(self.min_lit_weight(), self.min_clause_weight())
     }
 
     /// Evaluates the objective under an assignment. Only clauses _falsified_
     /// and literals _set_ incur cost.
+    ///
+    /// # Panics
+    ///
+    /// If the objective value overflows
+    #[must_use]
     pub fn evaluate(&self, sol: &Assignment) -> isize {
-        self.evaluate_no_offset(sol) as isize + self.offset()
+        // TODO: maybe improve in case evaluate_no_offset overflows, but the sum with the offset
+        // does not
+        isize::try_from(self.evaluate_no_offset(sol)).expect("objective value overflow")
+            + self.offset()
     }
 
     /// Evaluates the objective under and assignment without considering the
     /// offset. Only clauses _falsified_ and literals _set_ incur cost.
+    #[must_use]
     pub fn evaluate_no_offset(&self, sol: &Assignment) -> usize {
         match &self.0 {
             IntObj::Weighted {
@@ -264,28 +289,31 @@ impl Objective {
     /// Sets the value offset
     pub fn set_offset(&mut self, new_offset: isize) {
         match &mut self.0 {
-            IntObj::Weighted { offset, .. } => *offset = new_offset,
-            IntObj::Unweighted { offset, .. } => *offset = new_offset,
+            IntObj::Weighted { offset, .. } | IntObj::Unweighted { offset, .. } => {
+                *offset = new_offset;
+            }
         }
     }
 
     /// Gets the global value offset
+    #[must_use]
     pub fn offset(&self) -> isize {
         match &self.0 {
-            IntObj::Weighted { offset, .. } => *offset,
-            IntObj::Unweighted { offset, .. } => *offset,
+            IntObj::Weighted { offset, .. } | IntObj::Unweighted { offset, .. } => *offset,
         }
     }
 
     /// Increases the value offset
     pub fn increase_offset(&mut self, offset_incr: isize) {
         match &mut self.0 {
-            IntObj::Weighted { offset, .. } => *offset += offset_incr,
-            IntObj::Unweighted { offset, .. } => *offset += offset_incr,
+            IntObj::Weighted { offset, .. } | IntObj::Unweighted { offset, .. } => {
+                *offset += offset_incr;
+            }
         }
     }
 
     /// Checks if the objective is weighted
+    #[must_use]
     pub fn weighted(&self) -> bool {
         match &self.0 {
             IntObj::Weighted { .. } => true,
@@ -312,14 +340,14 @@ impl Objective {
                             .map(|cl| (cl, *unit_weight))
                             .collect(),
                     }
-                    .into()
+                    .into();
                 } else {
                     *self = IntObj::Weighted {
                         offset: *offset,
                         soft_lits: RsHashMap::default(),
                         soft_clauses: RsHashMap::default(),
                     }
-                    .into()
+                    .into();
                 }
             }
         }
@@ -348,7 +376,7 @@ impl Objective {
                     soft_lits: soft_unit_lits,
                     soft_clauses: soft_unit_clauses,
                 }
-                .into()
+                .into();
             }
         }
     }
@@ -371,7 +399,7 @@ impl Objective {
                 if w == 0 {
                     if let Some(idx) = soft_lits.iter().position(|l2| l2 == &l) {
                         soft_lits.swap_remove(idx);
-                        return Some(unit_weight.unwrap());
+                        return Some(unreachable_none!(*unit_weight));
                     }
                     None
                 } else {
@@ -419,7 +447,7 @@ impl Objective {
                 }
                 None => soft_lits.insert(l, add_w),
             },
-            IntObj::Unweighted { .. } => panic!(),
+            IntObj::Unweighted { .. } => unreachable!(),
         }
     }
 
@@ -430,11 +458,12 @@ impl Objective {
     /// adding literal l with a positive weight and afterwards -l with a
     /// negative weight would mess up the state.
     pub fn increase_soft_lit_int(&mut self, add_w: isize, l: Lit) {
+        let unsigned_w = add_w.unsigned_abs();
         if add_w < 0 {
             self.increase_offset(add_w);
-            self.increase_soft_lit(-add_w as usize, !l);
+            self.increase_soft_lit(unsigned_w, !l);
         } else {
-            self.increase_soft_lit(add_w as usize, l);
+            self.increase_soft_lit(unsigned_w, l);
         }
     }
 
@@ -459,7 +488,7 @@ impl Objective {
                 if w == 0 {
                     if let Some(idx) = soft_clauses.iter().position(|cl2| cl2 == &cl) {
                         soft_clauses.swap_remove(idx);
-                        return Some(unit_weight.unwrap());
+                        return Some(unreachable_none!(*unit_weight));
                     }
                     None
                 } else {
@@ -507,11 +536,12 @@ impl Objective {
                 }
                 None => soft_clauses.insert(cl, add_w),
             },
-            IntObj::Unweighted { .. } => panic!(),
+            IntObj::Unweighted { .. } => unreachable!(),
         }
     }
 
     /// Gets the weight of a soft literal
+    #[must_use]
     pub fn lit_weight(&self, l: Lit) -> Option<usize> {
         match &self.0 {
             IntObj::Weighted { soft_lits, .. } => soft_lits.get(&l).copied(),
@@ -521,7 +551,7 @@ impl Objective {
                 ..
             } => {
                 if soft_lits.iter().any(|l2| l2 == &l) {
-                    Some(unit_weight.unwrap())
+                    Some(unreachable_none!(*unit_weight))
                 } else {
                     None
                 }
@@ -530,6 +560,7 @@ impl Objective {
     }
 
     /// Gets the weight of a soft clause
+    #[must_use]
     pub fn clause_weight(&self, cl: &Clause) -> Option<usize> {
         match &self.0 {
             IntObj::Weighted { soft_clauses, .. } => soft_clauses.get(cl).copied(),
@@ -539,7 +570,7 @@ impl Objective {
                 ..
             } => {
                 if soft_clauses.iter().any(|cl2| cl2 == cl) {
-                    Some(unit_weight.unwrap())
+                    Some(unreachable_none!(*unit_weight))
                 } else {
                     None
                 }
@@ -552,11 +583,13 @@ impl Objective {
         since = "0.5.0",
         note = "as_soft_cls has been renamed to into_soft_cls and will be removed in a future release"
     )]
+    #[must_use]
     pub fn as_soft_cls(self) -> (impl WClsIter, isize) {
         self.into_soft_cls()
     }
 
     /// Converts the objective to a set of soft clauses and an offset
+    #[must_use]
     pub fn into_soft_cls(self) -> (impl WClsIter, isize) {
         match self.0 {
             IntObj::Unweighted {
@@ -571,7 +604,7 @@ impl Objective {
                 }
                 let soft_clauses: Vec<(Clause, usize)> = soft_clauses
                     .into_iter()
-                    .map(|cl| (cl, unit_weight.unwrap()))
+                    .map(|cl| (cl, unreachable_none!(unit_weight)))
                     .collect();
                 (soft_clauses, offset)
             }
@@ -597,6 +630,7 @@ impl Objective {
         since = "0.5.0",
         note = "as_unweighted_soft_cls has been renamed to into_unweighted_soft_cls and will be removed in a future release"
     )]
+    #[must_use]
     pub fn as_unweighted_soft_cls(self) -> (impl ClsIter, usize, isize) {
         self.into_unweighted_soft_cls()
     }
@@ -604,10 +638,11 @@ impl Objective {
     /// Converts the objective to unweighted soft clauses, a unit weight and an offset. If the
     /// objective is weighted, the soft clause will appear as often as its
     /// weight in the output vector.
+    #[must_use]
     pub fn into_unweighted_soft_cls(mut self) -> (impl ClsIter, usize, isize) {
         self.weighted_2_unweighted();
         match self.0 {
-            IntObj::Weighted { .. } => panic!(),
+            IntObj::Weighted { .. } => unreachable!(),
             IntObj::Unweighted {
                 offset,
                 unit_weight,
@@ -763,6 +798,7 @@ impl Objective {
     }
 
     /// Gets the maximum variable in the objective
+    #[must_use]
     pub fn max_var(&self) -> Option<Var> {
         let find_max = |mv, v| {
             if let Some(mv) = mv {
@@ -802,6 +838,7 @@ impl Objective {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
+    #[must_use]
     pub fn reindex<R: ReindexVars>(self, reindexer: &mut R) -> Objective {
         match self.0 {
             IntObj::Weighted {
@@ -855,6 +892,7 @@ impl Objective {
     }
 
     /// Normalizes the objective to a unified representation. This sorts internal data structures.
+    #[must_use]
     pub fn normalize(mut self) -> Self {
         match &mut self.0 {
             IntObj::Weighted { .. } => (),
@@ -872,6 +910,7 @@ impl Objective {
 
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of literals
+    #[must_use]
     pub fn shuffle(mut self) -> Self {
         use rand::seq::SliceRandom;
         match &mut self.0 {
@@ -910,6 +949,7 @@ impl Objective {
     }
 
     /// Gets an iterator over the entire objective as soft clauses
+    #[must_use]
     pub fn iter_soft_cls(&self) -> impl WClsIter + '_ {
         match &self.0 {
             IntObj::Weighted {
@@ -1011,15 +1051,15 @@ impl FromIterator<(Clause, usize)> for Objective {
 /// Type representing an optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct OptInstance<VM: ManageVars = BasicVarManager> {
+pub struct Instance<VM: ManageVars = BasicVarManager> {
     pub(super) constrs: SatInstance<VM>,
     pub(super) obj: Objective,
 }
 
-impl<VM: ManageVars> OptInstance<VM> {
+impl<VM: ManageVars> Instance<VM> {
     /// Creates a new optimization instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
-        OptInstance {
+        Instance {
             constrs: SatInstance::new_with_manager(var_manager),
             obj: Objective::new(),
         }
@@ -1030,7 +1070,7 @@ impl<VM: ManageVars> OptInstance<VM> {
         if let Some(mv) = objective.max_var() {
             constraints.var_manager_mut().increase_next_free(mv);
         }
-        OptInstance {
+        Instance {
             constrs: constraints,
             obj: objective,
         }
@@ -1131,14 +1171,14 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Converts the included variable manager to a different type
-    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (OptInstance<VM2>, VM)
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (Instance<VM2>, VM)
     where
         VM2: ManageVars,
         VMC: Fn(&VM) -> VM2,
     {
         let (constrs, vm) = self.constrs.change_var_manager(vm_converter);
         (
-            OptInstance {
+            Instance {
                 constrs,
                 obj: self.obj,
             },
@@ -1147,14 +1187,15 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
-    pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> OptInstance<R> {
+    pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
         let obj = self.obj.reindex(&mut reindexer);
         let constrs = self.constrs.reindex(reindexer);
-        OptInstance { constrs, obj }
+        Instance { constrs, obj }
     }
 
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of constraints and the objective
+    #[must_use]
     pub fn shuffle(mut self) -> Self {
         self.constrs = self.constrs.shuffle();
         self.obj = self.obj.shuffle();
@@ -1167,6 +1208,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         #[allow(deprecated)]
@@ -1175,16 +1217,18 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Write to DIMACS WCNF (post 22)
     #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
+    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
             |constr, cnf, vm| {
                 card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory")
+                    .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
                 pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory")
+                    .expect("pb encoding ran out of memory");
             },
             writer,
         )
@@ -1196,6 +1240,7 @@ impl<VM: ManageVars> OptInstance<VM> {
         since = "0.5.0",
         note = "use convert_to_cnf_with_encoders and write_dimacs instead"
     )]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -1264,6 +1309,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
@@ -1276,6 +1322,8 @@ impl<VM: ManageVars> OptInstance<VM> {
 
     /// Writes the instance to an OPB file
     #[deprecated(since = "0.5.0", note = "use write_opb instead")]
+    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_opb<W: io::Write>(
         mut self,
         writer: &mut W,
@@ -1344,10 +1392,11 @@ impl<VM: ManageVars> OptInstance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> OptInstance<VM> {
+impl<VM: ManageVars + Default> Instance<VM> {
     /// Creates a new optimization instance
+    #[must_use]
     pub fn new() -> Self {
-        OptInstance {
+        Instance {
             constrs: SatInstance::new(),
             obj: Objective::new(),
         }
@@ -1365,28 +1414,44 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ///
     /// If a DIMACS MCNF file is passed to this function, all objectives but the
     /// first are ignored.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         Self::from_dimacs_with_idx(reader, 0)
     }
 
     /// Parses a DIMACS instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`OptInstance::from_dimacs`].
+    /// For more details see [`Instance::from_dimacs`].
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_with_idx<R: io::BufRead>(reader: R, obj_idx: usize) -> anyhow::Result<Self> {
         fio::dimacs::parse_wcnf_with_idx(reader, obj_idx)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs`]. With feature `compression` supports
+    /// [`Instance::from_dimacs`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(reader)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`OptInstance::from_dimacs_with_idx`]. With feature `compression` supports
+    /// [`Instance::from_dimacs_with_idx`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path_with_idx<P: AsRef<Path>>(
         path: P,
         obj_idx: usize,
@@ -1402,13 +1467,21 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean optimization instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         Self::from_opb_with_idx(reader, 0, opts)
     }
 
     /// Parses an OPB instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`OptInstance::from_opb`].
+    /// For more details see [`Instance::from_opb`].
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_with_idx<R: io::BufRead>(
         reader: R,
         obj_idx: usize,
@@ -1418,8 +1491,12 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     }
 
     /// Parses an OPB instance from a file path. For more details see
-    /// [`OptInstance::from_opb`]. With feature `compression` supports
+    /// [`Instance::from_opb`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
         let reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(reader, opts)
@@ -1427,9 +1504,13 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
 
     /// Parses an OPB instance from a file path, selecting the objective with
     /// index `obj_idx` if multiple are available. The index starts at 0. For
-    /// more details see [`OptInstance::from_opb`]. With feature
+    /// more details see [`Instance::from_opb`]. With feature
     /// `compression` supports bzip2 and gzip compression, detected by the file
     /// extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path_with_idx<P: AsRef<Path>>(
         path: P,
         obj_idx: usize,
@@ -1440,7 +1521,7 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<WcnfLine> for OptInstance<VM> {
+impl<VM: ManageVars + Default> FromIterator<WcnfLine> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = WcnfLine>>(iter: T) -> Self {
         let mut inst = Self::default();
         for line in iter {

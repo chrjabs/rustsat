@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 use std::{env, path::Path};
 
 fn main() {
@@ -21,8 +23,8 @@ fn main() {
     println!("cargo:rustc-flags=-l dylib=stdc++");
 
     // Built solver is in out_dir
-    println!("cargo:rustc-link-search={}", out_dir);
-    println!("cargo:rustc-link-search={}/lib", out_dir);
+    println!("cargo:rustc-link-search={out_dir}");
+    println!("cargo:rustc-link-search={out_dir}/lib");
 }
 
 fn build() {

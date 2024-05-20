@@ -32,6 +32,7 @@ impl std::hash::Hash for Clause {
 
 impl Clause {
     /// Creates a new empty clause
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -39,6 +40,7 @@ impl Clause {
     /// Creates a new empty clause with at least the specified capacity.
     ///
     /// Uses [`Vec::with_capacity`] internally.
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             lits: Vec::with_capacity(capacity),
@@ -49,19 +51,23 @@ impl Clause {
     ///
     /// Uses [`Vec::reserve`] internally.
     pub fn reserve(&mut self, additional: usize) {
-        self.lits.reserve(additional)
+        self.lits.reserve(additional);
     }
 
     /// Reserves the minimum capacity for at least `additional` more literals.
     ///
     /// Uses [`Vec::reserve_exact`] internally.
     pub fn reserve_exact(&mut self, additional: usize) {
-        self.lits.reserve_exact(additional)
+        self.lits.reserve_exact(additional);
     }
 
     /// Tries to reserve capacity for at least `additional` more literals.
     ///
     /// Uses [`Vec::try_reserve`] internally.
+    ///
+    /// # Errors
+    ///
+    /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.lits.try_reserve(additional)
     }
@@ -69,28 +75,36 @@ impl Clause {
     /// Tries to reserve the minimum capacity for at least `additional` more literals.
     ///
     /// Uses [`Vec::try_reserve_exact`] internally.
+    ///
+    /// # Errors
+    ///
+    /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.lits.try_reserve_exact(additional)
     }
 
     /// Gets the clause as a slice of literals
+    #[must_use]
     pub fn lits(&self) -> &[Lit] {
         &self.lits
     }
 
     /// Gets the length of the clause
     #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.lits.len()
     }
 
     /// Checks if the clause is empty
     #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.lits.is_empty()
     }
 
     /// Evaluates a clause under a given assignment
+    #[must_use]
     pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
         self.iter()
             .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
@@ -126,6 +140,7 @@ impl Clause {
     /// Normalizes the clause. This includes sorting the literals, removing
     /// duplicates and removing the entire clause if it is a tautology.
     /// Comparing two normalized clauses checks their logical equivalence.
+    #[must_use]
     pub fn normalize(mut self) -> Option<Self> {
         if self.len() <= 1 {
             return Some(self);
@@ -153,6 +168,7 @@ impl Clause {
     /// Sanitizes the clause. This includes removing duplicates and removing the
     /// entire clause if it is a tautology. This preserves the order of the
     /// literals in the clause.
+    #[must_use]
     pub fn sanitize(mut self) -> Option<Self> {
         if self.len() <= 1 {
             return Some(self);
@@ -176,6 +192,7 @@ impl Clause {
     }
 
     /// Checks whether the clause is satisfied by the given assignment
+    #[must_use]
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         for &lit in &self.lits {
             if assign.lit_value(lit) == TernaryVal::True {
@@ -187,18 +204,20 @@ impl Clause {
 
     /// Checks if the clause is a unit clause
     #[inline]
+    #[must_use]
     pub fn is_unit(&self) -> bool {
         self.lits.len() == 1
     }
 
     /// Checks if the clause is binary
+    #[must_use]
     pub fn is_binary(&self) -> bool {
         self.lits.len() == 2
     }
 
     /// Adds a literal to the clause
     pub fn add(&mut self, lit: Lit) {
-        self.lits.push(lit)
+        self.lits.push(lit);
     }
 
     /// Removes the first occurrence of a literal from the clause
@@ -246,7 +265,7 @@ impl From<&[Lit]> for Clause {
 
 impl Extend<Lit> for Clause {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
-        self.lits.extend(iter)
+        self.lits.extend(iter);
     }
 }
 
@@ -315,7 +334,7 @@ impl fmt::Display for Clause {
             if i != 0 {
                 write!(f, "|")?;
             }
-            write!(f, "{}", lit)?
+            write!(f, "{lit}")?;
         }
         write!(f, ")")
     }
@@ -329,7 +348,7 @@ impl fmt::Debug for Clause {
             if i != 0 {
                 write!(f, "|")?;
             }
-            write!(f, "{}", lit)?
+            write!(f, "{lit}")?;
         }
         write!(f, ")")
     }
@@ -404,6 +423,7 @@ impl CardConstraint {
     }
 
     /// Checks if the constraint is always satisfied
+    #[must_use]
     pub fn is_tautology(&self) -> bool {
         match self {
             CardConstraint::UB(constr) => constr.is_tautology(),
@@ -413,6 +433,7 @@ impl CardConstraint {
     }
 
     /// Checks if the constraint is unsatisfiable
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         match self {
             CardConstraint::UB(_) => false,
@@ -422,6 +443,7 @@ impl CardConstraint {
     }
 
     /// Checks if the constraint assigns all literals to true
+    #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         match self {
             CardConstraint::UB(_) => false,
@@ -431,6 +453,7 @@ impl CardConstraint {
     }
 
     /// Checks if the constraint assigns all literals to false
+    #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         match self {
             CardConstraint::UB(constr) => constr.is_negative_assignment(),
@@ -440,6 +463,7 @@ impl CardConstraint {
     }
 
     /// Checks if the constraint is a clause
+    #[must_use]
     pub fn is_clause(&self) -> bool {
         match self {
             CardConstraint::UB(constr) => constr.is_clause(),
@@ -450,6 +474,7 @@ impl CardConstraint {
 
     /// Normalizes the constraint. This only consists of sorting the literals.
     /// Comparing two normalized constraints checks their logical equivalence.
+    #[must_use]
     pub fn normalize(mut self) -> Self {
         let norm = |lits: &mut Vec<Lit>| {
             if lits.len() <= 1 {
@@ -466,6 +491,7 @@ impl CardConstraint {
     }
 
     /// Gets the literals that are in the constraint
+    #[must_use]
     pub fn into_lits(self) -> Vec<Lit> {
         match self {
             CardConstraint::UB(constr) => constr.lits,
@@ -479,19 +505,22 @@ impl CardConstraint {
         since = "0.5.0",
         note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
     )]
+    #[must_use]
     pub fn as_clause(self) -> Option<Clause> {
         self.into_clause().ok()
     }
 
     /// Converts the constraint into a clause, if possible
+    ///
+    /// # Errors
+    ///
+    /// If the constraint is not a clause, returns [`RequiresClausal`].
     pub fn into_clause(self) -> Result<Clause, RequiresClausal> {
         if !self.is_clause() {
             return Err(RequiresClausal);
         }
         match self {
-            CardConstraint::UB(constr) => {
-                Ok(Clause::from_iter(constr.lits.into_iter().map(Lit::not)))
-            }
+            CardConstraint::UB(constr) => Ok(constr.lits.into_iter().map(Lit::not).collect()),
             CardConstraint::LB(constr) => Ok(Clause::from_iter(constr.lits)),
             CardConstraint::EQ(_) => unreachable!(),
         }
@@ -499,7 +528,7 @@ impl CardConstraint {
 
     /// Gets an iterator over the literals in the constraint
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
+    pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
         match self {
             CardConstraint::UB(constr) => constr.lits.iter(),
             CardConstraint::LB(constr) => constr.lits.iter(),
@@ -509,7 +538,7 @@ impl CardConstraint {
 
     /// Gets a mutable iterator over the literals in the constraint
     #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Lit> {
         match self {
             CardConstraint::UB(constr) => constr.lits.iter_mut(),
             CardConstraint::LB(constr) => constr.lits.iter_mut(),
@@ -518,6 +547,7 @@ impl CardConstraint {
     }
 
     /// Checks whether the cardinality constraint is satisfied by the given assignment
+    #[must_use]
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         let count = self.iter().fold(0, |cnt, lit| {
             if assign.lit_value(*lit) == TernaryVal::True {
@@ -533,6 +563,26 @@ impl CardConstraint {
     }
 }
 
+impl<'slf> IntoIterator for &'slf CardConstraint {
+    type Item = &'slf Lit;
+
+    type IntoIter = std::slice::Iter<'slf, Lit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'slf> IntoIterator for &'slf mut CardConstraint {
+    type Item = &'slf mut Lit;
+
+    type IntoIter = std::slice::IterMut<'slf, Lit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
 /// An upper bound cardinality constraint (`sum of lits <= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct CardUBConstr {
@@ -542,6 +592,7 @@ pub struct CardUBConstr {
 
 impl CardUBConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
+    #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
         (self.lits, self.b)
     }
@@ -552,16 +603,19 @@ impl CardUBConstr {
     }
 
     /// Checks if the constraint is always satisfied
+    #[must_use]
     pub fn is_tautology(&self) -> bool {
         self.b >= self.lits.len()
     }
 
     /// Checks if the constraint assigns all literals to false
+    #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         self.b == 0
     }
 
     /// Checks if the constraint is a clause
+    #[must_use]
     pub fn is_clause(&self) -> bool {
         self.b + 1 == self.lits.len()
     }
@@ -576,6 +630,7 @@ pub struct CardLBConstr {
 
 impl CardLBConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
+    #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
         (self.lits, self.b)
     }
@@ -586,21 +641,25 @@ impl CardLBConstr {
     }
 
     /// Checks if the constraint is always satisfied
+    #[must_use]
     pub fn is_tautology(&self) -> bool {
         self.b == 0
     }
 
     /// Checks if the constraint is unsatisfiable
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         self.b > self.lits.len()
     }
 
     /// Checks if the constraint assigns all literals to true
+    #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         self.b == self.lits.len()
     }
 
     /// Checks if the constraint is a clause
+    #[must_use]
     pub fn is_clause(&self) -> bool {
         self.b == 1
     }
@@ -615,6 +674,7 @@ pub struct CardEQConstr {
 
 impl CardEQConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
+    #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
         (self.lits, self.b)
     }
@@ -625,16 +685,19 @@ impl CardEQConstr {
     }
 
     /// Checks if the constraint is unsatisfiable
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         self.b > self.lits.len()
     }
 
     /// Checks if the constraint assigns all literals to true
+    #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         self.b == self.lits.len()
     }
 
     /// Checks if the constraint assigns all literals to false
+    #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         self.b == 0
     }
@@ -676,12 +739,12 @@ impl PBConstraint {
             .into_iter()
             .map(|(l, w)| {
                 if w >= 0 {
-                    weight_sum += w as usize;
-                    (l, w as usize)
+                    weight_sum += w.unsigned_abs();
+                    (l, w.unsigned_abs())
                 } else {
                     b_add -= w;
-                    weight_sum += -w as usize;
-                    (!l, -w as usize)
+                    weight_sum += w.unsigned_abs();
+                    (!l, w.unsigned_abs())
                 }
             })
             .collect();
@@ -737,6 +800,7 @@ impl PBConstraint {
     }
 
     /// Checks if the constraint is always satisfied
+    #[must_use]
     pub fn is_tautology(&self) -> bool {
         match self {
             PBConstraint::UB(constr) => constr.is_tautology(),
@@ -746,6 +810,7 @@ impl PBConstraint {
     }
 
     /// Checks if the constraint is unsatisfiable
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         match self {
             PBConstraint::UB(constr) => constr.is_unsat(),
@@ -755,6 +820,7 @@ impl PBConstraint {
     }
 
     /// Checks if the constraint assigns all literals to true
+    #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         match self {
             PBConstraint::UB(_) => false,
@@ -764,6 +830,7 @@ impl PBConstraint {
     }
 
     /// Checks if the constraint assigns all literals to false
+    #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         match self {
             PBConstraint::UB(constr) => constr.is_negative_assignment(),
@@ -773,6 +840,7 @@ impl PBConstraint {
     }
 
     /// Checks if the constraint is a cardinality constraint
+    #[must_use]
     pub fn is_card(&self) -> bool {
         match self {
             PBConstraint::UB(constr) => constr.find_unit_weight().is_some(),
@@ -782,6 +850,7 @@ impl PBConstraint {
     }
 
     /// Checks if the constraint is a clause
+    #[must_use]
     pub fn is_clause(&self) -> bool {
         match self {
             PBConstraint::UB(constr) => constr.is_clause(),
@@ -792,6 +861,7 @@ impl PBConstraint {
 
     /// Normalizes the constraint. This sorts the literal and merges duplicates.
     /// Comparing two normalized constraints checks their logical equivalence.
+    #[must_use]
     pub fn normalize(self) -> Self {
         let norm = |mut lits: Vec<(Lit, usize)>| {
             if lits.len() <= 1 {
@@ -834,11 +904,17 @@ impl PBConstraint {
         since = "0.5.0",
         note = "as_card_constr has been renamed to into_card_constr"
     )]
+    #[allow(clippy::missing_errors_doc)]
     pub fn as_card_constr(self) -> Result<CardConstraint, PBToCardError> {
         self.into_card_constr()
     }
 
     /// Converts the pseudo-boolean constraint into a cardinality constraint, if possible
+    ///
+    /// # Errors
+    ///
+    /// If the constraint is not a cardinality constraint, including when it is a tautology or
+    /// unsat, returns [`PBToCardError`]
     pub fn into_card_constr(self) -> Result<CardConstraint, PBToCardError> {
         if self.is_tautology() {
             return Err(PBToCardError::Tautology);
@@ -849,42 +925,43 @@ impl PBConstraint {
         Ok(match self {
             PBConstraint::UB(constr) => {
                 let unit_weight = constr.find_unit_weight();
+                // since this is not unsat, b is non-negative
+                let b = constr.b.unsigned_abs();
                 match unit_weight {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l);
-                        CardConstraint::new_ub(lits, constr.b as usize / unit_weight)
+                        CardConstraint::new_ub(lits, b / unit_weight)
                     }
                 }
             }
             PBConstraint::LB(constr) => {
                 let unit_weight = constr.find_unit_weight();
+                // since this is not a tautology, b is non-negative
+                let b = constr.b.unsigned_abs();
                 match unit_weight {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_lb(
                             lits,
-                            constr.b as usize / unit_weight
-                                + if constr.b as usize % unit_weight == 0 {
-                                    0
-                                } else {
-                                    1
-                                },
+                            b / unit_weight + usize::from(b % unit_weight != 0),
                         )
                     }
                 }
             }
             PBConstraint::EQ(constr) => {
                 let unit_weight = constr.find_unit_weight();
+                // since this is not unsat, b is non-negative
+                let b = constr.b.unsigned_abs();
                 match unit_weight {
                     None => return Err(PBToCardError::NotACard),
                     Some(unit_weight) => {
-                        if constr.b as usize % unit_weight != 0 {
+                        if b % unit_weight != 0 {
                             return Err(PBToCardError::Unsat);
                         }
                         let lits = constr.lits.into_iter().map(|(l, _)| l);
-                        CardConstraint::new_eq(lits, constr.b as usize / unit_weight)
+                        CardConstraint::new_eq(lits, b / unit_weight)
                     }
                 }
             }
@@ -896,27 +973,29 @@ impl PBConstraint {
         since = "0.5.0",
         note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
     )]
+    #[must_use]
     pub fn as_clause(self) -> Option<Clause> {
         self.into_clause().ok()
     }
 
     /// Converts the constraint into a clause, if possible
+    ///
+    /// # Errors
+    ///
+    /// If the constraint is not a clause, returns [`RequiresClausal`]
     pub fn into_clause(self) -> Result<Clause, RequiresClausal> {
         if !self.is_clause() {
             return Err(RequiresClausal);
         }
         match self {
-            PBConstraint::UB(constr) => Ok(Clause::from_iter(
-                constr.lits.into_iter().map(|(lit, _)| !lit),
-            )),
-            PBConstraint::LB(constr) => Ok(Clause::from_iter(
-                constr.lits.into_iter().map(|(lit, _)| lit),
-            )),
+            PBConstraint::UB(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| !lit).collect()),
+            PBConstraint::LB(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| lit).collect()),
             PBConstraint::EQ(_) => unreachable!(),
         }
     }
 
     /// Gets the (positively) weighted literals that are in the constraint
+    #[must_use]
     pub fn into_lits(self) -> impl WLitIter {
         match self {
             PBConstraint::UB(constr) => constr.lits,
@@ -927,7 +1006,7 @@ impl PBConstraint {
 
     /// Gets an iterator over the literals in the constraint
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &(Lit, usize)> {
+    pub fn iter(&self) -> std::slice::Iter<'_, (Lit, usize)> {
         match self {
             PBConstraint::UB(constr) => constr.lits.iter(),
             PBConstraint::LB(constr) => constr.lits.iter(),
@@ -937,7 +1016,7 @@ impl PBConstraint {
 
     /// Gets a mutable iterator over the literals in the constraint
     #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut (Lit, usize)> {
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (Lit, usize)> {
         match self {
             PBConstraint::UB(constr) => constr.lits.iter_mut(),
             PBConstraint::LB(constr) => constr.lits.iter_mut(),
@@ -946,6 +1025,7 @@ impl PBConstraint {
     }
 
     /// Checks whether the PB constraint is satisfied by the given assignment
+    #[must_use]
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         let sum = self.iter().fold(0, |sum, (lit, coeff)| {
             if assign.lit_value(*lit) == TernaryVal::True {
@@ -979,6 +1059,26 @@ impl PBConstraint {
     }
 }
 
+impl<'slf> IntoIterator for &'slf PBConstraint {
+    type Item = &'slf (Lit, usize);
+
+    type IntoIter = std::slice::Iter<'slf, (Lit, usize)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'slf> IntoIterator for &'slf mut PBConstraint {
+    type Item = &'slf mut (Lit, usize);
+
+    type IntoIter = std::slice::IterMut<'slf, (Lit, usize)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PBUBConstr {
@@ -989,6 +1089,7 @@ pub struct PBUBConstr {
 
 impl PBUBConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
+    #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
     }
@@ -999,19 +1100,22 @@ impl PBUBConstr {
     }
 
     /// Checks if the constraint is always satisfied
+    #[must_use]
     pub fn is_tautology(&self) -> bool {
         if self.b < 0 {
             return false;
         }
-        self.b as usize >= self.weight_sum
+        self.b.unsigned_abs() >= self.weight_sum
     }
 
     /// Checks if the constraint is unsatisfiable
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         self.b < 0
     }
 
     /// Checks if the constraint assigns all literals to false
+    #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         if self.is_unsat() {
             return false;
@@ -1020,25 +1124,28 @@ impl PBUBConstr {
             .lits
             .iter()
             .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
-        min_coeff > self.b as usize
+        // absolute is safe since is not unsat
+        min_coeff > self.b.unsigned_abs()
     }
 
     /// Gets the unit weight of the constraint, if it exists
+    #[must_use]
     pub fn find_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
-        for (_, w) in self.lits.iter() {
+        for (_, w) in &self.lits {
             if let Some(uw) = unit_weight {
                 if uw != *w {
                     return None;
                 }
             } else {
-                unit_weight = Some(*w)
+                unit_weight = Some(*w);
             }
         }
         unit_weight
     }
 
     /// Checks if the constraint is a clause
+    #[must_use]
     pub fn is_clause(&self) -> bool {
         if self.is_tautology() {
             return false;
@@ -1050,7 +1157,9 @@ impl PBUBConstr {
             .lits
             .iter()
             .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
-        self.weight_sum <= self.b as usize + min_coeff && self.weight_sum > self.b as usize
+        // self.b >= 0 since not unsat
+        self.weight_sum <= self.b.unsigned_abs() + min_coeff
+            && self.weight_sum > self.b.unsigned_abs()
     }
 }
 
@@ -1064,6 +1173,7 @@ pub struct PBLBConstr {
 
 impl PBLBConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
+    #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
     }
@@ -1074,19 +1184,22 @@ impl PBLBConstr {
     }
 
     /// Checks if the constraint is always satisfied
+    #[must_use]
     pub fn is_tautology(&self) -> bool {
         self.b <= 0
     }
 
     /// Checks if the constraint is unsatisfiable
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         if self.b < 0 {
             return false;
         }
-        self.b as usize > self.weight_sum
+        self.b.unsigned_abs() > self.weight_sum
     }
 
     /// Checks if the constraint assigns all literals to true
+    #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         if self.b < 0 || self.is_unsat() {
             return false;
@@ -1096,25 +1209,27 @@ impl PBLBConstr {
             .iter()
             .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
         // note: self.b <= self.weight_sum is checked in is_unsat
-        self.b as usize + min_coeff > self.weight_sum
+        self.b.unsigned_abs() + min_coeff > self.weight_sum
     }
 
     /// Gets the unit weight of the constraint, if it exists
+    #[must_use]
     pub fn find_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
-        for (_, w) in self.lits.iter() {
+        for (_, w) in &self.lits {
             if let Some(uw) = unit_weight {
                 if uw != *w {
                     return None;
                 }
             } else {
-                unit_weight = Some(*w)
+                unit_weight = Some(*w);
             }
         }
         unit_weight
     }
 
     /// Checks if the constraint is a clause
+    #[must_use]
     pub fn is_clause(&self) -> bool {
         if self.is_tautology() {
             return false;
@@ -1126,7 +1241,8 @@ impl PBLBConstr {
             .lits
             .iter()
             .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
-        (self.b as usize) <= min_coeff
+        // self.b > 0 because is not tautology
+        self.b.unsigned_abs() <= min_coeff
     }
 }
 
@@ -1140,6 +1256,7 @@ pub struct PBEQConstr {
 
 impl PBEQConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
+    #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
         (self.lits, self.b)
     }
@@ -1150,39 +1267,46 @@ impl PBEQConstr {
     }
 
     /// Checks if the constraint is unsatisfiable
+    ///
+    /// This only checks whether the bound is smaller than the sum of weights, not if a subset sum
+    /// of the inputs exists that can satisfy the equality.
+    #[must_use]
     pub fn is_unsat(&self) -> bool {
         if self.b < 0 {
             return true;
         }
-        self.b as usize > self.weight_sum
+        self.b.unsigned_abs() > self.weight_sum
     }
 
     /// Checks if the constraint assigns all literals to true
+    #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         if self.b < 0 {
             return false;
         }
-        self.b as usize == self.weight_sum
+        self.b.unsigned_abs() == self.weight_sum
     }
 
     /// Checks if the constraint assigns all literals to false
+    #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         if self.b < 0 {
             return false;
         }
-        self.b as usize == 0
+        self.b.unsigned_abs() == 0
     }
 
     /// Gets the unit weight of the constraint, if it exists
+    #[must_use]
     pub fn find_unit_weight(&self) -> Option<usize> {
         let mut unit_weight = None;
-        for (_, w) in self.lits.iter() {
+        for (_, w) in &self.lits {
             if let Some(uw) = unit_weight {
                 if uw != *w {
                     return None;
                 }
             } else {
-                unit_weight = Some(*w)
+                unit_weight = Some(*w);
             }
         }
         unit_weight

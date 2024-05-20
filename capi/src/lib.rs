@@ -321,8 +321,8 @@ pub mod encodings {
                         tot_add(tot, 2);
                         tot_add(tot, 3);
                         tot_add(tot, 4);
-                        int n_used = 4;
-                        int n_clauses = 0;
+                        uint32_t n_used = 4;
+                        uint32_t n_clauses = 0;
                         tot_encode_ub(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
                         tot_drop(tot);
                         assert(n_used == 12);
@@ -628,8 +628,8 @@ pub mod encodings {
                         assert(dpw_add(dpw, 2, 1) == Ok);
                         assert(dpw_add(dpw, 3, 2) == Ok);
                         assert(dpw_add(dpw, 4, 2) == Ok);
-                        int n_used = 4;
-                        int n_clauses = 0;
+                        uint32_t n_used = 4;
+                        uint32_t n_clauses = 0;
                         dpw_encode_ub(dpw, 0, 6, &n_used, &clause_counter, &n_clauses);
                         dpw_drop(dpw);
                         assert(n_used == 13);
@@ -665,8 +665,8 @@ pub mod encodings {
                         assert(dpw_add(dpw, 2, 3) == Ok);
                         assert(dpw_add(dpw, 3, 8) == Ok);
                         assert(dpw_add(dpw, 4, 7) == Ok);
-                        int n_used = 4;
-                        int n_clauses = 0;
+                        uint32_t n_used = 4;
+                        uint32_t n_clauses = 0;
                         dpw_encode_ub(dpw, 0, 23, &n_used, &clause_counter, &n_clauses);
                         for (size_t ub = 7; ub < 23; ub++) {
                             size_t coarse_ub = dpw_coarse_ub(dpw, ub);

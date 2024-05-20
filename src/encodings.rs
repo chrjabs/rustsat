@@ -18,13 +18,17 @@ pub trait CollectClauses {
     fn n_clauses(&self) -> usize;
     /// Extends the clause collector with an iterator of clauses
     ///
-    /// # Error
+    /// # Errors
     ///
     /// If the collector runs out of memory, return an [`crate::OutOfMemory`] error.
     fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
     where
         T: IntoIterator<Item = Clause>;
     /// Adds one clause to the collector
+    ///
+    /// # Errors
+    ///
+    /// If the collector runs out of memory, return an [`crate::OutOfMemory`] error.
     fn add_clause(&mut self, cl: Clause) -> Result<(), crate::OutOfMemory> {
         self.extend_clauses([cl])
     }

@@ -39,6 +39,7 @@ use crate::{
         constraints::{CardConstraint, CardEQConstr, CardLBConstr, CardUBConstr},
         Clause, Lit,
     },
+    utils::unreachable_err,
 };
 
 pub mod totalizer;
@@ -62,6 +63,10 @@ pub trait BoundUpper: Encode {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
@@ -73,8 +78,12 @@ pub trait BoundUpper: Encode {
         R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
     /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
-    /// adequately and nothing has been called afterwards, otherwise
-    /// [`Error::NotEncoded`] will be returned.
+    /// adequately and nothing has been called afterwards.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotEncoded`] if [`BoundUpper::encode_ub`] has not been called
+    /// adequately before.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound cardinality constraint to CNF
     ///
@@ -92,7 +101,7 @@ pub trait BoundUpper: Encode {
     {
         let (lits, ub) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_ub(ub..ub + 1, collector, var_manager)?;
+        enc.encode_ub(ub..=ub, collector, var_manager)?;
         collector.extend_clauses(
             enc.enforce_ub(ub)
                 .unwrap()
@@ -110,6 +119,10 @@ pub trait BoundLower: Encode {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode_lb<Col, R>(
         &mut self,
         range: R,
@@ -121,10 +134,12 @@ pub trait BoundLower: Encode {
         R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
-    /// adequately and nothing has been added afterwards, otherwise
-    /// [`Error::NotEncoded`] will be returned. If `lb` is higher than
-    /// the number of literals in the encoding, [`Error::Unsat`] is
-    /// returned.
+    /// adequately and nothing has been added afterwards.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEncoded`] if [`BoundLower::encode_lb`] has not been called adequately
+    /// - [`Error::Unsat`] if `lb` is higher than the number of literals in the encoding
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound cardinality constraint to CNF
     ///
@@ -142,7 +157,7 @@ pub trait BoundLower: Encode {
     {
         let (lits, lb) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_lb(lb..lb + 1, collector, var_manager)?;
+        enc.encode_lb(lb..=lb, collector, var_manager)?;
         collector.extend_clauses(
             enc.enforce_lb(lb)
                 .unwrap()
@@ -159,6 +174,10 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// range. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode_both<Col, R>(
         &mut self,
         range: R,
@@ -176,10 +195,12 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
     /// types. Make sure the adequate `encode_x` methods have been called before
-    /// this method and nothing has been added afterwards, otherwise
-    /// [`Error::NotEncoded`] will be returned. If `b` is higher than
-    /// the number of literals in the encoding, [`Error::Unsat`] is
-    /// returned.
+    /// this method and nothing has been added afterwards.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEncoded`] if not adequately encoded
+    /// - [`Error::Unsat`] if `b` is higher than the number of literals in the encoding
     fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
@@ -201,7 +222,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     {
         let (lits, b) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_both(b..b + 1, collector, var_manager)?;
+        enc.encode_both(b..=b, collector, var_manager)?;
         collector.extend_clauses(
             enc.enforce_eq(b)
                 .unwrap()
@@ -250,6 +271,10 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     /// bounds. `var_manager` is the variable manager to use for tracking new
     /// variables. A specific encoding might ignore the lower or upper end of
     /// the range.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
@@ -268,6 +293,10 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// bounds in a given range. `var_manager` is the variable manager to use
     /// for tracking new variables. A specific encoding might ignore the lower
     /// or upper end of the range.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode_lb_change<Col, R>(
         &mut self,
         range: R,
@@ -285,6 +314,10 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     /// in a given range. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore the lower or
     /// upper end of the range.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     fn encode_both_change<Col, R>(
         &mut self,
         range: R,
@@ -318,37 +351,47 @@ pub type DefIncLowerBounding = Totalizer;
 pub type DefIncBothBounding = Totalizer;
 
 /// Constructs a default upper bounding cardinality encoding.
+#[must_use]
 pub fn new_default_ub() -> impl BoundUpper {
     DefUpperBounding::default()
 }
 
 /// Constructs a default lower bounding cardinality encoding.
+#[must_use]
 pub fn new_default_lb() -> impl BoundLower {
     DefLowerBounding::default()
 }
 
 /// Constructs a default double bounding cardinality encoding.
+#[must_use]
 pub fn new_default_both() -> impl BoundBoth {
     DefBothBounding::default()
 }
 
 /// Constructs a default incremental upper bounding cardinality encoding.
+#[must_use]
 pub fn new_default_inc_ub() -> impl BoundUpperIncremental {
     DefIncUpperBounding::default()
 }
 
 /// Constructs a default incremental lower bounding cardinality encoding.
+#[must_use]
 pub fn new_default_inc_lb() -> impl BoundLower {
     DefIncLowerBounding::default()
 }
 
 /// Constructs a default incremental double bounding cardinality encoding.
+#[must_use]
 pub fn new_default_inc_both() -> impl BoundBoth {
     DefIncBothBounding::default()
 }
 
 /// A default encoder for any cardinality constraint. This uses a
 /// [`DefBothBounding`] to encode non-trivial constraints.
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
 pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
@@ -358,6 +401,10 @@ pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
 }
 
 /// An encoder for any cardinality constraint with an encoding of choice
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
 pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
@@ -376,13 +423,11 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: Col
         return collector.extend_clauses(constr.into_lits().into_iter().map(|lit| clause![!lit]));
     }
     if constr.is_clause() {
-        return collector.add_clause(constr.into_clause().unwrap());
+        return collector.add_clause(unreachable_err!(constr.into_clause()));
     }
     match CE::encode_constr(constr, collector, var_manager) {
-        Ok(_) => Ok(()),
-        Err(err) => Err(err
-            .downcast::<crate::OutOfMemory>()
-            .expect("unexpected error when encoding constraint")),
+        Ok(()) => Ok(()),
+        Err(err) => Err(unreachable_err!(err.downcast::<crate::OutOfMemory>())),
     }
 }
 

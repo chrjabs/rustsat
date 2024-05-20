@@ -84,7 +84,7 @@ where
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         let lits: Vec<Lit> = iter.into_iter().map(Lit::not).collect();
         self.n_lits += lits.len();
-        self.card_enc.extend(lits)
+        self.card_enc.extend(lits);
     }
 }
 
@@ -113,7 +113,7 @@ where
     CE: EncodeIncremental,
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-        self.card_enc.reserve(var_manager)
+        self.card_enc.reserve(var_manager);
     }
 }
 
@@ -295,7 +295,7 @@ where
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         let lits: Vec<Lit> = iter.into_iter().collect();
         self.ub_enc.extend(lits.clone());
-        self.lb_enc.extend(lits)
+        self.lb_enc.extend(lits);
     }
 }
 
@@ -328,7 +328,7 @@ where
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.ub_enc.reserve(var_manager);
-        self.lb_enc.reserve(var_manager)
+        self.lb_enc.reserve(var_manager);
     }
 }
 

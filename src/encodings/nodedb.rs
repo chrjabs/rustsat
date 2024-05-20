@@ -8,18 +8,24 @@
 //! share substructures, but close enough.)
 
 use std::{
-    cmp,
+    cmp, fmt,
     num::{NonZeroU8, NonZeroUsize},
     ops::{Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
 };
 
-use crate::types::Lit;
+use crate::{types::Lit, utils::unreachable_none};
 
 /// An ID of a [`NodeLike`] in a database. The usize is typically the index in a
 /// vector of nodes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[repr(transparent)]
 pub struct NodeId(pub usize);
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "#{}", self.0)
+    }
+}
 
 impl Add<usize> for NodeId {
     type Output = NodeId;
@@ -163,66 +169,94 @@ pub struct NodeCon {
 
 impl NodeCon {
     /// Creates a node connection without any offset or divisor
+    #[must_use]
     pub fn full(id: NodeId) -> NodeCon {
         NodeCon {
             id,
             offset: 0,
-            divisor: NonZeroU8::new(1).unwrap(),
-            multiplier: NonZeroUsize::new(1).unwrap(),
+            divisor: unreachable_none!(NonZeroU8::new(1)),
+            multiplier: unreachable_none!(NonZeroUsize::new(1)),
             len_limit: None,
         }
     }
 
     /// Creates a node connection with a specified weight
+    ///
+    /// # Panics
+    ///
+    /// If `weight` is 0.
+    #[must_use]
     pub fn weighted(id: NodeId, weight: usize) -> NodeCon {
         NodeCon {
             id,
             offset: 0,
-            divisor: NonZeroU8::new(1).unwrap(),
+            divisor: unreachable_none!(NonZeroU8::new(1)),
             multiplier: weight.try_into().unwrap(),
             len_limit: None,
         }
     }
 
     /// Creates a node connection that is offset and weighted
+    ///
+    /// # Panics
+    ///
+    /// If `weight` is 0.
     #[cfg(any(test, feature = "internals"))]
+    #[must_use]
     pub fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
         NodeCon {
             id,
             offset,
-            divisor: NonZeroU8::new(1).unwrap(),
+            divisor: unreachable_none!(NonZeroU8::new(1)),
             multiplier: weight.try_into().unwrap(),
             len_limit: None,
         }
     }
 
     /// Creates a connection transmitting a single output literal
+    ///
+    /// # Panics
+    ///
+    /// If `weight` is 0.
     #[cfg(any(test, feature = "internals"))]
+    #[must_use]
     pub fn single(id: NodeId, output: usize, weight: usize) -> NodeCon {
         NodeCon {
             id,
             offset: output - 1,
-            divisor: NonZeroU8::new(1).unwrap(),
+            divisor: unreachable_none!(NonZeroU8::new(1)),
             multiplier: weight.try_into().unwrap(),
-            len_limit: Some(1.try_into().unwrap()),
+            len_limit: NonZeroUsize::new(1),
         }
     }
 
     /// Creates a connection transmitting a limited number of literals
+    ///
+    /// # Panics
+    ///
+    /// - If `weight` is 0
+    /// - If `n_lits` is 0
     #[cfg(any(test, feature = "internals"))]
+    #[must_use]
     pub fn limited(id: NodeId, offset: usize, n_lits: usize, weight: usize) -> NodeCon {
+        assert_ne!(n_lits, 0);
         NodeCon {
             id,
             offset,
-            divisor: NonZeroU8::new(1).unwrap(),
+            divisor: unreachable_none!(NonZeroU8::new(1)),
             multiplier: weight.try_into().unwrap(),
-            len_limit: Some(n_lits.try_into().unwrap()),
+            len_limit: NonZeroUsize::new(n_lits),
         }
     }
 
     /// Changes the weight of a node connection
+    ///
+    /// # Panics
+    ///
+    /// If `weight` is 0.
     #[inline]
     #[cfg(feature = "internals")]
+    #[must_use]
     pub fn reweight(self, weight: usize) -> NodeCon {
         NodeCon {
             multiplier: weight.try_into().unwrap(),
@@ -232,12 +266,14 @@ impl NodeCon {
 
     /// Gets the offset of the connection
     #[inline]
+    #[must_use]
     pub fn offset(&self) -> usize {
         self.offset
     }
 
     /// Gets the divisor of the connection
     #[inline]
+    #[must_use]
     pub fn divisor(&self) -> usize {
         let div: u8 = self.divisor.into();
         div.into()
@@ -245,12 +281,14 @@ impl NodeCon {
 
     /// Gets the multiplier of the connection
     #[inline]
+    #[must_use]
     pub fn multiplier(&self) -> usize {
         self.multiplier.into()
     }
 
     /// Maps an input value of the connection to its output value
     #[inline]
+    #[must_use]
     pub fn map(&self, val: usize) -> usize {
         if let Some(limit) = self.len_limit {
             cmp::min((val - self.offset()) / self.divisor(), limit.into()) * self.multiplier()
@@ -261,6 +299,7 @@ impl NodeCon {
 
     /// Maps an output value of the connection to its input value, rounding down
     #[inline]
+    #[must_use]
     pub fn rev_map(&self, val: usize) -> usize {
         if let Some(limit) = self.len_limit {
             match cmp::min(val / self.multiplier(), limit.into()) * self.divisor() {
@@ -274,6 +313,7 @@ impl NodeCon {
 
     /// Maps an output value of the connection to its input value, rounding up
     #[inline]
+    #[must_use]
     pub fn rev_map_round_up(&self, mut val: usize) -> usize {
         if let Some(limit) = self.len_limit {
             if (val - 1) / self.multiplier() >= limit.into() {
@@ -281,13 +321,14 @@ impl NodeCon {
             }
         }
         if val % self.multiplier() > 0 {
-            val += self.multiplier()
+            val += self.multiplier();
         }
         self.rev_map(val)
     }
 
     /// Checks if a value is a possible output value of this connection
     #[inline]
+    #[must_use]
     pub fn is_possible(&self, val: usize) -> bool {
         if let Some(limit) = self.len_limit {
             val % self.multiplier() == 0 && val / self.multiplier() <= limit.into()
@@ -295,6 +336,15 @@ impl NodeCon {
             val % self.multiplier() == 0
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "node {referencing} from after the drain range references node {referenced} in the drain range"
+)]
+pub struct DrainError {
+    pub referencing: NodeId,
+    pub referenced: NodeId,
 }
 
 /// Trait for a database managing [`NodeLike`]s by their [`NodeId`]s
@@ -339,16 +389,15 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         Self: 'own;
 
     /// Drains a range of nodes from the database.
-    /// Errors if a node from after the range (first [`Err`] parameter)
-    /// references a node in the range (second [`Err`] parameter).
     ///
     /// **Warning**: For this function to preserve a valid database, the
     /// database is not allowed to contain any backwards references from before
     /// the range to the range start or higher.
-    fn drain<R: RangeBounds<NodeId>>(
-        &mut self,
-        range: R,
-    ) -> Result<Self::Drain<'_>, (NodeId, NodeId)>;
+    ///
+    /// # Errors
+    ///
+    /// If a node from after the range references a node in the range.
+    fn drain<R: RangeBounds<NodeId>>(&mut self, range: R) -> Result<Self::Drain<'_>, DrainError>;
 
     /// Recursively builds a balanced tree of nodes over literals and returns the
     /// ID of the root
@@ -470,7 +519,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         Self: Sized,
     {
         debug_assert!(!cons.is_empty());
-        cons.sort_unstable_by_key(|con| con.multiplier());
+        cons.sort_unstable_by_key(NodeCon::multiplier);
 
         // Detect sequences of connections of equal weight and merge them
         let mut seg_begin = 0;
@@ -492,7 +541,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
                 debug_assert_eq!(con.multiplier(), 1);
                 merged_cons.push(con.reweight(cons[seg_begin].multiplier()));
             } else {
-                merged_cons.push(cons[seg_begin])
+                merged_cons.push(cons[seg_begin]);
             }
             seg_begin = seg_end;
             if seg_end >= cons.len() {
@@ -585,7 +634,7 @@ mod tests {
         let weight = 7;
         let nc = NodeCon::single(id, output, weight);
         for val in output - 1..=20 {
-            println!("{}", val);
+            println!("{val}");
             debug_assert_eq!(nc.map(val), if val >= output { weight } else { 0 });
             debug_assert_eq!(nc.rev_map(val), if val >= weight { output } else { 0 });
             debug_assert_eq!(
@@ -603,7 +652,7 @@ mod tests {
         let limit = 5;
         let nc = NodeCon::limited(id, offset, limit, weight);
         for val in offset..=20 {
-            println!("{}", val);
+            println!("{val}");
             debug_assert_eq!(nc.map(val), std::cmp::min(val - offset, limit) * weight);
             debug_assert_eq!(
                 nc.rev_map(val),

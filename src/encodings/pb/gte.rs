@@ -101,11 +101,12 @@ impl GeneralizedTotalizer {
 
     /// Gets the maximum depth of the tree
     pub fn depth(&mut self) -> usize {
-        self.root.as_ref().map_or(0, |node| node.depth())
+        self.root.as_ref().map_or(0, Node::depth)
     }
 
     /// Fully builds the tree, then returns it
     #[cfg(feature = "internals")]
+    #[must_use]
     pub fn tree(mut self) -> Option<Node> {
         self.extend_tree(usize::MAX);
         self.root
@@ -171,10 +172,11 @@ impl BoundUpper for GeneralizedTotalizer {
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
         self.extend_tree(range.end - 1);
+        #[allow(clippy::range_plus_one)]
         match &mut self.root {
             None => (),
             Some(root) => root.rec_encode(
-                range.start + 1..range.end + self.max_leaf_weight + 1,
+                (range.start + 1)..(range.end + self.max_leaf_weight) + 1,
                 collector,
                 var_manager,
             )?,
@@ -367,11 +369,13 @@ enum Node {
 
 impl Node {
     /// Constructs a new leaf node
+    #[must_use]
     pub fn new_leaf(lit: Lit, weight: usize) -> Node {
         Node::Leaf { lit, weight }
     }
 
     /// Constructs a new internal node
+    #[must_use]
     pub fn new_internal(left: Node, right: Node) -> Node {
         Node::Internal {
             out_lits: BTreeMap::new(),
@@ -385,6 +389,7 @@ impl Node {
     }
 
     /// Gets the maximum depth of the subtree rooted in this node
+    #[must_use]
     pub fn depth(&self) -> usize {
         match self {
             Node::Leaf { .. } => 1,
@@ -393,6 +398,7 @@ impl Node {
     }
 
     /// Gets the maximum value that the node represents
+    #[must_use]
     pub fn max_val(&self) -> usize {
         match self {
             Node::Leaf { weight, .. } => *weight,
@@ -496,6 +502,10 @@ impl Node {
     /// Encodes the output literals from the children to this node in a given
     /// range. Recurses depth first. Always encodes the full requested CNF
     /// encoding.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn rec_encode<Col>(
         &mut self,
         range: Range<usize>,
@@ -533,6 +543,10 @@ impl Node {
 
     /// Encodes the output literals from the children to this node in a given
     /// range. Recurses depth first. Incrementally only encodes new clauses.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     pub fn rec_encode_change<Col>(
         &mut self,
         range: Range<usize>,
@@ -643,6 +657,7 @@ impl Node {
             Node::Leaf { .. } => return,
             Node::Internal { max_val, .. } => *max_val,
         };
+        #[allow(clippy::range_plus_one)]
         self.reserve_vars_range(0..max_val + 1, var_manager);
     }
 
@@ -657,7 +672,7 @@ impl Node {
                 right.reserve_all_vars_rec(var_manager);
             }
         };
-        self.reserve_all_vars(var_manager)
+        self.reserve_all_vars(var_manager);
     }
 
     /// Computes the required encoding range for a node given a requested range
@@ -854,6 +869,7 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
+        #[allow(clippy::reversed_empty_ranges)]
         node.encode_range(6..5, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(cnf.len(), 0);
     }
@@ -958,8 +974,8 @@ mod tests {
         ]);
         let mut tot_cnf = Cnf::new();
         card::BoundUpper::encode_ub(&mut tot, 3..8, &mut tot_cnf, &mut var_manager_tot).unwrap();
-        println!("{:?}", gte_cnf);
-        println!("{:?}", tot_cnf);
+        println!("{gte_cnf:?}");
+        println!("{tot_cnf:?}");
         assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());
         assert_eq!(gte_cnf.len(), tot_cnf.len());
         assert_eq!(gte_cnf.len(), gte.n_clauses());
