@@ -10,7 +10,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, Lit, Var,
     },
-    utils::LimitedIter,
+    utils::{unreachable_err, LimitedIter},
     RequiresClausal,
 };
 
@@ -21,7 +21,7 @@ use super::{
     BasicVarManager, ManageVars, ReindexVars,
 };
 
-/// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
+/// Simple type representing a CNF formula. Other than [`Instance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
 #[derive(Clone, PartialEq, Eq, Default)]
 pub struct Cnf {
@@ -38,11 +38,13 @@ impl std::fmt::Debug for Cnf {
 
 impl Cnf {
     /// Creates a new [`Cnf`]
+    #[must_use]
     pub fn new() -> Cnf {
         Cnf::default()
     }
 
     /// Creates a new [`Cnf`] with a given capacity of clauses
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Cnf {
         Cnf {
             clauses: Vec::with_capacity(capacity),
@@ -50,6 +52,10 @@ impl Cnf {
     }
 
     /// Tries to reserve memory for at least `additional` new clauses
+    ///
+    /// # Errors
+    ///
+    /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
     #[inline]
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.clauses.try_reserve(additional)
@@ -58,79 +64,83 @@ impl Cnf {
     /// Shrinks the allocated memory of the [`Cnf`] to fit the number of clauses
     #[inline]
     pub fn shrink_to_fit(&mut self) {
-        self.clauses.shrink_to_fit()
+        self.clauses.shrink_to_fit();
     }
 
     /// Gets the capacity of the [`Cnf`]
     #[inline]
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.clauses.capacity()
     }
 
     /// Checks if the CNF is empty
     #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.clauses.is_empty()
     }
 
     /// Returns the number of clauses in the instance
     #[inline]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.clauses.len()
     }
 
     /// Adds a clause from a slice of literals
     pub fn add_nary(&mut self, lits: &[Lit]) {
-        self.add_clause(lits.into())
+        self.add_clause(lits.into());
     }
 
     /// See [`atomics::lit_impl_lit`]
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.add_clause(atomics::lit_impl_lit(a, b))
+        self.add_clause(atomics::lit_impl_lit(a, b));
     }
 
     /// See [`atomics::lit_impl_clause`]
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
-        self.add_clause(atomics::lit_impl_clause(a, b))
+        self.add_clause(atomics::lit_impl_clause(a, b));
     }
 
     /// See [`atomics::lit_impl_cube`]
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
-        self.extend(atomics::lit_impl_cube(a, b))
+        self.extend(atomics::lit_impl_cube(a, b));
     }
 
     /// See [`atomics::cube_impl_lit`]
     pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        self.add_clause(atomics::cube_impl_lit(a, b))
+        self.add_clause(atomics::cube_impl_lit(a, b));
     }
 
     /// See [`atomics::clause_impl_lit`]
     pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        self.extend(atomics::clause_impl_lit(a, b))
+        self.extend(atomics::clause_impl_lit(a, b));
     }
 
     /// See [`atomics::cube_impl_clause`]
     pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        self.add_clause(atomics::cube_impl_clause(a, b))
+        self.add_clause(atomics::cube_impl_clause(a, b));
     }
 
     /// See [`atomics::clause_impl_clause`]
     pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        self.extend(atomics::clause_impl_clause(a, b))
+        self.extend(atomics::clause_impl_clause(a, b));
     }
 
     /// See [`atomics::clause_impl_cube`]
     pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        self.extend(atomics::clause_impl_cube(a, b))
+        self.extend(atomics::clause_impl_cube(a, b));
     }
 
     /// See [`atomics::cube_impl_cube`]
     pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        self.extend(atomics::cube_impl_cube(a, b))
+        self.extend(atomics::cube_impl_cube(a, b));
     }
 
     /// Joins the current CNF with another one. Like [`Cnf::extend`] but
     /// consumes the object and returns a new object.
+    #[must_use]
     pub fn join(mut self, other: Cnf) -> Cnf {
         self.extend(other);
         self
@@ -149,9 +159,10 @@ impl Cnf {
     /// Normalizes the CNF. This includes normalizing and sorting the clauses,
     /// removing duplicates and tautologies. Comparing two normalized CNFs
     /// is equal to comparing sets of sets of literals.
+    #[must_use]
     pub fn normalize(self) -> Self {
         let mut norm_clauses: Vec<Clause> =
-            self.into_iter().filter_map(|cl| cl.normalize()).collect();
+            self.into_iter().filter_map(Clause::normalize).collect();
         // Sort and filter duplicates
         norm_clauses.sort_unstable();
         norm_clauses.dedup();
@@ -162,14 +173,16 @@ impl Cnf {
 
     /// Sanitizes the CNF by removing tautologies, removing redundant literals,
     /// etc.
+    #[must_use]
     pub fn sanitize(self) -> Self {
         Self {
-            clauses: self.into_iter().filter_map(|cl| cl.sanitize()).collect(),
+            clauses: self.into_iter().filter_map(Clause::sanitize).collect(),
         }
     }
 
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of clauses in the CNF
+    #[must_use]
     pub fn shuffle(mut self) -> Self {
         use rand::seq::SliceRandom;
         let mut rng = rand::thread_rng();
@@ -185,20 +198,24 @@ impl Cnf {
 
     /// Adds a unit clause to the CNF
     pub fn add_unit(&mut self, unit: Lit) {
-        self.add_clause(clause![unit])
+        self.add_clause(clause![unit]);
     }
 
     /// Adds a binary clause to the CNF
     pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(clause![lit1, lit2])
+        self.add_clause(clause![lit1, lit2]);
     }
 
     /// Adds a ternary clause to the CNF
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(clause![lit1, lit2, lit3])
+        self.add_clause(clause![lit1, lit2, lit3]);
     }
 
     /// Writes the CNF to a DIMACS CNF file at a path
+    ///
+    /// # Errors
+    ///
+    /// If the file could not be written to, returns [`io::Error`].
     pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P, n_vars: u32) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer, n_vars)
@@ -209,8 +226,32 @@ impl Cnf {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    ///
+    /// # Errors
+    ///
+    /// If writing fails, returns [`io::Error`].
     pub fn write_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
         fio::dimacs::write_cnf_annotated(writer, self, n_vars)
+    }
+}
+
+impl<'slf> IntoIterator for &'slf Cnf {
+    type Item = &'slf Clause;
+
+    type IntoIter = std::slice::Iter<'slf, Clause>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'slf> IntoIterator for &'slf mut Cnf {
+    type Item = &'slf mut Clause;
+
+    type IntoIter = std::slice::IterMut<'slf, Clause>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 
@@ -262,16 +303,18 @@ impl FromIterator<Clause> for Cnf {
 
 impl FromIterator<CnfLine> for Cnf {
     fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        Self::from_iter(iter.into_iter().filter_map(|line| match line {
-            CnfLine::Comment(_) => None,
-            CnfLine::Clause(cl) => Some(cl),
-        }))
+        iter.into_iter()
+            .filter_map(|line| match line {
+                CnfLine::Comment(_) => None,
+                CnfLine::Clause(cl) => Some(cl),
+            })
+            .collect()
     }
 }
 
 impl Extend<Clause> for Cnf {
     fn extend<Iter: IntoIterator<Item = Clause>>(&mut self, iter: Iter) {
-        self.clauses.extend(iter)
+        self.clauses.extend(iter);
     }
 }
 
@@ -286,17 +329,17 @@ impl Index<usize> for Cnf {
 /// Type representing a satisfiability instance. Supported constraints are
 /// clauses, cardinality constraints and pseudo-boolean constraints.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SatInstance<VM: ManageVars = BasicVarManager> {
+pub struct Instance<VM: ManageVars = BasicVarManager> {
     pub(super) cnf: Cnf,
     pub(super) cards: Vec<CardConstraint>,
     pub(super) pbs: Vec<PBConstraint>,
     pub(super) var_manager: VM,
 }
 
-impl<VM: ManageVars> SatInstance<VM> {
+impl<VM: ManageVars> Instance<VM> {
     /// Creates a new satisfiability instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
-        SatInstance {
+        Instance {
             cnf: Cnf::new(),
             cards: vec![],
             pbs: vec![],
@@ -329,22 +372,22 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Adds a clause from a slice of literals
     pub fn add_nary(&mut self, lits: &[Lit]) {
-        self.add_clause(lits.into())
+        self.add_clause(lits.into());
     }
 
     /// Adds a unit clause to the instance
     pub fn add_unit(&mut self, unit: Lit) {
-        self.add_clause(clause![unit])
+        self.add_clause(clause![unit]);
     }
 
     /// Adds a binary clause to the instance
     pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(clause![lit1, lit2])
+        self.add_clause(clause![lit1, lit2]);
     }
 
     /// Adds a ternary clause to the instance
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(clause![lit1, lit2, lit3])
+        self.add_clause(clause![lit1, lit2, lit3]);
     }
 
     /// Adds an implication of form (a -> b) to the instance
@@ -357,97 +400,97 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Adds an implication of form a -> (b1 | b2 | ... | bm)
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
         self.var_manager.mark_used(a.var());
-        b.iter().for_each(|l| {
+        for l in b {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.cnf.add_lit_impl_clause(a, b);
     }
 
     /// Adds an implication of form a -> (b1 & b2 & ... & bm)
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
         self.var_manager.mark_used(a.var());
-        b.iter().for_each(|l| {
+        for l in b {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.cnf.add_lit_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> b
     pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        a.iter().for_each(|l| {
+        for l in a {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.var_manager.mark_used(b.var());
         self.cnf.add_cube_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> b
     pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        a.iter().for_each(|l| {
+        for l in a {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.var_manager.mark_used(b.var());
         self.cnf.add_clause_impl_lit(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
     pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        a.iter().for_each(|l| {
+        for l in a {
             self.var_manager.mark_used(l.var());
-        });
-        b.iter().for_each(|l| {
+        }
+        for l in b {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.cnf.add_cube_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
     pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        a.iter().for_each(|l| {
+        for l in a {
             self.var_manager.mark_used(l.var());
-        });
-        b.iter().for_each(|l| {
+        }
+        for l in b {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.cnf.add_clause_impl_clause(a, b);
     }
 
     /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
     pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        a.iter().for_each(|l| {
+        for l in a {
             self.var_manager.mark_used(l.var());
-        });
-        b.iter().for_each(|l| {
+        }
+        for l in b {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.cnf.add_clause_impl_cube(a, b);
     }
 
     /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
     pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        a.iter().for_each(|l| {
+        for l in a {
             self.var_manager.mark_used(l.var());
-        });
-        b.iter().for_each(|l| {
+        }
+        for l in b {
             self.var_manager.mark_used(l.var());
-        });
+        }
         self.cnf.add_cube_impl_cube(a, b);
     }
 
     /// Adds a cardinality constraint
     pub fn add_card_constr(&mut self, card: CardConstraint) {
-        card.iter().for_each(|l| {
+        for l in &card {
             self.var_manager.mark_used(l.var());
-        });
-        self.cards.push(card)
+        }
+        self.cards.push(card);
     }
 
     /// Adds a cardinality constraint
     pub fn add_pb_constr(&mut self, pb: PBConstraint) {
-        pb.iter().for_each(|(l, _)| {
+        for (l, _) in &pb {
             self.var_manager.mark_used(l.var());
-        });
-        self.pbs.push(pb)
+        }
+        self.pbs.push(pb);
     }
 
     /// Gets a reference to the internal CNF
@@ -498,13 +541,13 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Converts the included variable manager to a different type
-    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (SatInstance<VM2>, VM)
+    pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (Instance<VM2>, VM)
     where
         VM2: ManageVars,
         VMC: Fn(&VM) -> VM2,
     {
         (
-            SatInstance {
+            Instance {
                 cnf: self.cnf,
                 cards: self.cards,
                 pbs: self.pbs,
@@ -529,18 +572,18 @@ impl<VM: ManageVars> SatInstance<VM> {
     ///
     /// See [`Self::convert_to_cnf`] for converting in place
     ///
-    /// # Panic
+    /// # Panics
     ///
     /// This might panic if the conversion to [`Cnf`] runs out of memory.
     pub fn into_cnf(self) -> (Cnf, VM) {
         self.into_cnf_with_encoders(
             |constr, cnf, vm| {
                 card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory")
+                    .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
                 pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory")
+                    .expect("pb encoding ran out of memory");
             },
         )
     }
@@ -550,20 +593,20 @@ impl<VM: ManageVars> SatInstance<VM> {
     ///
     /// See [`Self::into_cnf`] if you don't need to convert in place
     ///
-    /// # Panic
+    /// # Panics
     ///
     /// This might panic if the conversion to [`Cnf`] runs out of memory.
     pub fn convert_to_cnf(&mut self) {
         self.convert_to_cnf_with_encoders(
             |constr, cnf, vm| {
                 card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory")
+                    .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
                 pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory")
+                    .expect("pb encoding ran out of memory");
             },
-        )
+        );
     }
 
     /// Converts the instance to a set of clauses with explicitly specified
@@ -630,13 +673,13 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Extends the instance by another instance
-    pub fn extend(&mut self, other: SatInstance<VM>) {
+    pub fn extend(&mut self, other: Instance<VM>) {
         self.cnf.extend(other.cnf);
         self.var_manager.combine(other.var_manager);
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
-    pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> SatInstance<R> {
+    pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> Instance<R> {
         self.cnf
             .iter_mut()
             .for_each(|cl| cl.iter_mut().for_each(|l| *l = reindexer.reindex_lit(*l)));
@@ -645,9 +688,9 @@ impl<VM: ManageVars> SatInstance<VM> {
             .for_each(|card| card.iter_mut().for_each(|l| *l = reindexer.reindex_lit(*l)));
         self.pbs.iter_mut().for_each(|pb| {
             pb.iter_mut()
-                .for_each(|(l, _)| *l = reindexer.reindex_lit(*l))
+                .for_each(|(l, _)| *l = reindexer.reindex_lit(*l));
         });
-        SatInstance {
+        Instance {
             cnf: self.cnf,
             cards: self.cards,
             pbs: self.pbs,
@@ -657,6 +700,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of constraints.
+    #[must_use]
     pub fn shuffle(mut self) -> Self {
         use rand::seq::SliceRandom;
         self.cnf = self.cnf.shuffle();
@@ -672,6 +716,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         #[allow(deprecated)]
@@ -680,16 +725,18 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Writes the instance to DIMACS CNF
     #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
+    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
             |constr, cnf, vm| {
                 card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory")
+                    .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
                 pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory")
+                    .expect("pb encoding ran out of memory");
             },
             writer,
         )
@@ -701,6 +748,7 @@ impl<VM: ManageVars> SatInstance<VM> {
         since = "0.5.0",
         note = "use convert_to_cnf_with_encoders and write_dimacs instead"
     )]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -759,6 +807,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
@@ -771,6 +820,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Writes the instance to an OPB file
     #[deprecated(since = "0.5.0", note = "use write_opb instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_opb<W: io::Write>(
         self,
         writer: &mut W,
@@ -780,6 +830,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Writes the instance to an OPB file at a path
+    ///
+    /// # Errors
+    ///
+    /// If writing to file fails, returns [`io::Error`].
     pub fn write_opb_path<P: AsRef<Path>>(
         &self,
         path: P,
@@ -794,6 +848,10 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    ///
+    /// # Errors
+    ///
+    /// If writing fails, returns [`io::Error`].
     pub fn write_opb<W: io::Write>(
         &self,
         writer: &mut W,
@@ -805,6 +863,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// Sanitizes the constraints, i.e., for example a cardinality
     /// constraint of form `x + y >= 1` will be converted to a clause and
     /// tautologies will be removed.
+    #[must_use]
     pub fn sanitize(self) -> Self {
         let mut unsat = false;
         let mut cnf = self.cnf;
@@ -835,11 +894,11 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if pb.is_clause() {
-                    cnf.add_clause(pb.into_clause().unwrap());
+                    cnf.add_clause(unreachable_err!(pb.into_clause()));
                     return None;
                 }
                 if pb.is_card() {
-                    cards.push(pb.into_card_constr().unwrap());
+                    cards.push(unreachable_err!(pb.into_card_constr()));
                     return None;
                 }
                 Some(pb)
@@ -866,7 +925,7 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if card.is_clause() {
-                    cnf.add_clause(card.into_clause().unwrap());
+                    cnf.add_clause(unreachable_err!(card.into_clause()));
                     return None;
                 }
                 Some(card)
@@ -881,7 +940,7 @@ impl<VM: ManageVars> SatInstance<VM> {
             };
         }
         Self {
-            cnf: Cnf::from_iter(cnf.into_iter().filter_map(|cl| cl.sanitize())),
+            cnf: cnf.into_iter().filter_map(Clause::sanitize).collect(),
             cards,
             pbs,
             var_manager: self.var_manager,
@@ -890,7 +949,7 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Checks whether the instance is satisfied by the given assignment
     pub fn is_sat(&self, assign: &Assignment) -> bool {
-        for clause in self.cnf.iter() {
+        for clause in &self.cnf {
             if !clause.is_sat(assign) {
                 return false;
             }
@@ -909,10 +968,11 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> SatInstance<VM> {
+impl<VM: ManageVars + Default> Instance<VM> {
     /// Creates a new satisfiability instance
-    pub fn new() -> SatInstance<VM> {
-        SatInstance::default()
+    #[must_use]
+    pub fn new() -> Instance<VM> {
+        Instance::default()
     }
 
     /// Parses a DIMACS instance from a reader object.
@@ -925,17 +985,25 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     ///
     /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
     /// are ignored and only the constraints returned.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         fio::dimacs::parse_cnf(reader)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
-    /// [`SatInstance::from_dimacs`]. With feature `compression` supports
+    /// [`Instance::from_dimacs`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader =
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
-        SatInstance::from_dimacs(reader)
+        Instance::from_dimacs(reader)
     }
 
     /// Parses an OPB instance from a reader object.
@@ -945,32 +1013,40 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean satisfaction instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         fio::opb::parse_sat(reader, opts)
     }
 
     /// Parses an OPB instance from a file path. For more details see
-    /// [`SatInstance::from_opb`]. With feature `compression` supports
+    /// [`Instance::from_opb`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
         let reader =
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
-        SatInstance::from_opb(reader, opts)
+        Instance::from_opb(reader, opts)
     }
 }
 
-impl<VM: ManageVars + Default> Default for SatInstance<VM> {
+impl<VM: ManageVars + Default> Default for Instance<VM> {
     fn default() -> Self {
         Self {
-            cnf: Default::default(),
-            cards: Default::default(),
-            pbs: Default::default(),
+            cnf: Cnf::default(),
+            cards: Vec::default(),
+            pbs: Vec::default(),
             var_manager: VM::default(),
         }
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<Clause> for SatInstance<VM> {
+impl<VM: ManageVars + Default> FromIterator<Clause> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
         let mut inst = Self::default();
         iter.into_iter().for_each(|cl| inst.add_clause(cl));
@@ -978,31 +1054,28 @@ impl<VM: ManageVars + Default> FromIterator<Clause> for SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<CnfLine> for SatInstance<VM> {
+impl<VM: ManageVars + Default> FromIterator<CnfLine> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        Self::from_iter(iter.into_iter().filter_map(|line| match line {
-            CnfLine::Comment(_) => None,
-            CnfLine::Clause(cl) => Some(cl),
-        }))
+        iter.into_iter().filter_map(CnfLine::clause).collect()
     }
 }
 
-impl<VM: ManageVars + Default> From<Cnf> for SatInstance<VM> {
+impl<VM: ManageVars + Default> From<Cnf> for Instance<VM> {
     fn from(value: Cnf) -> Self {
         let mut inst = Self {
             cnf: value,
             ..Default::default()
         };
-        inst.cnf.iter().for_each(|cl| {
-            cl.iter().for_each(|l| {
+        for cl in &inst.cnf {
+            for l in cl {
                 inst.var_manager.increase_next_free(l.var() + 1);
-            })
-        });
+            }
+        }
         inst
     }
 }
 
-impl CollectClauses for SatInstance {
+impl CollectClauses for Instance {
     fn n_clauses(&self) -> usize {
         self.n_clauses()
     }

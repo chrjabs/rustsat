@@ -98,9 +98,14 @@ use thiserror::Error;
 /// use them with this library.
 pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     /// Gets a signature of the solver implementation
+    #[must_use]
     fn signature(&self) -> &'static str;
     /// Reserves memory in the solver until a maximum variables, if the solver
     /// supports it
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error. One typical option might be [`crate::OutOfMemory`].
     fn reserve(&mut self, _max_var: Var) -> anyhow::Result<()> {
         Ok(())
     }
@@ -116,12 +121,16 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     /// let res = solver.solve().unwrap();
     /// debug_assert_eq!(res, SolverResult::Sat);
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error. One typical option might be [`crate::OutOfMemory`].
     fn solve(&mut self) -> anyhow::Result<SolverResult>;
     /// Gets a solution found by the solver up to a specified highest variable.
     ///
     /// # Errors
     ///
-    /// - If the solver is not in the satisfied state
+    /// - If the solver is not in the satisfied state, returns [`StateError`]
     /// - A specific implementation might return other errors
     fn solution(&self, high_var: Var) -> anyhow::Result<Assignment> {
         let mut assignment = Vec::new();
@@ -138,22 +147,26 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// # Errors
     ///
-    /// - If the solver is not in the satisfied state
+    /// - If the solver is not in the satisfied state, returns [`StateError`]
     /// - A specific implementation might return other errors
     fn full_solution(&self) -> anyhow::Result<Assignment>
     where
         Self: SolveStats,
     {
-        match self.max_var() {
-            Some(high_var) => self.solution(high_var),
-            None => {
-                // throw error if in incorrect state
-                self.lit_val(lit![0])?;
-                Ok(Assignment::default())
-            }
+        if let Some(high_var) = self.max_var() {
+            self.solution(high_var)
+        } else {
+            // throw error if in incorrect state
+            self.lit_val(lit![0])?;
+            Ok(Assignment::default())
         }
     }
     /// Same as [`Solve::lit_val`], but for variables.
+    ///
+    /// # Errors
+    ///
+    /// - If the solver is not in the satisfied state, returns [`StateError`]
+    /// - A specific implementation might return other errors
     fn var_val(&self, var: Var) -> anyhow::Result<TernaryVal> {
         self.lit_val(var.pos_lit())
     }
@@ -172,7 +185,7 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// # Errors
     ///
-    /// - If the solver is not in the satisfied state
+    /// - If the solver is not in the satisfied state return [`StateError`]
     /// - A specific implementation might return other errors
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal>;
     /// Adds a clause to the solver.
@@ -181,30 +194,60 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// This method can be implemented by solvers that can truly take ownership of the clause.
     /// Otherwise, it will fall back to the mandatory [`Solve::add_clause_ref`] method.
+    ///
+    /// # Errors
+    ///
+    /// - If the solver is in an invalid state, returns [`StateError`]
+    /// - A specific implementation might return other errors
     fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
         self.add_clause_ref(&clause)
     }
     /// Adds a clause to the solver by reference.
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
+    ///
+    /// # Errors
+    ///
+    /// - If the solver is in an invalid state, returns [`StateError`]
+    /// - A specific implementation might return other errors
     fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()>;
     /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
+    ///
+    /// # Errors
+    ///
+    /// See [`Solve::add_clause`]
     fn add_unit(&mut self, lit: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit])
     }
     /// Like [`Solve::add_clause`] but for clauses with two literals.
+    ///
+    /// # Errors
+    ///
+    /// See [`Solve::add_clause`]
     fn add_binary(&mut self, lit1: Lit, lit2: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit1, lit2])
     }
     /// Like [`Solve::add_clause`] but for clauses with three literals.
+    ///
+    /// # Errors
+    ///
+    /// See [`Solve::add_clause`]
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit1, lit2, lit3])
     }
     /// Adds all clauses from a [`Cnf`] instance.
+    ///
+    /// # Errors
+    ///
+    /// See [`Solve::add_clause`]
     fn add_cnf(&mut self, cnf: Cnf) -> anyhow::Result<()> {
         cnf.into_iter().try_for_each(|cl| self.add_clause(cl))
     }
     /// Adds all clauses from a [`Cnf`] instance by reference.
+    ///
+    /// # Errors
+    ///
+    /// See [`Solve::add_clause`]
     fn add_cnf_ref(&mut self, cnf: &Cnf) -> anyhow::Result<()> {
         cnf.iter().try_for_each(|cl| self.add_clause_ref(cl))
     }
@@ -215,10 +258,19 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
 /// use them with this library.
 pub trait SolveIncremental: Solve {
     /// Solves the internal CNF formula under assumptions.
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error. One typical option might be [`crate::OutOfMemory`].
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult>;
     /// Gets a core found by an unsatisfiable query.
     /// A core is a clause entailed by the formula that contains only inverted
     /// literals of the assumptions.
+    ///
+    /// # Errors
+    ///
+    /// - If the solver is not in the unsatisfied state, returns [`StateError`]
+    /// - A specific implementation might return other errors
     fn core(&mut self) -> anyhow::Result<Vec<Lit>>;
 }
 
@@ -251,6 +303,7 @@ pub trait Interrupt {
     /// The interrupter of the solver
     type Interrupter: InterruptSolver + Send + 'static;
     /// Gets a thread safe interrupter object that can be used to terminate the solver
+    #[must_use]
     fn interrupter(&mut self) -> Self::Interrupter;
 }
 
@@ -263,10 +316,22 @@ pub trait InterruptSolver: Sync {
 /// Trait for all solvers that can force a face for a literal
 pub trait PhaseLit {
     /// Forces the default decision phase of a variable to a certain value
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()>;
     /// Undoes the effect of a call to [`PhaseLit::phase_lit`]
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn unphase_var(&mut self, var: Var) -> anyhow::Result<()>;
     /// Undoes the effect of a call to [`PhaseLit::phase_lit`]
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn unphase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
         self.unphase_var(lit.var())
     }
@@ -275,46 +340,81 @@ pub trait PhaseLit {
 /// Trait for freezing and melting variables in solvers with pre-/inprocessing.
 pub trait FreezeVar {
     /// Freezes a variable so that it is not removed in pre-/inprocessing
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()>;
     /// Melts a variable after it had been frozen
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn melt_var(&mut self, var: Var) -> anyhow::Result<()>;
     /// Checks if a variable is frozen
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool>;
 }
 
 /// Trait for all solvers that can flip a literal in the current assignment
 pub trait FlipLit {
     /// Attempts flipping the literal in the given assignment and returns `true` if successful
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool>;
     /// Checks if the literal can be flipped in the given assignment without flipping it
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn is_flippable(&mut self, lit: Lit) -> anyhow::Result<bool>;
 }
 
 /// Trait for all solvers that can limit the number of conflicts
 pub trait LimitConflicts {
     /// Sets or removes a limit on the number of conflicts
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()>;
 }
 
 /// Trait for all solvers that can limit the number of decisions
 pub trait LimitDecisions {
     /// Sets or removes a limit on the number of decisions
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn limit_decisions(&mut self, limit: Option<u32>) -> anyhow::Result<()>;
 }
 
 /// Trait for all solvers that can limit the number of propagations
 pub trait LimitPropagations {
     /// Sets or removes a limit on the number of propagations
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
     fn limit_propagations(&mut self, limit: Option<u32>) -> anyhow::Result<()>;
 }
 
 /// Trait for all solvers allowing access to internal search statistics
 pub trait GetInternalStats {
     /// Gets the number of propagations
+    #[must_use]
     fn propagations(&self) -> usize;
     /// Gets the number of decisions
+    #[must_use]
     fn decisions(&self) -> usize;
     /// Gets the number of conflicts
+    #[must_use]
     fn conflicts(&self) -> usize;
 }
 
@@ -351,35 +451,43 @@ pub struct SolverStats {
 /// Trait for solvers that track certain statistics.
 pub trait SolveStats {
     /// Gets the available statistics from the solver
+    #[must_use]
     fn stats(&self) -> SolverStats;
     /// Gets the number of satisfiable queries executed.
+    #[must_use]
     fn n_sat_solves(&self) -> usize {
         self.stats().n_sat
     }
     /// Gets the number of unsatisfiable queries executed.
+    #[must_use]
     fn n_unsat_solves(&self) -> usize {
         self.stats().n_unsat
     }
     /// Gets the number of queries that were prematurely terminated.
+    #[must_use]
     fn n_terminated(&self) -> usize {
         self.stats().n_terminated
     }
     /// Gets the total number of queries executed.
+    #[must_use]
     fn n_solves(&self) -> usize {
         self.n_sat_solves() + self.n_unsat_solves() + self.n_terminated()
     }
     /// Gets the number of clauses in the solver.
+    #[must_use]
     fn n_clauses(&self) -> usize {
         self.stats().n_clauses
     }
     /// Gets the variable with the highest index in the solver, if any.
     /// If all variables below have been used, the index of this variable +1 is
     /// the number of variables in the solver.
+    #[must_use]
     fn max_var(&self) -> Option<Var> {
         self.stats().max_var
     }
     /// Get number of variables.
     /// Note: this is only correct if all variables are used in order!
+    #[must_use]
     fn n_vars(&self) -> usize {
         match self.max_var() {
             Some(var) => var.idx() + 1,
@@ -387,10 +495,12 @@ pub trait SolveStats {
         }
     }
     /// Gets the average length of all clauses in the solver.
+    #[must_use]
     fn avg_clause_len(&self) -> f32 {
         self.stats().avg_clause_len
     }
     /// Gets the total CPU time spent solving.
+    #[must_use]
     fn cpu_solve_time(&self) -> Duration {
         self.stats().cpu_solve_time
     }

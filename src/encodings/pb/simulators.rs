@@ -124,7 +124,7 @@ where
     PBE: EncodeIncremental,
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-        self.pb_enc.reserve(var_manager)
+        self.pb_enc.reserve(var_manager);
     }
 }
 
@@ -350,7 +350,7 @@ where
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.ub_enc.reserve(var_manager);
-        self.lb_enc.reserve(var_manager)
+        self.lb_enc.reserve(var_manager);
     }
 }
 
@@ -505,7 +505,7 @@ where
         iter.into_iter().for_each(|(l, w)| {
             mult_lits.resize(mult_lits.len() + w, l);
         });
-        self.card_enc.extend(mult_lits)
+        self.card_enc.extend(mult_lits);
     }
 }
 
@@ -545,7 +545,7 @@ where
     CE: card::EncodeIncremental,
 {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-        self.card_enc.reserve(var_manager)
+        self.card_enc.reserve(var_manager);
     }
 }
 

@@ -90,6 +90,10 @@ enum OpbData {
 }
 
 /// Parses the constraints from an OPB file as a [`SatInstance`]
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 pub fn parse_sat<R, VM>(reader: R, opts: Options) -> anyhow::Result<SatInstance<VM>>
 where
     R: BufRead,
@@ -97,17 +101,21 @@ where
 {
     let data = parse_opb_data(reader, opts)?;
     let mut inst = SatInstance::<VM>::new();
-    data.into_iter().for_each(|d| {
+    for d in data {
         if let OpbData::Constr(constr) = d {
             inst.add_pb_constr(constr);
         }
-    });
+    }
     Ok(inst)
 }
 
 #[cfg(feature = "optimization")]
 /// Parses an OPB file as an [`OptInstance`] using the objective with the given
 /// index (starting from 0).
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 pub fn parse_opt_with_idx<R, VM>(
     reader: R,
     obj_idx: usize,
@@ -147,6 +155,10 @@ where
 #[cfg(feature = "multiopt")]
 /// Parses an OPB file as an [`MultiOptInstance`] using the objective with the given
 /// index (starting from 0).
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
 where
     R: BufRead,
@@ -170,15 +182,15 @@ fn parse_opb_data<R: BufRead>(mut reader: R, opts: Options) -> anyhow::Result<Ve
     // TODO: consider not necessarily reading a full line
     while reader.read_line(&mut buf)? > 0 {
         let (rem, new_data) = many0(|i| opb_data(i, opts))(&buf)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse opb line '{}'", buf))?;
+            .map_err(nom::Err::<NomError<&str>>::to_owned)
+            .with_context(|| format!("failed to parse opb line '{buf}'"))?;
         data.extend(new_data);
-        if !rem.is_empty() {
+        if rem.is_empty() {
+            buf.clear();
+        } else {
             // continue with remainder, this allows for line breaks within constraints etc
             // TODO: to work, this requires the opb_ending function to be adapted
             buf = String::from(rem);
-        } else {
-            buf.clear();
         }
     }
     Ok(data)
@@ -235,7 +247,7 @@ fn operator(input: &str) -> IResult<&str, OpbOperator> {
 
 /// Parses an OPB weight
 fn weight(input: &str) -> IResult<&str, isize> {
-    map_res(i64, |i| i.try_into())(input)
+    map_res(i64, TryInto::try_into)(input)
 }
 
 /// Parses an OPB weighted term
@@ -347,6 +359,16 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
 }
 
 /// Writes a [`SatInstance`] to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
+///
+/// # Panics
+///
+/// - On weights larger than [`isize::MAX`]
+/// - On upper bound constraint with weight sum larger than [`isize::MAX`]
+/// - On bounds lager than [`isize::MAX`]
 pub fn write_sat<W, VM>(
     writer: &mut W,
     inst: &SatInstance<VM>,
@@ -364,7 +386,7 @@ where
     )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = inst.var_manager.max_var() {
-        writeln!(writer, "* maximum variable: {}", max_var)?;
+        writeln!(writer, "* maximum variable: {max_var}")?;
     }
     writeln!(writer, "* {} clauses", inst.n_clauses())?;
     writeln!(writer, "* {} cardinality constraints", inst.cards.len())?;
@@ -383,6 +405,16 @@ where
 
 #[cfg(feature = "optimization")]
 /// Writes an optimization instance to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
+///
+/// # Panics
+///
+/// - On weights larger than [`isize::MAX`]
+/// - On upper bound constraint with weight sum larger than [`isize::MAX`]
+/// - On bounds lager than [`isize::MAX`]
 pub fn write_opt<W, VM, LI>(
     writer: &mut W,
     constrs: &SatInstance<VM>,
@@ -405,7 +437,7 @@ where
     )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = constrs.max_var() {
-        writeln!(writer, "* maximum variable: {}", max_var)?;
+        writeln!(writer, "* maximum variable: {max_var}")?;
     }
     writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
@@ -422,6 +454,16 @@ where
 
 #[cfg(feature = "multiopt")]
 /// Writes a [`MultiOptInstance`] to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
+///
+/// # Panics
+///
+/// - On weights larger than [`isize::MAX`]
+/// - On upper bound constraint with weight sum larger than [`isize::MAX`]
+/// - On bounds lager than [`isize::MAX`]
 pub fn write_multi_opt<W, VM, Iter, LI>(
     writer: &mut W,
     constrs: &SatInstance<VM>,
@@ -445,7 +487,7 @@ where
     )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
     if let Some(max_var) = constrs.max_var() {
-        writeln!(writer, "* maximum variable: {}", max_var)?;
+        writeln!(writer, "* maximum variable: {max_var}")?;
     }
     writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
@@ -463,6 +505,10 @@ where
 }
 
 /// Writes a clause to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Result<(), io::Error> {
     if opts.no_negated_lits {
         let mut rhs: isize = 1;
@@ -474,7 +520,7 @@ fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Res
                 write!(writer, "-1 x{} ", l.vidx32() + opts.first_var_idx)
             }
         })?;
-        writeln!(writer, ">= {};", rhs)
+        writeln!(writer, ">= {rhs};")
     } else {
         clause.iter().try_for_each(|l| {
             if l.is_pos() {
@@ -488,6 +534,15 @@ fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Res
 }
 
 /// Writes a cardinality constraint to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
+///
+/// # Panics
+///
+/// - On upper bounding constraint with more than [`isize::MAX`] literals
+/// - On bounds lager than [`isize::MAX`]
 fn write_card<W: Write>(
     writer: &mut W,
     card: &CardConstraint,
@@ -500,7 +555,10 @@ fn write_card<W: Write>(
         let (lits, bound, op): (&mut dyn Iterator<Item = Lit>, _, _) = match card {
             CardConstraint::UB(constr) => {
                 let (lits, bound) = constr.decompose_ref();
-                let bound = lits.len() as isize - *bound as isize;
+                let bound = isize::try_from(lits.len())
+                    .expect("cannot handle more than `isize::MAX` literals")
+                    - isize::try_from(*bound)
+                        .expect("cannot handle bound higher than `isize::MAX`");
                 // Flip operator by negating literals
                 iter_a = lits.iter().map(neg_lit);
                 (&mut iter_a, bound, ">=")
@@ -508,12 +566,20 @@ fn write_card<W: Write>(
             CardConstraint::LB(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
-                (&mut iter_b, *bound as isize, ">=")
+                (
+                    &mut iter_b,
+                    isize::try_from(*bound).expect("cannot handle bound higher than `isize::MAX`"),
+                    ">=",
+                )
             }
             CardConstraint::EQ(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
-                (&mut iter_b, *bound as isize, "=")
+                (
+                    &mut iter_b,
+                    isize::try_from(*bound).expect("cannot handle bound higher than `isize::MAX`"),
+                    "=",
+                )
             }
         };
         let mut offset = 0;
@@ -530,7 +596,10 @@ fn write_card<W: Write>(
         let (lits, bound, op): (&mut dyn Iterator<Item = Lit>, _, _) = match card {
             CardConstraint::UB(constr) => {
                 let (lits, bound) = constr.decompose_ref();
-                let bound = lits.len() as isize - *bound as isize;
+                let bound = isize::try_from(lits.len())
+                    .expect("cannot handle more than `isize::MAX` literals")
+                    - isize::try_from(*bound)
+                        .expect("cannot handle bound higher than `isize::MAX`");
                 // Flip operator by negating literals
                 iter_a = lits.iter().map(neg_lit);
                 (&mut iter_a, bound, ">=")
@@ -538,12 +607,20 @@ fn write_card<W: Write>(
             CardConstraint::LB(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
-                (&mut iter_b, *bound as isize, ">=")
+                (
+                    &mut iter_b,
+                    isize::try_from(*bound).expect("cannot handle bound higher than `isize::MAX`"),
+                    ">=",
+                )
             }
             CardConstraint::EQ(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
-                (&mut iter_b, *bound as isize, "=")
+                (
+                    &mut iter_b,
+                    isize::try_from(*bound).expect("cannot handle bound higher than `isize::MAX`"),
+                    "=",
+                )
             }
         };
         for l in lits {
@@ -553,11 +630,20 @@ fn write_card<W: Write>(
                 write!(writer, "1 ~x{} ", l.vidx32() + opts.first_var_idx)?;
             }
         }
-        writeln!(writer, "{} {};", op, bound)
+        writeln!(writer, "{op} {bound};")
     }
 }
 
 /// Writes a pseudo-boolean constraint to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
+///
+/// # Panics
+///
+/// - On weights larger than [`isize::MAX`]
+/// - On upper bound constraint with weight sum larger than [`isize::MAX`]
 fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Result<(), io::Error> {
     let mut iter_a;
     let mut iter_b;
@@ -569,7 +655,13 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
                 let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
                 // Flip operator by negating literals
                 iter_a = lits.iter().map(neg_lit);
-                (&mut iter_a, weight_sum as isize - bound, ">=")
+                (
+                    &mut iter_a,
+                    isize::try_from(weight_sum)
+                        .expect("cannot handle weight sum larger than `isize::MAX`")
+                        - bound,
+                    ">=",
+                )
             }
             PBConstraint::LB(constr) => {
                 let (lits, bound) = constr.decompose_ref();
@@ -588,7 +680,7 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
                 write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)?;
             } else {
                 // TODO: consider returning error for usize -> isize cast
-                let w = w as isize;
+                let w = isize::try_from(w).expect("cannot handle weights larger than `isize::MAX`");
                 offset += w;
                 write!(writer, "{} x{} ", -w, l.vidx32() + opts.first_var_idx)?;
             }
@@ -601,7 +693,13 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
                 let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
                 // Flip operator by negating literals
                 iter_a = lits.iter().map(neg_lit);
-                (&mut iter_a, weight_sum as isize - bound, ">=")
+                (
+                    &mut iter_a,
+                    isize::try_from(weight_sum)
+                        .expect("cannot handle weight sum larger than `isize::MAX`")
+                        - bound,
+                    ">=",
+                )
             }
             PBConstraint::LB(constr) => {
                 let (lits, bound) = constr.decompose_ref();
@@ -621,11 +719,16 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
                 write!(writer, "{} ~x{} ", w, l.vidx32() + opts.first_var_idx)?;
             }
         }
-        writeln!(writer, "{} {};", op, bound)
+        writeln!(writer, "{op} {bound};")
     }
 }
 
 #[cfg(feature = "optimization")]
+/// Writes an objective to an OPB file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 fn write_objective<W: Write, LI: WLitIter>(
     writer: &mut W,
     softs: (LI, isize),
@@ -637,20 +740,21 @@ fn write_objective<W: Write, LI: WLitIter>(
         soft_lits
             .into_iter()
             .map(|(l, w)| {
+                let w = isize::try_from(w).expect("cannot handle weights larger than `isize::MAX`");
                 if l.is_neg() {
-                    offset += w as isize;
-                    (l.var(), -(w as isize))
+                    offset += w;
+                    (l.var(), -w)
                 } else {
-                    (l.var(), w as isize)
+                    (l.var(), w)
                 }
             })
-            .try_for_each(|(v, w)| write!(writer, " {} x{}", w, v.idx32() + opts.first_var_idx))?;
+            .try_for_each(|(v, w)| write!(writer, " {w} x{}", v.idx32() + opts.first_var_idx))?;
     } else {
         soft_lits.into_iter().try_for_each(|(l, w)| {
             if l.is_pos() {
-                write!(writer, " {} x{}", w, l.vidx32() + opts.first_var_idx)
+                write!(writer, " {w} x{}", l.vidx32() + opts.first_var_idx)
             } else {
-                write!(writer, " {} ~x{}", w, l.vidx32() + opts.first_var_idx)
+                write!(writer, " {w} ~x{}", l.vidx32() + opts.first_var_idx)
             }
         })?;
     }
@@ -659,8 +763,7 @@ fn write_objective<W: Write, LI: WLitIter>(
         // OPB does not support offsets in objectives, so we have to add it as a comment
         writeln!(
             writer,
-            "* objective offset for previous objective: {}",
-            offset
+            "* objective offset for previous objective: {offset}",
         )?;
     }
     Ok(())
@@ -801,46 +904,39 @@ mod test {
 
     #[test]
     fn parse_constraint() {
-        match constraint("3 x1 -2 ~x2 <= 4;", Options::default()) {
-            Ok((rest, constr)) => match constr {
-                PBConstraint::UB(constr) => {
-                    assert_eq!(rest, "");
-                    let (lits, b) = constr.decompose();
-                    let should_be_lits = vec![(lit![0], 3), (lit![1], 2)];
-                    assert_eq!(lits, should_be_lits);
-                    assert_eq!(b, 6);
-                }
-                PBConstraint::LB(_) => panic!(),
-                PBConstraint::EQ(_) => panic!(),
-            },
-            Err(_) => panic!(),
+        if let Ok((rest, PBConstraint::UB(constr))) =
+            constraint("3 x1 -2 ~x2 <= 4;", Options::default())
+        {
+            assert_eq!(rest, "");
+            let (lits, b) = constr.decompose();
+            let should_be_lits = vec![(lit![0], 3), (lit![1], 2)];
+            assert_eq!(lits, should_be_lits);
+            assert_eq!(b, 6);
+        } else {
+            panic!()
         }
     }
 
     #[cfg(feature = "optimization")]
     #[test]
     fn parse_objective() {
-        match objective("min: 3 x1 -2 ~x2;", Options::default()) {
-            Ok((rest, obj)) => {
-                assert_eq!(rest, "");
-                let mut should_be_obj = Objective::new();
-                should_be_obj.increase_soft_lit_int(3, lit![0]);
-                should_be_obj.increase_soft_lit_int(-2, !lit![1]);
-                assert_eq!(obj, should_be_obj);
-            }
-            Err(_) => panic!(),
+        if let Ok((rest, obj)) = objective("min: 3 x1 -2 ~x2;", Options::default()) {
+            assert_eq!(rest, "");
+            let mut should_be_obj = Objective::new();
+            should_be_obj.increase_soft_lit_int(3, lit![0]);
+            should_be_obj.increase_soft_lit_int(-2, !lit![1]);
+            assert_eq!(obj, should_be_obj);
+        } else {
+            panic!()
         }
-        match objective("min: x0;", Options::default()) {
-            Ok(_) => panic!(),
-            Err(err) => assert_eq!(err, nom::Err::Failure(NomError::new("x0;", ErrorKind::Eof))),
-        }
-        match objective("min:;", Options::default()) {
-            Ok((rest, obj)) => {
-                assert_eq!(rest, "");
-                let should_be_obj = Objective::new();
-                assert_eq!(obj, should_be_obj);
-            }
-            Err(_) => panic!(),
+        assert!(objective("min: x0;", Options::default())
+            .is_err_and(|err| err == nom::Err::Failure(NomError::new("x0;", ErrorKind::Eof))));
+        if let Ok((rest, obj)) = objective("min:;", Options::default()) {
+            assert_eq!(rest, "");
+            let should_be_obj = Objective::new();
+            assert_eq!(obj, should_be_obj);
+        } else {
+            panic!()
         }
     }
 
@@ -889,20 +985,13 @@ mod test {
         let data = "* test\n5 x1 -3 x2 >= 4;\nmin: 1 x1;";
         let reader = Cursor::new(data);
         let reader = BufReader::new(reader);
-        match parse_opb_data(reader, Options::default()) {
-            Ok(data) => {
-                assert_eq!(data.len(), 3);
-                assert_eq!(data[0], OpbData::Cmt(String::from("* test\n")));
-                if let OpbData::Constr(_) = data[1] {
-                } else {
-                    panic!()
-                }
-                if let OpbData::Obj(_) = data[2] {
-                } else {
-                    panic!()
-                }
-            }
-            Err(_) => panic!(),
+        if let Ok(data) = parse_opb_data(reader, Options::default()) {
+            assert_eq!(data.len(), 3);
+            assert_eq!(data[0], OpbData::Cmt(String::from("* test\n")));
+            assert!(matches!(data[1], OpbData::Constr(_)));
+            assert!(matches!(data[2], OpbData::Obj(_)));
+        } else {
+            panic!()
         }
         let data = "* test\n5 x1 -3 x2 >= 4;\nmin: x1;";
         let reader = Cursor::new(data);

@@ -31,7 +31,7 @@ use crate::{
     instances::ManageVars,
     lit,
     types::{Lit, RsHashMap},
-    utils,
+    utils::{self, unreachable_none},
 };
 
 use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
@@ -83,6 +83,7 @@ pub struct DynamicPolyWatchdog {
 
 impl DynamicPolyWatchdog {
     /// Gets the maximum depth of the tree
+    #[must_use]
     pub fn depth(&self) -> usize {
         match &self.structure {
             Some(structure) => self.db[structure.root()].depth(),
@@ -90,8 +91,11 @@ impl DynamicPolyWatchdog {
         }
     }
 
-    /// Helper for the C-API to add input literals to an already existing object. Errors if the
-    /// object is already encoded.
+    /// Helper for the C-API to add input literals to an already existing object.
+    ///
+    /// # Errors
+    ///
+    /// If any encode method has already been called.
     #[cfg(feature = "internals")]
     pub fn add_input(&mut self, lit: Lit, weight: usize) -> Result<(), crate::NotAllowed> {
         if self.structure.is_some() {
@@ -141,15 +145,18 @@ impl DynamicPolyWatchdog {
     /// from the last _encoded_ precision. The divisor value will always be a power of two so that
     /// calling `set_precision` and then encoding will produce the smalles non-empty next segment
     /// of the encoding.
+    #[must_use]
     pub fn next_precision(&self) -> usize {
-        if self.weight_queue.is_empty() {
-            return 1;
+        if let Some((&max_weight, _)) = self.weight_queue.iter().next_back() {
+            let digits = utils::digits(max_weight, 2) as usize;
+            1 << (digits - 1)
+        } else {
+            1
         }
-        let digits = utils::digits(*self.weight_queue.iter().next_back().unwrap().0, 2) as usize;
-        1 << (digits - 1)
     }
 
     /// Checks whether the encoding is already at the maximum precision
+    #[must_use]
     pub fn is_max_precision(&self) -> bool {
         self.weight_queue.is_empty()
     }
@@ -162,6 +169,10 @@ impl DynamicPolyWatchdog {
     ///
     /// This is intended for, e.g., a MaxSAT solving application where a global lower bound is
     /// derived and parts of the encoding can be hardened.
+    ///
+    /// # Errors
+    ///
+    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
     pub fn limit_range<Col, R>(
         &self,
         range: R,
@@ -181,7 +192,7 @@ impl DynamicPolyWatchdog {
                 // positively harden lower bound
                 collector.extend_clauses(
                     root.vals(..=range.start)
-                        .flat_map(|val| root.lit(val).map(|&olit| clause![olit])),
+                        .filter_map(|val| root.lit(val).map(|&olit| clause![olit])),
                 )?;
                 // negatively harden upper bound
                 collector.extend_clauses(
@@ -189,17 +200,17 @@ impl DynamicPolyWatchdog {
                         .filter_map(|val| root.lit(val).map(|&olit| clause![!olit])),
                 )?;
             } else {
-                let idx_offset = utils::digits(structure.prec_div, 2) - 1;
+                let idx_offset = (utils::digits(structure.prec_div, 2) - 1) as usize;
                 for (idx, &bottom) in structure.bottom_buckets.iter().rev().enumerate() {
-                    let div = 2usize.pow(idx as u32 + idx_offset);
+                    let div = 1usize << (idx + idx_offset);
                     let range = range.start / div..(range.end + div - 1) / div;
-                    let top_con = self.db[bottom].left().unwrap();
+                    let top_con = unreachable_none!(self.db[bottom].left());
                     debug_assert_eq!(top_con.divisor(), 1);
                     let top = &self.db[top_con.id];
                     // positively harden lower bound
                     collector.extend_clauses(
                         top.vals(..=top_con.rev_map(range.start))
-                            .flat_map(|val| top.lit(val).map(|&olit| clause![olit])),
+                            .filter_map(|val| top.lit(val).map(|&olit| clause![olit])),
                     )?;
                     // negatively harden upper bound
                     collector.extend_clauses(
@@ -230,11 +241,13 @@ pub(crate) struct Structure {
 
 impl Structure {
     /// Gets the root of the structure
+    #[must_use]
     pub fn root(&self) -> NodeId {
         self.bottom_buckets[0]
     }
     /// Gets the power of the output literals (they represent a weight of
     /// 2^power)
+    #[must_use]
     pub fn output_power(&self) -> usize {
         self.tares.len()
     }
@@ -352,7 +365,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
                 true,
                 &mut self.db,
                 var_manager,
-            ))
+            ));
         }
         match &mut self.structure {
             Some(structure) => {
@@ -372,7 +385,8 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
                     merge_structures(structure, new_struct, &mut self.db, collector, var_manager)?;
                 }
                 let output_weight = 1 << (structure.output_power());
-                let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
+                let output_range =
+                    (range.start / output_weight)..=((range.end - 1) / output_weight);
                 for oidx in output_range {
                     encode_output(structure, oidx, &mut self.db, collector, var_manager)?;
                 }
@@ -398,16 +412,16 @@ impl EncodeStats for DynamicPolyWatchdog {
 impl From<RsHashMap<Lit, usize>> for DynamicPolyWatchdog {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
-        let mut db = Default::default();
+        let mut db = TotDb::default();
         let weight_queue = lit_weight_queue(lits.clone().into_iter(), &mut db);
         Self {
             in_lits: lits,
-            structure: Default::default(),
+            structure: None,
             weight_queue,
             prec_div: 1,
             weight_sum,
-            n_vars: Default::default(),
-            n_clauses: Default::default(),
+            n_vars: 0,
+            n_clauses: 0,
             db,
         }
     }
@@ -471,6 +485,7 @@ pub mod referenced {
         }
 
         /// Gets the maximum depth of the tree
+        #[must_use]
         pub fn depth(&self) -> usize {
             self.db[self.structure.root()].depth()
         }
@@ -483,6 +498,7 @@ pub mod referenced {
         }
 
         /// Gets the maximum depth of the tree
+        #[must_use]
         pub fn depth(&self) -> usize {
             self.db.borrow()[self.structure.root()].depth()
         }
@@ -582,7 +598,7 @@ pub mod referenced {
                 return Ok(());
             }
             let output_weight = 1 << self.structure.output_power();
-            let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
+            let output_range = (range.start / output_weight)..=((range.end - 1) / output_weight);
             for oidx in output_range {
                 encode_output(self.structure, oidx, self.db, collector, var_manager)?;
             }
@@ -606,7 +622,7 @@ pub mod referenced {
                 return Ok(());
             }
             let output_weight = 1 << self.structure.output_power();
-            let output_range = range.start / output_weight..(range.end - 1) / output_weight + 1;
+            let output_range = (range.start / output_weight)..=((range.end - 1) / output_weight);
             for oidx in output_range {
                 encode_output(
                     self.structure,
@@ -640,20 +656,24 @@ fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(lits: LI, tot_db: &mut To
 }
 
 /// Builds a DPW [`Structure`] from [Node connections](NodeCon)
+///
+/// # Panics
+///
+/// If `cons` is empty
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn con_weight_queue<CI: Iterator<Item = NodeCon>>(cons: CI) -> WeightQ {
     let mut weight_queue: WeightQ = BTreeMap::new();
     for con in cons {
         if let Some(cons) = weight_queue.get_mut(&con.multiplier()) {
             cons.push(NodeCon {
-                multiplier: NonZeroUsize::new(1).unwrap(),
+                multiplier: unreachable_none!(NonZeroUsize::new(1)),
                 ..con
             });
         } else {
             weight_queue.insert(
                 con.multiplier(),
                 vec![NodeCon {
-                    multiplier: NonZeroUsize::new(1).unwrap(),
+                    multiplier: unreachable_none!(NonZeroUsize::new(1)),
                     ..con
                 }],
             );
@@ -663,6 +683,10 @@ fn con_weight_queue<CI: Iterator<Item = NodeCon>>(cons: CI) -> WeightQ {
 }
 
 /// Builds a DPW [`Structure`] from up to a given `precision` from a `weight_queue`
+///
+/// # Panics
+///
+/// - If `weight_queue` is empty
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn build_structure(
     weight_queue: &mut WeightQ,
@@ -691,7 +715,7 @@ fn build_structure(
     // Loop while there are new weights that need to be added and distribute
     // them to relevant top buckets
     while !weight_queue.is_empty() && weight_queue.iter().next_back().unwrap().0 >= &prec_div {
-        let (weight, cons) = weight_queue.pop_last().unwrap();
+        let (weight, cons) = unreachable_none!(weight_queue.pop_last());
         let merged = tot_db.merge_balanced(&cons);
         let digits = utils::digits(weight, 2) as usize;
         let current_weight = 1 << (digits - 1);
@@ -722,7 +746,7 @@ fn build_structure(
 
     // Prepare tares
     structure.tares.extend(
-        (0..basis_len - skipped_levels - if topmost { 1 } else { 0 })
+        (0..basis_len - skipped_levels - usize::from(topmost))
             .map(|_| var_manager.new_var().pos_lit()),
     );
 
@@ -764,10 +788,10 @@ fn build_structure(
         }
 
         let right = NodeCon {
-            id: *bottom_buckets.last().unwrap(),
+            id: *unreachable_none!(bottom_buckets.last()),
             offset: bb_offset,
-            divisor: NonZeroU8::new(2).unwrap(),
-            multiplier: NonZeroUsize::new(1).unwrap(),
+            divisor: unreachable_none!(NonZeroU8::new(2)),
+            multiplier: unreachable_none!(NonZeroUsize::new(1)),
             len_limit: None,
         };
         let bottom = tot_db.insert(Node::internal(top_bucket, right, tot_db));
@@ -784,6 +808,15 @@ fn build_structure(
 /// Merges two DPW [`Structure`]s into a big one
 ///
 /// This is used when incrementally increasing the precision of the DPW
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
+///
+/// # Panics
+///
+/// - If `bot_struct` has no bottom buckets
+#[allow(clippy::too_many_lines)]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn merge_structures<Col>(
     bot_struct: &mut Structure,
@@ -795,15 +828,11 @@ fn merge_structures<Col>(
 where
     Col: CollectClauses,
 {
-    debug_assert!(
-        bot_struct.prec_div >= top_struct.prec_div * 2_usize.pow(top_struct.tares.len() as u32 - 1)
-    );
-    let skipped_between: usize = (utils::digits(
-        bot_struct.prec_div / (top_struct.prec_div * 2_usize.pow(top_struct.tares.len() as u32)),
+    debug_assert!(bot_struct.prec_div >= top_struct.prec_div * (1 << (top_struct.tares.len() - 1)));
+    let skipped_between = (utils::digits(
+        bot_struct.prec_div / (top_struct.prec_div * (1 << top_struct.tares.len())),
         2,
-    ) - 1)
-        .try_into()
-        .expect("error fitting u32 into usize");
+    ) - 1) as usize;
     let n_old_tares = bot_struct.tares.len();
     let n_old_bbs = bot_struct.bottom_buckets.len();
     bot_struct.prec_div = top_struct.prec_div;
@@ -839,8 +868,8 @@ where
                 *right = NodeCon {
                     id: new_bottom,
                     offset: 0,
-                    divisor: NonZeroU8::new(2).unwrap(),
-                    multiplier: NonZeroUsize::new(1).unwrap(),
+                    divisor: unreachable_none!(NonZeroU8::new(2)),
+                    multiplier: unreachable_none!(NonZeroUsize::new(1)),
                     len_limit: None,
                 }
             }
@@ -863,8 +892,8 @@ where
             *right = NodeCon {
                 id: *top_struct.bottom_buckets.first().unwrap(),
                 offset: 0,
-                divisor: NonZeroU8::new(2).unwrap(),
-                multiplier: NonZeroUsize::new(1).unwrap(),
+                divisor: unreachable_none!(NonZeroU8::new(2)),
+                multiplier: unreachable_none!(NonZeroUsize::new(1)),
                 len_limit: None,
             }
         }
@@ -901,7 +930,7 @@ where
             .collect();
         for (olit, val) in olits_to_extend {
             for rval in tot_db[right.id].vals(
-                right.rev_map(old_right_max + 1)..right.rev_map(cmp::min(right_max + 1, val)) + 1,
+                right.rev_map(old_right_max + 1)..=right.rev_map(cmp::min(right_max + 1, val)),
             ) {
                 let lval = val - right.map(rval);
                 if left.is_possible(lval) {
@@ -930,6 +959,10 @@ where
 }
 
 /// Encodes an output of the DPW [`Structure`]
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn encode_output<Col>(
     dpw: &Structure,
@@ -949,6 +982,10 @@ where
 }
 
 /// Enforces an upper bound value on a DPW [`Structure`]
+///
+/// # Errors
+///
+/// If `dpw` is not adequately encoded, returns [`Error::NotEncoded`].
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Error> {
     let output_weight = 1 << (dpw.output_power());
@@ -956,9 +993,8 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Er
     if oidx >= tot_db[dpw.root()].max_val() {
         return Ok(vec![]);
     }
-    let olit = match tot_db[dpw.root()].lit(oidx + 1) {
-        Some(&lit) => lit,
-        None => return Err(Error::NotEncoded),
+    let Some(&olit) = tot_db[dpw.root()].lit(oidx + 1) else {
+        return Err(Error::NotEncoded);
     };
     let mut assumps = vec![!olit];
     // inputs <= enforced_weight at this stage
@@ -1136,7 +1172,7 @@ mod tests {
         dpw.encode_ub_change(0..=1, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         n_inc_clauses += cnf.len();
 
         dpw.set_precision(1024).unwrap();
@@ -1144,7 +1180,7 @@ mod tests {
         dpw.encode_ub_change(0..=9, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         n_inc_clauses += cnf.len();
 
         let mut lits = RsHashMap::default();
@@ -1157,7 +1193,7 @@ mod tests {
         dpw.encode_ub_change(0..=9, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
 
         debug_assert_eq!(n_inc_clauses, cnf.len());
     }
@@ -1177,7 +1213,7 @@ mod tests {
         dpw.encode_ub_change(0..=1, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         n_inc_clauses += cnf.len();
 
         dpw.set_precision(1024).unwrap();
@@ -1185,7 +1221,7 @@ mod tests {
         dpw.encode_ub_change(0..=9, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         n_inc_clauses += cnf.len();
 
         let mut lits = RsHashMap::default();
@@ -1198,7 +1234,7 @@ mod tests {
         dpw.encode_ub_change(0..=9, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
 
         debug_assert_eq!(n_inc_clauses, cnf.len());
     }
@@ -1218,28 +1254,28 @@ mod tests {
         dpw.encode_ub_change(0..=3, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         n_inc_clauses += cnf.len();
         let assumps = dpw.enforce_ub(1).unwrap();
         debug_assert!(!assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{cnf:?}");
         let assumps = dpw.enforce_ub(0).unwrap();
         debug_assert!(!assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{cnf:?}");
 
         dpw.set_precision(1).unwrap();
         let mut cnf = Cnf::new();
         dpw.encode_ub_change(0..=24, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         n_inc_clauses += cnf.len();
         let assumps = dpw.enforce_ub(8).unwrap();
         debug_assert!(!assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{assumps:?}");
         let assumps = dpw.enforce_ub(7).unwrap();
         debug_assert!(!assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{assumps:?}");
 
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 8);
@@ -1251,7 +1287,7 @@ mod tests {
         dpw.encode_ub_change(0..=24, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
 
         debug_assert_eq!(n_inc_clauses, cnf.len());
     }
@@ -1270,29 +1306,29 @@ mod tests {
         dpw.encode_ub_change(1..=2, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         let assumps = dpw.enforce_ub(1).unwrap();
         debug_assert!(!assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{assumps:?}");
 
         dpw.set_precision(1).unwrap();
         let mut cnf = Cnf::new();
         dpw.encode_ub_change(133..=133, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         let assumps = dpw.enforce_ub(133).unwrap();
         debug_assert!(assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{assumps:?}");
 
         let mut cnf = Cnf::new();
         dpw.encode_ub_change(69..=69, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert!(!cnf.is_empty());
-        println!("{:?}", cnf);
+        println!("{cnf:?}");
         let assumps = dpw.enforce_ub(69).unwrap();
         debug_assert!(!assumps.is_empty());
-        println!("{:?}", assumps);
+        println!("{assumps:?}");
     }
 
     #[test]

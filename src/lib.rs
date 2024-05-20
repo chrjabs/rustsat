@@ -65,6 +65,7 @@
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(feature = "bench", feature(test))]
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
 use core::fmt;

@@ -12,6 +12,7 @@
 //! The version of Glucose in this crate is Version 4.2.1.
 //! The used C++ source repository can be found [here](https://github.com/chrjabs/glucose4).
 
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
 use rustsat::{
@@ -63,7 +64,7 @@ impl InternalSolverState {
 }
 
 /// Possible Glucose limits
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Limit {
     /// No limits
     None,
@@ -77,8 +78,8 @@ impl fmt::Display for Limit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Limit::None => write!(f, "none"),
-            Limit::Conflicts(val) => write!(f, "conflicts ({})", val),
-            Limit::Propagations(val) => write!(f, "propagations ({})", val),
+            Limit::Conflicts(val) => write!(f, "conflicts ({val})"),
+            Limit::Propagations(val) => write!(f, "propagations ({val})"),
         }
     }
 }

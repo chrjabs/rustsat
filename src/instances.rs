@@ -14,12 +14,12 @@ use crate::{
 };
 
 mod sat;
-pub use sat::{Cnf, SatInstance};
+pub use sat::{Cnf, Instance as SatInstance};
 
 #[cfg(feature = "optimization")]
 mod opt;
 #[cfg(feature = "optimization")]
-pub use opt::{Objective, OptInstance};
+pub use opt::{Instance as OptInstance, Objective};
 
 #[cfg(feature = "multiopt")]
 mod multiopt;
@@ -94,6 +94,7 @@ pub struct BasicVarManager {
 
 impl BasicVarManager {
     /// Creates a new variable manager from a next free variable
+    #[must_use]
     pub fn from_next_free(next_var: Var) -> BasicVarManager {
         BasicVarManager { next_var }
     }
@@ -133,7 +134,7 @@ impl ManageVars for BasicVarManager {
     }
 
     fn forget_from(&mut self, min_var: Var) {
-        self.next_var = std::cmp::min(self.next_var, min_var)
+        self.next_var = std::cmp::min(self.next_var, min_var);
     }
 }
 
@@ -155,6 +156,7 @@ pub struct ReindexingVarManager {
 
 impl ReindexingVarManager {
     /// Creates a new variable manager from a next free variable
+    #[must_use]
     pub fn from_next_free(next_var: Var) -> Self {
         Self {
             next_var,
@@ -166,14 +168,13 @@ impl ReindexingVarManager {
 
 impl ReindexVars for ReindexingVarManager {
     fn reindex(&mut self, in_var: Var) -> Var {
-        match self.in_map.get(&in_var) {
-            Some(v) => *v,
-            None => {
-                let v = self.new_var();
-                self.in_map.insert(in_var, v);
-                self.out_map.insert(v, in_var);
-                v
-            }
+        if let Some(v) = self.in_map.get(&in_var) {
+            *v
+        } else {
+            let v = self.new_var();
+            self.in_map.insert(in_var, v);
+            self.out_map.insert(v, in_var);
+            v
         }
     }
 
@@ -186,8 +187,8 @@ impl Default for ReindexingVarManager {
     fn default() -> Self {
         Self {
             next_var: Var::new(0),
-            in_map: Default::default(),
-            out_map: Default::default(),
+            in_map: RsHashMap::default(),
+            out_map: RsHashMap::default(),
         }
     }
 }
@@ -229,7 +230,7 @@ impl ManageVars for ReindexingVarManager {
     fn forget_from(&mut self, min_var: Var) {
         self.in_map.retain(|_, v| *v < min_var);
         self.out_map.retain(|v, _| *v < min_var);
-        self.next_var = std::cmp::min(self.next_var, min_var)
+        self.next_var = std::cmp::min(self.next_var, min_var);
     }
 }
 
@@ -242,6 +243,7 @@ pub struct ObjectVarManager {
 
 impl ObjectVarManager {
     /// Creates a new variable manager from a next free variable
+    #[must_use]
     pub fn from_next_free(next_var: Var) -> Self {
         Self {
             next_var,
@@ -256,13 +258,12 @@ impl ObjectVarManager {
         T: Eq + Hash + 'static,
     {
         let key: Box<dyn VarKey> = Box::new(obj);
-        match self.object_map.get(&key) {
-            Some(v) => *v,
-            None => {
-                let v = self.new_var();
-                self.object_map.insert(key, v);
-                v
-            }
+        if let Some(v) = self.object_map.get(&key) {
+            *v
+        } else {
+            let v = self.new_var();
+            self.object_map.insert(key, v);
+            v
         }
     }
 }
@@ -271,7 +272,7 @@ impl Default for ObjectVarManager {
     fn default() -> Self {
         Self {
             next_var: Var::new(0),
-            object_map: Default::default(),
+            object_map: RsHashMap::default(),
         }
     }
 }
@@ -312,7 +313,7 @@ impl ManageVars for ObjectVarManager {
 
     fn forget_from(&mut self, min_var: Var) {
         self.object_map.retain(|_, v| *v < min_var);
-        self.next_var = std::cmp::min(self.next_var, min_var)
+        self.next_var = std::cmp::min(self.next_var, min_var);
     }
 }
 
@@ -336,10 +337,9 @@ impl RandReindVarManager {
         in_map[..].shuffle(&mut rng);
         // Build reverse map
         let mut out_map = vec![Var::new(0); n_vars as usize];
-        in_map
-            .iter()
-            .enumerate()
-            .for_each(|(idx, v)| out_map[v.idx()] = Var::new(idx as u32));
+        in_map.iter().enumerate().for_each(|(idx, v)| {
+            out_map[v.idx()] = Var::new(crate::utils::unreachable_err!(u32::try_from(idx)));
+        });
         Self {
             next_var: Var::new(n_vars),
             in_map,
@@ -407,7 +407,7 @@ impl ManageVars for RandReindVarManager {
     }
 
     fn forget_from(&mut self, min_var: Var) {
-        self.next_var = std::cmp::min(self.next_var, min_var)
+        self.next_var = std::cmp::min(self.next_var, min_var);
     }
 }
 

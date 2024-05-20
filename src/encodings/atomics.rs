@@ -8,11 +8,13 @@ use crate::{
 };
 
 /// Implication of form `a -> b`
+#[must_use]
 pub fn lit_impl_lit(a: Lit, b: Lit) -> Clause {
     clause![!a, b]
 }
 
 /// Implication of form `a -> (b1 | b2 | ... | bm)`
+#[must_use]
 pub fn lit_impl_clause(a: Lit, b: &[Lit]) -> Clause {
     let mut cl = Clause::from(b);
     cl.add(!a);
@@ -20,6 +22,7 @@ pub fn lit_impl_clause(a: Lit, b: &[Lit]) -> Clause {
 }
 
 /// Implication of form `(a1 & a2 & ... & an) -> b`
+#[must_use]
 pub fn cube_impl_lit(a: &[Lit], b: Lit) -> Clause {
     let mut cl: Clause = a.iter().copied().map(Not::not).collect();
     cl.add(b);
@@ -27,6 +30,7 @@ pub fn cube_impl_lit(a: &[Lit], b: Lit) -> Clause {
 }
 
 /// Implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
+#[must_use]
 pub fn cube_impl_clause(a: &[Lit], b: &[Lit]) -> Clause {
     let mut cl = Clause::from(b);
     cl.extend(a.iter().copied().map(Not::not));

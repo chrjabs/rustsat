@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 use git2::Repository;
 use glob::glob;
 use std::{
@@ -83,8 +85,8 @@ fn main() {
     println!("cargo:rustc-flags=-l dylib=stdc++");
 
     // Built solver is in out_dir
-    println!("cargo:rustc-link-search={}", out_dir);
-    println!("cargo:rustc-link-search={}/lib", out_dir);
+    println!("cargo:rustc-link-search={out_dir}");
+    println!("cargo:rustc-link-search={out_dir}/lib");
 }
 
 fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
@@ -97,7 +99,7 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
     {
         // Repo changed, rebuild
         // We specify the build manually here instead of calling make for better portability
-        let src_files = glob(&format!("{}/src/*.cpp", cadical_dir_str))
+        let src_files = glob(&format!("{cadical_dir_str}/src/*.cpp"))
             .unwrap()
             .filter_map(|res| {
                 if let Ok(p) = res {
@@ -140,7 +142,7 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
             fs::read_to_string(cadical_dir.join("VERSION")).expect("Cannot read CaDiCaL version");
         cadical_version.retain(|c| c != '\n');
         let (compiler_desc, compiler_flags) =
-            get_compiler_description(cadical_build.get_compiler());
+            get_compiler_description(&cadical_build.get_compiler());
         write!(
                 build_header,
                 "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
@@ -156,40 +158,34 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
 }
 
 /// Returns true if there were changes, false if not
-fn update_repo(path: &Path, url: &str, branch: &str, reference: &str, patch: &str) -> bool {
+fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: &str) -> bool {
     let mut changed = false;
-    let repo = match git2::Repository::open(path) {
-        Ok(repo) => {
-            if repo.find_reference(reference).is_err() {
-                // Fetch repo
-                let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
-                    panic!("Expected remote \"origin\" in git repo {:?}: {}", path, e)
-                });
-                remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
-                    panic!(
-                        "Could not fetch \"origin/{}\" for git repo {:?}: {}",
-                        branch, path, e
-                    )
-                });
-                drop(remote);
-                changed = true;
-            }
-            repo
-        }
-        Err(_) => {
-            if path.exists() {
-                fs::remove_dir_all(path).unwrap_or_else(|e| {
-                    panic!(
-                        "Could not delete directory {}: {}",
-                        path.to_str().unwrap(),
-                        e
-                    )
-                });
-            };
+    let repo = if let Ok(repo) = git2::Repository::open(repo_path) {
+        if repo.find_reference(reference).is_err() {
+            // Fetch repo
+            let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
+                panic!("Expected remote \"origin\" in git repo {repo_path:?}: {e}",)
+            });
+            remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
+                panic!("Could not fetch \"origin/{branch}\" for git repo {repo_path:?}: {e}")
+            });
+            drop(remote);
             changed = true;
-            git2::Repository::clone(url, path)
-                .unwrap_or_else(|e| panic!("Could not clone repository {}: {}", url, e))
         }
+        repo
+    } else {
+        if repo_path.exists() {
+            fs::remove_dir_all(repo_path).unwrap_or_else(|e| {
+                panic!(
+                    "Could not delete directory {}: {}",
+                    repo_path.to_str().unwrap(),
+                    e
+                )
+            });
+        };
+        changed = true;
+        git2::Repository::clone(url, repo_path)
+            .unwrap_or_else(|e| panic!("Could not clone repository {url}: {e}"))
     };
     let target_commit = repo
         .find_reference(reference)
@@ -220,7 +216,7 @@ fn apply_patch(repo: &Repository, patch: &str) {
 }
 
 /// Gets a description of the C(++) compiler used and the used flags
-fn get_compiler_description(compiler: cc::Tool) -> (String, String) {
+fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;
     let compiler_version = match Command::new(compiler_command.get_program())

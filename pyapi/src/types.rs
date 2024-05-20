@@ -52,11 +52,11 @@ impl Lit {
     }
 
     fn __str__(&self) -> String {
-        format!("{}", self)
+        format!("{self}")
     }
 
     fn __repr__(&self) -> String {
-        format!("{}", self)
+        format!("{self}")
     }
 
     fn __neg__(&self) -> Lit {
@@ -136,7 +136,7 @@ impl Clause {
     /// Adds a literal to the clause
     pub fn add(&mut self, lit: Lit) {
         self.modified = true;
-        self.cl.add(lit.0)
+        self.cl.add(lit.0);
     }
 
     /// Removes the first occurrence of a literal from the clause
@@ -171,9 +171,13 @@ impl Clause {
     }
 
     fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
+        #![allow(clippy::cast_sign_loss)]
         match idx {
             SliceOrInt::Slice(slice) => {
                 let indices = slice.indices(self.__len__().try_into().unwrap())?;
+                debug_assert!(indices.start >= 0);
+                debug_assert!(indices.stop >= 0);
+                debug_assert!(indices.step >= 0);
                 Ok(SingleOrList::List(
                     (indices.start as usize..indices.stop as usize)
                         .step_by(indices.step as usize)
@@ -207,7 +211,7 @@ impl Clause {
 
     fn extend(&mut self, lits: Vec<Lit>) {
         let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
-        self.cl.extend(lits)
+        self.cl.extend(lits);
     }
 
     fn __eq__(&self, other: &Clause) -> bool {

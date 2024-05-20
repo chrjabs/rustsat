@@ -39,11 +39,11 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Creates a new optimization instance from constraints and objectives
     pub fn compose(mut constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
-        objectives.iter().for_each(|o| {
+        for o in &objectives {
             if let Some(mv) = o.max_var() {
                 constraints.var_manager_mut().increase_next_free(mv + 1);
             }
-        });
+        }
         MultiOptInstance {
             constrs: constraints,
             objs: objectives,
@@ -110,6 +110,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         since = "0.5.0",
         note = "get_objective has been renamed to objective_mut and will be removed in a future release"
     )]
+    #[allow(clippy::missing_panics_doc)]
     pub fn get_objective(&mut self, obj_idx: usize) -> &mut Objective {
         assert!(obj_idx < self.objs.len());
         &mut self.objs[obj_idx]
@@ -117,6 +118,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Gets a mutable reference to the objective with index `obj_idx` for modifying it.
     /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    ///
+    /// # Panics
+    ///
+    /// If `obj_idx` exceeds the number of objectives in the instance.
     pub fn objective_mut(&mut self, obj_idx: usize) -> &mut Objective {
         assert!(obj_idx < self.objs.len());
         &mut self.objs[obj_idx]
@@ -124,6 +129,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Gets a reference to the objective with index `obj_idx`.
     /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    ///
+    /// # Panics
+    ///
+    /// If `obj_idx` exceeds the number of objectives in the instance.
     pub fn objective_ref(&self, obj_idx: usize) -> &Objective {
         assert!(obj_idx < self.objs.len());
         &self.objs[obj_idx]
@@ -162,7 +171,11 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             v
         });
         vm.increase_next_free(omv + 1);
-        let soft_cls = self.objs.into_iter().map(|o| o.into_soft_cls()).collect();
+        let soft_cls = self
+            .objs
+            .into_iter()
+            .map(Objective::into_soft_cls)
+            .collect();
         (cnf, soft_cls, vm)
     }
 
@@ -230,9 +243,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of constraints and the objective
+    #[must_use]
     pub fn shuffle(mut self) -> Self {
         self.constrs = self.constrs.shuffle();
-        self.objs = self.objs.into_iter().map(|o| o.shuffle()).collect();
+        self.objs = self.objs.into_iter().map(Objective::shuffle).collect();
         self
     }
 
@@ -242,6 +256,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         #[allow(deprecated)]
@@ -250,16 +265,18 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Write to DIMACS MCNF
     #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
+    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
             |constr, cnf, vm| {
                 card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory")
+                    .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
                 pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory")
+                    .expect("pb encoding ran out of memory");
             },
             writer,
         )
@@ -271,6 +288,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         since = "0.5.0",
         note = "use convert_to_cnf_with_encoders and write_dimacs instead"
     )]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -285,7 +303,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         let (cnf, vm) = self
             .constrs
             .into_cnf_with_encoders(card_encoder, pb_encoder);
-        let soft_cls = self.objs.into_iter().map(|o| o.into_soft_cls());
+        let soft_cls = self.objs.into_iter().map(Objective::into_soft_cls);
         fio::dimacs::write_mcnf_annotated(writer, &cnf, soft_cls, Some(vm.n_used()))
     }
 
@@ -341,6 +359,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
+    #[allow(clippy::missing_errors_doc)]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
@@ -353,6 +372,8 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Writes the instance to an OPB file
     #[deprecated(since = "0.5.0", note = "use write_opb instead")]
+    #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn to_opb<W: io::Write>(
         mut self,
         writer: &mut W,
@@ -435,6 +456,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
 impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// Creates a new optimization instance
+    #[must_use]
     pub fn new(n_objs: usize) -> Self {
         MultiOptInstance {
             constrs: SatInstance::new(),
@@ -469,12 +491,20 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// positive number preceded by an 'o', indicating what objective this soft
     /// clause belongs to. After that, the format is identical to a soft clause
     /// in a WCNF file.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         fio::dimacs::parse_mcnf(reader)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
     /// [`OptInstance::from_dimacs`](super::OptInstance::from_dimacs).
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(reader)
@@ -488,6 +518,10 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// pseudo-boolean optimization instances with multiple objectives defined.
     /// For details on the file format see
     /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         fio::opb::parse_multi_opt(reader, opts)
     }
@@ -495,6 +529,10 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// Parses an OPB instance from a file path. For more details see
     /// [`MultiOptInstance::from_opb`]. With feature `compression` supports
     /// bzip2 and gzip compression, detected by the file extension.
+    ///
+    /// # Errors
+    ///
+    /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
         let reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(reader, opts)
@@ -510,7 +548,7 @@ impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
                 McnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
                 McnfLine::Soft(cl, w, oidx) => {
                     if oidx >= inst.objs.len() {
-                        inst.objs.resize(oidx + 1, Default::default())
+                        inst.objs.resize(oidx + 1, Objective::default());
                     }
                     inst.objective_mut(oidx).add_soft_clause(w, cl);
                 }

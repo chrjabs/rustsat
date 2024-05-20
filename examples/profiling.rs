@@ -1,7 +1,7 @@
 //! # Small Executable For Profiling Tasks
 
 use rustsat::{
-    encodings::pb::{BoundUpper, DbGte, DynamicPolyWatchdog, GeneralizedTotalizer},
+    encodings::pb::{BoundUpper, DbGte},
     instances::{BasicVarManager, Cnf, ManageVars},
     lit,
     types::{Lit, Var},

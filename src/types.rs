@@ -54,18 +54,22 @@ impl Var {
 
     /// Creates a new variables with a given index.
     /// Indices start from 0.
-    /// Panics if `idx > Var::MAX_IDX`.
+    ///
+    /// # Panics
+    ///
+    /// If `idx > Var::MAX_IDX`.
+    #[must_use]
     pub fn new(idx: u32) -> Var {
-        if idx > Var::MAX_IDX {
-            panic!("variable index too high")
-        }
+        assert!(idx < Var::MAX_IDX, "variable index too high");
         Var { idx }
     }
 
     /// Creates a new variables with a given index.
     /// Indices start from 0.
-    /// Returns `Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX)` if
-    /// `idx > Var::MAX_IDX`.
+    ///
+    /// # Errors
+    ///
+    /// `TypeError::IdxTooHigh(idx, Var::MAX_IDX)` if `idx > Var::MAX_IDX`.
     pub fn new_with_error(idx: u32) -> Result<Var, TypeError> {
         if idx > Var::MAX_IDX {
             return Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX));
@@ -78,6 +82,7 @@ impl Var {
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     #[inline]
+    #[must_use]
     pub fn new_unchecked(idx: u32) -> Var {
         Var { idx }
     }
@@ -93,6 +98,7 @@ impl Var {
     /// assert_eq!(lit, var.pos_lit());
     /// ```
     #[inline]
+    #[must_use]
     pub fn pos_lit(self) -> Lit {
         Lit::positive_unchecked(self.idx)
     }
@@ -108,6 +114,7 @@ impl Var {
     /// assert_eq!(lit, var.neg_lit());
     /// ```
     #[inline]
+    #[must_use]
     pub fn neg_lit(self) -> Lit {
         Lit::negative_unchecked(self.idx)
     }
@@ -125,6 +132,7 @@ impl Var {
     /// assert_eq!(5, var.idx());
     /// ```
     #[inline]
+    #[must_use]
     pub fn idx(&self) -> usize {
         self.idx as usize
     }
@@ -139,6 +147,7 @@ impl Var {
     /// assert_eq!(5, var.idx32());
     /// ```
     #[inline]
+    #[must_use]
     pub fn idx32(&self) -> u32 {
         self.idx
     }
@@ -146,7 +155,14 @@ impl Var {
     /// Converts the variable to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR variable
-    /// will have idx+1. Panics if the literal does not fit into a `c_int`.
+    /// will have idx+1.
+    ///
+    /// # Panics
+    ///
+    /// If the variable index does not fit in `c_int`. As [`c_int` will almost always be
+    /// `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), this is only the case on very
+    /// esoteric platforms.
+    #[must_use]
     pub fn to_ipasir(self) -> c_int {
         (self.idx32() + 1)
             .try_into()
@@ -156,10 +172,13 @@ impl Var {
     /// Converts the variable to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
-    /// will have idx+1 and be negative if the literal is negated. Returns
-    /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
-    /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
-    /// mostly safe to simply use [`Self::to_ipasir`] instead.
+    /// will have idx+1 and be negative if the literal is negated.
+    ///
+    /// # Errors
+    ///
+    /// `TypeError::IdxTooHigh(_, _)` if the literal does not fit into a `c_int`. As [`c_int` will
+    /// almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is mostly
+    /// safe to simply use [`Self::to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
         (self.idx32() + 1)
             .try_into()
@@ -180,7 +199,7 @@ impl ops::Add<u32> for Var {
 
 impl ops::AddAssign<u32> for Var {
     fn add_assign(&mut self, rhs: u32) {
-        self.idx += rhs
+        self.idx += rhs;
     }
 }
 
@@ -197,7 +216,7 @@ impl ops::Sub<u32> for Var {
 
 impl ops::SubAssign<u32> for Var {
     fn sub_assign(&mut self, rhs: u32) {
-        self.idx -= rhs
+        self.idx -= rhs;
     }
 }
 
@@ -252,23 +271,27 @@ impl Lit {
     /// Represents a literal in memory
     #[inline]
     fn represent(idx: u32, negated: bool) -> u32 {
-        (idx << 1) + (negated as u32)
+        (idx << 1) + u32::from(negated)
     }
 
     /// Creates a new (negated or not) literal with a given index.
-    /// Panics if `idx > Var::MAX_IDX`.
+    ///
+    /// # Panics
+    ///
+    /// If `idx > Var::MAX_IDX`.
+    #[must_use]
     pub fn new(idx: u32, negated: bool) -> Lit {
-        if idx > Var::MAX_IDX {
-            panic!("variable index too high")
-        }
+        assert!(idx < Var::MAX_IDX, "variable index too high");
         Lit {
             lidx: Lit::represent(idx, negated),
         }
     }
 
     /// Creates a new (negated or not) literal with a given index.
-    /// Returns `Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX)` if
-    /// `idx > Var::MAX_IDX`.
+    ///
+    /// # Errors
+    ///
+    /// `TypeError::IdxTooHigh(idx, Var::MAX_IDX)` if `idx > Var::MAX_IDX`.
     pub fn new_with_error(idx: u32, negated: bool) -> Result<Lit, TypeError> {
         if idx > Var::MAX_IDX {
             return Err(TypeError::IdxTooHigh(idx, Var::MAX_IDX));
@@ -281,6 +304,7 @@ impl Lit {
     /// Creates a new (negated or not) literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    #[must_use]
     pub fn new_unchecked(idx: u32, negated: bool) -> Lit {
         Lit {
             lidx: Lit::represent(idx, negated),
@@ -290,6 +314,7 @@ impl Lit {
     /// Creates a new positive literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
+    #[must_use]
     pub fn positive(idx: u32) -> Lit {
         Lit::new(idx, false)
     }
@@ -297,19 +322,26 @@ impl Lit {
     /// Creates a new negated literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
+    #[must_use]
     pub fn negative(idx: u32) -> Lit {
         Lit::new(idx, true)
     }
 
     /// Creates a new positive literal with a given index.
-    /// Returns an error if `idx > Var::MAX_IDX`.
+    ///
+    /// # Errors
+    ///
+    /// If `idx > Var::MAX_IDX`.
     #[inline]
     pub fn positive_with_error(idx: u32) -> Result<Lit, TypeError> {
         Lit::new_with_error(idx, false)
     }
 
     /// Creates a new negated literal with a given index.
-    /// Returns an error if `idx > Var::MAX_IDX`.
+    ///
+    /// # Errors
+    ///
+    /// If `idx > Var::MAX_IDX`.
     #[inline]
     pub fn negative_with_error(idx: u32) -> Result<Lit, TypeError> {
         Lit::new_with_error(idx, true)
@@ -319,6 +351,7 @@ impl Lit {
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     #[inline]
+    #[must_use]
     pub fn positive_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, false)
     }
@@ -327,13 +360,18 @@ impl Lit {
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
     #[inline]
+    #[must_use]
     pub fn negative_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, true)
     }
 
     /// Create a literal from an
     /// [IPASIR](https://github.com/biotomas/ipasir)/[DIMACS](http://www.satcompetition.org/2011/format-benchmarks2011.html)
-    /// integer value. Returns an error if the value is zero or the index too high.
+    /// integer value.
+    ///
+    /// # Errors
+    ///
+    /// If the value is zero or the index too high.
     pub fn from_ipasir(val: c_int) -> Result<Lit, TypeError> {
         if val == 0 {
             return Err(TypeError::IpasirZero);
@@ -345,18 +383,21 @@ impl Lit {
 
     /// Gets the variable index of the literal
     #[inline]
+    #[must_use]
     pub fn vidx(&self) -> usize {
         (self.lidx >> 1) as usize
     }
 
     /// Gets the 32bit variable index of the literal
     #[inline]
+    #[must_use]
     pub fn vidx32(&self) -> u32 {
         self.lidx >> 1
     }
 
     /// Gets a literal representation for indexing data structures
     #[inline]
+    #[must_use]
     pub fn lidx(&self) -> usize {
         self.lidx as usize
     }
@@ -372,18 +413,21 @@ impl Lit {
     /// assert_eq!(var, lit.var());
     /// ```
     #[inline]
+    #[must_use]
     pub fn var(&self) -> Var {
         Var::new_unchecked(self.vidx32())
     }
 
     /// True if the literal is positive.
     #[inline]
+    #[must_use]
     pub fn is_pos(&self) -> bool {
         (self.lidx & 1u32) == 0
     }
 
     /// True if the literal is negated.
     #[inline]
+    #[must_use]
     pub fn is_neg(&self) -> bool {
         (self.lidx & 1u32) == 1
     }
@@ -393,9 +437,16 @@ impl Lit {
     /// [DIMACS file format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The
     /// IPASIR literal will have idx+1 and be negative if the literal is negated. Panics if the
     /// literal does not fit into a `c_int`.
+    ///
+    /// # Panics
+    ///
+    /// If the variable index does not fit in `c_int`. As [`c_int` will almost always be
+    /// `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), this is only the case on very
+    /// esoteric platforms.
+    #[must_use]
     pub fn to_ipasir(self) -> c_int {
         let negated = self.is_neg();
-        let idx: c_int = (self.vidx() + 1)
+        let idx: c_int = (self.vidx32() + 1)
             .try_into()
             .expect("variable index too high to fit in c_int");
         if negated {
@@ -408,8 +459,11 @@ impl Lit {
     /// Converts the literal to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
-    /// will have idx+1 and be negative if the literal is negated. Returns
-    /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
+    /// will have idx+1 and be negative if the literal is negated.
+    ///
+    /// # Errors
+    ///
+    /// `TypeError::IdxTooHigh(_, _)` if the literal does not fit into a `c_int`. As [`c_int`
     /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
     /// mostly safe to simply use [`Self::to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
@@ -478,9 +532,10 @@ impl fmt::Display for Lit {
 /// Literals can be printed with the [`Debug`](std::fmt::Debug) trait
 impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.is_neg() {
-            true => write!(f, "~x{}", self.vidx()),
-            false => write!(f, "x{}", self.vidx()),
+        if self.is_neg() {
+            write!(f, "~x{}", self.vidx())
+        } else {
+            write!(f, "x{}", self.vidx())
         }
     }
 }
@@ -533,6 +588,7 @@ pub enum TernaryVal {
 
 impl TernaryVal {
     /// Converts a [`TernaryVal`] to a bool with a default value for "don't cares"
+    #[must_use]
     pub fn to_bool_with_def(self, def: bool) -> bool {
         match self {
             TernaryVal::True => true,
@@ -621,6 +677,7 @@ pub struct Assignment {
 impl Assignment {
     /// Get the value that the solution assigns to a variable.
     /// If the variable is not included in the solution, will return `TernaryVal::DontCare`.
+    #[must_use]
     pub fn var_value(&self, var: Var) -> TernaryVal {
         if var.idx() >= self.assignment.len() {
             TernaryVal::DontCare
@@ -630,6 +687,7 @@ impl Assignment {
     }
 
     /// Same as [`Assignment::var_value`], but for literals.
+    #[must_use]
     pub fn lit_value(&self, lit: Lit) -> TernaryVal {
         if lit.is_neg() {
             match self.var_value(lit.var()) {
@@ -652,15 +710,16 @@ impl Assignment {
                     *tv = TernaryVal::False;
                 }
             }
-        })
+        });
     }
 
     /// Assigns a variable in the assignment
-    pub fn assign_var(&mut self, var: Var, val: TernaryVal) {
-        if self.assignment.len() < var.idx() + 1 {
-            self.assignment.resize(var.idx() + 1, TernaryVal::DontCare);
+    pub fn assign_var(&mut self, variable: Var, value: TernaryVal) {
+        if self.assignment.len() < variable.idx() + 1 {
+            self.assignment
+                .resize(variable.idx() + 1, TernaryVal::DontCare);
         }
-        self.assignment[var.idx()] = val;
+        self.assignment[variable.idx()] = value;
     }
 
     /// Assigns a literal to true
@@ -670,27 +729,43 @@ impl Assignment {
         } else {
             TernaryVal::False
         };
-        self.assign_var(lit.var(), val)
+        self.assign_var(lit.var(), val);
     }
 
     /// Truncates a solution to only include assignments up to a maximum variable
+    #[must_use]
     pub fn truncate(mut self, max_var: Var) -> Self {
         self.assignment.truncate(max_var.idx() + 1);
         self
     }
 
     /// Get the maximum variable in the assignment
+    ///
+    /// # Panics
+    ///
+    /// If the assignment contains more then `u32::MAX` variables.
+    #[must_use]
     pub fn max_var(&self) -> Option<Var> {
         if self.assignment.is_empty() {
             None
         } else {
-            Some(var![self.assignment.len() as u32 - 1])
+            Some(var![
+                u32::try_from(self.assignment.len())
+                    .expect("assignment contains more than `u32::MAX` variables")
+                    - 1
+            ])
         }
     }
 
     /// Reads a solution from SAT solver output given the path
     ///
     /// If it is unclear whether the SAT solver indicated satisfiability, use [`fio::parse_sat_solver_output`] instead.
+    ///
+    /// # Errors
+    ///
+    /// - IO error: [`std::io::Error`]
+    /// - Invalid solver output: [`fio::SatSolverOutputError`]
+    /// - Invalid v line: [`InvalidVLine`]
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let reader = std::io::BufReader::new(
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?,
@@ -703,6 +778,10 @@ impl Assignment {
     }
 
     /// Creates an assignment from a SAT solver value line  
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidVLine`] or parsing error, or [`nom::error::Error`]
     pub fn from_vline(line: &str) -> anyhow::Result<Self> {
         let mut assignment = Assignment::default();
         assignment.extend_from_vline(line)?;
@@ -710,13 +789,17 @@ impl Assignment {
     }
 
     /// Parses and saves literals from a value line.
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidVLine`] or parsing error, or [`nom::error::Error`]
     pub fn extend_from_vline(&mut self, lines: &str) -> anyhow::Result<()> {
         for line in lines.lines() {
-            anyhow::ensure!(!line.is_empty(), InvalidVLine::EmptyLine);
-            anyhow::ensure!(
-                line.starts_with("v "),
-                InvalidVLine::InvalidTag(line.chars().next().unwrap())
-            );
+            if let Some(tag) = line.chars().next() {
+                anyhow::ensure!(tag == 'v', InvalidVLine::InvalidTag(tag));
+            } else {
+                anyhow::bail!(InvalidVLine::EmptyLine);
+            }
 
             let line = &line[1..];
             for number in line.split_whitespace() {
@@ -746,17 +829,13 @@ impl Assignment {
 
 impl fmt::Debug for Assignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.assignment
-            .iter()
-            .try_for_each(|tv| write!(f, "{}", tv))
+        self.assignment.iter().try_for_each(|tv| write!(f, "{tv}"))
     }
 }
 
 impl fmt::Display for Assignment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.assignment
-            .iter()
-            .try_for_each(|tv| write!(f, "{}", tv))
+        self.assignment.iter().try_for_each(|tv| write!(f, "{tv}"))
     }
 }
 
@@ -923,9 +1002,9 @@ mod tests {
     fn ipasir_lit_idx_plus_one() {
         let idx = 5;
         let lit = Lit::positive(idx);
-        assert_eq!(lit.to_ipasir(), idx as i32 + 1);
+        assert_eq!(lit.to_ipasir(), i32::try_from(idx).unwrap() + 1);
         let lit = !lit;
-        assert_eq!(lit.to_ipasir(), -(idx as i32 + 1));
+        assert_eq!(lit.to_ipasir(), -(i32::try_from(idx).unwrap() + 1));
     }
 
     #[test]
@@ -1068,13 +1147,10 @@ mod tests {
     fn vline_invalid_tag_from() {
         let vline = "b 1 -2 4 -5 6 0";
         let res = Assignment::from_vline(vline);
-        match res.unwrap_err().downcast::<InvalidVLine>() {
-            Ok(err) => match err {
-                InvalidVLine::InvalidTag(ck) => assert_eq!(ck, 'b'),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        assert!(matches!(
+            res.unwrap_err().downcast::<InvalidVLine>(),
+            Ok(InvalidVLine::InvalidTag('b'))
+        ));
     }
 
     #[test]
@@ -1082,26 +1158,20 @@ mod tests {
         let vline = "b 1 -2 4 -5 6 0";
         let mut assign = Assignment::default();
         let res = assign.extend_from_vline(vline);
-        match res.unwrap_err().downcast::<InvalidVLine>() {
-            Ok(err) => match err {
-                InvalidVLine::InvalidTag(ck) => assert_eq!(ck, 'b'),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        assert!(matches!(
+            res.unwrap_err().downcast::<InvalidVLine>(),
+            Ok(InvalidVLine::InvalidTag('b'))
+        ));
     }
 
     #[test]
     fn vline_invalid_empty() {
         let vline = "";
         let res = Assignment::from_vline(vline);
-        match res.unwrap_err().downcast::<InvalidVLine>() {
-            Ok(err) => match err {
-                InvalidVLine::EmptyLine => (),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        assert!(matches!(
+            res.unwrap_err().downcast::<InvalidVLine>(),
+            Ok(InvalidVLine::EmptyLine)
+        ));
     }
 
     #[test]

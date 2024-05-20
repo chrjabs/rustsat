@@ -23,6 +23,10 @@ pub struct ObjNoExist(usize);
 
 /// Opens a reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
+///
+/// # Errors
+///
+/// If opening the file fails, returns [`io::Error`]
 pub fn open_compressed_uncompressed_read<P: AsRef<Path>>(
     path: P,
 ) -> Result<Box<dyn io::BufRead>, io::Error> {
@@ -51,6 +55,10 @@ pub fn open_compressed_uncompressed_read<P: AsRef<Path>>(
 
 /// Opens a writer for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
+///
+/// # Errors
+///
+/// If opening the file fails, returns [`io::Error`]
 pub fn open_compressed_uncompressed_write<P: AsRef<Path>>(
     path: P,
 ) -> Result<Box<dyn io::Write>, io::Error> {
@@ -105,6 +113,11 @@ pub enum SatSolverOutputError {
 }
 
 /// Parses SAT solver output
+///
+/// # Errors
+///
+/// Either [`SatSolverOutputError`], [`types::InvalidVLine`], or other parsing errors on invalid
+/// input.
 pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
     let mut is_sat = false;
     let mut solution: Option<Assignment> = None;
@@ -213,13 +226,10 @@ mod tests {
         let data = "c this is a comment\nv 1 -2 4 -5 6 0\n";
         let reader = io::Cursor::new(data);
         let res = parse_sat_solver_output(reader);
-        match res.unwrap_err().downcast::<SatSolverOutputError>() {
-            Ok(err) => match err {
-                SatSolverOutputError::NoSLine => (),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        assert!(matches!(
+            res.unwrap_err().downcast::<SatSolverOutputError>(),
+            Ok(SatSolverOutputError::NoSLine)
+        ));
     }
 
     #[test]
@@ -227,13 +237,10 @@ mod tests {
         let data = "c this is a comment\ns SATISFIABLE\n";
         let reader = io::Cursor::new(data);
         let res = parse_sat_solver_output(reader);
-        match res.unwrap_err().downcast::<SatSolverOutputError>() {
-            Ok(err) => match err {
-                SatSolverOutputError::NoVLine => (),
-                _ => panic!(),
-            },
-            Err(_) => panic!(),
-        }
+        assert!(matches!(
+            res.unwrap_err().downcast::<SatSolverOutputError>(),
+            Ok(SatSolverOutputError::NoVLine)
+        ));
     }
 
     #[test]
@@ -252,25 +259,28 @@ mod tests {
         let reader =
             super::open_compressed_uncompressed_read("./data/gimsatul-AProVE11-12.log").unwrap();
         let res = parse_sat_solver_output(reader).unwrap();
-        match res {
-            SolverOutput::Sat(sol) => assert!(instance.is_sat(&sol)),
-            _ => panic!(),
+        if let SolverOutput::Sat(sol) = res {
+            assert!(instance.is_sat(&sol));
+        } else {
+            panic!()
         }
 
         let reader =
             super::open_compressed_uncompressed_read("./data/kissat-AProVE11-12.log").unwrap();
         let res = parse_sat_solver_output(reader).unwrap();
-        match res {
-            SolverOutput::Sat(sol) => assert!(instance.is_sat(&sol)),
-            _ => panic!(),
+        if let SolverOutput::Sat(sol) = res {
+            assert!(instance.is_sat(&sol));
+        } else {
+            panic!()
         }
 
         let reader =
             super::open_compressed_uncompressed_read("./data/cadical-AProVE11-12.log").unwrap();
         let res = parse_sat_solver_output(reader).unwrap();
-        match res {
-            SolverOutput::Sat(sol) => assert!(instance.is_sat(&sol)),
-            _ => panic!(),
+        if let SolverOutput::Sat(sol) = res {
+            assert!(instance.is_sat(&sol));
+        } else {
+            panic!()
         }
     }
 

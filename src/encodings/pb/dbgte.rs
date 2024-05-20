@@ -48,6 +48,7 @@ pub struct DbGte {
 impl DbGte {
     /// Creates a generalized totalizer from its internal parts
     #[cfg(feature = "internals")]
+    #[must_use]
     pub fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
         Self {
             root: Some(root),
@@ -107,6 +108,7 @@ impl DbGte {
     }
 
     /// Gets the depth of the encoding, i.e., the longest path from the root to a leaf
+    #[must_use]
     pub fn depth(&self) -> usize {
         self.root.map_or(0, |con| self.db[con.id].depth())
     }
@@ -127,8 +129,7 @@ impl Encode for DbGte {
             self.db[con.id]
                 .vals(con.rev_map_round_up(val + 1)..)
                 .next()
-                .map(|val| con.map(val))
-                .unwrap_or(val + 1)
+                .map_or(val + 1, |val| con.map(val))
         } else {
             val + 1
         }
@@ -142,8 +143,7 @@ impl Encode for DbGte {
             return self.db[con.id]
                 .vals(con.offset()..con.rev_map_round_up(val))
                 .next_back()
-                .map(|val| con.map(val))
-                .unwrap_or(0);
+                .map_or(0, |val| con.map(val));
         }
         val - 1
     }
@@ -152,7 +152,7 @@ impl Encode for DbGte {
 impl EncodeIncremental for DbGte {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         if let Some(con) = self.root {
-            self.db.reserve_vars(con.id, var_manager)
+            self.db.reserve_vars(con.id, var_manager);
         }
     }
 }
@@ -215,7 +215,7 @@ impl BoundUpper for DbGte {
                         INode::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
-                })?
+                })?;
         };
         Ok(assumps)
     }
@@ -250,7 +250,7 @@ impl BoundUpperIncremental for DbGte {
                         .define_pos(con.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
-                })?
+                })?;
         }
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
@@ -357,6 +357,7 @@ pub mod referenced {
         }
 
         /// Gets the maximum depth of the tree
+        #[must_use]
         pub fn depth(&self) -> usize {
             self.db[self.root.id].depth()
         }
@@ -377,6 +378,7 @@ pub mod referenced {
         }
 
         /// Gets the maximum depth of the tree
+        #[must_use]
         pub fn depth(&self) -> usize {
             self.db.borrow()[self.root.id].depth()
         }
@@ -391,16 +393,14 @@ pub mod referenced {
             self.db[self.root.id]
                 .vals(self.root.rev_map_round_up(val + 1)..)
                 .next()
-                .map(|val| self.root.map(val))
-                .unwrap_or(val + 1)
+                .map_or(val + 1, |val| self.root.map(val))
         }
 
         fn next_lower(&self, val: usize) -> usize {
             self.db[self.root.id]
                 .vals(self.root.offset()..self.root.rev_map_round_up(val))
                 .next_back()
-                .map(|val| self.root.map(val))
-                .unwrap_or(val - 1)
+                .map_or(val - 1, |val| self.root.map(val))
         }
     }
 
@@ -413,16 +413,14 @@ pub mod referenced {
             self.db.borrow()[self.root.id]
                 .vals(self.root.rev_map_round_up(val + 1)..)
                 .next()
-                .map(|val| self.root.map(val))
-                .unwrap_or(val + 1)
+                .map_or(val + 1, |val| self.root.map(val))
         }
 
         fn next_lower(&self, val: usize) -> usize {
             self.db.borrow()[self.root.id]
                 .vals(self.root.offset()..self.root.rev_map_round_up(val))
                 .next_back()
-                .map(|val| self.root.map(val))
-                .unwrap_or(val - 1)
+                .map_or(val - 1, |val| self.root.map(val))
         }
     }
 
@@ -728,8 +726,8 @@ mod tests {
         ]);
         let mut tot_cnf = Cnf::new();
         card::BoundUpper::encode_ub(&mut tot, 3..8, &mut tot_cnf, &mut var_manager_tot).unwrap();
-        println!("{:?}", gte_cnf);
-        println!("{:?}", tot_cnf);
+        println!("{gte_cnf:?}");
+        println!("{tot_cnf:?}");
         assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());
         assert_eq!(gte_cnf.len(), tot_cnf.len());
         assert_eq!(gte_cnf.len(), gte.n_clauses());

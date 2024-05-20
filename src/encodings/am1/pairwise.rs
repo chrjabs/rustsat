@@ -87,6 +87,6 @@ impl FromIterator<Lit> for Pairwise {
 
 impl Extend<Lit> for Pairwise {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
-        self.in_lits.extend(iter)
+        self.in_lits.extend(iter);
     }
 }

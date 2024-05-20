@@ -30,13 +30,14 @@ unsafe impl Send for Glucose {}
 impl Default for Glucose {
     fn default() -> Self {
         let handle = unsafe { ffi::cglucose4_init() };
-        if handle.is_null() {
-            panic!("not enough memory to initialize glucose solver")
-        }
+        assert!(
+            !handle.is_null(),
+            "not enough memory to initialize glucose solver"
+        );
         Self {
             handle,
-            state: Default::default(),
-            stats: Default::default(),
+            state: InternalSolverState::default(),
+            stats: SolverStats::default(),
         }
     }
 }
@@ -59,23 +60,33 @@ impl Glucose {
         Ok(core)
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    #[inline]
+    fn update_avg_clause_len(&mut self, clause: &Clause) {
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
+    }
+
     /// Sets an internal limit for Glucose
     pub fn set_limit(&mut self, limit: Limit) {
         match limit {
             Limit::None => unsafe { ffi::cglucose4_set_no_limit(self.handle) },
             Limit::Conflicts(limit) => unsafe { ffi::cglucose4_set_conf_limit(self.handle, limit) },
             Limit::Propagations(limit) => unsafe {
-                ffi::cglucose4_set_prop_limit(self.handle, limit)
+                ffi::cglucose4_set_prop_limit(self.handle, limit);
             },
         };
     }
 
     /// Gets the current number of assigned literals
+    #[must_use]
     pub fn n_assigns(&self) -> c_int {
         unsafe { ffi::cglucose4_n_assigns(self.handle) }
     }
 
     /// Gets the current number of learnt clauses
+    #[must_use]
     pub fn n_learnts(&self) -> c_int {
         unsafe { ffi::cglucose4_n_learnts(self.handle) }
     }
@@ -84,7 +95,7 @@ impl Glucose {
 impl Extend<Clause> for Glucose {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         iter.into_iter()
-            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
 }
 
@@ -92,8 +103,8 @@ impl<'a> Extend<&'a Clause> for Glucose {
     fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
-                .expect("Error adding clause in extend")
-        })
+                .expect("Error adding clause in extend");
+        });
     }
 }
 
@@ -168,9 +179,7 @@ impl Solve for Glucose {
     fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
-        self.stats.avg_clause_len =
-            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
-                / self.stats.n_clauses as f32;
+        self.update_avg_clause_len(clause);
         self.state = InternalSolverState::Input;
         // Call glucose backend
         for l in clause {
@@ -267,7 +276,7 @@ impl PhaseLit for Glucose {
 impl LimitConflicts for Glucose {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
-            limit as i64
+            i64::from(limit)
         } else {
             -1
         }));
@@ -278,7 +287,7 @@ impl LimitConflicts for Glucose {
 impl LimitPropagations for Glucose {
     fn limit_propagations(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Propagations(if let Some(limit) = limit {
-            limit as i64
+            i64::from(limit)
         } else {
             -1
         }));
@@ -317,7 +326,11 @@ impl SolveStats for Glucose {
     fn max_var(&self) -> Option<Var> {
         let max_var_idx = unsafe { ffi::cglucose4_n_vars(self.handle) };
         if max_var_idx > 0 {
-            Some(Var::new((max_var_idx - 1) as u32))
+            Some(Var::new(
+                (max_var_idx - 1)
+                    .try_into()
+                    .expect("got negative number of vars from glucose"),
+            ))
         } else {
             None
         }

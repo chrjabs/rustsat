@@ -51,6 +51,10 @@ type BodyContent<VM> = SatInstance<VM>;
 pub struct InvalidPLine(String);
 
 /// Parses a CNF instance from a reader (typically a (compressed) file)
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 pub fn parse_cnf<R, VM>(reader: R) -> anyhow::Result<SatInstance<VM>>
 where
     R: BufRead,
@@ -69,7 +73,11 @@ where
 
 #[cfg(feature = "optimization")]
 /// Parses a WCNF instance (old or new format) from a reader (typically a
-/// (compressed) file). The objective with the index obj_idx is used.
+/// (compressed) file). The objective with the index `obj_idx` is used.
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 pub fn parse_wcnf_with_idx<R, VM>(reader: R, obj_idx: usize) -> anyhow::Result<OptInstance<VM>>
 where
     R: BufRead,
@@ -80,17 +88,21 @@ where
     let (constrs, mut objs) = parse_dimacs(reader)?;
     if objs.is_empty() {
         objs.push(Objective::default());
-    } else if obj_idx >= objs.len() {
-        return Err(ObjNoExist(objs.len()).into());
     }
-    Ok(OptInstance::compose(
-        constrs,
-        objs.into_iter().nth(obj_idx).unwrap(),
-    ))
+    let objs_len = objs.len();
+    if let Some(obj) = objs.into_iter().nth(obj_idx) {
+        Ok(OptInstance::compose(constrs, obj))
+    } else {
+        anyhow::bail!(ObjNoExist(objs_len))
+    }
 }
 
 #[cfg(feature = "multiopt")]
 /// Parses a MCNF instance (old or new format) from a reader (typically a (compressed) file)
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 pub fn parse_mcnf<R, VM>(reader: R) -> anyhow::Result<MultiOptInstance<VM>>
 where
     R: BufRead,
@@ -120,6 +132,10 @@ enum Preamble {
 }
 
 /// Top level parser
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 fn parse_dimacs<R, VM>(reader: R) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
@@ -144,6 +160,10 @@ where
 }
 
 /// Parses preamble and determines type of instance/file format
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
     let mut buf = String::new();
     while reader.read_line(&mut buf)? > 0 {
@@ -153,8 +173,8 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
         }
         if buf.starts_with('p') {
             let (_, preamble) = parse_p_line(&buf)
-                .map_err(|e| e.to_owned())
-                .with_context(|| format!("failed to parse p line '{}'", buf))?;
+                .map_err(nom::Err::<NomError<&str>>::to_owned)
+                .with_context(|| format!("failed to parse p line '{buf}'"))?;
             return Ok((reader, preamble));
         }
         break;
@@ -170,6 +190,10 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
 }
 
 /// Main parser for CNF file
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 fn parse_cnf_body<R, VM>(mut reader: R) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
@@ -179,10 +203,10 @@ where
     let mut buf = String::new();
     while reader.read_line(&mut buf)? > 0 {
         let (_, opt_clause) = parse_cnf_line(&buf)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse cnf line '{}'", buf))?;
+            .map_err(nom::Err::<NomError<&str>>::to_owned)
+            .with_context(|| format!("failed to parse cnf line '{buf}'"))?;
         if let Some(clause) = opt_clause {
-            inst.add_clause(clause)
+            inst.add_clause(clause);
         }
         buf.clear();
     }
@@ -198,6 +222,10 @@ where
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF pre 22 (with p line)
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
@@ -208,8 +236,8 @@ where
     let mut buf = String::new();
     while reader.read_line(&mut buf)? > 0 {
         let (_, opt_wclause) = parse_wcnf_pre22_line(&buf)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse old wcnf line '{}'", buf))?;
+            .map_err(nom::Err::<NomError<&str>>::to_owned)
+            .with_context(|| format!("failed to parse old wcnf line '{buf}'"))?;
         match opt_wclause {
             None => (),
             Some((w, clause)) => {
@@ -227,6 +255,10 @@ where
 
 #[cfg(feature = "optimization")]
 /// Main parser for WCNF post 22 (without p line) and MCNF
+///
+/// # Errors
+///
+/// Parsing errors or [`io::Error`].
 fn parse_no_pline_body<R, VM>(mut reader: R, first_line: &str) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
@@ -237,8 +269,8 @@ where
     let mut buf = first_line.to_string();
     loop {
         let (_, opt_wclause) = parse_mcnf_line(&buf)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse new wcnf/mcnf line '{}'", buf))?;
+            .map_err(nom::Err::<NomError<&str>>::to_owned)
+            .with_context(|| format!("failed to parse new wcnf/mcnf line '{buf}'"))?;
         if let Some((opt_iw, clause)) = opt_wclause {
             match opt_iw {
                 Some((idx, w)) => {
@@ -329,13 +361,12 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
         // Tolerate empty lines
         return Ok((input, None));
     }
-    match tag::<&str, &str, NomError<&str>>("c")(input) {
-        Ok((input, _)) => Ok((input, None)),
-        Err(_) => {
-            // Line is not a comment
-            let (input, clause) = parse_clause(input)?;
-            Ok((input, Some(clause)))
-        }
+    if let Ok((input, _)) = tag::<&str, &str, NomError<&str>>("c")(input) {
+        Ok((input, None))
+    } else {
+        // Line is not a comment
+        let (input, clause) = parse_clause(input)?;
+        Ok((input, Some(clause)))
     }
 }
 
@@ -347,14 +378,13 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> 
         // Tolerate empty lines
         return Ok((input, None));
     }
-    match tag::<&str, &str, NomError<&str>>("c")(input) {
-        Ok((input, _)) => Ok((input, None)),
-        Err(_) => {
-            // Line is not a comment
-            let (input, (weight, clause)) =
-                separated_pair(parse_weight, multispace1, parse_clause)(input)?;
-            Ok((input, Some((weight, clause))))
-        }
+    if let Ok((input, _)) = tag::<&str, &str, NomError<&str>>("c")(input) {
+        Ok((input, None))
+    } else {
+        // Line is not a comment
+        let (input, (weight, clause)) =
+            separated_pair(parse_weight, multispace1, parse_clause)(input)?;
+        Ok((input, Some((weight, clause))))
     }
 }
 
@@ -384,25 +414,22 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine> {
                 }
                 Err(_) => {
                     // Soft clause
-                    match tag::<_, _, NomError<_>>("o")(input) {
-                        Ok((input, _)) => {
-                            // MCNF soft (explicit obj index)
-                            let (input, (idx, _, weight, _, clause)) =
-                                tuple((
-                                    parse_idx,
-                                    multispace1,
-                                    parse_weight,
-                                    multispace1,
-                                    parse_clause,
-                                ))(input)?;
-                            Ok((input, Some((Some((idx, weight)), clause))))
-                        }
-                        Err(_) => {
-                            // WCNF soft (implicit obj index of 1)
-                            let (input, (weight, clause)) =
-                                separated_pair(parse_weight, multispace1, parse_clause)(input)?;
-                            Ok((input, Some((Some((1, weight)), clause))))
-                        }
+                    if let Ok((input, _)) = tag::<_, _, NomError<_>>("o")(input) {
+                        // MCNF soft (explicit obj index)
+                        let (input, (idx, _, weight, _, clause)) =
+                            tuple((
+                                parse_idx,
+                                multispace1,
+                                parse_weight,
+                                multispace1,
+                                parse_clause,
+                            ))(input)?;
+                        Ok((input, Some((Some((idx, weight)), clause))))
+                    } else {
+                        // WCNF soft (implicit obj index of 1)
+                        let (input, (weight, clause)) =
+                            separated_pair(parse_weight, multispace1, parse_clause)(input)?;
+                        Ok((input, Some((Some((1, weight)), clause))))
                     }
                 }
             }
@@ -426,7 +453,10 @@ fn parse_clause(input: &str) -> IResult<&str, Clause> {
 fn parse_weight(input: &str) -> IResult<&str, usize> {
     context(
         "weight does not fit usize",
-        map_res(context("expected number for weight", u64), |w| w.try_into()),
+        map_res(
+            context("expected number for weight", u64),
+            TryInto::try_into,
+        ),
     )(input)
 }
 
@@ -467,6 +497,10 @@ fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
 }
 
 /// Writes a CNF to a DIMACS CNF file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 pub fn write_cnf_annotated<W: Write>(
     writer: &mut W,
     cnf: &Cnf,
@@ -486,19 +520,38 @@ pub enum CnfLine {
     Clause(Clause),
 }
 
+impl CnfLine {
+    /// Gets the clause on the given line
+    #[must_use]
+    pub fn clause(self) -> Option<Clause> {
+        match self {
+            CnfLine::Comment(_) => None,
+            CnfLine::Clause(cl) => Some(cl),
+        }
+    }
+}
+
 /// Writes a CNF to a DIMACS CNF file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
     writer: &mut W,
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
-        CnfLine::Comment(c) => write!(writer, "c {}", c),
+        CnfLine::Comment(c) => write!(writer, "c {c}"),
         CnfLine::Clause(cl) => write_clause(writer, &cl),
     })
 }
 
 #[cfg(feature = "optimization")]
 /// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
     writer: &mut W,
     cnf: &Cnf,
@@ -509,17 +562,17 @@ pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
     let soft_cls: Vec<(Clause, usize)> = soft_cls.into_iter().collect();
     writeln!(writer, "c WCNF file written by RustSAT")?;
     if let Some(n_vars) = n_vars {
-        writeln!(writer, "c {} variables", n_vars)?;
+        writeln!(writer, "c {n_vars} variables")?;
     }
     writeln!(writer, "c {} hard clauses", cnf.len())?;
     writeln!(writer, "c {} soft clauses", soft_cls.len())?;
-    writeln!(writer, "c objective offset: {}", offset)?;
+    writeln!(writer, "c objective offset: {offset}")?;
     cnf.iter().try_for_each(|cl| {
         write!(writer, "h ")?;
         write_clause(writer, cl)
     })?;
     soft_cls.into_iter().try_for_each(|(cl, w)| {
-        write!(writer, "{} ", w)?;
+        write!(writer, "{w} ")?;
         write_clause(writer, &cl)
     })?;
     writer.flush()
@@ -538,18 +591,22 @@ pub enum WcnfLine {
 
 #[cfg(feature = "optimization")]
 /// Writes a CNF and soft clauses to a (post 22, no p line) DIMACS WCNF file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
     writer: &mut W,
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
-        WcnfLine::Comment(c) => write!(writer, "c {}", c),
+        WcnfLine::Comment(c) => write!(writer, "c {c}"),
         WcnfLine::Hard(cl) => {
             write!(writer, "h ")?;
             write_clause(writer, &cl)
         }
         WcnfLine::Soft(cl, w) => {
-            write!(writer, "{} ", w)?;
+            write!(writer, "{w} ")?;
             write_clause(writer, &cl)
         }
     })
@@ -557,6 +614,10 @@ pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
 
 #[cfg(feature = "multiopt")]
 /// Writes a CNF and multiple objectives as sets of soft clauses to a DIMACS MCNF file
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WClsIter>(
     writer: &mut W,
     cnf: &Cnf,
@@ -570,7 +631,7 @@ pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WC
         .collect();
     writeln!(writer, "c MCNF file written by RustSAT")?;
     if let Some(n_vars) = n_vars {
-        writeln!(writer, "c {} variables", n_vars)?;
+        writeln!(writer, "c {n_vars} variables")?;
     }
     writeln!(writer, "c {} hard clauses", cnf.len())?;
     writeln!(writer, "c {} objectives", soft_cls.len())?;
@@ -582,7 +643,7 @@ pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WC
     write!(writer, "c objective offsets: ( ")?;
     offsets
         .into_iter()
-        .try_for_each(|o| write!(writer, "{} ", o))?;
+        .try_for_each(|o| write!(writer, "{o} "))?;
     writeln!(writer, ")")?;
     cnf.iter().try_for_each(|cl| {
         write!(writer, "h ")?;
@@ -613,12 +674,16 @@ pub enum McnfLine {
 
 #[cfg(feature = "multiopt")]
 /// Writes a multi-objective instance from an iterator
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`].
 pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
     writer: &mut W,
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
-        McnfLine::Comment(c) => writeln!(writer, "c {}", c),
+        McnfLine::Comment(c) => writeln!(writer, "c {c}"),
         McnfLine::Hard(cl) => {
             write!(writer, "h ")?;
             write_clause(writer, &cl)
@@ -1103,7 +1168,7 @@ mod tests {
 
         write_wcnf_annotated(
             &mut cursor,
-            &true_constrs.cnf(),
+            true_constrs.cnf(),
             (true_obj.iter_soft_cls(), offset),
             Some(5),
         )
@@ -1132,7 +1197,7 @@ mod tests {
 
         write_mcnf_annotated(
             &mut cursor,
-            &true_constrs.cnf(),
+            true_constrs.cnf(),
             vec![
                 (true_obj0.iter_soft_cls(), offset0),
                 (true_obj1.iter_soft_cls(), offset1),

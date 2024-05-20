@@ -39,7 +39,7 @@ pub fn basic(slv: Type) -> TokenStream {
             assert_eq!(solver.n_clauses(), 9);
             assert_eq!(solver.max_var(), Some(var![9]));
             assert_eq!(solver.n_vars(), 10);
-            assert_eq!(solver.avg_clause_len(), 2.);
+            assert!((solver.avg_clause_len() - 2.).abs() < f32::EPSILON);
 
             solver.solve().unwrap();
 
