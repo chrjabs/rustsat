@@ -253,11 +253,14 @@ mod tests {
 
     #[test]
     fn parse_solver_output_sat_logs() {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let instance: SatInstance =
-            SatInstance::from_dimacs_path("./data/AProVE11-12.cnf").unwrap();
+            SatInstance::from_dimacs_path(format!("{manifest}/data/AProVE11-12.cnf")).unwrap();
 
-        let reader =
-            super::open_compressed_uncompressed_read("./data/gimsatul-AProVE11-12.log").unwrap();
+        let reader = super::open_compressed_uncompressed_read(format!(
+            "{manifest}/data/gimsatul-AProVE11-12.log"
+        ))
+        .unwrap();
         let res = parse_sat_solver_output(reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
             assert!(instance.is_sat(&sol));
@@ -265,8 +268,10 @@ mod tests {
             panic!()
         }
 
-        let reader =
-            super::open_compressed_uncompressed_read("./data/kissat-AProVE11-12.log").unwrap();
+        let reader = super::open_compressed_uncompressed_read(format!(
+            "{manifest}/data/kissat-AProVE11-12.log"
+        ))
+        .unwrap();
         let res = parse_sat_solver_output(reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
             assert!(instance.is_sat(&sol));
@@ -274,8 +279,10 @@ mod tests {
             panic!()
         }
 
-        let reader =
-            super::open_compressed_uncompressed_read("./data/cadical-AProVE11-12.log").unwrap();
+        let reader = super::open_compressed_uncompressed_read(format!(
+            "{manifest}/data/cadical-AProVE11-12.log"
+        ))
+        .unwrap();
         let res = parse_sat_solver_output(reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
             assert!(instance.is_sat(&sol));
@@ -286,25 +293,26 @@ mod tests {
 
     #[test]
     fn parse_solver_output_unsat_logs() {
-        let reader = super::open_compressed_uncompressed_read(
-            "./data/gimsatul-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log",
-        )
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let reader = super::open_compressed_uncompressed_read(format!(
+            "{manifest}/data/gimsatul-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log"
+        ))
         .unwrap();
         assert_eq!(
             parse_sat_solver_output(reader).unwrap(),
             SolverOutput::Unsat
         );
-        let reader = super::open_compressed_uncompressed_read(
-            "./data/kissat-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log",
-        )
+        let reader = super::open_compressed_uncompressed_read(format!(
+            "{manifest}/data/kissat-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log"
+        ))
         .unwrap();
         assert_eq!(
             parse_sat_solver_output(reader,).unwrap(),
             SolverOutput::Unsat
         );
-        let reader = super::open_compressed_uncompressed_read(
-            "./data/cadical-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log",
-        )
+        let reader = super::open_compressed_uncompressed_read(format!(
+            "{manifest}/data/cadical-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log"
+        ))
         .unwrap();
         assert_eq!(
             parse_sat_solver_output(reader,).unwrap(),

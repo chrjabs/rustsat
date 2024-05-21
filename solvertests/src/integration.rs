@@ -18,8 +18,9 @@ pub fn base(input: MacroInput) -> TokenStream {
     let mut ts = quote! {
         macro_rules! test_inst {
             ($slv:ty, $inst:expr, $res:expr) => {{
+                let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
                 let mut solver = <$slv>::default();
-                let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path($inst)
+                let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path(format!("{manifest}/{}", $inst))
                     .expect("failed to parse instance");
                 rustsat::solvers::Solve::add_cnf_ref(&mut solver, inst.cnf())
                     .expect("failed to add cnf to solver");
@@ -32,8 +33,9 @@ pub fn base(input: MacroInput) -> TokenStream {
                 }
             }};
             ($init:expr, $inst:expr, $res:expr) => {{
+                let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
                 let mut solver = $init;
-                let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path($inst)
+                let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path(format!("{manifest}/{}", $inst))
                     .expect("failed to parse instance");
                 rustsat::solvers::Solve::add_cnf_ref(&mut solver, inst.cnf())
                     .expect("failed to add cnf to solver");
@@ -52,7 +54,7 @@ pub fn base(input: MacroInput) -> TokenStream {
         #[test]
         #ignore
         fn small_sat() {
-            test_inst!(#slv, "./data/AProVE11-12.cnf", rustsat::solvers::SolverResult::Sat);
+            test_inst!(#slv, "data/AProVE11-12.cnf", rustsat::solvers::SolverResult::Sat);
         }
     });
     let ignore = ignoretok(1);
@@ -60,7 +62,7 @@ pub fn base(input: MacroInput) -> TokenStream {
         #[test]
         #ignore
         fn small_unsat() {
-            test_inst!(#slv, "./data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf", rustsat::solvers::SolverResult::Unsat);
+            test_inst!(#slv, "data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf", rustsat::solvers::SolverResult::Unsat);
         }
     });
     let ignore = ignoretok(2);
@@ -68,7 +70,7 @@ pub fn base(input: MacroInput) -> TokenStream {
         #[test]
         #ignore
         fn minisat_segfault() {
-            test_inst!(#slv, "./data/minisat-segfault.cnf", rustsat::solvers::SolverResult::Unsat);
+            test_inst!(#slv, "data/minisat-segfault.cnf", rustsat::solvers::SolverResult::Unsat);
         }
     });
     ts
@@ -106,7 +108,7 @@ pub fn incremental(input: MacroInput) -> TokenStream {
 
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
-                SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
+                SatInstance::from_dimacs_path("data/small.cnf").unwrap();
             solver.add_cnf(inst.into_cnf().0).unwrap();
             let res = solver.solve().unwrap();
             assert_eq!(res, Sat);
@@ -214,7 +216,7 @@ pub fn phasing(input: MacroInput) -> TokenStream {
             };
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
-                SatInstance::from_dimacs_path("./data/small.cnf").unwrap();
+                SatInstance::from_dimacs_path("data/small.cnf").unwrap();
             solver.add_cnf(inst.into_cnf().0).unwrap();
             solver.phase_lit(lit![0]).unwrap();
             solver.phase_lit(!lit![1]).unwrap();
