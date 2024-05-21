@@ -163,8 +163,9 @@ mod fio {
     use crate::instances::SatInstance;
 
     fn read_write_dimacs() {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let inst: SatInstance =
-            SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
+            SatInstance::from_dimacs_path(format!("{manifest}/data/minisat-segfault.cnf")).unwrap();
         inst.to_dimacs_path("/tmp/rustsat-test.cnf").unwrap();
     }
 
