@@ -144,7 +144,7 @@ void dpw_drop(struct DynamicPolyWatchdog *dpw);
 void dpw_encode_ub(struct DynamicPolyWatchdog *dpw,
                    size_t min_bound,
                    size_t max_bound,
-                   int *n_vars_used,
+                   uint32_t *n_vars_used,
                    CClauseCollector collector,
                    void *collector_data);
 
@@ -262,6 +262,10 @@ enum MaybeError dpw_set_precision(struct DynamicPolyWatchdog *dpw, size_t diviso
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
  * not yet been called on.
+ *
+ * # Panics
+ *
+ * If the passed `lit` is an invalid IPASIR literal
  */
 enum MaybeError tot_add(struct DbTotalizer *tot, int lit);
 
@@ -292,11 +296,15 @@ void tot_drop(struct DbTotalizer *tot);
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
  * not yet been called on.
+ *
+ * # Panics
+ *
+ * If `min_bound <= max_bound`.
  */
 void tot_encode_ub(struct DbTotalizer *tot,
                    size_t min_bound,
                    size_t max_bound,
-                   int *n_vars_used,
+                   uint32_t *n_vars_used,
                    CClauseCollector collector,
                    void *collector_data);
 

@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 extern crate cbindgen;
 
 use std::env;
@@ -13,7 +15,7 @@ fn main() {
     // Generate C-API header
     cbindgen::Builder::new()
         .with_config(
-            cbindgen::Config::from_file(format!("{}/cbindgen.toml", crate_dir))
+            cbindgen::Config::from_file(format!("{crate_dir}/cbindgen.toml"))
                 .expect("could not read cbindgen.toml"),
         )
         .with_crate(crate_dir)
@@ -29,15 +31,15 @@ fn main() {
     let ld_dir = target_dir().unwrap();
 
     let cflags = format!("cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat_capi -D_DEBUG -D_CRT_SECURE_NO_WARNINGS", I=include_dir, L=ld_dir.to_string_lossy());
-    let cflags = format!("{} -llzma -lbz2", cflags);
-    println!("{}", cflags);
+    let cflags = format!("{cflags} -llzma -lbz2");
+    println!("{cflags}");
 
     let ldflags = format!(
         "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat_capi.a",
         L = ld_dir.to_string_lossy()
     );
-    let ldflags = format!("{} -llzma -lbz2", ldflags);
-    println!("{}", ldflags);
+    let ldflags = format!("{ldflags} -llzma -lbz2");
+    println!("{ldflags}");
 }
 
 // https://github.com/rust-lang/cargo/issues/9661#issuecomment-1722358176
