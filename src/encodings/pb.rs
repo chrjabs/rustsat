@@ -113,7 +113,7 @@ pub trait BoundUpper: Encode {
     ///
     /// # Errors
     ///
-    /// Either an [`Error`] of [`crate::OutOfMemory`]
+    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_ub_constr<Col>(
         constr: PBUBConstr,
         collector: &mut Col,
@@ -177,7 +177,7 @@ pub trait BoundLower: Encode {
     ///
     /// # Errors
     ///
-    /// Either an [`Error`] of [`crate::OutOfMemory`]
+    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_lb_constr<Col>(
         constr: PBLBConstr,
         collector: &mut Col,
@@ -252,7 +252,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// Either an [`Error`] of [`crate::OutOfMemory`]
+    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_eq_constr<Col>(
         constr: PBEQConstr,
         collector: &mut Col,
@@ -279,7 +279,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// Either an [`Error`] of [`crate::OutOfMemory`]
+    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_constr<Col>(
         constr: PBConstraint,
         collector: &mut Col,

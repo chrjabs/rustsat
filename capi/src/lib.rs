@@ -7,6 +7,8 @@
 //!
 //! For the API itself, see `rustsat.h`. To use RustSAT from an external project, build this crate
 //! and link against `librustsat_capi.a` (produced by `cargo` in `target/release`).
+#![warn(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
 
 pub mod encodings {
     //! # C-API For Encodings
@@ -110,23 +112,23 @@ pub mod encodings {
                 cl.into_iter()
                     .for_each(|l| (self.ccol)(l.to_ipasir(), self.cdata));
                 (self.ccol)(0, self.cdata);
-            })
+            });
         }
     }
 
     struct VarManager<'a> {
-        n_vars_used: &'a mut c_int,
+        n_vars_used: &'a mut u32,
     }
 
     impl<'a> VarManager<'a> {
-        pub fn new(n_vars_used: &'a mut c_int) -> Self {
+        pub fn new(n_vars_used: &'a mut u32) -> Self {
             Self { n_vars_used }
         }
     }
 
     impl<'a> ManageVars for VarManager<'a> {
         fn new_var(&mut self) -> Var {
-            let var = Var::new(*self.n_vars_used as u32);
+            let var = Var::new(*self.n_vars_used);
             *self.n_vars_used += 1;
             var
         }
@@ -135,14 +137,14 @@ pub mod encodings {
             if *self.n_vars_used == 0 {
                 None
             } else {
-                Some(Var::new(*self.n_vars_used as u32) - 1)
+                Some(Var::new(*self.n_vars_used) - 1)
             }
         }
 
         fn increase_next_free(&mut self, v: Var) -> bool {
             let v_idx = v.idx32();
-            if v_idx > *self.n_vars_used as u32 {
-                *self.n_vars_used = v_idx as c_int;
+            if v_idx > *self.n_vars_used {
+                *self.n_vars_used = v_idx;
                 return true;
             }
             false
@@ -156,12 +158,11 @@ pub mod encodings {
         }
 
         fn n_used(&self) -> u32 {
-            *self.n_vars_used as u32
+            *self.n_vars_used
         }
 
         fn forget_from(&mut self, min_var: Var) {
-            *self.n_vars_used =
-                std::cmp::min(*self.n_vars_used, min_var.idx32().try_into().unwrap())
+            *self.n_vars_used = std::cmp::min(*self.n_vars_used, min_var.idx32());
         }
     }
 
@@ -194,6 +195,10 @@ pub mod encodings {
         ///
         /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
         /// not yet been called on.
+        ///
+        /// # Panics
+        ///
+        /// If the passed `lit` is an invalid IPASIR literal
         #[no_mangle]
         pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(tot) };
@@ -223,12 +228,16 @@ pub mod encodings {
         ///
         /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
         /// not yet been called on.
+        ///
+        /// # Panics
+        ///
+        /// If `min_bound <= max_bound`.
         #[no_mangle]
         pub unsafe extern "C" fn tot_encode_ub(
             tot: *mut DbTotalizer,
             min_bound: usize,
             max_bound: usize,
-            n_vars_used: &mut c_int,
+            n_vars_used: &mut u32,
             collector: CClauseCollector,
             collector_data: *mut c_void,
         ) {
@@ -278,7 +287,7 @@ pub mod encodings {
         /// afterwards again.
         #[no_mangle]
         pub unsafe extern "C" fn tot_drop(tot: *mut DbTotalizer) {
-            drop(unsafe { Box::from_raw(tot) })
+            drop(unsafe { Box::from_raw(tot) });
         }
 
         // TODO: figure out how to get these to work on windows
@@ -413,7 +422,7 @@ pub mod encodings {
             dpw: *mut DynamicPolyWatchdog,
             min_bound: usize,
             max_bound: usize,
-            n_vars_used: &mut c_int,
+            n_vars_used: &mut u32,
             collector: CClauseCollector,
             collector_data: *mut c_void,
         ) {
@@ -450,9 +459,9 @@ pub mod encodings {
             let boxed = unsafe { Box::from_raw(dpw) };
             let ret = match boxed.enforce_ub(ub) {
                 Ok(assumps) => {
-                    assumps.into_iter().for_each(|l| {
+                    for l in assumps {
                         collector(l.to_ipasir(), collector_data);
-                    });
+                    }
                     MaybeError::Ok
                 }
                 Err(err) => err.into(),
@@ -585,7 +594,7 @@ pub mod encodings {
         /// afterwards again.
         #[no_mangle]
         pub unsafe extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
-            drop(unsafe { Box::from_raw(dpw) })
+            drop(unsafe { Box::from_raw(dpw) });
         }
 
         // TODO: figure out how to get these to work on windows
