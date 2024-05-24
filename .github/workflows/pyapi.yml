@@ -7,12 +7,11 @@ name: Python Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main", "next-major" ]
     tags:
       - '*'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
   workflow_dispatch:
 
 permissions:
