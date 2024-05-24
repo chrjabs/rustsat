@@ -3,7 +3,7 @@ use rustsat::{
     lit,
     solvers::{Solve, SolveIncremental, SolverResult},
     types::{
-        constraints::{CardConstraint, PBConstraint},
+        constraints::{CardConstraint, PbConstraint},
         RsHashMap,
     },
 };
@@ -108,17 +108,17 @@ fn pb_ub() {
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 3);
     test_pb!(
-        PBConstraint::new_eq(lits.clone(), 1),
+        PbConstraint::new_eq(lits.clone(), 1),
         &[lit![0], !lit![1], !lit![2]],
         &[!lit![0], lit![1], !lit![2]]
     );
     test_pb!(
-        PBConstraint::new_eq(lits.clone(), 2),
+        PbConstraint::new_eq(lits.clone(), 2),
         &[!lit![0], lit![1], !lit![2]],
         &[!lit![0], !lit![1], lit![2]]
     );
     test_pb!(
-        PBConstraint::new_eq(lits.clone(), 3),
+        PbConstraint::new_eq(lits.clone(), 3),
         &[!lit![0], !lit![1], lit![2]],
         &[lit![0], !lit![1], lit![2]]
     );
@@ -131,17 +131,17 @@ fn pb_lb() {
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 3);
     test_pb!(
-        PBConstraint::new_lb(lits.clone(), 1),
+        PbConstraint::new_lb(lits.clone(), 1),
         &[lit![0], lit![1], !lit![2]],
         &[!lit![0], !lit![1], !lit![2]]
     );
     test_pb!(
-        PBConstraint::new_lb(lits.clone(), 2),
+        PbConstraint::new_lb(lits.clone(), 2),
         &[lit![0], lit![1], !lit![2]],
         &[lit![0], !lit![1], !lit![2]]
     );
     test_pb!(
-        PBConstraint::new_lb(lits.clone(), 3),
+        PbConstraint::new_lb(lits.clone(), 3),
         &[!lit![0], !lit![1], lit![2]],
         &[!lit![0], lit![1], !lit![2]]
     );
@@ -154,17 +154,17 @@ fn pb_eq() {
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 3);
     test_pb!(
-        PBConstraint::new_eq(lits.clone(), 1),
+        PbConstraint::new_eq(lits.clone(), 1),
         &[lit![0], !lit![1], !lit![2]],
         &[!lit![0], lit![1], lit![2]]
     );
     test_pb!(
-        PBConstraint::new_eq(lits.clone(), 2),
+        PbConstraint::new_eq(lits.clone(), 2),
         &[!lit![0], lit![1], !lit![2]],
         &[!lit![0], !lit![1], !lit![2]]
     );
     test_pb!(
-        PBConstraint::new_eq(lits.clone(), 3),
+        PbConstraint::new_eq(lits.clone(), 3),
         &[!lit![0], !lit![1], lit![2]],
         &[!lit![0], lit![1], !lit![2]]
     );
@@ -192,12 +192,12 @@ fn pb_clause() {
     lits.insert(lit![1], 3);
     lits.insert(lit![2], 2);
     test_pb!(
-        PBConstraint::new_ub(lits.clone(), 6),
+        PbConstraint::new_ub(lits.clone(), 6),
         &[lit![0], !lit![1], !lit![2]],
         &[lit![0], lit![1], lit![2]]
     );
     test_pb!(
-        PBConstraint::new_lb(lits.clone(), 2),
+        PbConstraint::new_lb(lits.clone(), 2),
         &[lit![0], lit![1], !lit![2]],
         &[!lit![0], !lit![1], !lit![2]]
     );

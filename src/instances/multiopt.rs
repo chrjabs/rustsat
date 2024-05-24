@@ -5,7 +5,7 @@ use std::{io, path::Path};
 use crate::{
     encodings::{card, pb},
     types::{
-        constraints::{CardConstraint, PBConstraint},
+        constraints::{CardConstraint, PbConstraint},
         Assignment, Lit, Var, WClsIter, WLitIter,
     },
     RequiresClausal, RequiresSoftLits,
@@ -303,7 +303,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     where
         W: io::Write,
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         let (cnf, vm) = self
             .constrs

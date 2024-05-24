@@ -36,7 +36,7 @@ use crate::{
     clause,
     instances::ManageVars,
     types::{
-        constraints::{CardConstraint, CardEQConstr, CardLBConstr, CardUBConstr},
+        constraints::{CardConstraint, CardEqConstr, CardLbConstr, CardUbConstr},
         Clause, Lit,
     },
     utils::unreachable_err,
@@ -91,7 +91,7 @@ pub trait BoundUpper: Encode {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_ub_constr<Col>(
-        constr: CardUBConstr,
+        constr: CardUbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -147,7 +147,7 @@ pub trait BoundLower: Encode {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_lb_constr<Col>(
-        constr: CardLBConstr,
+        constr: CardLbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -212,7 +212,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_eq_constr<Col>(
-        constr: CardEQConstr,
+        constr: CardEqConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -246,9 +246,9 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Self: FromIterator<Lit> + Sized,
     {
         match constr {
-            CardConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
-            CardConstraint::LB(constr) => Self::encode_lb_constr(constr, collector, var_manager),
-            CardConstraint::EQ(constr) => Self::encode_eq_constr(constr, collector, var_manager),
+            CardConstraint::Ub(constr) => Self::encode_ub_constr(constr, collector, var_manager),
+            CardConstraint::Lb(constr) => Self::encode_lb_constr(constr, collector, var_manager),
+            CardConstraint::Eq(constr) => Self::encode_eq_constr(constr, collector, var_manager),
         }
     }
 }

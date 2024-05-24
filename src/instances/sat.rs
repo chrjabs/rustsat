@@ -7,7 +7,7 @@ use crate::{
     encodings::{atomics, card, pb, CollectClauses},
     lit,
     types::{
-        constraints::{CardConstraint, PBConstraint},
+        constraints::{CardConstraint, PbConstraint},
         Assignment, Clause, Lit, Var,
     },
     utils::{unreachable_err, LimitedIter},
@@ -332,7 +332,7 @@ impl Index<usize> for Cnf {
 pub struct Instance<VM: ManageVars = BasicVarManager> {
     pub(super) cnf: Cnf,
     pub(super) cards: Vec<CardConstraint>,
-    pub(super) pbs: Vec<PBConstraint>,
+    pub(super) pbs: Vec<PbConstraint>,
     pub(super) var_manager: VM,
 }
 
@@ -486,7 +486,7 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Adds a cardinality constraint
-    pub fn add_pb_constr(&mut self, pb: PBConstraint) {
+    pub fn add_pb_constr(&mut self, pb: PbConstraint) {
         for (l, _) in &pb {
             self.var_manager.mark_used(l.var());
         }
@@ -624,7 +624,7 @@ impl<VM: ManageVars> Instance<VM> {
     ) -> (Cnf, VM)
     where
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         self.into_cnf_with_encoders(card_encoder, pb_encoder)
     }
@@ -644,7 +644,7 @@ impl<VM: ManageVars> Instance<VM> {
     ) -> (Cnf, VM)
     where
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         self.convert_to_cnf_with_encoders(card_encoder, pb_encoder);
         (self.cnf, self.var_manager)
@@ -664,7 +664,7 @@ impl<VM: ManageVars> Instance<VM> {
         mut pb_encoder: PBEnc,
     ) where
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         self.cards
             .drain(..)
@@ -763,7 +763,7 @@ impl<VM: ManageVars> Instance<VM> {
     where
         W: io::Write,
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         let (cnf, vm) = self.into_cnf_with_encoders(card_encoder, pb_encoder);
         fio::dimacs::write_cnf_annotated(writer, &cnf, vm.n_used())

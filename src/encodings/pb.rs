@@ -42,7 +42,7 @@ use crate::{
     clause,
     instances::ManageVars,
     types::{
-        constraints::{PBConstraint, PBEQConstr, PBLBConstr, PBUBConstr},
+        constraints::{PbConstraint, PbEqConstr, PbLbConstr, PbUbConstr},
         Clause, Lit,
     },
     utils::unreachable_err,
@@ -115,7 +115,7 @@ pub trait BoundUpper: Encode {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_ub_constr<Col>(
-        constr: PBUBConstr,
+        constr: PbUbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -179,7 +179,7 @@ pub trait BoundLower: Encode {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_lb_constr<Col>(
-        constr: PBLBConstr,
+        constr: PbLbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -254,7 +254,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_eq_constr<Col>(
-        constr: PBEQConstr,
+        constr: PbEqConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -281,7 +281,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
     fn encode_constr<Col>(
-        constr: PBConstraint,
+        constr: PbConstraint,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> anyhow::Result<()>
@@ -290,9 +290,9 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Self: FromIterator<(Lit, usize)> + Sized,
     {
         match constr {
-            PBConstraint::UB(constr) => Self::encode_ub_constr(constr, collector, var_manager),
-            PBConstraint::LB(constr) => Self::encode_lb_constr(constr, collector, var_manager),
-            PBConstraint::EQ(constr) => Self::encode_eq_constr(constr, collector, var_manager),
+            PbConstraint::Ub(constr) => Self::encode_ub_constr(constr, collector, var_manager),
+            PbConstraint::Lb(constr) => Self::encode_lb_constr(constr, collector, var_manager),
+            PbConstraint::Eq(constr) => Self::encode_eq_constr(constr, collector, var_manager),
         }
     }
 }
@@ -439,7 +439,7 @@ pub fn new_default_inc_both() -> impl BoundBoth + Extend<(Lit, usize)> {
 ///
 /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
 pub fn default_encode_pb_constraint<Col: CollectClauses>(
-    constr: PBConstraint,
+    constr: PbConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
 ) -> Result<(), crate::OutOfMemory> {
@@ -452,7 +452,7 @@ pub fn default_encode_pb_constraint<Col: CollectClauses>(
 ///
 /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
 pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: CollectClauses>(
-    constr: PBConstraint,
+    constr: PbConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
 ) -> Result<(), crate::OutOfMemory> {
