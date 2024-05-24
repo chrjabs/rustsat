@@ -372,17 +372,17 @@ macro_rules! clause {
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum CardConstraint {
     /// An upper bound cardinality constraint
-    UB(CardUBConstr),
+    Ub(CardUbConstr),
     /// A lower bound cardinality constraint
-    LB(CardLBConstr),
+    Lb(CardLbConstr),
     /// An equality cardinality constraint
-    EQ(CardEQConstr),
+    Eq(CardEqConstr),
 }
 
 impl CardConstraint {
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
     pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
-        CardConstraint::UB(CardUBConstr {
+        CardConstraint::Ub(CardUbConstr {
             lits: lits.into_iter().collect(),
             b,
         })
@@ -390,7 +390,7 @@ impl CardConstraint {
 
     /// Constructs a new lower bound cardinality constraint (`sum of lits >= b`)
     pub fn new_lb<LI: LitIter>(lits: LI, b: usize) -> Self {
-        CardConstraint::LB(CardLBConstr {
+        CardConstraint::Lb(CardLbConstr {
             lits: lits.into_iter().collect(),
             b,
         })
@@ -398,7 +398,7 @@ impl CardConstraint {
 
     /// Constructs a new equality cardinality constraint (`sum of lits = b`)
     pub fn new_eq<LI: LitIter>(lits: LI, b: usize) -> Self {
-        CardConstraint::EQ(CardEQConstr {
+        CardConstraint::Eq(CardEqConstr {
             lits: lits.into_iter().collect(),
             b,
         })
@@ -407,18 +407,18 @@ impl CardConstraint {
     /// Adds literals to the cardinality constraint
     pub fn add<LI: LitIter>(&mut self, lits: LI) {
         match self {
-            CardConstraint::UB(constr) => constr.lits.extend(lits),
-            CardConstraint::LB(constr) => constr.lits.extend(lits),
-            CardConstraint::EQ(constr) => constr.lits.extend(lits),
+            CardConstraint::Ub(constr) => constr.lits.extend(lits),
+            CardConstraint::Lb(constr) => constr.lits.extend(lits),
+            CardConstraint::Eq(constr) => constr.lits.extend(lits),
         }
     }
 
     /// Changes the bound on the constraint
     pub fn change_bound(&mut self, b: usize) {
         match self {
-            CardConstraint::UB(constr) => constr.b = b,
-            CardConstraint::LB(constr) => constr.b = b,
-            CardConstraint::EQ(constr) => constr.b = b,
+            CardConstraint::Ub(constr) => constr.b = b,
+            CardConstraint::Lb(constr) => constr.b = b,
+            CardConstraint::Eq(constr) => constr.b = b,
         }
     }
 
@@ -426,9 +426,9 @@ impl CardConstraint {
     #[must_use]
     pub fn is_tautology(&self) -> bool {
         match self {
-            CardConstraint::UB(constr) => constr.is_tautology(),
-            CardConstraint::LB(constr) => constr.is_tautology(),
-            CardConstraint::EQ(_) => false,
+            CardConstraint::Ub(constr) => constr.is_tautology(),
+            CardConstraint::Lb(constr) => constr.is_tautology(),
+            CardConstraint::Eq(_) => false,
         }
     }
 
@@ -436,9 +436,9 @@ impl CardConstraint {
     #[must_use]
     pub fn is_unsat(&self) -> bool {
         match self {
-            CardConstraint::UB(_) => false,
-            CardConstraint::LB(constr) => constr.is_unsat(),
-            CardConstraint::EQ(constr) => constr.is_unsat(),
+            CardConstraint::Ub(_) => false,
+            CardConstraint::Lb(constr) => constr.is_unsat(),
+            CardConstraint::Eq(constr) => constr.is_unsat(),
         }
     }
 
@@ -446,9 +446,9 @@ impl CardConstraint {
     #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         match self {
-            CardConstraint::UB(_) => false,
-            CardConstraint::LB(constr) => constr.is_positive_assignment(),
-            CardConstraint::EQ(constr) => constr.is_positive_assignment(),
+            CardConstraint::Ub(_) => false,
+            CardConstraint::Lb(constr) => constr.is_positive_assignment(),
+            CardConstraint::Eq(constr) => constr.is_positive_assignment(),
         }
     }
 
@@ -456,9 +456,9 @@ impl CardConstraint {
     #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         match self {
-            CardConstraint::UB(constr) => constr.is_negative_assignment(),
-            CardConstraint::LB(_) => false,
-            CardConstraint::EQ(constr) => constr.is_negative_assignment(),
+            CardConstraint::Ub(constr) => constr.is_negative_assignment(),
+            CardConstraint::Lb(_) => false,
+            CardConstraint::Eq(constr) => constr.is_negative_assignment(),
         }
     }
 
@@ -466,9 +466,9 @@ impl CardConstraint {
     #[must_use]
     pub fn is_clause(&self) -> bool {
         match self {
-            CardConstraint::UB(constr) => constr.is_clause(),
-            CardConstraint::LB(constr) => constr.is_clause(),
-            CardConstraint::EQ(_) => false,
+            CardConstraint::Ub(constr) => constr.is_clause(),
+            CardConstraint::Lb(constr) => constr.is_clause(),
+            CardConstraint::Eq(_) => false,
         }
     }
 
@@ -483,9 +483,9 @@ impl CardConstraint {
             lits.sort_unstable();
         };
         match &mut self {
-            CardConstraint::UB(constr) => norm(&mut constr.lits),
-            CardConstraint::LB(constr) => norm(&mut constr.lits),
-            CardConstraint::EQ(constr) => norm(&mut constr.lits),
+            CardConstraint::Ub(constr) => norm(&mut constr.lits),
+            CardConstraint::Lb(constr) => norm(&mut constr.lits),
+            CardConstraint::Eq(constr) => norm(&mut constr.lits),
         };
         self
     }
@@ -494,9 +494,9 @@ impl CardConstraint {
     #[must_use]
     pub fn into_lits(self) -> Vec<Lit> {
         match self {
-            CardConstraint::UB(constr) => constr.lits,
-            CardConstraint::LB(constr) => constr.lits,
-            CardConstraint::EQ(constr) => constr.lits,
+            CardConstraint::Ub(constr) => constr.lits,
+            CardConstraint::Lb(constr) => constr.lits,
+            CardConstraint::Eq(constr) => constr.lits,
         }
     }
 
@@ -521,9 +521,9 @@ impl CardConstraint {
             return Err(RequiresClausal);
         }
         match self {
-            CardConstraint::UB(constr) => Ok(constr.lits.into_iter().map(Lit::not).collect()),
-            CardConstraint::LB(constr) => Ok(Clause::from_iter(constr.lits)),
-            CardConstraint::EQ(_) => unreachable!(),
+            CardConstraint::Ub(constr) => Ok(constr.lits.into_iter().map(Lit::not).collect()),
+            CardConstraint::Lb(constr) => Ok(Clause::from_iter(constr.lits)),
+            CardConstraint::Eq(_) => unreachable!(),
         }
     }
 
@@ -531,9 +531,9 @@ impl CardConstraint {
     #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, Lit> {
         match self {
-            CardConstraint::UB(constr) => constr.lits.iter(),
-            CardConstraint::LB(constr) => constr.lits.iter(),
-            CardConstraint::EQ(constr) => constr.lits.iter(),
+            CardConstraint::Ub(constr) => constr.lits.iter(),
+            CardConstraint::Lb(constr) => constr.lits.iter(),
+            CardConstraint::Eq(constr) => constr.lits.iter(),
         }
     }
 
@@ -541,9 +541,9 @@ impl CardConstraint {
     #[inline]
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Lit> {
         match self {
-            CardConstraint::UB(constr) => constr.lits.iter_mut(),
-            CardConstraint::LB(constr) => constr.lits.iter_mut(),
-            CardConstraint::EQ(constr) => constr.lits.iter_mut(),
+            CardConstraint::Ub(constr) => constr.lits.iter_mut(),
+            CardConstraint::Lb(constr) => constr.lits.iter_mut(),
+            CardConstraint::Eq(constr) => constr.lits.iter_mut(),
         }
     }
 
@@ -557,9 +557,9 @@ impl CardConstraint {
             cnt
         });
         match self {
-            CardConstraint::UB(constr) => count <= constr.b,
-            CardConstraint::LB(constr) => count >= constr.b,
-            CardConstraint::EQ(constr) => count == constr.b,
+            CardConstraint::Ub(constr) => count <= constr.b,
+            CardConstraint::Lb(constr) => count >= constr.b,
+            CardConstraint::Eq(constr) => count == constr.b,
         }
     }
 }
@@ -586,12 +586,18 @@ impl<'slf> IntoIterator for &'slf mut CardConstraint {
 
 /// An upper bound cardinality constraint (`sum of lits <= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub struct CardUBConstr {
+pub struct CardUbConstr {
     lits: Vec<Lit>,
     b: usize,
 }
 
-impl CardUBConstr {
+#[deprecated(
+    since = "0.6.0",
+    note = "CardUBConstr has been renamed to CardUbConstr and will be removed in a future release"
+)]
+pub use CardUbConstr as CardUBConstr;
+
+impl CardUbConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
     #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -624,12 +630,18 @@ impl CardUBConstr {
 
 /// A lower bound cardinality constraint (`sum of lits >= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub struct CardLBConstr {
+pub struct CardLbConstr {
     lits: Vec<Lit>,
     b: usize,
 }
 
-impl CardLBConstr {
+#[deprecated(
+    since = "0.6.0",
+    note = "CardLBConstr has been renamed to CardLbConstr and will be removed in a future release"
+)]
+pub use CardLbConstr as CardLBConstr;
+
+impl CardLbConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
     #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -668,12 +680,18 @@ impl CardLBConstr {
 
 /// An equality cardinality constraint (`sum of lits = b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub struct CardEQConstr {
+pub struct CardEqConstr {
     lits: Vec<Lit>,
     b: usize,
 }
 
-impl CardEQConstr {
+#[deprecated(
+    since = "0.6.0",
+    note = "CardEQConstr has been renamed to CardEqConstr and will be removed in a future release"
+)]
+pub use CardEqConstr as CardEQConstr;
+
+impl CardEqConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
     #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -706,7 +724,7 @@ impl CardEQConstr {
 
 /// Errors when converting pseudo-boolean to cardinality constraints
 #[derive(Error, Debug)]
-pub enum PBToCardError {
+pub enum PbToCardError {
     /// the pseudo-boolean constraint is not a cardinality constraint
     #[error("the PB constraint is not a cardinality constraint")]
     NotACard,
@@ -718,20 +736,32 @@ pub enum PBToCardError {
     Tautology,
 }
 
+#[deprecated(
+    since = "0.6.0",
+    note = "PBToCardError has been renamed to PbToCardError and will be removed in a future release"
+)]
+pub use PbToCardError as PBToCardError;
+
 /// Type representing a pseudo-boolean constraint. When literals are added to a
 /// constraint, the constraint is transformed so that all coefficients are
 /// positive.
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub enum PBConstraint {
+pub enum PbConstraint {
     /// An upper bound pseudo-boolean constraint
-    UB(PBUBConstr),
+    Ub(PbUbConstr),
     /// A lower bound pseudo-boolean constraint
-    LB(PBLBConstr),
+    Lb(PbLbConstr),
     /// An equality pseudo-boolean constraint
-    EQ(PBEQConstr),
+    Eq(PbEqConstr),
 }
 
-impl PBConstraint {
+#[deprecated(
+    since = "0.6.0",
+    note = "PBConstraint has been renamed to PbConstraint and will be removed in a future release"
+)]
+pub use PbConstraint as PBConstraint;
+
+impl PbConstraint {
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
     fn convert_input_lits<LI: IWLitIter>(lits: LI) -> (impl WLitIter, usize, isize) {
         let mut b_add = 0;
@@ -754,8 +784,8 @@ impl PBConstraint {
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
     pub fn new_ub<LI: IWLitIter>(lits: LI, b: isize) -> Self {
-        let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
-        PBConstraint::UB(PBUBConstr {
+        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
+        PbConstraint::Ub(PbUbConstr {
             lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
@@ -764,8 +794,8 @@ impl PBConstraint {
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
     pub fn new_lb<LI: IWLitIter>(lits: LI, b: isize) -> Self {
-        let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
-        PBConstraint::LB(PBLBConstr {
+        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
+        PbConstraint::Lb(PbLbConstr {
             lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
@@ -774,8 +804,8 @@ impl PBConstraint {
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
     pub fn new_eq<LI: IWLitIter>(lits: LI, b: isize) -> Self {
-        let (lits, weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
-        PBConstraint::EQ(PBEQConstr {
+        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
+        PbConstraint::Eq(PbEqConstr {
             lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
@@ -785,15 +815,15 @@ impl PBConstraint {
     /// Gets mutable references to the underlying data
     fn get_data(&mut self) -> (&mut Vec<(Lit, usize)>, &mut usize, &mut isize) {
         match self {
-            PBConstraint::UB(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
-            PBConstraint::LB(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
-            PBConstraint::EQ(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
+            PbConstraint::Ub(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
+            PbConstraint::Lb(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
+            PbConstraint::Eq(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
         }
     }
 
     /// Adds literals to the cardinality constraint
     pub fn add<LI: IWLitIter>(&mut self, lits: LI) {
-        let (lits, add_weight_sum, b_add) = PBConstraint::convert_input_lits(lits);
+        let (lits, add_weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
         let (data_lits, weight_sum, b) = self.get_data();
         data_lits.extend(lits);
         *weight_sum += add_weight_sum;
@@ -804,9 +834,9 @@ impl PBConstraint {
     #[must_use]
     pub fn is_tautology(&self) -> bool {
         match self {
-            PBConstraint::UB(constr) => constr.is_tautology(),
-            PBConstraint::LB(constr) => constr.is_tautology(),
-            PBConstraint::EQ(_) => false,
+            PbConstraint::Ub(constr) => constr.is_tautology(),
+            PbConstraint::Lb(constr) => constr.is_tautology(),
+            PbConstraint::Eq(_) => false,
         }
     }
 
@@ -814,9 +844,9 @@ impl PBConstraint {
     #[must_use]
     pub fn is_unsat(&self) -> bool {
         match self {
-            PBConstraint::UB(constr) => constr.is_unsat(),
-            PBConstraint::LB(constr) => constr.is_unsat(),
-            PBConstraint::EQ(constr) => constr.is_unsat(),
+            PbConstraint::Ub(constr) => constr.is_unsat(),
+            PbConstraint::Lb(constr) => constr.is_unsat(),
+            PbConstraint::Eq(constr) => constr.is_unsat(),
         }
     }
 
@@ -824,9 +854,9 @@ impl PBConstraint {
     #[must_use]
     pub fn is_positive_assignment(&self) -> bool {
         match self {
-            PBConstraint::UB(_) => false,
-            PBConstraint::LB(constr) => constr.is_positive_assignment(),
-            PBConstraint::EQ(constr) => constr.is_positive_assignment(),
+            PbConstraint::Ub(_) => false,
+            PbConstraint::Lb(constr) => constr.is_positive_assignment(),
+            PbConstraint::Eq(constr) => constr.is_positive_assignment(),
         }
     }
 
@@ -834,9 +864,9 @@ impl PBConstraint {
     #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         match self {
-            PBConstraint::UB(constr) => constr.is_negative_assignment(),
-            PBConstraint::LB(_) => false,
-            PBConstraint::EQ(constr) => constr.is_negative_assignment(),
+            PbConstraint::Ub(constr) => constr.is_negative_assignment(),
+            PbConstraint::Lb(_) => false,
+            PbConstraint::Eq(constr) => constr.is_negative_assignment(),
         }
     }
 
@@ -844,9 +874,9 @@ impl PBConstraint {
     #[must_use]
     pub fn is_card(&self) -> bool {
         match self {
-            PBConstraint::UB(constr) => constr.find_unit_weight().is_some(),
-            PBConstraint::LB(constr) => constr.find_unit_weight().is_some(),
-            PBConstraint::EQ(constr) => constr.find_unit_weight().is_some(),
+            PbConstraint::Ub(constr) => constr.find_unit_weight().is_some(),
+            PbConstraint::Lb(constr) => constr.find_unit_weight().is_some(),
+            PbConstraint::Eq(constr) => constr.find_unit_weight().is_some(),
         }
     }
 
@@ -854,9 +884,9 @@ impl PBConstraint {
     #[must_use]
     pub fn is_clause(&self) -> bool {
         match self {
-            PBConstraint::UB(constr) => constr.is_clause(),
-            PBConstraint::LB(constr) => constr.is_clause(),
-            PBConstraint::EQ(_) => false,
+            PbConstraint::Ub(constr) => constr.is_clause(),
+            PbConstraint::Lb(constr) => constr.is_clause(),
+            PbConstraint::Eq(_) => false,
         }
     }
 
@@ -885,15 +915,15 @@ impl PBConstraint {
             merged
         };
         match self {
-            PBConstraint::UB(constr) => PBConstraint::UB(PBUBConstr {
+            PbConstraint::Ub(constr) => PbConstraint::Ub(PbUbConstr {
                 lits: norm(constr.lits),
                 ..constr
             }),
-            PBConstraint::LB(constr) => PBConstraint::LB(PBLBConstr {
+            PbConstraint::Lb(constr) => PbConstraint::Lb(PbLbConstr {
                 lits: norm(constr.lits),
                 ..constr
             }),
-            PBConstraint::EQ(constr) => PBConstraint::EQ(PBEQConstr {
+            PbConstraint::Eq(constr) => PbConstraint::Eq(PbEqConstr {
                 lits: norm(constr.lits),
                 ..constr
             }),
@@ -907,7 +937,7 @@ impl PBConstraint {
     )]
     #[allow(clippy::missing_errors_doc)]
     #[allow(clippy::wrong_self_convention)]
-    pub fn as_card_constr(self) -> Result<CardConstraint, PBToCardError> {
+    pub fn as_card_constr(self) -> Result<CardConstraint, PbToCardError> {
         self.into_card_constr()
     }
 
@@ -917,32 +947,32 @@ impl PBConstraint {
     ///
     /// If the constraint is not a cardinality constraint, including when it is a tautology or
     /// unsat, returns [`PBToCardError`]
-    pub fn into_card_constr(self) -> Result<CardConstraint, PBToCardError> {
+    pub fn into_card_constr(self) -> Result<CardConstraint, PbToCardError> {
         if self.is_tautology() {
-            return Err(PBToCardError::Tautology);
+            return Err(PbToCardError::Tautology);
         }
         if self.is_unsat() {
-            return Err(PBToCardError::Unsat);
+            return Err(PbToCardError::Unsat);
         }
         Ok(match self {
-            PBConstraint::UB(constr) => {
+            PbConstraint::Ub(constr) => {
                 let unit_weight = constr.find_unit_weight();
                 // since this is not unsat, b is non-negative
                 let b = constr.b.unsigned_abs();
                 match unit_weight {
-                    None => return Err(PBToCardError::NotACard),
+                    None => return Err(PbToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_ub(lits, b / unit_weight)
                     }
                 }
             }
-            PBConstraint::LB(constr) => {
+            PbConstraint::Lb(constr) => {
                 let unit_weight = constr.find_unit_weight();
                 // since this is not a tautology, b is non-negative
                 let b = constr.b.unsigned_abs();
                 match unit_weight {
-                    None => return Err(PBToCardError::NotACard),
+                    None => return Err(PbToCardError::NotACard),
                     Some(unit_weight) => {
                         let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_lb(
@@ -952,15 +982,15 @@ impl PBConstraint {
                     }
                 }
             }
-            PBConstraint::EQ(constr) => {
+            PbConstraint::Eq(constr) => {
                 let unit_weight = constr.find_unit_weight();
                 // since this is not unsat, b is non-negative
                 let b = constr.b.unsigned_abs();
                 match unit_weight {
-                    None => return Err(PBToCardError::NotACard),
+                    None => return Err(PbToCardError::NotACard),
                     Some(unit_weight) => {
                         if b % unit_weight != 0 {
-                            return Err(PBToCardError::Unsat);
+                            return Err(PbToCardError::Unsat);
                         }
                         let lits = constr.lits.into_iter().map(|(l, _)| l);
                         CardConstraint::new_eq(lits, b / unit_weight)
@@ -991,9 +1021,9 @@ impl PBConstraint {
             return Err(RequiresClausal);
         }
         match self {
-            PBConstraint::UB(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| !lit).collect()),
-            PBConstraint::LB(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| lit).collect()),
-            PBConstraint::EQ(_) => unreachable!(),
+            PbConstraint::Ub(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| !lit).collect()),
+            PbConstraint::Lb(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| lit).collect()),
+            PbConstraint::Eq(_) => unreachable!(),
         }
     }
 
@@ -1001,9 +1031,9 @@ impl PBConstraint {
     #[must_use]
     pub fn into_lits(self) -> impl WLitIter {
         match self {
-            PBConstraint::UB(constr) => constr.lits,
-            PBConstraint::LB(constr) => constr.lits,
-            PBConstraint::EQ(constr) => constr.lits,
+            PbConstraint::Ub(constr) => constr.lits,
+            PbConstraint::Lb(constr) => constr.lits,
+            PbConstraint::Eq(constr) => constr.lits,
         }
     }
 
@@ -1011,9 +1041,9 @@ impl PBConstraint {
     #[inline]
     pub fn iter(&self) -> std::slice::Iter<'_, (Lit, usize)> {
         match self {
-            PBConstraint::UB(constr) => constr.lits.iter(),
-            PBConstraint::LB(constr) => constr.lits.iter(),
-            PBConstraint::EQ(constr) => constr.lits.iter(),
+            PbConstraint::Ub(constr) => constr.lits.iter(),
+            PbConstraint::Lb(constr) => constr.lits.iter(),
+            PbConstraint::Eq(constr) => constr.lits.iter(),
         }
     }
 
@@ -1021,9 +1051,9 @@ impl PBConstraint {
     #[inline]
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, (Lit, usize)> {
         match self {
-            PBConstraint::UB(constr) => constr.lits.iter_mut(),
-            PBConstraint::LB(constr) => constr.lits.iter_mut(),
-            PBConstraint::EQ(constr) => constr.lits.iter_mut(),
+            PbConstraint::Ub(constr) => constr.lits.iter_mut(),
+            PbConstraint::Lb(constr) => constr.lits.iter_mut(),
+            PbConstraint::Eq(constr) => constr.lits.iter_mut(),
         }
     }
 
@@ -1037,21 +1067,21 @@ impl PBConstraint {
             sum
         });
         match self {
-            PBConstraint::UB(constr) => {
+            PbConstraint::Ub(constr) => {
                 if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
                     sum <= constr.b
                 } else {
                     false
                 }
             }
-            PBConstraint::LB(constr) => {
+            PbConstraint::Lb(constr) => {
                 if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
                     sum >= constr.b
                 } else {
                     true
                 }
             }
-            PBConstraint::EQ(constr) => {
+            PbConstraint::Eq(constr) => {
                 if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
                     sum == constr.b
                 } else {
@@ -1062,7 +1092,7 @@ impl PBConstraint {
     }
 }
 
-impl<'slf> IntoIterator for &'slf PBConstraint {
+impl<'slf> IntoIterator for &'slf PbConstraint {
     type Item = &'slf (Lit, usize);
 
     type IntoIter = std::slice::Iter<'slf, (Lit, usize)>;
@@ -1072,7 +1102,7 @@ impl<'slf> IntoIterator for &'slf PBConstraint {
     }
 }
 
-impl<'slf> IntoIterator for &'slf mut PBConstraint {
+impl<'slf> IntoIterator for &'slf mut PbConstraint {
     type Item = &'slf mut (Lit, usize);
 
     type IntoIter = std::slice::IterMut<'slf, (Lit, usize)>;
@@ -1084,13 +1114,19 @@ impl<'slf> IntoIterator for &'slf mut PBConstraint {
 
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub struct PBUBConstr {
+pub struct PbUbConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
 }
 
-impl PBUBConstr {
+#[deprecated(
+    since = "0.6.0",
+    note = "PBUBConstr has been renamed to PbUbConstr and will be removed in a future release"
+)]
+pub use PbUbConstr as PBUBConstr;
+
+impl PbUbConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
     #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
@@ -1168,13 +1204,19 @@ impl PBUBConstr {
 
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub struct PBLBConstr {
+pub struct PbLbConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
 }
 
-impl PBLBConstr {
+#[deprecated(
+    since = "0.6.0",
+    note = "PBLBConstr has been renamed to PbLbConstr and will be removed in a future release"
+)]
+pub use PbLbConstr as PBLBConstr;
+
+impl PbLbConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
     #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
@@ -1251,13 +1293,19 @@ impl PBLBConstr {
 
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub struct PBEQConstr {
+pub struct PbEqConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
     b: isize,
 }
 
-impl PBEQConstr {
+#[deprecated(
+    since = "0.6.0",
+    note = "PBEQConstr has been renamed to PbEqConstr and will be removed in a future release"
+)]
+pub use PbEqConstr as PBEQConstr;
+
+impl PbEqConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
     #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
@@ -1318,7 +1366,7 @@ impl PBEQConstr {
 
 #[cfg(test)]
 mod tests {
-    use super::{CardConstraint, PBConstraint};
+    use super::{CardConstraint, PbConstraint};
     use crate::{lit, types::Assignment, var};
 
     #[test]
@@ -1438,63 +1486,63 @@ mod tests {
     #[test]
     fn pb_is_tautology() {
         let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
-        assert!(PBConstraint::new_ub(lits.clone(), 6).is_tautology());
-        assert!(!PBConstraint::new_ub(lits.clone(), 5).is_tautology());
-        assert!(PBConstraint::new_lb(lits.clone(), 0).is_tautology());
-        assert!(!PBConstraint::new_lb(lits.clone(), 1).is_tautology());
-        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_tautology());
+        assert!(PbConstraint::new_ub(lits.clone(), 6).is_tautology());
+        assert!(!PbConstraint::new_ub(lits.clone(), 5).is_tautology());
+        assert!(PbConstraint::new_lb(lits.clone(), 0).is_tautology());
+        assert!(!PbConstraint::new_lb(lits.clone(), 1).is_tautology());
+        assert!(!PbConstraint::new_eq(lits.clone(), 2).is_tautology());
     }
 
     #[test]
     fn pb_is_unsat() {
         let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
-        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_unsat());
-        assert!(!PBConstraint::new_lb(lits.clone(), 6).is_unsat());
-        assert!(PBConstraint::new_lb(lits.clone(), 7).is_unsat());
-        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_unsat());
-        assert!(PBConstraint::new_eq(lits.clone(), 7).is_unsat());
+        assert!(!PbConstraint::new_ub(lits.clone(), 1).is_unsat());
+        assert!(!PbConstraint::new_lb(lits.clone(), 6).is_unsat());
+        assert!(PbConstraint::new_lb(lits.clone(), 7).is_unsat());
+        assert!(!PbConstraint::new_eq(lits.clone(), 2).is_unsat());
+        assert!(PbConstraint::new_eq(lits.clone(), 7).is_unsat());
     }
 
     #[test]
     fn pb_is_positive_assignment() {
         let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
-        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_positive_assignment());
-        assert!(PBConstraint::new_lb(lits.clone(), 6).is_positive_assignment());
-        assert!(!PBConstraint::new_lb(lits.clone(), 2).is_positive_assignment());
-        assert!(PBConstraint::new_eq(lits.clone(), 6).is_positive_assignment());
-        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_positive_assignment());
+        assert!(!PbConstraint::new_ub(lits.clone(), 1).is_positive_assignment());
+        assert!(PbConstraint::new_lb(lits.clone(), 6).is_positive_assignment());
+        assert!(!PbConstraint::new_lb(lits.clone(), 2).is_positive_assignment());
+        assert!(PbConstraint::new_eq(lits.clone(), 6).is_positive_assignment());
+        assert!(!PbConstraint::new_eq(lits.clone(), 2).is_positive_assignment());
     }
 
     #[test]
     fn pb_is_negative_assignment() {
         let lits = vec![(lit![0], 2), (lit![1], 2), (lit![2], 3)];
-        assert!(PBConstraint::new_ub(lits.clone(), 1).is_negative_assignment());
-        assert!(!PBConstraint::new_ub(lits.clone(), 2).is_negative_assignment());
-        assert!(!PBConstraint::new_lb(lits.clone(), 2).is_negative_assignment());
-        assert!(PBConstraint::new_eq(lits.clone(), 0).is_negative_assignment());
-        assert!(!PBConstraint::new_eq(lits.clone(), 1).is_negative_assignment());
+        assert!(PbConstraint::new_ub(lits.clone(), 1).is_negative_assignment());
+        assert!(!PbConstraint::new_ub(lits.clone(), 2).is_negative_assignment());
+        assert!(!PbConstraint::new_lb(lits.clone(), 2).is_negative_assignment());
+        assert!(PbConstraint::new_eq(lits.clone(), 0).is_negative_assignment());
+        assert!(!PbConstraint::new_eq(lits.clone(), 1).is_negative_assignment());
     }
 
     #[test]
     fn pb_is_card() {
         let lits = vec![(lit![0], 2), (lit![1], 2), (lit![2], 2)];
-        assert!(PBConstraint::new_ub(lits.clone(), 1).is_card());
-        assert!(PBConstraint::new_lb(lits.clone(), 3).is_card());
-        assert!(PBConstraint::new_eq(lits.clone(), 2).is_card());
+        assert!(PbConstraint::new_ub(lits.clone(), 1).is_card());
+        assert!(PbConstraint::new_lb(lits.clone(), 3).is_card());
+        assert!(PbConstraint::new_eq(lits.clone(), 2).is_card());
         let lits = vec![(lit![0], 2), (lit![1], 1), (lit![2], 2)];
-        assert!(!PBConstraint::new_ub(lits.clone(), 1).is_card());
-        assert!(!PBConstraint::new_lb(lits.clone(), 3).is_card());
-        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_card());
+        assert!(!PbConstraint::new_ub(lits.clone(), 1).is_card());
+        assert!(!PbConstraint::new_lb(lits.clone(), 3).is_card());
+        assert!(!PbConstraint::new_eq(lits.clone(), 2).is_card());
     }
 
     #[test]
     fn pb_is_clause() {
         let lits = vec![(lit![0], 2), (lit![1], 3), (lit![2], 2)];
-        assert!(PBConstraint::new_ub(lits.clone(), 6).is_clause());
-        assert!(PBConstraint::new_lb(lits.clone(), 2).is_clause());
-        assert!(!PBConstraint::new_ub(lits.clone(), 7).is_clause());
-        assert!(!PBConstraint::new_ub(lits.clone(), 4).is_clause());
-        assert!(!PBConstraint::new_lb(lits.clone(), 3).is_clause());
-        assert!(!PBConstraint::new_eq(lits.clone(), 2).is_card());
+        assert!(PbConstraint::new_ub(lits.clone(), 6).is_clause());
+        assert!(PbConstraint::new_lb(lits.clone(), 2).is_clause());
+        assert!(!PbConstraint::new_ub(lits.clone(), 7).is_clause());
+        assert!(!PbConstraint::new_ub(lits.clone(), 4).is_clause());
+        assert!(!PbConstraint::new_lb(lits.clone(), 3).is_clause());
+        assert!(!PbConstraint::new_eq(lits.clone(), 2).is_card());
     }
 }

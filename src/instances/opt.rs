@@ -6,7 +6,7 @@ use crate::{
     clause,
     encodings::{card, pb},
     types::{
-        constraints::{CardConstraint, PBConstraint},
+        constraints::{CardConstraint, PbConstraint},
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
     },
     utils::unreachable_none,
@@ -1257,7 +1257,7 @@ impl<VM: ManageVars> Instance<VM> {
     where
         W: io::Write,
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
     {
         let (cnf, vm) = self
             .constrs

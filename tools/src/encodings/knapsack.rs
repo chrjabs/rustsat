@@ -83,7 +83,7 @@ impl Encoding {
                 .map(|item| (vm.new_var().pos_lit(), item.weight as isize)),
             data.capacity as isize,
         ) {
-            PBConstraint::UB(constr) => constr,
+            PBConstraint::Ub(constr) => constr,
             _ => panic!(),
         };
         let mut cap_cnf = Cnf::new();

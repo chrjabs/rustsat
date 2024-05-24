@@ -11,7 +11,7 @@
 use crate::{
     instances::{ManageVars, SatInstance},
     types::{
-        constraints::{CardConstraint, PBConstraint},
+        constraints::{CardConstraint, PbConstraint},
         Clause, Lit, Var,
     },
 };
@@ -81,7 +81,7 @@ enum OpbData {
     /// A comment
     Cmt(String),
     /// A constraint
-    Constr(PBConstraint),
+    Constr(PbConstraint),
     /// An objective
     Obj(
         #[cfg(feature = "optimization")] Objective,
@@ -289,7 +289,7 @@ fn opb_ending(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parses an OPB constraint
-fn constraint(input: &str, opts: Options) -> IResult<&str, PBConstraint> {
+fn constraint(input: &str, opts: Options) -> IResult<&str, PbConstraint> {
     map_res(
         tuple((
             |i| weighted_lit_sum(i, opts),
@@ -301,11 +301,11 @@ fn constraint(input: &str, opts: Options) -> IResult<&str, PBConstraint> {
         |(wls, op, _, b, _)| {
             let lits = wls.into_iter();
             Ok::<_, ()>(match op {
-                OpbOperator::LE => PBConstraint::new_ub(lits, b),
-                OpbOperator::GE => PBConstraint::new_lb(lits, b),
-                OpbOperator::LT => PBConstraint::new_ub(lits, b + 1),
-                OpbOperator::GT => PBConstraint::new_lb(lits, b + 1),
-                OpbOperator::EQ => PBConstraint::new_eq(lits, b),
+                OpbOperator::LE => PbConstraint::new_ub(lits, b),
+                OpbOperator::GE => PbConstraint::new_lb(lits, b),
+                OpbOperator::LT => PbConstraint::new_ub(lits, b + 1),
+                OpbOperator::GT => PbConstraint::new_lb(lits, b + 1),
+                OpbOperator::EQ => PbConstraint::new_eq(lits, b),
             })
         },
     )(input)
@@ -553,7 +553,7 @@ fn write_card<W: Write>(
     let neg_lit = |l: &Lit| !*l;
     if opts.no_negated_lits {
         let (lits, bound, op): (&mut dyn Iterator<Item = Lit>, _, _) = match card {
-            CardConstraint::UB(constr) => {
+            CardConstraint::Ub(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 let bound = isize::try_from(lits.len())
                     .expect("cannot handle more than `isize::MAX` literals")
@@ -563,7 +563,7 @@ fn write_card<W: Write>(
                 iter_a = lits.iter().map(neg_lit);
                 (&mut iter_a, bound, ">=")
             }
-            CardConstraint::LB(constr) => {
+            CardConstraint::Lb(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (
@@ -572,7 +572,7 @@ fn write_card<W: Write>(
                     ">=",
                 )
             }
-            CardConstraint::EQ(constr) => {
+            CardConstraint::Eq(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (
@@ -594,7 +594,7 @@ fn write_card<W: Write>(
         writeln!(writer, "{} {};", op, bound - offset)
     } else {
         let (lits, bound, op): (&mut dyn Iterator<Item = Lit>, _, _) = match card {
-            CardConstraint::UB(constr) => {
+            CardConstraint::Ub(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 let bound = isize::try_from(lits.len())
                     .expect("cannot handle more than `isize::MAX` literals")
@@ -604,7 +604,7 @@ fn write_card<W: Write>(
                 iter_a = lits.iter().map(neg_lit);
                 (&mut iter_a, bound, ">=")
             }
-            CardConstraint::LB(constr) => {
+            CardConstraint::Lb(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (
@@ -613,7 +613,7 @@ fn write_card<W: Write>(
                     ">=",
                 )
             }
-            CardConstraint::EQ(constr) => {
+            CardConstraint::Eq(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (
@@ -644,13 +644,13 @@ fn write_card<W: Write>(
 ///
 /// - On weights larger than [`isize::MAX`]
 /// - On upper bound constraint with weight sum larger than [`isize::MAX`]
-fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Result<(), io::Error> {
+fn write_pb<W: Write>(writer: &mut W, pb: &PbConstraint, opts: Options) -> Result<(), io::Error> {
     let mut iter_a;
     let mut iter_b;
     let neg_lit = |(l, w): &(Lit, usize)| (!*l, *w);
     if opts.no_negated_lits {
         let (lits, bound, op): (&mut dyn Iterator<Item = (Lit, usize)>, _, _) = match pb {
-            PBConstraint::UB(constr) => {
+            PbConstraint::Ub(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
                 // Flip operator by negating literals
@@ -663,12 +663,12 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
                     ">=",
                 )
             }
-            PBConstraint::LB(constr) => {
+            PbConstraint::Lb(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (&mut iter_b, *bound, ">=")
             }
-            PBConstraint::EQ(constr) => {
+            PbConstraint::Eq(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (&mut iter_b, *bound, "=")
@@ -688,7 +688,7 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
         writeln!(writer, "{} {};", op, bound - offset)
     } else {
         let (lits, bound, op): (&mut dyn Iterator<Item = (Lit, usize)>, _, _) = match pb {
-            PBConstraint::UB(constr) => {
+            PbConstraint::Ub(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
                 // Flip operator by negating literals
@@ -701,12 +701,12 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Resul
                     ">=",
                 )
             }
-            PBConstraint::LB(constr) => {
+            PbConstraint::Lb(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (&mut iter_b, *bound, ">=")
             }
-            PBConstraint::EQ(constr) => {
+            PbConstraint::Eq(constr) => {
                 let (lits, bound) = constr.decompose_ref();
                 iter_b = lits.iter().copied();
                 (&mut iter_b, *bound, "=")
@@ -781,7 +781,7 @@ mod test {
         clause,
         instances::{BasicVarManager, SatInstance},
         lit,
-        types::constraints::{CardConstraint, PBConstraint},
+        types::constraints::{CardConstraint, PbConstraint},
         var,
     };
     use nom::error::{Error as NomError, ErrorKind};
@@ -904,7 +904,7 @@ mod test {
 
     #[test]
     fn parse_constraint() {
-        if let Ok((rest, PBConstraint::UB(constr))) =
+        if let Ok((rest, PbConstraint::Ub(constr))) =
             constraint("3 x1 -2 ~x2 <= 4;", Options::default())
         {
             assert_eq!(rest, "");
@@ -957,7 +957,7 @@ mod test {
             Ok(("", OpbData::Cmt(String::from("* test\n"))))
         );
         let lits = vec![(lit![0], 3), (!lit![1], -2)];
-        let should_be_constr = PBConstraint::new_ub(lits, 4);
+        let should_be_constr = PbConstraint::new_ub(lits, 4);
         assert_eq!(
             opb_data("3 x1 -2 ~x2 <= 4;\n", Options::default()),
             Ok(("", OpbData::Constr(should_be_constr)))
@@ -1046,19 +1046,19 @@ mod test {
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_ub(lits.clone(), 2));
         write_parse_inst_test(&in_inst, true_inst, Options::default());
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_eq(lits.clone(), 2));
         write_parse_inst_test(&in_inst, true_inst, Options::default());
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_lb(lits.clone(), 2));
         write_parse_inst_test(&in_inst, true_inst, Options::default());
     }
 
@@ -1080,19 +1080,19 @@ mod test {
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_ub(lits.clone(), 2));
         write_parse_inst_test(&in_inst, true_inst, alt_opb_opts);
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_eq(lits.clone(), 2));
         write_parse_inst_test(&in_inst, true_inst, alt_opb_opts);
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_lb(lits.clone(), 2));
         write_parse_inst_test(&in_inst, true_inst, alt_opb_opts);
     }
 
@@ -1101,15 +1101,15 @@ mod test {
         let lits = vec![(!lit![6], 3), (!lit![7], -5), (lit![8], 2), (lit![9], -4)];
 
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_ub(lits.clone(), 2));
         write_parse_inst_test(&true_inst, true_inst.clone(), Options::default());
 
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_eq(lits.clone(), 2));
         write_parse_inst_test(&true_inst, true_inst.clone(), Options::default());
 
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_lb(lits.clone(), 2));
         write_parse_inst_test(&true_inst, true_inst.clone(), Options::default());
     }
 
@@ -1123,15 +1123,15 @@ mod test {
         };
 
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_ub(lits.clone(), 2));
         write_parse_inst_test(&true_inst, true_inst.clone(), alt_opb_opts);
 
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_eq(lits.clone(), 2));
         write_parse_inst_test(&true_inst, true_inst.clone(), alt_opb_opts);
 
         let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
+        true_inst.add_pb_constr(PbConstraint::new_lb(lits.clone(), 2));
         write_parse_inst_test(&true_inst, true_inst.clone(), alt_opb_opts);
     }
 }
