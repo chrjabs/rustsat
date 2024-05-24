@@ -141,15 +141,15 @@ impl Clause {
 
     /// Removes the first occurrence of a literal from the clause
     /// Returns true if an occurrence was found
-    pub fn remove(&mut self, lit: &Lit) -> bool {
+    pub fn remove(&mut self, lit: Lit) -> bool {
         self.modified = true;
-        self.cl.remove(&lit.0)
+        self.cl.remove(lit.0)
     }
 
     /// Removes all occurrences of a literal from the clause
-    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
+    pub fn remove_thorough(&mut self, lit: Lit) -> bool {
         self.modified = true;
-        self.cl.remove_thorough(&lit.0)
+        self.cl.remove_thorough(lit.0)
     }
 
     #[new]

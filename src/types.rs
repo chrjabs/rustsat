@@ -133,7 +133,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn idx(&self) -> usize {
+    pub fn idx(self) -> usize {
         self.idx as usize
     }
 
@@ -148,7 +148,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn idx32(&self) -> u32 {
+    pub fn idx32(self) -> u32 {
         self.idx
     }
 
@@ -384,21 +384,21 @@ impl Lit {
     /// Gets the variable index of the literal
     #[inline]
     #[must_use]
-    pub fn vidx(&self) -> usize {
+    pub fn vidx(self) -> usize {
         (self.lidx >> 1) as usize
     }
 
     /// Gets the 32bit variable index of the literal
     #[inline]
     #[must_use]
-    pub fn vidx32(&self) -> u32 {
+    pub fn vidx32(self) -> u32 {
         self.lidx >> 1
     }
 
     /// Gets a literal representation for indexing data structures
     #[inline]
     #[must_use]
-    pub fn lidx(&self) -> usize {
+    pub fn lidx(self) -> usize {
         self.lidx as usize
     }
 
@@ -414,21 +414,21 @@ impl Lit {
     /// ```
     #[inline]
     #[must_use]
-    pub fn var(&self) -> Var {
+    pub fn var(self) -> Var {
         Var::new_unchecked(self.vidx32())
     }
 
     /// True if the literal is positive.
     #[inline]
     #[must_use]
-    pub fn is_pos(&self) -> bool {
+    pub fn is_pos(self) -> bool {
         (self.lidx & 1u32) == 0
     }
 
     /// True if the literal is negated.
     #[inline]
     #[must_use]
-    pub fn is_neg(&self) -> bool {
+    pub fn is_neg(self) -> bool {
         (self.lidx & 1u32) == 1
     }
 

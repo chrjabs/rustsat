@@ -222,9 +222,9 @@ impl Clause {
 
     /// Removes the first occurrence of a literal from the clause
     /// Returns true if an occurrence was found
-    pub fn remove(&mut self, lit: &Lit) -> bool {
+    pub fn remove(&mut self, lit: Lit) -> bool {
         for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
+            if *l == lit {
                 self.lits.swap_remove(i);
                 return true;
             }
@@ -233,10 +233,10 @@ impl Clause {
     }
 
     /// Removes all occurrences of a literal from the clause
-    pub fn remove_thorough(&mut self, lit: &Lit) -> bool {
+    pub fn remove_thorough(&mut self, lit: Lit) -> bool {
         let mut idxs = Vec::new();
         for (i, l) in self.lits.iter().enumerate() {
-            if l == lit {
+            if *l == lit {
                 idxs.push(i);
             }
         }
@@ -506,6 +506,7 @@ impl CardConstraint {
         note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
     )]
     #[must_use]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_clause(self) -> Option<Clause> {
         self.into_clause().ok()
     }
@@ -905,6 +906,7 @@ impl PBConstraint {
         note = "as_card_constr has been renamed to into_card_constr"
     )]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_card_constr(self) -> Result<CardConstraint, PBToCardError> {
         self.into_card_constr()
     }
@@ -973,6 +975,7 @@ impl PBConstraint {
         since = "0.5.0",
         note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
     )]
+    #[allow(clippy::wrong_self_convention)]
     #[must_use]
     pub fn as_clause(self) -> Option<Clause> {
         self.into_clause().ok()
@@ -1321,16 +1324,16 @@ mod tests {
     #[test]
     fn clause_remove() {
         let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
-        assert!(!cl.remove(&lit![3]));
-        assert!(cl.remove(&lit![1]));
+        assert!(!cl.remove(lit![3]));
+        assert!(cl.remove(lit![1]));
         assert_eq!(cl.len(), 3);
     }
 
     #[test]
     fn clause_remove_thorough() {
         let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
-        assert!(!cl.remove_thorough(&lit![3]));
-        assert!(cl.remove_thorough(&lit![1]));
+        assert!(!cl.remove_thorough(lit![3]));
+        assert!(cl.remove_thorough(lit![1]));
         assert_eq!(cl.len(), 2);
     }
 

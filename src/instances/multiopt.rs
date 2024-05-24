@@ -153,6 +153,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         since = "0.5.0",
         note = "as_hard_cls_soft_cls has been renamed to into_hard_cls_soft_cls and will be removed in a future release"
     )]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
         self.into_hard_cls_soft_cls()
     }
@@ -184,6 +185,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         since = "0.5.0",
         note = "as_hard_cls_soft_lits has been renamed to into_hard_cls_soft_lits and will be removed in a future release"
     )]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
         self.into_hard_cls_soft_lits()
     }
@@ -257,6 +259,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         #[allow(deprecated)]
@@ -267,6 +270,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
     #[allow(clippy::missing_errors_doc)]
     #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
@@ -289,6 +293,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         note = "use convert_to_cnf_with_encoders and write_dimacs instead"
     )]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -360,6 +365,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
@@ -374,6 +380,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     #[deprecated(since = "0.5.0", note = "use write_opb instead")]
     #[allow(clippy::missing_errors_doc)]
     #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_opb<W: io::Write>(
         mut self,
         writer: &mut W,
