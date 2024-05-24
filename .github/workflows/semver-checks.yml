@@ -2,7 +2,7 @@ name: Semver checks
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
 
 env:
   CARGO_TERM_COLOR: always
