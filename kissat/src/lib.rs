@@ -432,9 +432,9 @@ pub enum Config {
     /// Plain CDCL solving without advanced techniques
     Plain,
     /// Target satisfiable instances
-    SAT,
+    Sat,
     /// Target unsatisfiable instances
-    UNSAT,
+    Unsat,
 }
 
 impl From<&Config> for &'static CStr {
@@ -443,8 +443,8 @@ impl From<&Config> for &'static CStr {
             Config::Default => c"default",
             Config::Basic => c"basic",
             Config::Plain => c"plain",
-            Config::SAT => c"sat",
-            Config::UNSAT => c"unsat",
+            Config::Sat => c"sat",
+            Config::Unsat => c"unsat",
         }
     }
 }
@@ -461,8 +461,8 @@ impl fmt::Display for Config {
             Config::Default => write!(f, "default"),
             Config::Basic => write!(f, "basic"),
             Config::Plain => write!(f, "plain"),
-            Config::SAT => write!(f, "sat"),
-            Config::UNSAT => write!(f, "unsat"),
+            Config::Sat => write!(f, "sat"),
+            Config::Unsat => write!(f, "unsat"),
         }
     }
 }
@@ -515,8 +515,8 @@ mod test {
         solver.set_configuration(Config::Default).unwrap();
         solver.set_configuration(Config::Basic).unwrap();
         solver.set_configuration(Config::Plain).unwrap();
-        solver.set_configuration(Config::SAT).unwrap();
-        solver.set_configuration(Config::UNSAT).unwrap();
+        solver.set_configuration(Config::Sat).unwrap();
+        solver.set_configuration(Config::Unsat).unwrap();
         solver.add_unit(lit![0]).unwrap();
         assert!(solver.set_configuration(Config::Default).is_err_and(|e| e
             .downcast::<StateError>()

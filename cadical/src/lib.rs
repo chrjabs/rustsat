@@ -863,9 +863,9 @@ pub enum Config {
     /// Disable all internal preprocessing options
     Plain,
     /// Set internal options to target satisfiable instances
-    SAT,
+    Sat,
     /// Set internal options to target unsatisfiable instances
-    UNSAT,
+    Unsat,
 }
 
 impl From<Config> for &'static CStr {
@@ -879,8 +879,8 @@ impl From<&Config> for &'static CStr {
         match value {
             Config::Default => c"default",
             Config::Plain => c"plain",
-            Config::SAT => c"sat",
-            Config::UNSAT => c"unsat",
+            Config::Sat => c"sat",
+            Config::Unsat => c"unsat",
         }
     }
 }
@@ -890,8 +890,8 @@ impl fmt::Display for Config {
         let str = match self {
             Config::Default => "default",
             Config::Plain => "plain",
-            Config::SAT => "sat",
-            Config::UNSAT => "unsat",
+            Config::Sat => "sat",
+            Config::Unsat => "unsat",
         };
         write!(f, "{str}")
     }
@@ -962,8 +962,8 @@ mod test {
         let mut solver = CaDiCaL::default();
         solver.set_configuration(Config::Default).unwrap();
         solver.set_configuration(Config::Plain).unwrap();
-        solver.set_configuration(Config::SAT).unwrap();
-        solver.set_configuration(Config::UNSAT).unwrap();
+        solver.set_configuration(Config::Sat).unwrap();
+        solver.set_configuration(Config::Unsat).unwrap();
         solver.add_unit(lit![0]).unwrap();
         assert!(solver.set_configuration(Config::Default).is_err_and(|e| e
             .downcast::<StateError>()

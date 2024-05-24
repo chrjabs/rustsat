@@ -584,6 +584,7 @@ impl Objective {
         note = "as_soft_cls has been renamed to into_soft_cls and will be removed in a future release"
     )]
     #[must_use]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_soft_cls(self) -> (impl WClsIter, isize) {
         self.into_soft_cls()
     }
@@ -631,6 +632,7 @@ impl Objective {
         note = "as_unweighted_soft_cls has been renamed to into_unweighted_soft_cls and will be removed in a future release"
     )]
     #[must_use]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_unweighted_soft_cls(self) -> (impl ClsIter, usize, isize) {
         self.into_unweighted_soft_cls()
     }
@@ -711,6 +713,7 @@ impl Objective {
         since = "0.5.0",
         note = "as_soft_lits has been renamed to into_soft_lits and will be removed in a future release"
     )]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_soft_lits<VM>(self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
     where
         VM: ManageVars,
@@ -747,6 +750,7 @@ impl Objective {
         since = "0.5.0",
         note = "as_unweighted_soft_lits has been renamed to into_unweighted_soft_lits and will be removed in a future release"
     )]
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_unweighted_soft_lits<VM>(
         self,
         var_manager: &mut VM,
@@ -1209,6 +1213,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         #[allow(deprecated)]
@@ -1219,6 +1224,7 @@ impl<VM: ManageVars> Instance<VM> {
     #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
     #[allow(clippy::missing_errors_doc)]
     #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
         #[allow(deprecated)]
         self.to_dimacs_with_encoders(
@@ -1241,6 +1247,7 @@ impl<VM: ManageVars> Instance<VM> {
         note = "use convert_to_cnf_with_encoders and write_dimacs instead"
     )]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -1310,6 +1317,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// For performance, consider using a [`std::io::BufWriter`] instance.
     #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
     #[allow(clippy::missing_errors_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
@@ -1324,6 +1332,7 @@ impl<VM: ManageVars> Instance<VM> {
     #[deprecated(since = "0.5.0", note = "use write_opb instead")]
     #[allow(clippy::missing_errors_doc)]
     #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_opb<W: io::Write>(
         mut self,
         writer: &mut W,
