@@ -92,7 +92,7 @@ jobs:
       - name: Install maturin from PyPI
         uses: install-pinned/maturin@9ef429e73235cb3ab68a9f8677ca10a189592a5e
       - name: Install mypy from PyPI
-        uses: install-pinned/mypy@421cd57ee7b88af310624e2c56ed6902f70e1429
+        uses: install-pinned/mypy@2f42ad87a5ce739fd68da21a074d6cc44281a487
       - name: Install python project
         run: maturin build -m pyapi/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
       - name: Test stubs
