@@ -380,6 +380,15 @@ pub enum CardConstraint {
 }
 
 impl CardConstraint {
+    /// Constructs a new unit constraint enforcing a literal
+    #[must_use]
+    pub fn new_unit(lit: Lit) -> Self {
+        CardConstraint::Lb(CardLbConstr {
+            lits: vec![lit],
+            b: 1,
+        })
+    }
+
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
     pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
         CardConstraint::Ub(CardUbConstr {
@@ -420,6 +429,35 @@ impl CardConstraint {
             CardConstraint::Lb(constr) => constr.b = b,
             CardConstraint::Eq(constr) => constr.b = b,
         }
+    }
+
+    /// Gets the bound of the constraint
+    #[must_use]
+    pub fn bound(&self) -> usize {
+        match self {
+            CardConstraint::Ub(c) => c.b,
+            CardConstraint::Lb(c) => c.b,
+            CardConstraint::Eq(c) => c.b,
+        }
+    }
+
+    /// Gets the number of literals in the constraint
+    #[must_use]
+    pub fn n_lits(&self) -> usize {
+        match self {
+            CardConstraint::Ub(c) => c.lits.len(),
+            CardConstraint::Lb(c) => c.lits.len(),
+            CardConstraint::Eq(c) => c.lits.len(),
+        }
+    }
+
+    /// Sets the bound of the constraint
+    pub fn set_bound(&mut self, bound: usize) {
+        match self {
+            CardConstraint::Ub(CardUbConstr { b, .. })
+            | CardConstraint::Lb(CardLbConstr { b, .. })
+            | CardConstraint::Eq(CardEqConstr { b, .. }) => *b = bound,
+        };
     }
 
     /// Checks if the constraint is always satisfied
@@ -782,6 +820,16 @@ impl PbConstraint {
         (lits, weight_sum, b_add)
     }
 
+    /// Constructs a new unit constraint enforcing a literal
+    #[must_use]
+    pub fn new_unit(lit: Lit) -> Self {
+        PbConstraint::Lb(PbLbConstr {
+            lits: vec![(lit, 1)],
+            weight_sum: 1,
+            b: 1,
+        })
+    }
+
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
     pub fn new_ub<LI: IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
@@ -789,6 +837,17 @@ impl PbConstraint {
             lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
+        })
+    }
+
+    /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
+    pub fn new_ub_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        PbConstraint::Ub(PbUbConstr {
+            lits,
+            weight_sum,
+            b,
         })
     }
 
@@ -802,6 +861,17 @@ impl PbConstraint {
         })
     }
 
+    /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
+    pub fn new_lb_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        PbConstraint::Lb(PbLbConstr {
+            lits,
+            weight_sum,
+            b,
+        })
+    }
+
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
     pub fn new_eq<LI: IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
@@ -812,6 +882,47 @@ impl PbConstraint {
         })
     }
 
+    /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
+    pub fn new_eq_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        PbConstraint::Eq(PbEqConstr {
+            lits,
+            weight_sum,
+            b,
+        })
+    }
+
+    /// Gets the bound of the constraint
+    #[must_use]
+    pub fn bound(&self) -> isize {
+        match self {
+            PbConstraint::Ub(c) => c.b,
+            PbConstraint::Lb(c) => c.b,
+            PbConstraint::Eq(c) => c.b,
+        }
+    }
+
+    /// Gets the sum of weights of the constraint
+    #[must_use]
+    pub fn weight_sum(&self) -> usize {
+        match self {
+            PbConstraint::Ub(c) => c.weight_sum,
+            PbConstraint::Lb(c) => c.weight_sum,
+            PbConstraint::Eq(c) => c.weight_sum,
+        }
+    }
+
+    /// Gets the number of literals in the constraint
+    #[must_use]
+    pub fn n_lits(&self) -> usize {
+        match self {
+            PbConstraint::Ub(c) => c.lits.len(),
+            PbConstraint::Lb(c) => c.lits.len(),
+            PbConstraint::Eq(c) => c.lits.len(),
+        }
+    }
+
     /// Gets mutable references to the underlying data
     fn get_data(&mut self) -> (&mut Vec<(Lit, usize)>, &mut usize, &mut isize) {
         match self {
@@ -819,6 +930,15 @@ impl PbConstraint {
             PbConstraint::Lb(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
             PbConstraint::Eq(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
         }
+    }
+
+    /// Sets the bound of the constraint
+    pub fn set_bound(&mut self, bound: isize) {
+        match self {
+            PbConstraint::Ub(PbUbConstr { b, .. })
+            | PbConstraint::Lb(PbLbConstr { b, .. })
+            | PbConstraint::Eq(PbEqConstr { b, .. }) => *b = bound,
+        };
     }
 
     /// Adds literals to the cardinality constraint
