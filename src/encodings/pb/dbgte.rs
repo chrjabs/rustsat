@@ -7,9 +7,8 @@ use std::ops::RangeBounds;
 
 use crate::{
     encodings::{
-        card::dbtotalizer::{INode, LitData, TotDb},
         nodedb::{NodeById, NodeCon, NodeLike},
-        CollectClauses, EncodeStats, Error,
+        totdb, CollectClauses, EncodeStats, Error,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
@@ -42,14 +41,14 @@ pub struct DbGte {
     /// The number of clauses in the totalizer
     n_clauses: usize,
     /// The node database of the totalizer
-    db: TotDb,
+    db: totdb::Db,
 }
 
 impl DbGte {
     /// Creates a generalized totalizer from its internal parts
     #[cfg(feature = "internals")]
     #[must_use]
-    pub fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
+    pub fn from_raw(root: NodeCon, db: totdb::Db, max_leaf_weight: usize) -> Self {
         Self {
             root: Some(root),
             max_leaf_weight,
@@ -192,27 +191,27 @@ impl BoundUpper for DbGte {
                 .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
                 .try_for_each(|val| {
                     match &self.db[con.id].0 {
-                        INode::Leaf(lit) => {
+                        totdb::INode::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
+                        totdb::INode::Unit(node) => {
+                            if let totdb::LitData::Lit { lit, enc_pos, .. } = node.lits[val - 1] {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                        totdb::INode::General(node) => {
+                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[&val] {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::INode::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -298,17 +297,16 @@ impl Extend<(Lit, usize)> for DbGte {
     }
 }
 
-/// Generalized totalizer encoding types that do not own but reference their [`TotDb`]
+/// Generalized totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
         encodings::{
-            card::dbtotalizer::{INode, LitData, TotDb},
             nodedb::{NodeCon, NodeLike},
             pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
-            CollectClauses, Error,
+            totdb, CollectClauses, Error,
         },
         instances::ManageVars,
         types::Lit,
@@ -327,7 +325,7 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb mut TotDb,
+        db: &'totdb mut totdb::Db,
     }
 
     /// Generalized totalizer encoding with a [`RefCell`] to a totalizer
@@ -343,12 +341,12 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut TotDb>,
+        db: &'totdb RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> Gte<'totdb> {
         /// Constructs a new GTE encoding referencing a totalizer database
-        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut TotDb) -> Self {
+        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut totdb::Db) -> Self {
             Self {
                 root,
                 max_leaf_weight,
@@ -368,7 +366,7 @@ pub mod referenced {
         pub fn new(
             root: NodeCon,
             max_leaf_weight: usize,
-            db: &'totdb RefCell<&'totdb mut TotDb>,
+            db: &'totdb RefCell<&'totdb mut totdb::Db>,
         ) -> Self {
             Self {
                 root,
@@ -465,27 +463,27 @@ pub mod referenced {
                 )
                 .try_for_each(|val| {
                     match &self.db[self.root.id].0 {
-                        INode::Leaf(lit) => {
+                        totdb::INode::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
+                        totdb::INode::Unit(node) => {
+                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                        totdb::INode::General(node) => {
+                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[&val] {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::INode::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -522,27 +520,27 @@ pub mod referenced {
                 )
                 .try_for_each(|val| {
                     match &self.db.borrow()[self.root.id].0 {
-                        INode::Leaf(lit) => {
+                        totdb::INode::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
+                        totdb::INode::Unit(node) => {
+                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                        totdb::INode::General(node) => {
+                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[&val] {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::INode::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;

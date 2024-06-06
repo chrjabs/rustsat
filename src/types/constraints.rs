@@ -354,6 +354,26 @@ impl fmt::Debug for Clause {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl pidgeons::ConstraintLike for Clause {
+    fn constr_str(&self) -> String {
+        use itertools::Itertools;
+        use pidgeons::VarLike;
+
+        format!(
+            "{} >= 1",
+            self.iter().format_with(" ", |lit, f| f(&format_args!(
+                "1 {}",
+                if lit.is_pos() {
+                    lit.var().pos_axiom()
+                } else {
+                    lit.var().neg_axiom()
+                }
+            )))
+        )
+    }
+}
+
 /// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
@@ -619,6 +639,59 @@ impl<'slf> IntoIterator for &'slf mut CardConstraint {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pidgeons::ConstraintLike for CardConstraint {
+    fn constr_str(&self) -> String {
+        use itertools::Itertools;
+        use pidgeons::VarLike;
+
+        match self {
+            CardConstraint::Ub(c) => {
+                let b = isize::try_from(c.lits.len())
+                    .expect("cannot handle more than `isize::MAX` literals in proof logging")
+                    - isize::try_from(c.b)
+                        .expect("cannot handle bound higher than `isize::MAX` in proof logging");
+                format!(
+                    "{} >= {}",
+                    c.lits.iter().format_with(" ", |lit, f| f(&format_args!(
+                        "1 {}",
+                        if lit.is_neg() {
+                            lit.var().pos_axiom()
+                        } else {
+                            lit.var().neg_axiom()
+                        }
+                    ))),
+                    b
+                )
+            }
+            CardConstraint::Lb(c) => format!(
+                "{} >= {}",
+                c.lits.iter().format_with(" ", |lit, f| f(&format_args!(
+                    "1 {}",
+                    if lit.is_pos() {
+                        lit.var().pos_axiom()
+                    } else {
+                        lit.var().neg_axiom()
+                    }
+                ))),
+                c.b
+            ),
+            CardConstraint::Eq(c) => format!(
+                "{} = {}",
+                c.lits.iter().format_with(" ", |lit, f| f(&format_args!(
+                    "1 {}",
+                    if lit.is_pos() {
+                        lit.var().pos_axiom()
+                    } else {
+                        lit.var().neg_axiom()
+                    }
+                ))),
+                c.b
+            ),
+        }
     }
 }
 
@@ -1212,6 +1285,62 @@ impl PbConstraint {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl pidgeons::ConstraintLike for PbConstraint {
+    fn constr_str(&self) -> String {
+        use itertools::Itertools;
+        use pidgeons::VarLike;
+
+        match self {
+            PbConstraint::Ub(c) => {
+                let weight_sum = c.lits.iter().fold(0, |sum, (_, w)| sum + w);
+                let b = isize::try_from(weight_sum)
+                    .expect("cannot handle weight sum larger than `isize::MAX` in proof logging")
+                    - c.b;
+                format!(
+                    "{} >= {}",
+                    c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
+                        "{} {}",
+                        wlit.1,
+                        if wlit.0.is_neg() {
+                            wlit.0.var().pos_axiom()
+                        } else {
+                            wlit.0.var().neg_axiom()
+                        }
+                    ))),
+                    b
+                )
+            }
+            PbConstraint::Lb(c) => format!(
+                "{} >= {}",
+                c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
+                    "{} {}",
+                    wlit.1,
+                    if wlit.0.is_pos() {
+                        wlit.0.var().pos_axiom()
+                    } else {
+                        wlit.0.var().neg_axiom()
+                    }
+                ))),
+                c.b
+            ),
+            PbConstraint::Eq(c) => format!(
+                "{} = {}",
+                c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
+                    "{} {}",
+                    wlit.1,
+                    if wlit.0.is_pos() {
+                        wlit.0.var().pos_axiom()
+                    } else {
+                        wlit.0.var().neg_axiom()
+                    }
+                ))),
+                c.b
+            ),
+        }
+    }
+}
+
 impl<'slf> IntoIterator for &'slf PbConstraint {
     type Item = &'slf (Lit, usize);
 
@@ -1531,6 +1660,16 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_clause() {
+        use pidgeons::ConstraintLike;
+
+        let cl = clause![lit![0], lit![1], lit![2], !lit![3]];
+        let truth = "1 x1 1 x2 1 x3 1 ~x4 >= 1";
+        assert_eq!(&cl.constr_str(), truth);
+    }
+
     macro_rules! assign {
         ($val:expr) => {{
             let mut assign = Assignment::default();
@@ -1603,6 +1742,26 @@ mod tests {
         assert!(!CardConstraint::new_eq(lits.clone(), 2).is_clause());
     }
 
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_card() {
+        use pidgeons::ConstraintLike;
+
+        let lits = vec![lit![0], lit![1], !lit![2]];
+        assert_eq!(
+            &CardConstraint::new_ub(lits.clone(), 1).constr_str(),
+            "1 ~x1 1 ~x2 1 x3 >= 2"
+        );
+        assert_eq!(
+            &CardConstraint::new_lb(lits.clone(), 3).constr_str(),
+            "1 x1 1 x2 1 ~x3 >= 3"
+        );
+        assert_eq!(
+            &CardConstraint::new_eq(lits.clone(), 2).constr_str(),
+            "1 x1 1 x2 1 ~x3 = 2"
+        );
+    }
+
     #[test]
     fn pb_is_tautology() {
         let lits = vec![(lit![0], 1), (lit![1], 2), (lit![2], 3)];
@@ -1664,5 +1823,25 @@ mod tests {
         assert!(!PbConstraint::new_ub(lits.clone(), 4).is_clause());
         assert!(!PbConstraint::new_lb(lits.clone(), 3).is_clause());
         assert!(!PbConstraint::new_eq(lits.clone(), 2).is_card());
+    }
+
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_pb() {
+        use pidgeons::ConstraintLike;
+
+        let lits = vec![(lit![0], 2), (lit![1], 3), (!lit![2], 2)];
+        assert_eq!(
+            &PbConstraint::new_ub(lits.clone(), 3).constr_str(),
+            "2 ~x1 3 ~x2 2 x3 >= 4"
+        );
+        assert_eq!(
+            &PbConstraint::new_lb(lits.clone(), 4).constr_str(),
+            "2 x1 3 x2 2 ~x3 >= 4"
+        );
+        assert_eq!(
+            &PbConstraint::new_eq(lits.clone(), 2).constr_str(),
+            "2 x1 3 x2 2 ~x3 = 2"
+        );
     }
 }

@@ -10,6 +10,7 @@ pub mod am1;
 pub mod atomics;
 pub mod card;
 pub mod pb;
+pub mod totdb;
 
 /// Trait for collecting clauses. Mainly used when generating encodings and implemented by
 /// [`crate::instances::Cnf`], and solvers.

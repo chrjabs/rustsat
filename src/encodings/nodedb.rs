@@ -10,7 +10,7 @@
 use std::{
     cmp, fmt,
     num::{NonZeroU8, NonZeroUsize},
-    ops::{Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
+    ops::{self, Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
 };
 
 use crate::{types::Lit, utils::unreachable_none};
@@ -109,7 +109,7 @@ impl SubAssign<usize> for NodeId {
 
 /// Trait for nodes in the tree
 #[allow(clippy::len_without_is_empty)]
-pub trait NodeLike {
+pub trait NodeLike: ops::Index<usize, Output = Lit> {
     /// The type of iterator over the node's values
     type ValIter: DoubleEndedIterator<Item = usize>;
 
@@ -551,6 +551,79 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
         merged_cons.sort_unstable_by_key(|&con| self.con_len(con));
         self.merge_balanced(&merged_cons)
+    }
+
+    /// Gets an iterator over the literals at the leafs of the subtree rooted at a given node
+    fn leaf_iter(&self, node: NodeId) -> LeafIter<'_, Self>
+    where
+        Self: Sized,
+    {
+        LeafIter::new(self, node)
+    }
+}
+
+/// An iterator over the leafs in a given subtree
+pub struct LeafIter<'db, Db> {
+    /// The database that the tree is in
+    db: &'db Db,
+    /// The trace of the iterator. Everything left of the last node in the trace has already been
+    /// explored.
+    trace: Vec<(NodeId, bool)>,
+}
+
+impl<'db, Db> LeafIter<'db, Db>
+where
+    Db: NodeById,
+{
+    /// Creates a new leaf iterator
+    pub fn new(db: &'db Db, root: NodeId) -> Self {
+        let mut trace = vec![(root, false)];
+        let mut current = root;
+        while let Some(con) = db[current].left() {
+            trace.push((con.id, false));
+            current = con.id;
+        }
+        Self { db, trace }
+    }
+}
+
+impl<'db, Db> Iterator for LeafIter<'db, Db>
+where
+    Db: NodeById,
+{
+    type Item = Lit;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.trace.is_empty() {
+            return None;
+        }
+
+        // get item to yield
+        let lit = self.db[self.trace.last().unwrap().0][1];
+        // find last element in trace to which we moved left
+        let mut last = self.trace.len();
+        while last > 0 && self.trace[last - 1].1 {
+            last -= 1;
+        }
+        last -= 1;
+        // cut of tail from trace
+        self.trace.drain(last..);
+        if last == 0 {
+            // done iterating
+            return Some(lit);
+        }
+        // Extend trace to next leaf
+        self.trace.push((
+            self.db[self.trace.last().unwrap().0].right().unwrap().id,
+            true,
+        ));
+        let mut current = self.trace.last().unwrap().0;
+        while let Some(con) = self.db[current].left() {
+            self.trace.push((con.id, false));
+            current = con.id;
+        }
+
+        Some(lit)
     }
 }
 

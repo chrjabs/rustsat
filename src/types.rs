@@ -238,6 +238,13 @@ impl fmt::Debug for Var {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl pidgeons::VarLike for Var {
+    fn var_str(&self) -> String {
+        format!("x{}", self.to_ipasir())
+    }
+}
+
 /// More easily creates variables. Mainly used in tests.
 ///
 /// # Examples
@@ -536,6 +543,19 @@ impl fmt::Debug for Lit {
             write!(f, "~x{}", self.vidx())
         } else {
             write!(f, "x{}", self.vidx())
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl From<Lit> for pidgeons::Axiom {
+    fn from(value: Lit) -> Self {
+        use pidgeons::VarLike;
+
+        if value.is_pos() {
+            value.var().pos_axiom()
+        } else {
+            value.var().neg_axiom()
         }
     }
 }
@@ -959,6 +979,13 @@ mod tests {
         let lit = Lit::positive(idx);
         let var = Var::new(idx);
         assert_eq!(lit.var(), var);
+    }
+
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_var() {
+        use pidgeons::VarLike;
+        assert_eq!(&Var::new(3).var_str(), "x4");
     }
 
     #[test]
