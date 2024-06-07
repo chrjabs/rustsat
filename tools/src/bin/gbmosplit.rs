@@ -12,18 +12,26 @@
 
 use clap::{Parser, ValueEnum};
 use rustsat::{
-    instances::{ManageVars, MultiOptInstance, Objective, OptInstance},
+    instances::{fio, ManageVars, MultiOptInstance, Objective, OptInstance},
     types::Clause,
 };
-use std::{collections::BTreeSet, fmt, io::Write, path::PathBuf};
+use std::{
+    collections::BTreeSet,
+    fmt,
+    io::{self, Write},
+    path::PathBuf,
+};
 use termcolor::{Buffer, BufferWriter, Color, ColorSpec, WriteColor};
 
 struct Cli {
-    in_path: PathBuf,
+    in_path: Option<PathBuf>,
     out_path: Option<PathBuf>,
+    input_format: InputFormat,
+    output_format: OutputFormat,
     split_alg: SplitAlg,
     max_combs: usize,
     always_dump: bool,
+    opb_opts: fio::opb::Options,
     stdout: BufferWriter,
     stderr: BufferWriter,
 }
@@ -34,9 +42,15 @@ impl Cli {
         Self {
             in_path: args.in_path,
             out_path: args.out_path,
+            input_format: args.input_format,
+            output_format: args.output_format,
             split_alg: args.split_alg,
             max_combs: args.max_combs,
             always_dump: args.always_dump,
+            opb_opts: fio::opb::Options {
+                first_var_idx: args.opb_first_var_idx,
+                ..fio::opb::Options::default()
+            },
             stdout: BufferWriter::stdout(match args.color.color {
                 concolor_clap::ColorChoice::Always => termcolor::ColorChoice::Always,
                 concolor_clap::ColorChoice::Never => termcolor::ColorChoice::Never,
@@ -76,7 +90,7 @@ impl Cli {
         self.stdout.print(&buffer).unwrap();
     }
 
-    fn error(&self, msg: &str) {
+    fn error(&self, err: &anyhow::Error) {
         let mut buffer = self.stderr.buffer();
         buffer
             .set_color(ColorSpec::new().set_bold(true).set_fg(Some(Color::Red)))
@@ -86,7 +100,7 @@ impl Cli {
         buffer.set_color(ColorSpec::new().set_bold(true)).unwrap();
         write!(&mut buffer, ": ").unwrap();
         buffer.reset().unwrap();
-        writeln!(&mut buffer, "{}", msg).unwrap();
+        writeln!(&mut buffer, "{}", err).unwrap();
         self.stdout.print(&buffer).unwrap();
     }
 
@@ -173,22 +187,91 @@ impl Cli {
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// The DIMACS WCNF input file
-    in_path: PathBuf,
-    /// The optional DIMACS MCNF output path. If no path is given only detection
-    /// results will be printed.
+    /// The path to the input file. If no path is given, will read from `stdin`.
+    in_path: Option<PathBuf>,
+    /// The optional output path. If no path is given, will write to `stdout`.
     out_path: Option<PathBuf>,
     /// The splitting algorithm to use
-    #[arg(long, default_value_t = SplitAlg::Gbmo)]
+    #[arg(long, default_value_t = SplitAlg::default())]
     split_alg: SplitAlg,
     /// The maximum number of weight combinations to check when thoroughly checking GBMO
     #[arg(long, default_value_t = 100000)]
     max_combs: usize,
-    /// Always dump an MCNF file, even if the instance couldn't be split
-    #[arg(long)]
+    /// The file format of the input
+    #[arg(long, default_value_t = InputFormat::default())]
+    input_format: InputFormat,
+    /// The file format to write
+    #[arg(long, default_value_t = OutputFormat::default())]
+    output_format: OutputFormat,
+    /// Always dump a multi-objective file, even if the instance couldn't be split
+    #[arg(long, short = 'd')]
     always_dump: bool,
+    /// The index in the OPB file to treat as the lowest variable
+    #[arg(long, default_value_t = 1)]
+    opb_first_var_idx: u32,
     #[command(flatten)]
     color: concolor_clap::Color,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Default)]
+enum InputFormat {
+    /// Infer the input file format from the file extension according to the following rules:
+    /// - `.wcnf`: Weighted DIMACS CNF (MaxSAT) file
+    /// - `.opb`: OPB file (without an objective)
+    /// All file extensions can also be appended with `.bz2`, `.xz`, or `.gz` if compression is used.
+    #[default]
+    Infer,
+    /// A DIMACS WCNF file
+    Wcnf,
+    /// An OPB file
+    Opb,
+}
+
+impl fmt::Display for InputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InputFormat::Infer => write!(f, "infer"),
+            InputFormat::Wcnf => write!(f, "wcnf"),
+            InputFormat::Opb => write!(f, "opb"),
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Default)]
+enum OutputFormat {
+    /// Same as the input format
+    #[default]
+    AsInput,
+    /// DIMACS WCNF
+    Mcnf,
+    /// OPB
+    Opb,
+}
+
+impl fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OutputFormat::AsInput => write!(f, "as-input"),
+            OutputFormat::Mcnf => write!(f, "mcnf"),
+            OutputFormat::Opb => write!(f, "opb"),
+        }
+    }
+}
+
+impl OutputFormat {
+    fn infer(self, write_format: WriteFormat) -> WriteFormat {
+        match self {
+            OutputFormat::AsInput => write_format,
+            OutputFormat::Mcnf => WriteFormat::Mcnf,
+            OutputFormat::Opb => WriteFormat::Opb,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+enum WriteFormat {
+    Mcnf,
+    Opb,
 }
 
 #[derive(ValueEnum, Default, Clone, Copy, PartialEq, Eq)]
@@ -236,7 +319,7 @@ fn split<VM: ManageVars>(
     let (constr, obj) = so_inst.decompose();
 
     if !obj.weighted() {
-        cli.info("objective is unweighted, can't split");
+        cli.warning("objective is unweighted, can't split");
         let obj_stats = ObjStats {
             n_softs: obj.n_softs(),
             weight_sum: obj.weight_sum(),
@@ -457,28 +540,129 @@ fn split_gbmo(sorted_clauses: Vec<(Clause, usize)>, cli: &Cli) -> (Vec<Objective
     perform_split(sorted_clauses, split_ends)
 }
 
-fn main() {
+macro_rules! is_one_of {
+    ($a:expr, $($b:expr),*) => {
+        $( $a == $b || )* false
+    }
+}
+
+fn parse_instance(
+    path: &Option<PathBuf>,
+    file_format: InputFormat,
+    opb_opts: fio::opb::Options,
+) -> anyhow::Result<(OptInstance, WriteFormat)> {
+    match file_format {
+        InputFormat::Infer => {
+            if let Some(path) = path {
+                if let Some(ext) = path.extension() {
+                    let path_without_compr = path.with_extension("");
+                    let ext = if is_one_of!(ext, "gz", "bz2", "xz") {
+                        // Strip compression extension
+                        match path_without_compr.extension() {
+                            Some(ext) => ext,
+                            None => anyhow::bail!("no file extension after compression extension"),
+                        }
+                    } else {
+                        ext
+                    };
+                    if is_one_of!(ext, "wcnf") {
+                        OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
+                    } else if is_one_of!(ext, "opb") {
+                        OptInstance::from_opb_path(path, opb_opts)
+                            .map(|inst| (inst, WriteFormat::Opb))
+                    } else {
+                        anyhow::bail!("unknown file extension")
+                    }
+                } else {
+                    anyhow::bail!("no file extension")
+                }
+            } else {
+                anyhow::bail!("cannot infer file format from stdin")
+            }
+        }
+        InputFormat::Wcnf => {
+            if let Some(path) = path {
+                OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
+            } else {
+                OptInstance::from_dimacs(io::BufReader::new(io::stdin()))
+                    .map(|inst| (inst, WriteFormat::Mcnf))
+            }
+        }
+        InputFormat::Opb => {
+            if let Some(path) = path {
+                OptInstance::from_opb_path(path, opb_opts).map(|inst| (inst, WriteFormat::Opb))
+            } else {
+                OptInstance::from_opb(io::BufReader::new(io::stdin()), opb_opts)
+                    .map(|inst| (inst, WriteFormat::Opb))
+            }
+        }
+    }
+}
+
+macro_rules! handle_error {
+    ($res:expr, $cli:expr) => {{
+        match $res {
+            Ok(val) => val,
+            Err(err) => {
+                $cli.error(&err);
+                anyhow::bail!(err)
+            }
+        }
+    }};
+}
+
+fn main() -> anyhow::Result<()> {
     let cli = Cli::init();
 
-    cli.info(&format!("finding splits in {}", cli.in_path.display()));
+    if let Some(path) = &cli.in_path {
+        cli.info(&format!("finding splits in {}", path.display()));
+    }
 
-    let so_inst: OptInstance = OptInstance::from_dimacs_path(&cli.in_path).unwrap_or_else(|e| {
-        cli.error(&format!("could not read input file: {}", e));
-        panic!()
-    });
+    let (so_inst, write_format) = handle_error!(
+        parse_instance(&cli.in_path, cli.input_format, cli.opb_opts),
+        cli
+    );
 
-    let (mo_inst, split_stats) = split(so_inst, &cli);
+    let (mut mo_inst, split_stats) = split(so_inst, &cli);
 
-    cli.print_split_stats(split_stats);
+    if cli.out_path.is_some() {
+        cli.print_split_stats(split_stats);
+    }
 
     let found_split = mo_inst.n_objectives() > 1;
 
-    if let Some(out_path) = &cli.out_path {
-        if found_split || cli.always_dump {
-            mo_inst.write_dimacs_path(out_path).unwrap_or_else(|e| {
-                cli.error(&format!("io error writing the output file: {}", e));
-                panic!()
-            });
+    let write_format = cli.output_format.infer(write_format);
+
+    if found_split || cli.always_dump {
+        match write_format {
+            WriteFormat::Mcnf => {
+                mo_inst.constraints_mut().convert_to_cnf();
+                if let Some(path) = &cli.out_path {
+                    cli.info(&format!("writing mcnf to {}", path.display()));
+                    handle_error!(mo_inst.write_dimacs_path(path), cli);
+                } else {
+                    handle_error!(
+                        mo_inst.write_dimacs(&mut io::BufWriter::new(io::stdout())),
+                        cli
+                    );
+                }
+            }
+            WriteFormat::Opb => {
+                let (mut constrs, mut objs) = mo_inst.decompose();
+                for obj in &mut objs {
+                    obj.convert_to_soft_lits(constrs.var_manager_mut());
+                }
+                let mo_inst = MultiOptInstance::compose(constrs, objs);
+                if let Some(path) = &cli.out_path {
+                    cli.info(&format!("writing opb to {}", path.display()));
+                    handle_error!(mo_inst.write_opb_path(path, cli.opb_opts), cli);
+                } else {
+                    handle_error!(
+                        mo_inst.write_opb(&mut io::BufWriter::new(io::stdout()), cli.opb_opts),
+                        cli
+                    );
+                }
+            }
         }
     }
 
