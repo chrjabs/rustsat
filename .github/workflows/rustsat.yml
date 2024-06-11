@@ -34,3 +34,18 @@ jobs:
         run: cargo test -p rustsat --verbose --features=all
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
+
+  semver:
+    name: Semver check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat
+          feature-group: only-explicit-features
+          features: all
