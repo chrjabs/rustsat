@@ -12,5 +12,5 @@ proc-macro = true
 [dependencies]
 syn = "2.0"
 quote = "1.0"
-rustsat = { version = "0.5.0", path = "../rustsat", default-features = false }
+rustsat = { version = "0.6.0", path = "../rustsat", default-features = false }
 proc-macro2 = "1.0"
