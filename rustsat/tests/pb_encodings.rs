@@ -477,7 +477,8 @@ mod dpw_inc_prec {
                     }
                     println!("bound: {}", bound);
                     let mut cnf = Cnf::default();
-                    enc.encode_ub_change(bound..bound + 1, &mut cnf, &mut var_manager);
+                    enc.encode_ub_change(bound..bound + 1, &mut cnf, &mut var_manager)
+                        .unwrap();
                     println!("extending encoding: {:?}", cnf);
                     solver.add_cnf(cnf).unwrap();
                     let assumps = enc.enforce_ub(bound).unwrap();
@@ -511,8 +512,8 @@ mod dpw_inc_prec {
     fn incremental_precision_2() {
         let inst: OptInstance = OptInstance::from_dimacs_path("./data/inc-sis-fails.wcnf").unwrap();
         let (constr, obj) = inst.decompose();
-        let (cnf, mut vm) = constr.as_cnf();
-        let (hardened, (softs, offset)) = obj.as_soft_lits(&mut vm);
+        let (cnf, mut vm) = constr.into_cnf();
+        let (hardened, (softs, offset)) = obj.into_soft_lits(&mut vm);
         debug_assert!(hardened.is_empty());
         debug_assert_eq!(offset, 0);
         let mut solver = rustsat_minisat::core::Minisat::default();
@@ -520,7 +521,7 @@ mod dpw_inc_prec {
         let mut enc = DynamicPolyWatchdog::from_iter(softs);
 
         enc.set_precision(8192).unwrap();
-        enc.encode_ub_change(0..=1, &mut solver, &mut vm);
+        enc.encode_ub_change(0..=1, &mut solver, &mut vm).unwrap();
         debug_assert_eq!(
             solver.solve_assumps(&enc.enforce_ub(1).unwrap()).unwrap(),
             SolverResult::Sat
@@ -531,7 +532,7 @@ mod dpw_inc_prec {
         );
 
         enc.set_precision(1024).unwrap();
-        enc.encode_ub_change(0..=9, &mut solver, &mut vm);
+        enc.encode_ub_change(0..=9, &mut solver, &mut vm).unwrap();
         debug_assert_eq!(
             solver.solve_assumps(&enc.enforce_ub(9).unwrap()).unwrap(),
             SolverResult::Sat
@@ -554,8 +555,8 @@ mod dpw_inc_prec {
     fn incremental_precision_3() {
         let inst: OptInstance = OptInstance::from_dimacs_path("./data/inc-sis-fails.wcnf").unwrap();
         let (constr, obj) = inst.decompose();
-        let (cnf, mut vm) = constr.as_cnf();
-        let (hardened, (softs, offset)) = obj.as_soft_lits(&mut vm);
+        let (cnf, mut vm) = constr.into_cnf();
+        let (hardened, (softs, offset)) = obj.into_soft_lits(&mut vm);
         debug_assert!(hardened.is_empty());
         debug_assert_eq!(offset, 0);
         let mut solver = rustsat_minisat::core::Minisat::default();
@@ -563,7 +564,7 @@ mod dpw_inc_prec {
         let mut enc = DynamicPolyWatchdog::from_iter(softs);
 
         enc.set_precision(2048).unwrap();
-        enc.encode_ub_change(0..=4, &mut solver, &mut vm);
+        enc.encode_ub_change(0..=4, &mut solver, &mut vm).unwrap();
         debug_assert_eq!(
             solver.solve_assumps(&enc.enforce_ub(4).unwrap()).unwrap(),
             SolverResult::Sat
@@ -578,7 +579,7 @@ mod dpw_inc_prec {
         );
 
         enc.set_precision(1024).unwrap();
-        enc.encode_ub_change(0..=9, &mut solver, &mut vm);
+        enc.encode_ub_change(0..=9, &mut solver, &mut vm).unwrap();
         debug_assert_eq!(
             solver.solve_assumps(&enc.enforce_ub(9).unwrap()).unwrap(),
             SolverResult::Sat
