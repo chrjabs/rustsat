@@ -24,7 +24,7 @@ use crate::{
     clause,
     encodings::{
         atomics,
-        card::dbtotalizer::{GeneralNode, LitData, Node, TotDb, UnitNode},
+        card::dbtotalizer::{GeneralNode, INode, LitData, Node, TotDb, UnitNode},
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
         CollectClauses, EncodeStats, Error, IterWeightedInputs,
     },
@@ -105,7 +105,7 @@ impl DynamicPolyWatchdog {
             self.in_lits.insert(lit, weight);
         }
         self.weight_sum += weight;
-        let node = self.db.insert(Node::Leaf(lit));
+        let node = self.db.insert(Node::leaf(lit));
         let con = NodeCon::full(node);
         if let Some(cons) = self.weight_queue.get_mut(&weight) {
             cons.push(con);
@@ -633,7 +633,7 @@ type DpwIter<'a> = std::iter::Map<
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(lits: LI, tot_db: &mut TotDb) -> WeightQ {
     let lit_to_con = |(lit, weight)| {
-        let node = tot_db.insert(Node::Leaf(lit));
+        let node = tot_db.insert(Node::leaf(lit));
         NodeCon::weighted(node, weight)
     };
     con_weight_queue(lits.map(lit_to_con))
@@ -733,7 +733,7 @@ fn build_structure(
         let has_tare = if !topmost || idx != basis_len - skipped_levels - 1 {
             // Merge top bucket (except for last) with tare
             let tare = structure.tares[idx];
-            cons.push(NodeCon::full(tot_db.insert(Node::Leaf(tare))));
+            cons.push(NodeCon::full(tot_db.insert(Node::leaf(tare))));
             true
         } else {
             false
@@ -754,7 +754,7 @@ fn build_structure(
                 bb_offset = top_bucket.offset;
             } else {
                 // last bottom bucket for this segment, leave dummy node to path in extension
-                let dummy = tot_db.insert(Node::Dummy);
+                let dummy = tot_db.insert(INode::Dummy.into());
                 let right = NodeCon::full(dummy);
                 let bottom = tot_db.insert(Node::internal(top_bucket, right, tot_db));
                 bottom_buckets.push(bottom);
@@ -824,15 +824,18 @@ where
         .iter()
         .rev()
     {
-        let dummy = tot_db.insert(Node::Dummy);
+        let dummy = tot_db.insert(INode::Dummy.into());
         let right = NodeCon::full(dummy);
-        let tare_node = tot_db.insert(Node::Leaf(tare));
+        let tare_node = tot_db.insert(Node::leaf(tare));
         let new_bottom = tot_db.insert(Node::internal(NodeCon::full(tare_node), right, tot_db));
         let last_bottom = *bot_struct.bottom_buckets.last().unwrap();
-        debug_assert_eq!(tot_db[tot_db[last_bottom].right().unwrap().id], Node::Dummy);
-        match &mut tot_db[last_bottom] {
-            Node::Leaf(_) | Node::Dummy => unreachable!(),
-            Node::Unit(UnitNode { right, .. }) | Node::General(GeneralNode { right, .. }) => {
+        debug_assert_eq!(
+            tot_db[tot_db[last_bottom].right().unwrap().id].0,
+            INode::Dummy
+        );
+        match &mut tot_db[last_bottom].0 {
+            INode::Leaf(_) | INode::Dummy => unreachable!(),
+            INode::Unit(UnitNode { right, .. }) | INode::General(GeneralNode { right, .. }) => {
                 *right = NodeCon {
                     id: new_bottom,
                     offset: 0,
@@ -850,10 +853,13 @@ where
     );
     // step 3: patch together structures
     let last_bottom = *bot_struct.bottom_buckets.last().unwrap();
-    debug_assert_eq!(tot_db[tot_db[last_bottom].right().unwrap().id], Node::Dummy);
-    match &mut tot_db[last_bottom] {
-        Node::Leaf(_) | Node::Dummy => panic!(),
-        Node::Unit(UnitNode { right, .. }) | Node::General(GeneralNode { right, .. }) => {
+    debug_assert_eq!(
+        tot_db[tot_db[last_bottom].right().unwrap().id].0,
+        INode::Dummy
+    );
+    match &mut tot_db[last_bottom].0 {
+        INode::Leaf(_) | INode::Dummy => panic!(),
+        INode::Unit(UnitNode { right, .. }) | INode::General(GeneralNode { right, .. }) => {
             *right = NodeCon {
                 id: *top_struct.bottom_buckets.first().unwrap(),
                 offset: 0,
