@@ -1,0 +1,44 @@
+name: Semver checks
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+    
+jobs:
+  rustsat:
+    name: Semver checks
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - name: RustSAT
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat
+          feature-group: only-explicit-features
+          features: all
+      - name: CaDiCaL
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-cadical
+          feature-group: default-features
+      - name: Minisat
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-minisat
+      - name: Glucose
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-glucose
+      - name: Kissat
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-kissat
+      - name: IPASIR
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-ipasir
