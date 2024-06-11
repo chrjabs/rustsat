@@ -7,7 +7,7 @@ use std::ops::RangeBounds;
 
 use crate::{
     encodings::{
-        card::dbtotalizer::{LitData, Node, TotDb},
+        card::dbtotalizer::{INode, LitData, TotDb},
         nodedb::{NodeById, NodeCon, NodeLike},
         CollectClauses, EncodeStats, Error,
     },
@@ -191,12 +191,12 @@ impl BoundUpper for DbGte {
             self.db[con.id]
                 .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
                 .try_for_each(|val| {
-                    match &self.db[con.id] {
-                        Node::Leaf(lit) => {
+                    match &self.db[con.id].0 {
+                        INode::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        Node::Unit(node) => {
+                        INode::Unit(node) => {
                             if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
                                 if enc_pos {
                                     assumps.push(!lit);
@@ -204,7 +204,7 @@ impl BoundUpper for DbGte {
                                 }
                             }
                         }
-                        Node::General(node) => {
+                        INode::General(node) => {
                             if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
                                 if enc_pos {
                                     assumps.push(!lit);
@@ -212,7 +212,7 @@ impl BoundUpper for DbGte {
                                 }
                             }
                         }
-                        Node::Dummy => panic!(),
+                        INode::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?
@@ -305,7 +305,7 @@ pub mod referenced {
 
     use crate::{
         encodings::{
-            card::dbtotalizer::{LitData, Node, TotDb},
+            card::dbtotalizer::{INode, LitData, TotDb},
             nodedb::{NodeCon, NodeLike},
             pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
             CollectClauses, Error,
@@ -466,12 +466,12 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db[self.root.id] {
-                        Node::Leaf(lit) => {
+                    match &self.db[self.root.id].0 {
+                        INode::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        Node::Unit(node) => {
+                        INode::Unit(node) => {
                             if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
                                 if enc_pos {
                                     assumps.push(!lit);
@@ -479,7 +479,7 @@ pub mod referenced {
                                 }
                             }
                         }
-                        Node::General(node) => {
+                        INode::General(node) => {
                             if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
                                 if enc_pos {
                                     assumps.push(!lit);
@@ -487,7 +487,7 @@ pub mod referenced {
                                 }
                             }
                         }
-                        Node::Dummy => panic!(),
+                        INode::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -523,12 +523,12 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db.borrow()[self.root.id] {
-                        Node::Leaf(lit) => {
+                    match &self.db.borrow()[self.root.id].0 {
+                        INode::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        Node::Unit(node) => {
+                        INode::Unit(node) => {
                             if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
                                 if enc_pos {
                                     assumps.push(!lit);
@@ -536,7 +536,7 @@ pub mod referenced {
                                 }
                             }
                         }
-                        Node::General(node) => {
+                        INode::General(node) => {
                             if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
                                 if enc_pos {
                                     assumps.push(!lit);
@@ -544,7 +544,7 @@ pub mod referenced {
                                 }
                             }
                         }
-                        Node::Dummy => panic!(),
+                        INode::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
