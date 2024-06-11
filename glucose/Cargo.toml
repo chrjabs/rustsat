@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-glucose"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
@@ -20,7 +20,7 @@ default = ["quiet"]
 
 [dependencies]
 cpu-time = "1.0.0"
-rustsat = { version = "0.5.0", path = "../rustsat", default-features = false }
+rustsat = { version = "0.5.1", path = "../rustsat", default-features = false }
 thiserror = { version = "1.0.57" }
 anyhow = { version = "1.0.80" }
 
