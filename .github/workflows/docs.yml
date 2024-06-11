@@ -26,4 +26,13 @@ jobs:
       - name: Check READMEs
         run: |
           cargo install cargo-rdme
-          for dir in rustsat tools cadical kissat minisat glucose ipasir capi pyapi; do cd ${dir} && (cargo rdme --check || echo "failed for ${dir}"); cd ..; done
+          return=true
+          for dir in rustsat tools cadical kissat minisat glucose ipasir capi pyapi; do
+            cd ${dir}
+            if ! cargo rdme --check; then
+              echo "failed for ${dir}"
+              return=false
+            fi
+            cd ..
+          done
+          ${return}
