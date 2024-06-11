@@ -12,7 +12,7 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsat = { version = "0.5.0", path = "../rustsat", default-features = false, features = [
+rustsat = { version = "0.6.0", path = "../rustsat", default-features = false, features = [
   "internals",
 ] }
 
