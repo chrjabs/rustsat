@@ -10,7 +10,6 @@ pub mod am1;
 pub mod atomics;
 pub mod card;
 pub mod pb;
-pub mod totdb;
 
 /// Trait for collecting clauses. Mainly used when generating encodings and implemented by
 /// [`crate::instances::Cnf`], and solvers.
@@ -73,6 +72,20 @@ mod nodedb {
     //! share substructures, but close enough.)
 
     pub use super::nodedbimpl::{NodeById, NodeCon, NodeId, NodeLike};
+}
+
+#[path = "encodings/totdb.rs"]
+mod totdbimpl;
+
+// Module defined inline to be able to dynamically change visibility
+// (non-inline modules in proc macro input are unstable)
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+mod totdb {
+    //! # Totalizer Database
+
+    pub(crate) use super::totdbimpl::LitData;
+    pub use super::totdbimpl::{Db, GeneralNode, Node, Semantics, UnitNode};
 }
 
 /// Iterate over encoding inputs

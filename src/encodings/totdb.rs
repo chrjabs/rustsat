@@ -5,6 +5,7 @@ use std::{cmp, collections::BTreeMap, ops};
 use crate::{
     encodings::atomics,
     instances::ManageVars,
+    lit,
     types::{Lit, RsHashMap},
     utils::unreachable_none,
 };
@@ -22,9 +23,7 @@ fn con_idx(idx: usize, con: NodeCon) -> usize {
 
 /// A totalizer database
 #[derive(Default, Clone)]
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
-pub(super) struct Db {
+pub struct Db {
     /// The node database of the totalizer
     nodes: Vec<Node>,
     /// Mapping literals to leaf nodes
@@ -39,14 +38,14 @@ impl NodeById for Db {
     type Node = Node;
 
     fn insert(&mut self, node: Self::Node) -> NodeId {
-        match node.0 {
-            INode::Leaf(lit) => {
+        match node {
+            Node::Leaf(lit) => {
                 if let Some(&id) = self.lookup_leaf.get(&lit) {
                     return id;
                 }
                 self.lookup_leaf.insert(lit, NodeId(self.nodes.len()));
             }
-            INode::Dummy => {
+            Node::Dummy => {
                 if let Some(id) = self.dummy_id {
                     return id;
                 }
@@ -139,41 +138,49 @@ impl Db {
     {
         debug_assert!(val <= self[id].max_val());
         debug_assert!(val > 0);
-        match &self[id].0 {
-            INode::Leaf(lit) => {
+        match &self[id] {
+            Node::Leaf(lit) => {
                 debug_assert_eq!(val, 1);
                 if val != 1 {
                     return Ok(None);
                 }
                 Ok(Some(*lit))
             }
-            INode::Unit(node) => {
+            Node::Unit(node) => {
                 if val > node.lits.len() || val == 0 {
                     return Ok(None);
                 }
 
                 // Check if already encoded
-                if let LitData::Lit { lit, enc_pos, .. } = node.lits[val - 1] {
-                    if enc_pos {
+                if let LitData::Lit {
+                    lit,
+                    semantics: Some(semantics),
+                } = node.lits[val - 1]
+                {
+                    if semantics.has_if() {
                         return Ok(Some(lit));
                     }
                 }
 
-                Ok(Some(self.define_pos_tot(
+                Ok(Some(self.define_unweighted(
                     id,
                     val - 1,
+                    Semantics::If,
                     collector,
                     var_manager,
                 )?))
             }
-            INode::General(node) => {
+            Node::General(node) => {
                 // Check if already encoded
                 if let Some(lit_data) = node.lits.get(&val) {
                     if let LitData::Lit {
-                        lit, enc_pos: true, ..
+                        lit,
+                        semantics: Some(semantics),
                     } = lit_data
                     {
-                        return Ok(Some(*lit));
+                        if semantics.has_if() {
+                            return Ok(Some(*lit));
+                        }
                     }
                 } else {
                     return Ok(None);
@@ -239,15 +246,13 @@ impl Db {
                     }
                 }
 
-                // Mark positive literal as encoded
-                match &mut unreachable_none!(self[id].mut_general().lits.get_mut(&val)) {
-                    LitData::None => unreachable!(),
-                    LitData::Lit { enc_pos, .. } => *enc_pos = true,
-                };
+                // Mark "if" semantics as encoded
+                unreachable_none!(self[id].mut_general().lits.get_mut(&val))
+                    .add_semantics(Semantics::If);
 
                 Ok(Some(olit))
             }
-            INode::Dummy => Ok(None),
+            Node::Dummy => Ok(None),
         }
     }
 
@@ -264,7 +269,7 @@ impl Db {
         use crate::types::constraints::CardConstraint;
         use pidgeons::VarLike;
 
-        debug_assert!(val <= self[id].len());
+        debug_assert!(val <= self[id].len() + 1);
         Ok(if let Some(def) = self.semantic_defs.get(&(id, val, typ)) {
             (*def).into()
         } else {
@@ -280,6 +285,12 @@ impl Db {
                 match typ {
                     SemDefTyp::If => panic!("If semantic with `val=0` is undefined"),
                     SemDefTyp::OnlyIf => proof.redundant(&sem, &[])?,
+                }
+            } else if val > self[id].len() {
+                match typ {
+                    SemDefTyp::If => proof
+                        .redundant(&CardConstraint::new_lb(leafs.iter().map(|l| !*l), 0), &[])?,
+                    SemDefTyp::OnlyIf => panic!("Only if semantic with `val=|X|+1` is undefined"),
                 }
             } else {
                 let olit = *self[id].lit(val).unwrap();
@@ -300,7 +311,12 @@ impl Db {
     }
 
     /// First step of [`Self::define_pos_tot`]: checks preconditions and potentially returns
-    fn precond_pos_tot(&mut self, id: NodeId, idx: usize) -> PrecondOutcome {
+    fn precond_unweighted(
+        &mut self,
+        id: NodeId,
+        idx: usize,
+        req_semantics: Semantics,
+    ) -> PrecondOutcome {
         let node = &self[id];
         debug_assert!(idx < node.max_val());
         if node.is_leaf() {
@@ -310,64 +326,136 @@ impl Db {
         let lcon = unreachable_none!(node.left());
         let rcon = unreachable_none!(node.right());
         debug_assert!(matches!(
-            self[lcon.id].0,
-            INode::Leaf(_) | INode::Unit(_) | INode::Dummy
+            self[lcon.id],
+            Node::Leaf(_) | Node::Unit(_) | Node::Dummy
         ));
         debug_assert!(matches!(
-            self[rcon.id].0,
-            INode::Leaf(_) | INode::Unit(_) | INode::Dummy
+            self[rcon.id],
+            Node::Leaf(_) | Node::Unit(_) | Node::Dummy
         ));
         debug_assert_eq!(lcon.multiplier(), 1);
         debug_assert_eq!(rcon.multiplier(), 1);
         let node = node.unit();
 
         // Check if already encoded
-        if let LitData::Lit { lit, enc_pos, .. } = node.lits[idx] {
-            if enc_pos {
+        let mut new_semantics = req_semantics;
+        if let LitData::Lit {
+            lit,
+            semantics: Some(semantics),
+        } = node.lits[idx]
+        {
+            new_semantics = if let Some(sem) = semantics.missing(req_semantics) {
+                sem
+            } else {
                 return PrecondOutcome::Return(lit);
             }
         }
 
         // treat dummy nodes by passing through other connection
-        if matches!(self[lcon.id].0, INode::Dummy) || matches!(self[rcon.id].0, INode::Dummy) {
-            let realcon = if matches!(self[lcon.id].0, INode::Dummy) {
+        if matches!(self[lcon.id], Node::Dummy) || matches!(self[rcon.id], Node::Dummy) {
+            let realcon = if matches!(self[lcon.id], Node::Dummy) {
                 rcon
             } else {
                 lcon
             };
-            debug_assert!(matches!(
-                self[realcon.id].0,
-                INode::Leaf(_) | INode::Unit(_)
-            ));
+            debug_assert!(matches!(self[realcon.id], Node::Leaf(_) | Node::Unit(_)));
             return PrecondOutcome::Passthrough(realcon);
         }
 
-        // The maximum indices of left and right that influence the current
-        // literal (ignoring offset and divisor)
-        let l_max_idx = cmp::min(self.con_len(lcon) - 1, idx);
-        let r_max_idx = cmp::min(self.con_len(rcon) - 1, idx);
-
-        // The minimum indices of left and right that influence the current literal (ignoring
-        // offset and divisor)
-        let l_min_idx = if idx == r_max_idx {
-            0
+        // The maximum values contributed from each child
+        let (left_if, right_if) = if new_semantics.has_if() {
+            let left_if_max = cmp::min(self.con_len(lcon), idx + 1);
+            let right_if_max = cmp::min(self.con_len(rcon), idx + 1);
+            (
+                idx + 1 - right_if_max..=left_if_max,
+                idx + 1 - left_if_max..=right_if_max,
+            )
         } else {
-            idx - r_max_idx - 1
+            #[allow(clippy::reversed_empty_ranges)]
+            (1..=0, 1..=0)
         };
-        let r_min_idx = if idx == l_max_idx {
-            0
+
+        let (left_only_if, right_only_if) = if new_semantics.has_only_if() {
+            let left_oif_max = cmp::min(self.con_len(lcon), idx);
+            let right_oif_max = cmp::min(self.con_len(rcon), idx);
+            (
+                idx - right_oif_max..=left_oif_max,
+                idx - left_oif_max..=right_oif_max,
+            )
         } else {
-            idx - l_max_idx - 1
+            #[allow(clippy::reversed_empty_ranges)]
+            (1..=0, 1..=0)
         };
 
         PrecondOutcome::Continue(PrecondResult {
             lcon,
             rcon,
-            l_max_idx,
-            r_max_idx,
-            l_min_idx,
-            r_min_idx,
+            left_if,
+            right_if,
+            left_only_if,
+            right_only_if,
         })
+    }
+
+    /// Recursion for unweighted totalizer encoding
+    fn recurse_unweighted<Col>(
+        &mut self,
+        pre: &PrecondResult,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+    {
+        for lval in pre.left_if.clone() {
+            if lval == 0 {
+                continue;
+            }
+            self.define_unweighted(
+                pre.lcon.id,
+                con_idx(lval - 1, pre.lcon),
+                Semantics::If,
+                collector,
+                var_manager,
+            )?;
+        }
+        for rval in pre.right_if.clone() {
+            if rval == 0 {
+                continue;
+            }
+            self.define_unweighted(
+                pre.rcon.id,
+                con_idx(rval - 1, pre.rcon),
+                Semantics::If,
+                collector,
+                var_manager,
+            )?;
+        }
+        for lval in pre.left_only_if.clone() {
+            if lval == self.con_len(pre.lcon) {
+                continue;
+            }
+            self.define_unweighted(
+                pre.lcon.id,
+                con_idx(lval, pre.lcon),
+                Semantics::OnlyIf,
+                collector,
+                var_manager,
+            )?;
+        }
+        for rval in pre.right_only_if.clone() {
+            if rval == self.con_len(pre.rcon) {
+                continue;
+            }
+            self.define_unweighted(
+                pre.rcon.id,
+                con_idx(rval, pre.rcon),
+                Semantics::OnlyIf,
+                collector,
+                var_manager,
+            )?;
+        }
+        Ok(())
     }
 
     /// Gets the correct `olit` to encode, reserving one if not yet done
@@ -382,70 +470,92 @@ impl Db {
     }
 
     /// Last step of [`Self::define_pos_tot`]
-    fn encode_pos_tot<Col>(
+    ///
+    /// # Panics
+    ///
+    /// If the semantics are already encoded.
+    fn encode_unweighted<Col>(
         &mut self,
         id: NodeId,
         idx: usize,
         olit: Lit,
+        req_semantics: Semantics,
         pre: &PrecondResult,
         collector: &mut Col,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
     {
+        // Store what part of the encoding we need to build
+        let new_semantics = self[id].unit().lits[idx]
+            .missing_semantics(req_semantics)
+            .expect("semantics are already encoded");
+
         // Mark positive literal as encoded (done first to avoid borrow checker problems)
-        match &mut self[id].mut_unit().lits[idx] {
-            LitData::None => unreachable!(),
-            LitData::Lit { enc_pos, .. } => *enc_pos = true,
-        };
+        self[id].mut_unit().lits[idx].add_semantics(req_semantics);
 
         // Get lit slices of children
         let l_tmp_olit;
-        let llits = match &self[pre.lcon.id].0 {
-            INode::Leaf(lit) => {
+        let llits = match &self[pre.lcon.id] {
+            Node::Leaf(lit) => {
                 l_tmp_olit = LitData::new_lit(*lit);
                 std::slice::from_ref(&l_tmp_olit)
             }
-            INode::Unit(UnitNode { lits, .. }) => lits,
-            INode::General(_) | INode::Dummy => unreachable!(),
+            Node::Unit(UnitNode { lits, .. }) => lits,
+            Node::General(_) | Node::Dummy => unreachable!(),
         };
         let r_tmp_olit;
-        let rlits = match &self[pre.rcon.id].0 {
-            INode::Leaf(lit) => {
+        let rlits = match &self[pre.rcon.id] {
+            Node::Leaf(lit) => {
                 r_tmp_olit = LitData::new_lit(*lit);
                 std::slice::from_ref(&r_tmp_olit)
             }
-            INode::Unit(UnitNode { lits, .. }) => lits,
-            INode::General(_) | INode::Dummy => unreachable!(),
+            Node::Unit(UnitNode { lits, .. }) => lits,
+            Node::General(_) | Node::Dummy => unreachable!(),
         };
 
         // Encode
-        if pre.l_max_idx == idx {
-            collector.add_clause(atomics::lit_impl_lit(
-                *unreachable_none!(llits[con_idx(idx, pre.lcon)].lit()),
-                olit,
-            ))?;
-        }
-        if pre.r_max_idx == idx {
-            collector.add_clause(atomics::lit_impl_lit(
-                *unreachable_none!(rlits[con_idx(idx, pre.rcon)].lit()),
-                olit,
-            ))?;
-        }
-        let clause_for_lidx = |lidx: usize| {
-            let ridx = idx - lidx - 1;
-            debug_assert!(ridx <= pre.r_max_idx);
-            let llit = *unreachable_none!(llits[con_idx(lidx, pre.lcon)].lit());
-            let rlit = *unreachable_none!(rlits[con_idx(ridx, pre.rcon)].lit());
-            atomics::cube_impl_lit(&[llit, rlit], olit)
+        // If semantics
+        let if_clause = |lval: usize| {
+            let rval = idx + 1 - lval;
+            debug_assert!(pre.right_if.contains(&rval));
+            debug_assert!(new_semantics.has_if());
+            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut nlits = 0;
+            if lval > 0 {
+                lhs[nlits] = *unreachable_none!(llits[con_idx(lval - 1, pre.lcon)].lit());
+                nlits += 1;
+            }
+            if rval > 0 {
+                lhs[nlits] = *unreachable_none!(rlits[con_idx(rval - 1, pre.rcon)].lit());
+                nlits += 1;
+            }
+            atomics::cube_impl_lit(&lhs[..nlits], olit)
         };
-        let clause_iter = (pre.l_min_idx..cmp::min(pre.l_max_idx + 1, idx)).map(clause_for_lidx);
-        collector.extend_clauses(clause_iter)?;
+        collector.extend_clauses(pre.left_if.clone().map(if_clause))?;
+        // Only if semantics
+        let only_if_clause = |lval: usize| {
+            let rval = idx - lval;
+            debug_assert!(pre.right_only_if.contains(&rval));
+            debug_assert!(new_semantics.has_only_if());
+            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut nlits = 0;
+            if lval < self.con_len(pre.lcon) {
+                lhs[nlits] = !*unreachable_none!(llits[con_idx(lval, pre.lcon)].lit());
+                nlits += 1;
+            }
+            if rval < self.con_len(pre.rcon) {
+                lhs[nlits] = !*unreachable_none!(rlits[con_idx(rval, pre.rcon)].lit());
+                nlits += 1;
+            }
+            atomics::cube_impl_lit(&lhs[..nlits], !olit)
+        };
+        collector.extend_clauses(pre.left_only_if.clone().map(only_if_clause))?;
 
         Ok(())
     }
 
-    /// Defines a positive output, assuming that the structure is a non-weighted totalizer
+    /// Defines an output literal, assuming that the structure is a non-weighted totalizer
     ///
     /// The `idx` parameter is the output index, i.e., not the value represented by the output, but
     /// `value - 1`.
@@ -453,48 +563,120 @@ impl Db {
     /// # Errors
     ///
     /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
-    pub fn define_pos_tot<Col>(
+    pub fn define_unweighted<Col>(
         &mut self,
         id: NodeId,
         idx: usize,
+        semantics: Semantics,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
     ) -> Result<Lit, crate::OutOfMemory>
     where
         Col: CollectClauses,
     {
-        let pre = match self.precond_pos_tot(id, idx) {
+        let pre = match self.precond_unweighted(id, idx, semantics) {
             PrecondOutcome::Return(lit) => return Ok(lit),
             PrecondOutcome::Passthrough(con) => {
-                let ilit =
-                    self.define_pos_tot(con.id, con_idx(idx, con), collector, var_manager)?;
+                let ilit = self.define_unweighted(
+                    con.id,
+                    con_idx(idx, con),
+                    semantics,
+                    collector,
+                    var_manager,
+                )?;
                 let olit = self.get_olit(id, idx, var_manager);
                 collector.add_clause(atomics::lit_impl_lit(ilit, olit))?;
                 // Mark positive literal as encoded
-                match &mut self[id].mut_unit().lits[idx] {
-                    LitData::None => unreachable!(),
-                    LitData::Lit { enc_pos, .. } => *enc_pos = true,
-                };
+                self[id].mut_unit().lits[idx].add_semantics(semantics);
                 return Ok(olit);
             }
             PrecondOutcome::Continue(pre) => pre,
         };
 
         // Encode children (recurse)
-        for lidx in pre.l_min_idx..=pre.l_max_idx {
-            self.define_pos_tot(pre.lcon.id, con_idx(lidx, pre.lcon), collector, var_manager)?;
-        }
-        for ridx in pre.r_min_idx..=pre.r_max_idx {
-            self.define_pos_tot(pre.rcon.id, con_idx(ridx, pre.rcon), collector, var_manager)?;
-        }
+        self.recurse_unweighted(&pre, collector, var_manager)?;
 
         // Reserve variable for this node, if needed
         let olit = self.get_olit(id, idx, var_manager);
 
         // Encode this node
-        self.encode_pos_tot(id, idx, olit, &pre, collector)?;
+        self.encode_unweighted(id, idx, olit, semantics, &pre, collector)?;
 
         Ok(olit)
+    }
+
+    #[cfg(feature = "proof-logging")]
+    /// Recursion for unweighted totalizer encoding
+    fn recurse_unweighted_cert<Col, W>(
+        &mut self,
+        pre: &PrecondResult,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pidgeons::Proof<W>,
+        leafs: &mut [Lit],
+    ) -> anyhow::Result<()>
+    where
+        Col: CollectClauses,
+        W: std::io::Write,
+    {
+        let (left_leafs, right_leafs) = leafs.split_at_mut(self.con_len(pre.lcon));
+        for lval in pre.left_if.clone() {
+            if lval == 0 {
+                continue;
+            }
+            self.define_unweighted_cert(
+                pre.lcon.id,
+                con_idx(lval - 1, pre.lcon),
+                Semantics::If,
+                collector,
+                var_manager,
+                proof,
+                left_leafs,
+            )?;
+        }
+        for rval in pre.right_if.clone() {
+            if rval == 0 {
+                continue;
+            }
+            self.define_unweighted_cert(
+                pre.rcon.id,
+                con_idx(rval - 1, pre.rcon),
+                Semantics::If,
+                collector,
+                var_manager,
+                proof,
+                right_leafs,
+            )?;
+        }
+        for lval in pre.left_only_if.clone() {
+            if lval == self.con_len(pre.lcon) {
+                continue;
+            }
+            self.define_unweighted_cert(
+                pre.lcon.id,
+                con_idx(lval, pre.lcon),
+                Semantics::OnlyIf,
+                collector,
+                var_manager,
+                proof,
+                left_leafs,
+            )?;
+        }
+        for rval in pre.right_only_if.clone() {
+            if rval == self.con_len(pre.rcon) {
+                continue;
+            }
+            self.define_unweighted_cert(
+                pre.rcon.id,
+                con_idx(rval, pre.rcon),
+                Semantics::OnlyIf,
+                collector,
+                var_manager,
+                proof,
+                right_leafs,
+            )?;
+        }
+        Ok(())
     }
 
     /// Defines a positive output, assuming that the structure is a non-weighted totalizer, and
@@ -512,10 +694,11 @@ impl Db {
     /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
     /// - If writing the proof fails, returns [`std::io::Error`]
     #[cfg(feature = "proof-logging")]
-    pub fn define_pos_tot_cert<Col, W>(
+    pub fn define_unweighted_cert<Col, W>(
         &mut self,
         id: NodeId,
         idx: usize,
+        semantics: Semantics,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
@@ -529,7 +712,7 @@ impl Db {
 
         debug_assert_eq!(leafs.len(), self[id].len());
 
-        let pre = match self.precond_pos_tot(id, idx) {
+        let pre = match self.precond_unweighted(id, idx, semantics) {
             PrecondOutcome::Return(lit) => {
                 let mut new_leafs: Vec<_> = self.leaf_iter(id).collect();
                 leafs.swap_with_slice(&mut new_leafs);
@@ -547,63 +730,53 @@ impl Db {
 
         // Encode children (recurse)
         let left_len = self.con_len(pre.lcon);
-        let (left_leafs, right_leafs) = leafs.split_at_mut(left_len);
-        for lidx in pre.l_min_idx..=pre.l_max_idx {
-            self.define_pos_tot_cert(
-                pre.lcon.id,
-                con_idx(lidx, pre.lcon),
-                collector,
-                var_manager,
-                proof,
-                left_leafs,
-            )?;
-        }
-        for ridx in pre.r_min_idx..=pre.r_max_idx {
-            self.define_pos_tot_cert(
-                pre.rcon.id,
-                con_idx(ridx, pre.rcon),
-                collector,
-                var_manager,
-                proof,
-                right_leafs,
-            )?;
-        }
+        self.recurse_unweighted_cert(&pre, collector, var_manager, proof, leafs)?;
 
         // Reserve variable for this node, if needed
         let olit = self.get_olit(id, idx, var_manager);
 
         // Encode this node
-        self.encode_pos_tot(id, idx, olit, &pre, collector)?;
+        self.encode_unweighted(id, idx, olit, semantics, &pre, collector)?;
 
         // Derive clauses in proof (in the same order that they were yielded)
-        if pre.l_max_idx == idx {
+        for lval in pre.left_if.clone() {
+            let rval = idx + 1 - lval;
             let (left_leafs, right_leafs) = leafs.split_at(left_len);
-            let left_def =
-                self.get_semantics(pre.lcon.id, idx + 1, left_leafs, SemDefTyp::OnlyIf, proof)?;
-            let right_def =
-                self.get_semantics(pre.rcon.id, 0, right_leafs, SemDefTyp::OnlyIf, proof)?;
+            let left_def = self.get_semantics(
+                pre.lcon.id,
+                pre.lcon.rev_map(lval),
+                left_leafs,
+                SemDefTyp::OnlyIf,
+                proof,
+            )?;
+            let right_def = self.get_semantics(
+                pre.rcon.id,
+                pre.rcon.rev_map(rval),
+                right_leafs,
+                SemDefTyp::OnlyIf,
+                proof,
+            )?;
             let this_def = self.get_semantics(id, idx + 1, leafs, SemDefTyp::If, proof)?;
-            proof.operations(&(left_def + right_def + this_def))?;
+            proof.operations(&(this_def + left_def + right_def).saturate())?;
         }
-        if pre.r_max_idx == idx {
+        for lval in pre.left_only_if.clone() {
+            let rval = idx - lval;
             let (left_leafs, right_leafs) = leafs.split_at(left_len);
-            let left_def =
-                self.get_semantics(pre.lcon.id, 0, left_leafs, SemDefTyp::OnlyIf, proof)?;
-            let right_def =
-                self.get_semantics(pre.rcon.id, idx + 1, right_leafs, SemDefTyp::OnlyIf, proof)?;
-            let this_def = self.get_semantics(id, idx + 1, leafs, SemDefTyp::If, proof)?;
-            proof.operations(&(left_def + right_def + this_def).saturate())?;
-        }
-        for lidx in pre.l_min_idx..cmp::min(pre.l_max_idx + 1, idx) {
-            let (left_leafs, right_leafs) = leafs.split_at(left_len);
-            let lval = pre.lcon.rev_map(lidx + 1);
-            let rval = pre.rcon.rev_map(idx - lidx);
-            debug_assert!(rval <= pre.r_max_idx + 1);
-            let left_def =
-                self.get_semantics(pre.lcon.id, lval, left_leafs, SemDefTyp::OnlyIf, proof)?;
-            let right_def =
-                self.get_semantics(pre.rcon.id, rval, right_leafs, SemDefTyp::OnlyIf, proof)?;
-            let this_def = self.get_semantics(id, idx + 1, leafs, SemDefTyp::If, proof)?;
+            let left_def = self.get_semantics(
+                pre.lcon.id,
+                pre.lcon.rev_map(lval + 1),
+                left_leafs,
+                SemDefTyp::If,
+                proof,
+            )?;
+            let right_def = self.get_semantics(
+                pre.rcon.id,
+                pre.rcon.rev_map(rval + 1),
+                right_leafs,
+                SemDefTyp::If,
+                proof,
+            )?;
+            let this_def = self.get_semantics(id, idx + 1, leafs, SemDefTyp::OnlyIf, proof)?;
             proof.operations(&(this_def + left_def + right_def).saturate())?;
         }
 
@@ -612,7 +785,7 @@ impl Db {
 
     /// Recursively reserves all variables in the subtree rooted at the given node
     pub fn reserve_vars(&mut self, id: NodeId, var_manager: &mut dyn ManageVars) {
-        if matches!(self[id].0, INode::Leaf(_) | INode::Dummy) {
+        if matches!(self[id], Node::Leaf(_) | Node::Dummy) {
             return;
         }
 
@@ -620,44 +793,40 @@ impl Db {
         self.reserve_vars(unreachable_none!(self[id].left()).id, var_manager);
         self.reserve_vars(unreachable_none!(self[id].right()).id, var_manager);
 
-        match &mut self[id].0 {
-            INode::Unit(UnitNode { lits, .. }) => {
+        match &mut self[id] {
+            Node::Unit(UnitNode { lits, .. }) => {
                 for olit in lits {
                     if let LitData::None = olit {
                         *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
                 }
             }
-            INode::General(GeneralNode { lits, .. }) => {
+            Node::General(GeneralNode { lits, .. }) => {
                 for (_, olit) in lits.iter_mut() {
                     if let LitData::None = olit {
                         *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
                 }
             }
-            INode::Leaf(_) | INode::Dummy => unreachable!(),
+            Node::Leaf(_) | Node::Dummy => unreachable!(),
         }
     }
 
     /// Resets the status of what has already been encoded
-    pub fn reset_encoded(&mut self) {
+    pub fn reset_encoded(&mut self, reset_semantics: Semantics) {
         for node in &mut self.nodes {
-            match &mut node.0 {
-                INode::Unit(UnitNode { lits, .. }) => {
+            match node {
+                Node::Unit(UnitNode { lits, .. }) => {
                     for lit in lits {
-                        if let LitData::Lit { enc_pos, .. } = lit {
-                            *enc_pos = false;
-                        }
+                        lit.remove_semantics(reset_semantics);
                     }
                 }
-                INode::General(GeneralNode { lits, .. }) => {
+                Node::General(GeneralNode { lits, .. }) => {
                     for lit in lits.values_mut() {
-                        if let LitData::Lit { enc_pos, .. } = lit {
-                            *enc_pos = false;
-                        }
+                        lit.remove_semantics(reset_semantics);
                     }
                 }
-                INode::Leaf(_) | INode::Dummy => (),
+                Node::Leaf(_) | Node::Dummy => (),
             }
         }
     }
@@ -667,19 +836,92 @@ impl Db {
     #[cfg(feature = "internals")]
     pub fn reset_vars(&mut self) {
         for node in &mut self.nodes {
-            match &mut node.0 {
-                INode::Leaf(_) | INode::Dummy => (),
-                INode::Unit(UnitNode { lits, .. }) => {
+            match node {
+                Node::Leaf(_) | Node::Dummy => (),
+                Node::Unit(UnitNode { lits, .. }) => {
                     for lit in lits {
                         *lit = LitData::None;
                     }
                 }
-                INode::General(GeneralNode { lits, .. }) => {
+                Node::General(GeneralNode { lits, .. }) => {
                     for lit in lits.values_mut() {
                         *lit = LitData::None;
                     }
                 }
             }
+        }
+    }
+}
+
+/// Defines the semantics with which a totalizer output can be encoded
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Semantics {
+    /// `(input lits >= bound) -> olit`
+    If,
+    /// `olit -> (input lits >= bound)`
+    OnlyIf,
+    /// `olit <-> (input lits >= bound)`
+    IfAndOnlyIf,
+}
+
+impl Semantics {
+    /// Checks if the if semantics are included
+    #[inline]
+    #[must_use]
+    pub fn has_if(self) -> bool {
+        matches!(self, Semantics::If | Semantics::IfAndOnlyIf)
+    }
+
+    /// Checks if the if semantics are included
+    #[inline]
+    #[must_use]
+    pub fn has_only_if(self) -> bool {
+        matches!(self, Semantics::OnlyIf | Semantics::IfAndOnlyIf)
+    }
+
+    /// Checks whether the given semantics already satisfy required semantics
+    #[inline]
+    #[must_use]
+    pub fn satisfies(self, required: Semantics) -> bool {
+        match required {
+            Semantics::If => self.has_if(),
+            Semantics::OnlyIf => self.has_only_if(),
+            Semantics::IfAndOnlyIf => matches!(self, Semantics::IfAndOnlyIf),
+        }
+    }
+
+    /// Updates the given semantics with additional semantics
+    #[inline]
+    pub fn add(&mut self, new: Semantics) {
+        if matches!(
+            (*self, new),
+            (Semantics::If, Semantics::OnlyIf)
+                | (Semantics::OnlyIf, Semantics::If)
+                | (_, Semantics::IfAndOnlyIf)
+        ) {
+            *self = Semantics::IfAndOnlyIf;
+        }
+    }
+
+    /// Updates the given semantics by removing semantics
+    #[inline]
+    #[must_use]
+    pub fn remove(self, remove: Semantics) -> Option<Semantics> {
+        match (self, remove) {
+            (Semantics::IfAndOnlyIf | Semantics::OnlyIf, Semantics::If) => Some(Semantics::OnlyIf),
+            (Semantics::IfAndOnlyIf | Semantics::If, Semantics::OnlyIf) => Some(Semantics::If),
+            _ => None,
+        }
+    }
+
+    /// Gets the missing semantics between this and required semantics
+    #[inline]
+    #[must_use]
+    pub fn missing(self, required: Semantics) -> Option<Semantics> {
+        match (self, required) {
+            (Semantics::If, Semantics::IfAndOnlyIf | Semantics::OnlyIf) => Some(Semantics::OnlyIf),
+            (Semantics::OnlyIf, Semantics::IfAndOnlyIf | Semantics::If) => Some(Semantics::If),
+            _ => None,
         }
     }
 }
@@ -693,10 +935,10 @@ enum PrecondOutcome {
 struct PrecondResult {
     lcon: NodeCon,
     rcon: NodeCon,
-    l_max_idx: usize,
-    r_max_idx: usize,
-    l_min_idx: usize,
-    r_min_idx: usize,
+    left_if: ops::RangeInclusive<usize>,
+    right_if: ops::RangeInclusive<usize>,
+    left_only_if: ops::RangeInclusive<usize>,
+    right_only_if: ops::RangeInclusive<usize>,
 }
 
 #[cfg(feature = "proof-logging")]
@@ -770,29 +1012,7 @@ enum SemDefTyp {
 
 /// A totalizer adder node
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[repr(transparent)]
-#[cfg(not(feature = "internals"))]
-pub struct Node(pub(in crate::encodings) INode);
-
-/// A totalizer adder node
-///
-/// The internal node [`INode`] representation is only accessible on crate feature `internals`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[repr(transparent)]
-#[cfg(feature = "internals")]
-pub struct Node(pub INode);
-
-impl From<INode> for Node {
-    fn from(value: INode) -> Self {
-        Self(value)
-    }
-}
-
-/// The internal totalizer node type
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
-pub(in crate::encodings) enum INode {
+pub enum Node {
     /// An input literal, i.e., a leaf of the tree
     Leaf(Lit),
     /// An internal node with unit weight
@@ -807,24 +1027,24 @@ impl NodeLike for Node {
     type ValIter = std::iter::Chain<ops::Range<usize>, std::vec::IntoIter<usize>>;
 
     fn is_leaf(&self) -> bool {
-        matches!(self.0, INode::Leaf(_))
+        matches!(self, Node::Leaf(_))
     }
 
     fn max_val(&self) -> usize {
-        match &self.0 {
-            INode::Leaf(_) => 1,
-            INode::Unit(node) => node.lits.len(),
-            INode::General(node) => node.max_val,
-            INode::Dummy => 0,
+        match &self {
+            Node::Leaf(_) => 1,
+            Node::Unit(node) => node.lits.len(),
+            Node::General(node) => node.max_val,
+            Node::Dummy => 0,
         }
     }
 
     fn len(&self) -> usize {
-        match &self.0 {
-            INode::Leaf(_) => 1,
-            INode::Unit(node) => node.lits.len(),
-            INode::General(node) => node.lits.len(),
-            INode::Dummy => 0,
+        match &self {
+            Node::Leaf(_) => 1,
+            Node::Unit(node) => node.lits.len(),
+            Node::General(node) => node.lits.len(),
+            Node::Dummy => 0,
         }
     }
 
@@ -832,14 +1052,14 @@ impl NodeLike for Node {
     where
         R: ops::RangeBounds<usize>,
     {
-        match &self.0 {
-            INode::Leaf(_) => {
+        match &self {
+            Node::Leaf(_) => {
                 if range.contains(&1) {
                     return (1..2).chain(vec![]);
                 }
                 (0..0).chain(vec![])
             }
-            INode::Unit(node) => {
+            Node::Unit(node) => {
                 let lb = match range.start_bound() {
                     ops::Bound::Included(b) => cmp::max(*b, 1),
                     ops::Bound::Excluded(b) => b + 1,
@@ -852,35 +1072,35 @@ impl NodeLike for Node {
                 };
                 (lb..ub).chain(vec![])
             }
-            INode::General(node) => {
+            Node::General(node) => {
                 let vals: Vec<_> = node.lits.range(range).map(|(val, _)| *val).collect();
                 (0..0).chain(vals)
             }
-            INode::Dummy => (0..0).chain(vec![]),
+            Node::Dummy => (0..0).chain(vec![]),
         }
     }
 
     fn right(&self) -> Option<NodeCon> {
-        match &self.0 {
-            INode::Leaf(..) | INode::Dummy => None,
-            INode::Unit(node) => Some(node.right),
-            INode::General(node) => Some(node.right),
+        match &self {
+            Node::Leaf(..) | Node::Dummy => None,
+            Node::Unit(node) => Some(node.right),
+            Node::General(node) => Some(node.right),
         }
     }
 
     fn left(&self) -> Option<NodeCon> {
-        match &self.0 {
-            INode::Leaf(..) | INode::Dummy => None,
-            INode::Unit(node) => Some(node.left),
-            INode::General(node) => Some(node.left),
+        match &self {
+            Node::Leaf(..) | Node::Dummy => None,
+            Node::Unit(node) => Some(node.left),
+            Node::General(node) => Some(node.left),
         }
     }
 
     fn depth(&self) -> usize {
-        match &self.0 {
-            INode::Leaf(..) | INode::Dummy => 1,
-            INode::Unit(node) => node.depth,
-            INode::General(node) => node.depth,
+        match &self {
+            Node::Leaf(..) | Node::Dummy => 1,
+            Node::Unit(node) => node.depth,
+            Node::General(node) => node.depth,
         }
     }
 
@@ -889,8 +1109,8 @@ impl NodeLike for Node {
         Db: NodeById<Node = Self>,
     {
         let general = left.multiplier != right.multiplier
-            || matches!(&db[left.id].0, INode::General(_))
-            || matches!(&db[right.id].0, INode::General(_));
+            || matches!(&db[left.id], Node::General(_))
+            || matches!(&db[right.id], Node::General(_));
         if general {
             let lvals: Vec<_> = db[left.id]
                 .vals(left.offset()..)
@@ -900,28 +1120,26 @@ impl NodeLike for Node {
                 .vals(right.offset()..)
                 .map(|val| right.map(val))
                 .collect();
-            return INode::General(GeneralNode::new(
+            return Node::General(GeneralNode::new(
                 &lvals,
                 &rvals,
                 std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
                 left,
                 right,
-            ))
-            .into();
+            ));
         }
         // if both inputs have the same weight, the multiplier should be 1
         debug_assert!(left.multiplier() == 1 && right.multiplier() == 1);
-        INode::Unit(UnitNode::new(
+        Node::Unit(UnitNode::new(
             db.con_len(left) + db.con_len(right),
             std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
             left,
             right,
         ))
-        .into()
     }
 
     fn leaf(lit: Lit) -> Self {
-        INode::Leaf(lit).into()
+        Node::Leaf(lit)
     }
 }
 
@@ -929,55 +1147,73 @@ impl Node {
     /// Panic-safe version of literal indexing
     #[must_use]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
-        match &self.0 {
-            INode::Leaf(lit, ..) => {
+        match &self {
+            Node::Leaf(lit, ..) => {
                 if val != 1 {
                     return None;
                 }
                 Some(lit)
             }
-            INode::Unit(node) => node.lit(val),
-            INode::General(node) => node.lit(val),
-            INode::Dummy => None,
+            Node::Unit(node) => node.lit(val),
+            Node::General(node) => node.lit(val),
+            Node::Dummy => None,
         }
     }
 
-    /// Checks if a given output value is positively encoded
+    /// Checks if a given output value has "if" semantics encoded
+    #[cfg(feature = "internals")]
     #[must_use]
-    pub fn encoded_pos(&self, val: usize) -> bool {
-        match &self.0 {
-            INode::Leaf(..) => {
+    pub fn semantics_if(&self, val: usize) -> bool {
+        match &self {
+            Node::Leaf(..) => {
                 if val != 1 {
                     return false;
                 }
                 true
             }
-            INode::Unit(node) => node.encoded_pos(val),
-            INode::General(node) => node.encoded_pos(val),
-            INode::Dummy => true,
+            Node::Unit(node) => node.semantics_if(val),
+            Node::General(node) => node.semantics_if(val),
+            Node::Dummy => true,
+        }
+    }
+
+    /// Checks if a given output value has "if" semantics encoded
+    #[cfg(feature = "internals")]
+    #[must_use]
+    pub fn semantics_only_if(&self, val: usize) -> bool {
+        match &self {
+            Node::Leaf(..) => {
+                if val != 1 {
+                    return false;
+                }
+                true
+            }
+            Node::Unit(node) => node.semantics_only_if(val),
+            Node::General(node) => node.semantics_only_if(val),
+            Node::Dummy => true,
         }
     }
 
     /// Returns the internal node and panics if the node is not a unit
     pub(crate) fn unit(&self) -> &UnitNode {
-        match &self.0 {
-            INode::Unit(node) => node,
+        match self {
+            Node::Unit(node) => node,
             _ => panic!("called `unit` on non-unit node"),
         }
     }
 
     /// Returns the internal node and panics if the node is not a unit
     pub(crate) fn mut_unit(&mut self) -> &mut UnitNode {
-        match &mut self.0 {
-            INode::Unit(node) => node,
+        match self {
+            Node::Unit(node) => node,
             _ => panic!("called `unit` on non-unit node"),
         }
     }
 
     /// Returns the internal node and panics if the node is not general
     pub(crate) fn mut_general(&mut self) -> &mut GeneralNode {
-        match &mut self.0 {
-            INode::General(node) => node,
+        match self {
+            Node::General(node) => node,
             _ => panic!("called `unit` on non-general node"),
         }
     }
@@ -986,10 +1222,10 @@ impl Node {
     /// nodes references a nodes within the drained range, it returns that
     /// [`NodeId`] as an Error.
     fn drain(&mut self, range: ops::Range<NodeId>) -> Result<(), NodeId> {
-        match &mut self.0 {
-            INode::Leaf(_) | INode::Dummy => Ok(()),
-            INode::Unit(UnitNode { left, right, .. })
-            | INode::General(GeneralNode { left, right, .. }) => {
+        match self {
+            Node::Leaf(_) | Node::Dummy => Ok(()),
+            Node::Unit(UnitNode { left, right, .. })
+            | Node::General(GeneralNode { left, right, .. }) => {
                 if range.contains(&left.id) {
                     return Err(left.id);
                 }
@@ -1048,11 +1284,20 @@ impl UnitNode {
         self.lits[val - 1].lit()
     }
 
-    /// Checks if a given value is positively encoded
+    /// Checks if a given value has "if" semantics encoded
+    #[cfg(feature = "internals")]
     #[inline]
     #[must_use]
-    pub fn encoded_pos(&self, val: usize) -> bool {
-        self.lits[val - 1].encoded_pos()
+    pub fn semantics_if(&self, val: usize) -> bool {
+        self.lits[val - 1].semantics_if()
+    }
+
+    /// Checks if a given value has "only if" semantics encoded
+    #[cfg(feature = "internals")]
+    #[inline]
+    #[must_use]
+    pub fn semantics_only_if(&self, val: usize) -> bool {
+        self.lits[val - 1].semantics_only_if()
     }
 }
 
@@ -1105,24 +1350,37 @@ impl GeneralNode {
         self.lits.get(&val).and_then(|dat| dat.lit())
     }
 
-    /// Checks if a given value is positively encoded
+    /// Checks if a given value has the "if" semantics encoded
+    #[cfg(feature = "internals")]
     #[inline]
     #[must_use]
-    pub fn encoded_pos(&self, val: usize) -> bool {
-        self.lits.get(&val).map_or(false, LitData::encoded_pos)
+    pub fn semantics_if(&self, val: usize) -> bool {
+        self.lits
+            .get(&val)
+            .copied()
+            .map_or(false, LitData::semantics_if)
+    }
+
+    /// Checks if a given value has the "only if" semantics encoded
+    #[cfg(feature = "internals")]
+    #[inline]
+    #[must_use]
+    pub fn semantics_only_if(&self, val: usize) -> bool {
+        self.lits
+            .get(&val)
+            .copied()
+            .map_or(false, LitData::semantics_only_if)
     }
 }
 
 /// Data associated with an output literal in a [`Node`]
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LitData {
     #[default]
     None,
     Lit {
         lit: Lit,
-        enc_pos: bool,
-        // needed when getting around to implement lower bounding
-        // enc_neg: bool,
+        semantics: Option<Semantics>,
     },
 }
 
@@ -1130,7 +1388,7 @@ impl LitData {
     fn new_lit(lit: Lit) -> Self {
         LitData::Lit {
             lit,
-            enc_pos: false,
+            semantics: None,
         }
     }
 
@@ -1142,11 +1400,59 @@ impl LitData {
         }
     }
 
+    #[cfg(feature = "internals")]
     #[inline]
-    fn encoded_pos(&self) -> bool {
+    #[must_use]
+    fn semantics_if(self) -> bool {
         match self {
             LitData::None => false,
-            LitData::Lit { enc_pos, .. } => *enc_pos,
+            LitData::Lit { semantics, .. } => semantics.map_or(false, Semantics::has_if),
+        }
+    }
+
+    #[cfg(feature = "internals")]
+    #[inline]
+    #[must_use]
+    fn semantics_only_if(self) -> bool {
+        match self {
+            LitData::None => false,
+            LitData::Lit { semantics, .. } => semantics.map_or(false, Semantics::has_only_if),
+        }
+    }
+
+    #[inline]
+    fn add_semantics(&mut self, new_semantics: Semantics) {
+        match self {
+            LitData::None => panic!(),
+            LitData::Lit {
+                semantics: Some(sem),
+                ..
+            } => sem.add(new_semantics),
+            LitData::Lit { semantics, .. } => *semantics = Some(new_semantics),
+        }
+    }
+
+    #[inline]
+    fn remove_semantics(&mut self, remove_semantics: Semantics) {
+        match self {
+            LitData::None => (),
+            LitData::Lit { semantics, .. } => {
+                if let Some(sem) = semantics {
+                    *semantics = sem.remove(remove_semantics);
+                }
+            }
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    fn missing_semantics(self, required: Semantics) -> Option<Semantics> {
+        match self {
+            LitData::Lit {
+                semantics: Some(semantics),
+                ..
+            } => semantics.missing(required),
+            _ => Some(required),
         }
     }
 }
@@ -1159,10 +1465,10 @@ mod tests {
         lit, var,
     };
 
-    use super::Db;
+    use super::{Db, Semantics};
 
     #[test]
-    fn tot_db() {
+    fn tot_db_if() {
         let mut db = Db::default();
         let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
         debug_assert_eq!(db[root].depth(), 3);
@@ -1170,27 +1476,91 @@ mod tests {
         var_manager.increase_next_free(var![4]);
 
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 0, &mut cnf, &mut var_manager)
+        db.define_unweighted(root, 0, Semantics::If, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert_eq!(cnf.len(), 6);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 1, &mut cnf, &mut var_manager)
+        db.define_unweighted(root, 1, Semantics::If, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert_eq!(cnf.len(), 9);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 2, &mut cnf, &mut var_manager)
+        db.define_unweighted(root, 2, Semantics::If, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert_eq!(cnf.len(), 8);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
-        db.define_pos_tot(root, 3, &mut cnf, &mut var_manager)
+        db.define_unweighted(root, 3, Semantics::If, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert_eq!(cnf.len(), 3);
+    }
+
+    #[test]
+    fn tot_db_only_if() {
+        let mut db = Db::default();
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 0, Semantics::OnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 3);
+
+        db.reset_encoded(Semantics::IfAndOnlyIf);
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 1, Semantics::OnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 8);
+
+        db.reset_encoded(Semantics::IfAndOnlyIf);
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 2, Semantics::OnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 9);
+
+        db.reset_encoded(Semantics::IfAndOnlyIf);
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 3, Semantics::OnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 6);
+    }
+
+    #[test]
+    fn tot_db_if_and_only_if() {
+        let mut db = Db::default();
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 0, Semantics::IfAndOnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 9);
+
+        db.reset_encoded(Semantics::IfAndOnlyIf);
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 1, Semantics::IfAndOnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 17);
+
+        db.reset_encoded(Semantics::IfAndOnlyIf);
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 2, Semantics::IfAndOnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 17);
+
+        db.reset_encoded(Semantics::IfAndOnlyIf);
+        let mut cnf = Cnf::new();
+        db.define_unweighted(root, 3, Semantics::IfAndOnlyIf, &mut cnf, &mut var_manager)
+            .unwrap();
+        debug_assert_eq!(cnf.len(), 9);
     }
 
     #[test]
@@ -1209,27 +1579,27 @@ mod tests {
         db.define_pos(root, 1, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 0);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 4, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 7, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 8, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 15, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 4);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 22, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
@@ -1251,27 +1621,27 @@ mod tests {
         db.define_pos(root, 1, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 2, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 3, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 3);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 4, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 5, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
 
-        db.reset_encoded();
+        db.reset_encoded(Semantics::IfAndOnlyIf);
         let mut cnf = Cnf::new();
         db.define_pos(root, 6, &mut cnf, &mut var_manager).unwrap();
         debug_assert_eq!(cnf.len(), 2);
@@ -1302,7 +1672,7 @@ mod tests {
             lit, var,
         };
 
-        use super::Db;
+        use super::{Db, Semantics};
 
         fn print_file<P: AsRef<Path>>(path: P) {
             println!();
@@ -1338,7 +1708,7 @@ mod tests {
         }
 
         #[test]
-        fn tot_db_cert() {
+        fn tot_db_if_cert() {
             let mut db = Db::default();
             let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
             debug_assert_eq!(db[root].depth(), 3);
@@ -1349,14 +1719,106 @@ mod tests {
 
             let mut cnf = Cnf::new();
             let mut lits = [lit![0]; 4];
-            db.define_pos_tot_cert(root, 0, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            db.define_unweighted_cert(
+                root,
+                0,
+                Semantics::If,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+            db.define_unweighted_cert(
+                root,
+                1,
+                Semantics::If,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+            db.define_unweighted_cert(
+                root,
+                2,
+                Semantics::If,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+            db.define_unweighted_cert(
+                root,
+                3,
+                Semantics::If,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+
+            let proof_file = proof
+                .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
                 .unwrap();
-            db.define_pos_tot_cert(root, 1, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-                .unwrap();
-            db.define_pos_tot_cert(root, 2, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-                .unwrap();
-            db.define_pos_tot_cert(root, 3, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-                .unwrap();
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+        }
+
+        #[test]
+        fn tot_db_only_if_cert() {
+            let mut db = Db::default();
+            let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+            debug_assert_eq!(db[root].depth(), 3);
+            let mut var_manager = BasicVarManager::default();
+            var_manager.increase_next_free(var![4]);
+
+            let mut proof = new_proof(0, false);
+
+            let mut cnf = Cnf::new();
+            let mut lits = [lit![0]; 4];
+            db.define_unweighted_cert(
+                root,
+                0,
+                Semantics::OnlyIf,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+            db.define_unweighted_cert(
+                root,
+                1,
+                Semantics::OnlyIf,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+            db.define_unweighted_cert(
+                root,
+                2,
+                Semantics::OnlyIf,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
+            db.define_unweighted_cert(
+                root,
+                3,
+                Semantics::OnlyIf,
+                &mut cnf,
+                &mut var_manager,
+                &mut proof,
+                &mut lits,
+            )
+            .unwrap();
 
             let proof_file = proof
                 .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)

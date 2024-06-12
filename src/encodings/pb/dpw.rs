@@ -286,7 +286,7 @@ impl BoundUpper for DynamicPolyWatchdog {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        self.db.reset_encoded();
+        self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
     }
 
@@ -546,7 +546,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.reset_encoded();
+            self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -571,7 +571,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.borrow_mut().reset_encoded();
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -787,7 +787,7 @@ fn build_structure(
                 bb_offset = top_bucket.offset;
             } else {
                 // last bottom bucket for this segment, leave dummy node to path in extension
-                let dummy = tot_db.insert(totdb::INode::Dummy.into());
+                let dummy = tot_db.insert(totdb::Node::Dummy);
                 let right = NodeCon::full(dummy);
                 let bottom = tot_db.insert(totdb::Node::internal(top_bucket, right, tot_db));
                 bottom_buckets.push(bottom);
@@ -863,7 +863,7 @@ where
         .iter()
         .rev()
     {
-        let dummy = tot_db.insert(totdb::INode::Dummy.into());
+        let dummy = tot_db.insert(totdb::Node::Dummy);
         let right = NodeCon::full(dummy);
         let tare_node = tot_db.insert(totdb::Node::leaf(tare));
         let new_bottom = tot_db.insert(totdb::Node::internal(
@@ -873,13 +873,13 @@ where
         ));
         let last_bottom = *bot_struct.bottom_buckets.last().unwrap();
         debug_assert_eq!(
-            tot_db[tot_db[last_bottom].right().unwrap().id].0,
-            totdb::INode::Dummy
+            tot_db[tot_db[last_bottom].right().unwrap().id],
+            totdb::Node::Dummy
         );
-        match &mut tot_db[last_bottom].0 {
-            totdb::INode::Leaf(_) | totdb::INode::Dummy => unreachable!(),
-            totdb::INode::Unit(totdb::UnitNode { right, .. })
-            | totdb::INode::General(totdb::GeneralNode { right, .. }) => {
+        match &mut tot_db[last_bottom] {
+            totdb::Node::Leaf(_) | totdb::Node::Dummy => unreachable!(),
+            totdb::Node::Unit(totdb::UnitNode { right, .. })
+            | totdb::Node::General(totdb::GeneralNode { right, .. }) => {
                 *right = NodeCon {
                     id: new_bottom,
                     offset: 0,
@@ -898,13 +898,13 @@ where
     // step 3: patch together structures
     let last_bottom = *bot_struct.bottom_buckets.last().unwrap();
     debug_assert_eq!(
-        tot_db[tot_db[last_bottom].right().unwrap().id].0,
-        totdb::INode::Dummy
+        tot_db[tot_db[last_bottom].right().unwrap().id],
+        totdb::Node::Dummy
     );
-    match &mut tot_db[last_bottom].0 {
-        totdb::INode::Leaf(_) | totdb::INode::Dummy => panic!(),
-        totdb::INode::Unit(totdb::UnitNode { right, .. })
-        | totdb::INode::General(totdb::GeneralNode { right, .. }) => {
+    match &mut tot_db[last_bottom] {
+        totdb::Node::Leaf(_) | totdb::Node::Dummy => panic!(),
+        totdb::Node::Unit(totdb::UnitNode { right, .. })
+        | totdb::Node::General(totdb::GeneralNode { right, .. }) => {
             *right = NodeCon {
                 id: *top_struct.bottom_buckets.first().unwrap(),
                 offset: 0,
@@ -936,8 +936,12 @@ where
             .iter()
             .enumerate()
             .filter_map(|(idx, litdat)| {
-                if let &totdb::LitData::Lit { lit, enc_pos } = litdat {
-                    if enc_pos && idx + 1 >= old_right_max {
+                if let &totdb::LitData::Lit {
+                    lit,
+                    semantics: Some(semantics),
+                } = litdat
+                {
+                    if semantics.has_if() && idx + 1 >= old_right_max {
                         return Some((lit, idx + 1));
                     }
                 }
@@ -950,13 +954,24 @@ where
             ) {
                 let lval = val - right.map(rval);
                 if left.is_possible(lval) {
-                    let rlit = tot_db.define_pos_tot(right.id, rval - 1, collector, var_manager)?;
+                    let rlit = tot_db.define_unweighted(
+                        right.id,
+                        rval - 1,
+                        totdb::Semantics::If,
+                        collector,
+                        var_manager,
+                    )?;
                     if lval == 0 {
                         collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
                     } else {
                         debug_assert_eq!(left.divisor(), 1);
-                        let llit =
-                            tot_db.define_pos_tot(left.id, lval - 1, collector, var_manager)?;
+                        let llit = tot_db.define_unweighted(
+                            left.id,
+                            lval - 1,
+                            totdb::Semantics::If,
+                            collector,
+                            var_manager,
+                        )?;
                         collector.add_clause(atomics::cube_impl_lit(&[rlit, llit], olit))?;
                     }
                 }
@@ -994,7 +1009,13 @@ where
     if oidx >= tot_db[dpw.root()].max_val() {
         return Ok(());
     }
-    tot_db.define_pos_tot(dpw.root(), oidx, collector, var_manager)?;
+    tot_db.define_unweighted(
+        dpw.root(),
+        oidx,
+        totdb::Semantics::If,
+        collector,
+        var_manager,
+    )?;
     Ok(())
 }
 

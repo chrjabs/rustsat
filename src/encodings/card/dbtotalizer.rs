@@ -14,7 +14,9 @@ use crate::{
     types::Lit,
 };
 
-use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
+use super::{
+    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+};
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
@@ -106,7 +108,7 @@ impl BoundUpper for DbTotalizer {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        self.db.reset_encoded();
+        self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
     }
 
@@ -118,19 +120,23 @@ impl BoundUpper for DbTotalizer {
             return Err(Error::NotEncoded);
         }
         if let Some(id) = self.root {
-            match &self.db[id].0 {
-                totdb::INode::Leaf(lit) => {
+            match &self.db[id] {
+                totdb::Node::Leaf(lit) => {
                     debug_assert_eq!(ub, 0);
                     return Ok(vec![!*lit]);
                 }
-                totdb::INode::Unit(node) => {
-                    if let totdb::LitData::Lit { lit, enc_pos, .. } = node.lits[ub] {
-                        if enc_pos {
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[ub]
+                    {
+                        if semantics.has_if() {
                             return Ok(vec![!lit]);
                         }
                     }
                 }
-                totdb::INode::General(_) | totdb::INode::Dummy => unreachable!(),
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
         }
         Err(Error::NotEncoded)
@@ -157,7 +163,92 @@ impl BoundUpperIncremental for DbTotalizer {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                self.db.define_pos_tot(id, idx, collector, var_manager)?;
+                self.db
+                    .define_unweighted(id, idx, totdb::Semantics::If, collector, var_manager)?;
+            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
+        };
+        Ok(())
+    }
+}
+
+impl BoundLower for DbTotalizer {
+    fn encode_lb<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize>,
+    {
+        self.db.reset_encoded(totdb::Semantics::OnlyIf);
+        self.encode_lb_change(range, collector, var_manager)
+    }
+
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+        if lb == 0 {
+            return Ok(vec![]);
+        }
+        if lb > self.n_lits() {
+            return Err(Error::Unsat);
+        }
+        if !self.lit_buffer.is_empty() {
+            return Err(Error::NotEncoded);
+        }
+        if let Some(id) = self.root {
+            match &self.db[id] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(lb, 1);
+                    return Ok(vec![*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[lb - 1]
+                    {
+                        if semantics.has_only_if() {
+                            return Ok(vec![lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+            }
+        }
+        Err(Error::NotEncoded)
+    }
+}
+
+impl BoundLowerIncremental for DbTotalizer {
+    fn encode_lb_change<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize>,
+    {
+        let range = super::prepare_lb_range(self, range);
+        if range.is_empty() {
+            return Ok(());
+        }
+        self.extend_tree();
+        if let Some(id) = self.root {
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                self.db.define_unweighted(
+                    id,
+                    idx - 1,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                )?;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
@@ -312,7 +403,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: std::ops::RangeBounds<usize>,
         {
-            self.db.reset_encoded();
+            self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -320,19 +411,23 @@ pub mod referenced {
             if ub >= self.n_lits() {
                 return Ok(vec![]);
             }
-            match &self.db[self.root].0 {
-                totdb::INode::Leaf(lit) => {
+            match &self.db[self.root] {
+                totdb::Node::Leaf(lit) => {
                     debug_assert_eq!(ub, 0);
                     return Ok(vec![!*lit]);
                 }
-                totdb::INode::Unit(node) => {
-                    if let totdb::LitData::Lit { lit, enc_pos, .. } = node.lits[ub] {
-                        if enc_pos {
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[ub]
+                    {
+                        if semantics.has_if() {
                             return Ok(vec![!lit]);
                         }
                     }
                 }
-                totdb::INode::General(_) | totdb::INode::Dummy => unreachable!(),
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
             Err(Error::NotEncoded)
         }
@@ -349,7 +444,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: std::ops::RangeBounds<usize>,
         {
-            self.db.borrow_mut().reset_encoded();
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -357,19 +452,23 @@ pub mod referenced {
             if ub >= self.n_lits() {
                 return Ok(vec![]);
             }
-            match &self.db.borrow()[self.root].0 {
-                totdb::INode::Leaf(lit) => {
+            match &self.db.borrow()[self.root] {
+                totdb::Node::Leaf(lit) => {
                     debug_assert_eq!(ub, 0);
                     return Ok(vec![!*lit]);
                 }
-                totdb::INode::Unit(node) => {
-                    if let totdb::LitData::Lit { lit, enc_pos, .. } = node.lits[ub] {
-                        if enc_pos {
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[ub]
+                    {
+                        if semantics.has_if() {
                             return Ok(vec![!lit]);
                         }
                     }
                 }
-                totdb::INode::General(_) | totdb::INode::Dummy => unreachable!(),
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
             Err(Error::NotEncoded)
         }
@@ -391,8 +490,13 @@ pub mod referenced {
                 return Ok(());
             }
             for idx in range {
-                self.db
-                    .define_pos_tot(self.root, idx, collector, var_manager)?;
+                self.db.define_unweighted(
+                    self.root,
+                    idx,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                )?;
             }
             Ok(())
         }
@@ -414,9 +518,13 @@ pub mod referenced {
                 return Ok(());
             }
             for idx in range {
-                self.db
-                    .borrow_mut()
-                    .define_pos_tot(self.root, idx, collector, var_manager)?;
+                self.db.borrow_mut().define_unweighted(
+                    self.root,
+                    idx,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                )?;
             }
             Ok(())
         }

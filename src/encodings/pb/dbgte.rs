@@ -167,7 +167,7 @@ impl BoundUpper for DbGte {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        self.db.reset_encoded();
+        self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
     }
 
@@ -190,28 +190,36 @@ impl BoundUpper for DbGte {
             self.db[con.id]
                 .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
                 .try_for_each(|val| {
-                    match &self.db[con.id].0 {
-                        totdb::INode::Leaf(lit) => {
+                    match &self.db[con.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        totdb::INode::Unit(node) => {
-                            if let totdb::LitData::Lit { lit, enc_pos, .. } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        totdb::INode::General(node) => {
-                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[&val] {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[&val]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        totdb::INode::Dummy => unreachable!(),
+                        totdb::Node::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -445,7 +453,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.reset_encoded();
+            self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -462,28 +470,36 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db[self.root.id].0 {
-                        totdb::INode::Leaf(lit) => {
+                    match &self.db[self.root.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        totdb::INode::Unit(node) => {
-                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        totdb::INode::General(node) => {
-                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[&val] {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[&val]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        totdb::INode::Dummy => panic!(),
+                        totdb::Node::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -502,7 +518,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.borrow_mut().reset_encoded();
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -519,28 +535,36 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db.borrow()[self.root.id].0 {
-                        totdb::INode::Leaf(lit) => {
+                    match &self.db.borrow()[self.root.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        totdb::INode::Unit(node) => {
-                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        totdb::INode::General(node) => {
-                            if let totdb::LitData::Lit { lit, enc_pos } = node.lits[&val] {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[&val]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        totdb::INode::Dummy => unreachable!(),
+                        totdb::Node::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
