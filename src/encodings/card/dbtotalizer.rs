@@ -598,6 +598,7 @@ impl LitData {
 /// A totalizer database
 #[derive(Default, Clone)]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
 pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
     nodes: Vec<Node>,

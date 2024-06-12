@@ -86,7 +86,7 @@ ipasir-display = []
 all = ["multiopt", "compression", "rand", "fxhash"]
 
 [package.metadata.docs.rs]
-features = ["all"]
+features = ["all", "internals"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [[example]]

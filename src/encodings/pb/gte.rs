@@ -340,6 +340,7 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
 /// literals happens in the [`GeneralizedTotalizer`] or
 /// [`super::InvertedGeneralizedTotalizer`] structs.
 #[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
 enum Node {
     /// A weighted input literal, i.e., a leaf node of the tree
     Leaf {
