@@ -6,6 +6,7 @@
 ///
 /// If `basis` is `1` and `number` is larger than `u32`.
 #[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
 #[must_use]
 pub(crate) fn digits(mut number: usize, mut basis: u8) -> u32 {
     debug_assert_ne!(basis, 0);
