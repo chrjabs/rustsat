@@ -14,7 +14,7 @@
 use clap::{Args, Parser, Subcommand};
 use rustsat::{encodings::pb, instances::fio::dimacs};
 use rustsat_tools::encodings::{
-    clustering::{self, saturating_map, scaling_map, Encoding, Error, Variant},
+    clustering::{self, saturating_map, scaling_map, Encoding, Variant},
     knapsack,
 };
 use std::{fs::File, io, path::PathBuf};
@@ -93,7 +93,7 @@ struct KnapsackArgs {
     seed: u64,
 }
 
-fn clustering(args: ClusteringArgs) -> Result<(), Error> {
+fn clustering(args: ClusteringArgs) -> anyhow::Result<()> {
     let mcnf_to_wcnf = |line: dimacs::McnfLine| match line {
         dimacs::McnfLine::Comment(c) => dimacs::WcnfLine::Comment(c),
         dimacs::McnfLine::Hard(cl) => dimacs::WcnfLine::Hard(cl),
@@ -149,7 +149,7 @@ fn clustering(args: ClusteringArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn knapsack(args: KnapsackArgs) -> Result<(), Error> {
+fn knapsack(args: KnapsackArgs) -> anyhow::Result<()> {
     let encoding = knapsack::Encoding::new::<pb::DynamicPolyWatchdog>(knapsack::Knapsack::random(
         args.n_items,
         args.n_objectives,
@@ -167,7 +167,7 @@ fn knapsack(args: KnapsackArgs) -> Result<(), Error> {
     Ok(())
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> anyhow::Result<()> {
     let args = CliArgs::parse();
 
     match args.cmd {

@@ -6,31 +6,35 @@ use core::ffi::c_int;
 use std::{
     fmt,
     ops::{self, Index, IndexMut},
+    path::Path,
 };
 
+use anyhow::Context;
 use thiserror::Error;
-
-#[cfg(feature = "pyapi")]
-use pyo3::{exceptions::PyValueError, prelude::*};
 
 pub mod constraints;
 pub use constraints::Clause;
 
+use crate::instances::fio::{self, SolverOutput};
+
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHashMap<K, V> = rustc_hash::FxHashMap<K, V>;
+/// The hash map to use throughout the library
 #[cfg(not(feature = "fxhash"))]
 pub type RsHashMap<K, V> = std::collections::HashMap<K, V>;
 
 /// The hash set to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHashSet<V> = rustc_hash::FxHashSet<V>;
+/// The hash set to use throughout the library
 #[cfg(not(feature = "fxhash"))]
 pub type RsHashSet<V> = std::collections::HashSet<V>;
 
-/// The hasher to use throught the library
+/// The hasher to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHasher = rustc_hash::FxHasher;
+/// The hasher to use throughout the library
 #[cfg(not(feature = "fxhash"))]
 pub type RsHasher = std::collections::hash_map::DefaultHasher;
 
@@ -38,7 +42,7 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 /// RustSAT starts from 0 and the maximum index is `(u32::MAX - 1) / 2`. This is
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
-#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord, Debug)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
 #[repr(transparent)]
 pub struct Var {
     idx: u32,
@@ -155,7 +159,7 @@ impl Var {
     /// will have idx+1 and be negative if the literal is negated. Returns
     /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
     /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
-    /// mostly safe to simply use [`to_ipasir`] instead.
+    /// mostly safe to simply use [`Self::to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
         (self.idx32() + 1)
             .try_into()
@@ -200,6 +204,17 @@ impl ops::SubAssign<u32> for Var {
 /// Variables can be printed with the [`Display`](std::fmt::Display) trait
 impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if cfg!(feature = "ipasir-display") {
+            write!(f, "x{}", self.to_ipasir())
+        } else {
+            write!(f, "x{}", self.idx())
+        }
+    }
+}
+
+/// Variables can be printed with the [`Debug`](std::fmt::Debug) trait
+impl fmt::Debug for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "x{}", self.idx)
     }
 }
@@ -227,8 +242,7 @@ macro_rules! var {
 /// whether the literal is negated or not. This way the literal can directly
 /// be used to index data structures with the two literals of a variable
 /// being close together.
-#[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
 #[repr(transparent)]
 pub struct Lit {
     lidx: u32,
@@ -397,7 +411,7 @@ impl Lit {
     /// will have idx+1 and be negative if the literal is negated. Returns
     /// `Err(TypeError::IdxTooHigh(_, _))` if the literal does not fit into a `c_int`. As [`c_int`
     /// will almost always be `i32`](https://doc.rust-lang.org/std/os/raw/type.c_int.html), it is
-    /// mostly safe to simply use [`to_ipasir`] instead.
+    /// mostly safe to simply use [`Self::to_ipasir`] instead.
     pub fn to_ipasir_with_error(self) -> Result<c_int, TypeError> {
         let negated = self.is_neg();
         let idx: c_int = match (self.vidx() + 1).try_into() {
@@ -457,55 +471,16 @@ impl ops::Sub<u32> for Lit {
 /// Literals can be printed with the [`Display`](std::fmt::Display) trait
 impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.is_neg() {
-            true => write!(f, "~x{}", self.vidx()),
-            false => write!(f, "x{}", self.vidx()),
-        }
+        write!(f, "{}{}", if self.is_neg() { "~" } else { "" }, self.var())
     }
 }
 
-#[cfg(feature = "pyapi")]
-#[pymethods]
-impl Lit {
-    #[new]
-    fn pynew(ipasir: c_int) -> PyResult<Self> {
-        Self::from_ipasir(ipasir).map_err(|_| PyValueError::new_err("invalid ipasir lit"))
-    }
-
-    fn __str__(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn __neg__(&self) -> Lit {
-        !*self
-    }
-
-    fn __richcmp__(&self, other: &Lit, op: pyo3::basic::CompareOp) -> bool {
-        op.matches(self.cmp(&other))
-    }
-
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    /// Gets the IPASIR/DIMACS representation of the literal
-    #[pyo3(name = "to_ipasir")]
-    fn py_ipasir(&self) -> c_int {
-        let negated = self.is_neg();
-        let idx: c_int = (self.vidx() + 1)
-            .try_into()
-            .expect("variable index too high to fit in c_int");
-        if negated {
-            -idx
-        } else {
-            idx
+/// Literals can be printed with the [`Debug`](std::fmt::Debug) trait
+impl fmt::Debug for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.is_neg() {
+            true => write!(f, "~x{}", self.vidx()),
+            false => write!(f, "x{}", self.vidx()),
         }
     }
 }
@@ -622,6 +597,20 @@ impl ops::Neg for TernaryVal {
     }
 }
 
+/// Possible errors in parsing a SAT solver value (`v`) line
+#[derive(Error, Debug)]
+pub enum InvalidVLine {
+    /// The given `v` line starts with an invalid character
+    #[error("The value line does not start with 'v ' but with {0}")]
+    InvalidTag(char),
+    /// The `v` line contains a conflicting assignment on the given variable
+    #[error("The output of the SAT solver assigned different values to variable {0}")]
+    ConflictingAssignment(Var),
+    /// The given `v` line is empty
+    #[error("Empty value line")]
+    EmptyLine,
+}
+
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
@@ -653,6 +642,7 @@ impl Assignment {
         }
     }
 
+    /// Replaces unassigned variables in the assignment with a default value
     pub fn replace_dont_care(&mut self, def: bool) {
         self.assignment.iter_mut().for_each(|tv| {
             if tv == &TernaryVal::DontCare {
@@ -696,6 +686,61 @@ impl Assignment {
         } else {
             Some(var![self.assignment.len() as u32 - 1])
         }
+    }
+
+    /// Reads a solution from SAT solver output given the path
+    ///
+    /// If it is unclear whether the SAT solver indicated satisfiability, use [`fio::parse_sat_solver_output`] instead.
+    pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let reader = std::io::BufReader::new(
+            fio::open_compressed_uncompressed_read(path).context("failed to open reader")?,
+        );
+        let output = fio::parse_sat_solver_output(reader)?;
+        match output {
+            SolverOutput::Sat(solution) => Ok(solution),
+            _ => anyhow::bail!("solver output does not indicate satisfiability"),
+        }
+    }
+
+    /// Creates an assignment from a SAT solver value line  
+    pub fn from_vline(line: &str) -> anyhow::Result<Self> {
+        let mut assignment = Assignment::default();
+        assignment.extend_from_vline(line)?;
+        Ok(assignment)
+    }
+
+    /// Parses and saves literals from a value line.
+    pub fn extend_from_vline(&mut self, lines: &str) -> anyhow::Result<()> {
+        for line in lines.lines() {
+            anyhow::ensure!(!line.is_empty(), InvalidVLine::EmptyLine);
+            anyhow::ensure!(
+                line.starts_with("v "),
+                InvalidVLine::InvalidTag(line.chars().next().unwrap())
+            );
+
+            let line = &line[1..];
+            for number in line.split_whitespace() {
+                let number = number.parse::<i32>()?;
+
+                // End of the value lines
+                if number == 0 {
+                    continue;
+                }
+
+                let literal = Lit::from_ipasir(number)?;
+                let val = self.lit_value(literal);
+                if val == TernaryVal::True && literal.is_neg()
+                    || val == TernaryVal::False && literal.is_pos()
+                {
+                    // Catch conflicting assignments
+                    anyhow::bail!(InvalidVLine::ConflictingAssignment(literal.var()));
+                }
+                self.assign_lit(literal);
+            }
+        }
+
+        anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
+        Ok(())
     }
 }
 
@@ -795,9 +840,9 @@ impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 
 #[cfg(test)]
 mod tests {
-    use std::mem::size_of;
+    use std::{mem::size_of, num::ParseIntError};
 
-    use super::{Assignment, Lit, TernaryVal, Var};
+    use super::{Assignment, InvalidVLine, Lit, TernaryVal, Var};
 
     #[test]
     fn var_index() {
@@ -886,22 +931,22 @@ mod tests {
     #[test]
     fn ternary_var_true() {
         let tv = TernaryVal::True;
-        assert_eq!(tv.clone().to_bool_with_def(true), true);
-        assert_eq!(tv.to_bool_with_def(false), true);
+        assert!(tv.to_bool_with_def(true));
+        assert!(tv.to_bool_with_def(false));
     }
 
     #[test]
     fn ternary_var_false() {
         let tv = TernaryVal::False;
-        assert_eq!(tv.clone().to_bool_with_def(true), false);
-        assert_eq!(tv.to_bool_with_def(false), false);
+        assert!(!tv.to_bool_with_def(true));
+        assert!(!tv.to_bool_with_def(false));
     }
 
     #[test]
     fn ternary_var_dnc() {
         let tv = TernaryVal::DontCare;
-        assert_eq!(tv.clone().to_bool_with_def(true), true);
-        assert_eq!(tv.to_bool_with_def(false), false);
+        assert!(tv.to_bool_with_def(true));
+        assert!(!tv.to_bool_with_def(false));
     }
 
     #[test]
@@ -980,5 +1025,97 @@ mod tests {
     #[test]
     fn ternary_val_size() {
         assert_eq!(size_of::<TernaryVal>(), 1);
+    }
+
+    #[test]
+    fn parse_vline() {
+        let vline = "v 1 -2 4 -5 6 0";
+        let ground_truth = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::DontCare,
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+        ]);
+        assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
+        assert_eq!(
+            {
+                let mut asign = Assignment::default();
+                asign.extend_from_vline(vline).unwrap();
+                asign
+            },
+            ground_truth
+        );
+    }
+
+    #[test]
+    fn vline_invalid_lit_from() {
+        let vline = "v 1 -2 4 foo -5 bar 6 0";
+        let res = Assignment::from_vline(vline);
+        res.unwrap_err().downcast::<ParseIntError>().unwrap();
+    }
+
+    #[test]
+    fn vline_invalid_lit_extend() {
+        let vline = "v 1 -2 4 foo -5 bar 6 0";
+        let mut assign = Assignment::default();
+        let res = assign.extend_from_vline(vline);
+        res.unwrap_err().downcast::<ParseIntError>().unwrap();
+    }
+
+    #[test]
+    fn vline_invalid_tag_from() {
+        let vline = "b 1 -2 4 -5 6 0";
+        let res = Assignment::from_vline(vline);
+        match res.unwrap_err().downcast::<InvalidVLine>() {
+            Ok(err) => match err {
+                InvalidVLine::InvalidTag(ck) => assert_eq!(ck, 'b'),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
+    }
+
+    #[test]
+    fn vline_invalid_tag_extend() {
+        let vline = "b 1 -2 4 -5 6 0";
+        let mut assign = Assignment::default();
+        let res = assign.extend_from_vline(vline);
+        match res.unwrap_err().downcast::<InvalidVLine>() {
+            Ok(err) => match err {
+                InvalidVLine::InvalidTag(ck) => assert_eq!(ck, 'b'),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
+    }
+
+    #[test]
+    fn vline_invalid_empty() {
+        let vline = "";
+        let res = Assignment::from_vline(vline);
+        match res.unwrap_err().downcast::<InvalidVLine>() {
+            Ok(err) => match err {
+                InvalidVLine::EmptyLine => (),
+                _ => panic!(),
+            },
+            Err(_) => panic!(),
+        }
+    }
+
+    #[test]
+    fn multi_vline() {
+        let vline = "v 1 2 3\nv 4 5 6 0";
+        let ground_truth = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::True,
+            TernaryVal::True,
+            TernaryVal::True,
+            TernaryVal::True,
+            TernaryVal::True,
+        ]);
+        let res = Assignment::from_vline(vline).unwrap();
+        assert_eq!(res, ground_truth);
     }
 }

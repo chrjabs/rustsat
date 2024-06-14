@@ -1,0 +1,122 @@
+c GimSATul SAT Solver
+c Copyright (c) 2022-2023 Armin Biere University of Freiburg
+c
+c Version 1.1.2 09b1b3bcb5d86ef6f75bc9a0f69717c42ced70d4
+c gcc (GCC) 13.2.1 20230801 -Wall -O3 -DNDEBUG
+c Wed Apr 24 16:38:17 EEST 2024 Linux Christoph-laptop 6.8.2-arch2-1 x86_64
+c
+c parsing DIMACS file '../sat-rs/rustsat/data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf'
+c parsed 'p cnf 27224 68879' header
+c parsing took 0.02 seconds
+c
+c starting full simplification #1
+c
+c [1] substituted 0 variables 0% in 0.00 seconds
+c [1] removed 0 duplicated binary clauses 0% in 0.00 seconds
+c [1] subsumed 0 clauses 0% and strengthened 0 clauses 0% in 0.00 seconds
+c [1] eliminated 19247 variables 71% with bound 0 in 0.05 seconds
+c [1] all candidate variables 100% tried
+c
+c [2] substituted 0 variables 0% in 0.01 seconds
+c [2] removed 0 duplicated binary clauses 0% in 0.00 seconds
+c [2] subsumed 0 clauses 0% and strengthened 480 clauses 1% in 0.01 seconds
+c [2] eliminated 4904 variables 18% with bound 0 in 0.08 seconds
+c [2] all candidate variables 100% tried
+c
+c [3] substituted 0 variables 0% in 0.00 seconds
+c [3] removed 0 duplicated binary clauses 0% in 0.00 seconds
+c [3] subsumed 0 clauses 0% and strengthened 0 clauses 0% in 0.00 seconds
+c [3] eliminated 1352 variables 5% with bound 0 in 0.02 seconds
+c [3] all candidate variables 100% tried
+c
+c [4] substituted 0 variables 0% in 0.00 seconds
+c [4] removed 0 duplicated binary clauses 0% in 0.00 seconds
+c [4] subsumed 1613 clauses 2% and strengthened 12160 clauses 18% in 0.00 seconds
+c [4] eliminated 1555 variables 6% with bound 0 in 0.00 seconds
+c [4] all candidate variables 100% tried
+c
+c removed 27222 variables 100% with 0 remaining 0%
+c removed 66491 clauses 97% with 2386 remaining 3%
+c
+c simplification #1 took 0.18 seconds
+c
+c cloning first ring solver
+c memory increased by 1.05 from 14.56 MB to 15.25 MB
+c
+s UNSATISFIABLE
+c
+c0       0.00 seconds    0.0 %  fail
+c0       0.00 seconds    0.0 %  focus
+c0       0.00 seconds    0.0 %  probe
+c0       0.00 seconds    0.0 %  reduce
+c0       0.00 seconds    0.0 %  search
+c0       0.00 seconds    0.0 %  stable
+c0       0.00 seconds    0.0 %  vivify
+c0       0.00 seconds    0.0 %  walk
+c0 -----------------------------------------
+c0       0.00 seconds  100.0 %  solving
+c
+c0 conflicts:                             0          0.00 per second
+c0 chronological:                         0          0.00 % conflicts
+c0 decisions:                             0          0.00 per conflict
+c0   heap-decisions:                        0          0.00 % decisions
+c0   negative-decisions:                    0          0.00 % decisions
+c0   positive-decisions:                    0          0.00 % decisions
+c0   queue-decisions:                       0          0.00 % decisions
+c0   random-decisions:                      0          0.00 % decisions
+c0   random-sequences:                      0          0.00 decisions
+c0 solving-fixed:                         0          0.00 % variables
+c0 failed-literals:                       0          0.00 % variables
+c0 lifted-literals:                       0          0.00 % variables
+c0 fixed-variables:                       0          0.00 % variables
+c0   learned-units:                       0          0.00 % fixed
+c0 flips:                                 0          0.00 thousands per second
+c0 vivified-clauses:                      0          0.00 % per tried clause
+c0   vivify-tried:                        0          0.00 % per learned clause
+c0   vivify-reused:                       0          0.00 % per vivify-tried
+c0 learned-literals:                      0          0.00 per learned clause
+c0 learned-clauses:                       0          0.00 per second
+c0   learned-binaries:                    0          0.00 % learned clauses
+c0   learned-tier1:                       0          0.00 % learned clauses
+c0   learned-tier2:                       0          0.00 % learned clauses
+c0   learned-tier3:                       0          0.00 % learned clauses
+c0 jumped:                                0          0.00 % propagations
+c0 propagations:                          0          0.00 millions per second
+c0 probings:                              0          0.00 conflict interval
+c0 reductions:                            0          0.00 conflict interval
+c0 rephased:                              0          0.00 conflict interval
+c0 restarts:                              0          0.00 conflict interval
+c0 simplifications:                       0          0.00 conflict interval
+c0 switched:                              0          0.00 conflict interval
+c0 walked:                                0          0.00 flips per walked
+c
+c       0.18 seconds   91.7 %  simplify
+c       0.14 seconds   70.4 %  eliminate
+c       0.02 seconds    7.5 %  parse
+c       0.01 seconds    7.1 %  subsume
+c       0.01 seconds    5.9 %  substitute
+c       0.00 seconds    1.3 %  deduplicate
+c       0.00 seconds    0.7 %  clone
+c       0.00 seconds    0.0 %  solve
+c --------------------------------------------
+c       0.20 seconds  100.0 %  total
+c
+c eliminated:                        27058         99.39 % variables
+c definitions:                       11078         40.94 % eliminated variables
+c substituted:                           0          0.00 % variables
+c deduplicated:                          0          0.00 % subsumed clauses
+c self-subsumed:                      1613        100.00 % subsumed clauses
+c strengthened:                      12640         18.35 % original clauses
+c simplifications:                       1
+c subsumed:                           1613          2.34 % original clauses
+c weakened:                         111741        162.23 % original clauses
+c simplifying-fixed:                   164         98.80 % total-fixed
+c solving-fixed:                         0          0.00 % total-fixed
+c total-fixed:                         166          0.61 % variables
+c
+c utilization:                                    100.86 %
+c process-time:                                     0.20 seconds
+c wall-clock-time:                                  0.20 seconds
+c maximum-resident-set-size:                       16.06 MB
+c
+c exit 20

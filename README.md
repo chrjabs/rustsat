@@ -54,13 +54,14 @@ To install the binary tools in `rustsat-tools` run `cargo install rustsat-tools`
 
 | Feature name | Description |
 | --- | --- |
-| `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
-| `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
 | `optimization` | Include optimization (MaxSAT) data structures etc. |
 | `multiopt` | Include data structures etc. for multi-objective optimization. |
 | `compression` | Enable parsing and writing compressed input. |
-| `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
+| `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
 | `rand` | Enable randomization features. (Shuffling clauses etc.) |
+| `ipasir-display` | Changes `Display` trait for `Lit` and `Var` types to follow IPASIR variables indexing. |
+| `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
+| `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
 
 ## Examples
 
@@ -68,9 +69,6 @@ For example usage refer to the small example tools in the [`rustsat-tools`
 crate](https://crates.io/crates/rustsat_tools) at `tools/src/bin`. For a bigger
 example you can look at this [multi-objective optimization
 solver](https://github.com/chrjabs/scuttle).
-
-For an example of how to use the C-API, see `rustsat/examples/capi*.cpp`.
-Similarly, for an example of using the Python API, see `rustsat/examples/pyapi*.py`.
 
 <!-- cargo-rdme end -->
 

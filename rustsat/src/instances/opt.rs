@@ -1,6 +1,6 @@
 //! # Optimization Instance Representations
 
-use std::{cmp, io, path::Path};
+use std::{cmp, collections::hash_map, io, path::Path, slice};
 
 use crate::{
     clause,
@@ -9,6 +9,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
     },
+    RequiresClausal, RequiresSoftLits,
 };
 
 /// Internal objective type for not exposing variants
@@ -305,10 +306,10 @@ impl Objective {
                 if let Some(unit_weight) = unit_weight {
                     *self = IntObj::Weighted {
                         offset: *offset,
-                        soft_lits: soft_lits.iter_mut().map(|l| (*l, *unit_weight)).collect(),
+                        soft_lits: soft_lits.drain(..).map(|l| (l, *unit_weight)).collect(),
                         soft_clauses: soft_clauses
-                            .iter_mut()
-                            .map(|cl| (cl.clone(), *unit_weight))
+                            .drain(..)
+                            .map(|cl| (cl, *unit_weight))
                             .collect(),
                     }
                     .into()
@@ -335,12 +336,12 @@ impl Objective {
             } => {
                 let mut soft_unit_lits = vec![];
                 soft_lits
-                    .iter_mut()
-                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + *w, *l));
+                    .drain()
+                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
                 let mut soft_unit_clauses = vec![];
-                soft_clauses.iter_mut().for_each(|(cl, w)| {
-                    soft_unit_clauses.resize(soft_unit_clauses.len() + *w, cl.clone())
-                });
+                soft_clauses
+                    .drain()
+                    .for_each(|(cl, w)| soft_unit_clauses.resize(soft_unit_clauses.len() + w, cl));
                 *self = IntObj::Unweighted {
                     offset: *offset,
                     unit_weight: Some(1),
@@ -547,7 +548,16 @@ impl Objective {
     }
 
     /// Converts the objective to a set of soft clauses and an offset
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_soft_cls has been renamed to into_soft_cls and will be removed in a future release"
+    )]
     pub fn as_soft_cls(self) -> (impl WClsIter, isize) {
+        self.into_soft_cls()
+    }
+
+    /// Converts the objective to a set of soft clauses and an offset
+    pub fn into_soft_cls(self) -> (impl WClsIter, isize) {
         match self.0 {
             IntObj::Unweighted {
                 mut soft_clauses,
@@ -583,7 +593,18 @@ impl Objective {
     /// Converts the objective to unweighted soft clauses, a unit weight and an offset. If the
     /// objective is weighted, the soft clause will appear as often as its
     /// weight in the output vector.
-    pub fn as_unweighted_soft_cls(mut self) -> (impl ClsIter, usize, isize) {
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_unweighted_soft_cls has been renamed to into_unweighted_soft_cls and will be removed in a future release"
+    )]
+    pub fn as_unweighted_soft_cls(self) -> (impl ClsIter, usize, isize) {
+        self.into_unweighted_soft_cls()
+    }
+
+    /// Converts the objective to unweighted soft clauses, a unit weight and an offset. If the
+    /// objective is weighted, the soft clause will appear as often as its
+    /// weight in the output vector.
+    pub fn into_unweighted_soft_cls(mut self) -> (impl ClsIter, usize, isize) {
         self.weighted_2_unweighted();
         match self.0 {
             IntObj::Weighted { .. } => panic!(),
@@ -606,33 +627,79 @@ impl Objective {
         }
     }
 
-    /// Converts the objective to a set of hard clauses, soft literals and an offset
-    pub fn as_soft_lits<VM>(mut self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
+    /// Converts the objective to soft literals in place, returning hardened clauses produced in
+    /// the conversion.
+    ///
+    /// See [`Self::into_soft_lits`] if you do not need to convert in place.
+    pub fn convert_to_soft_lits<VM>(&mut self, var_manager: &mut VM) -> Cnf
     where
         VM: ManageVars,
     {
+        let mut cnf = Cnf::new();
+        match &mut self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                cnf.clauses.reserve(soft_clauses.len());
+                soft_lits.reserve(soft_clauses.len());
+                for (mut cl, w) in soft_clauses.drain() {
+                    debug_assert!(cl.len() > 1);
+                    let relax_lit = var_manager.new_var().pos_lit();
+                    cl.add(relax_lit);
+                    cnf.add_clause(cl);
+                    soft_lits.insert(relax_lit, w);
+                }
+            }
+            IntObj::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                cnf.clauses.reserve(soft_clauses.len());
+                soft_lits.reserve(soft_clauses.len());
+                for mut cl in soft_clauses.drain(..) {
+                    debug_assert!(cl.len() > 1);
+                    let relax_lit = var_manager.new_var().pos_lit();
+                    cl.add(relax_lit);
+                    cnf.add_clause(cl);
+                    soft_lits.push(relax_lit);
+                }
+            }
+        }
+        cnf
+    }
+
+    /// Converts the objective to a set of hard clauses, soft literals and an offset
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_soft_lits has been renamed to into_soft_lits and will be removed in a future release"
+    )]
+    pub fn as_soft_lits<VM>(self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
+    where
+        VM: ManageVars,
+    {
+        self.into_soft_lits(var_manager)
+    }
+
+    /// Converts the objective to a set of hard clauses, soft literals and an offset
+    ///
+    /// See [`Self::convert_to_soft_lits`] for converting in place
+    pub fn into_soft_lits<VM>(mut self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
+    where
+        VM: ManageVars,
+    {
+        let cnf = self.convert_to_soft_lits(var_manager);
         self.unweighted_2_weighted();
         match self.0 {
-            IntObj::Unweighted { .. } => panic!(),
+            IntObj::Unweighted { .. } => unreachable!(),
             IntObj::Weighted {
-                mut soft_lits,
+                soft_lits,
                 soft_clauses,
                 offset,
             } => {
-                let mut cnf = Cnf::new();
-                cnf.clauses.reserve(soft_clauses.len());
-                soft_lits.reserve(soft_clauses.len());
-                for (mut cl, w) in soft_clauses {
-                    if cl.len() > 1 {
-                        let relax_lit = var_manager.new_var().pos_lit();
-                        cl.add(relax_lit);
-                        cnf.add_clause(cl);
-                        soft_lits.insert(relax_lit, w);
-                    } else {
-                        assert!(cl.len() == 1);
-                        soft_lits.insert(!cl[0], w);
-                    }
-                }
+                debug_assert!(soft_clauses.is_empty());
                 (cnf, (soft_lits, offset))
             }
         }
@@ -641,6 +708,10 @@ impl Objective {
     /// Converts the objective to hard clauses, unweighted soft literals, a unit
     /// weight and an offset. If the objective is weighted, the soft literals
     /// will appear as often as its weight in the output vector.
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_unweighted_soft_lits has been renamed to into_unweighted_soft_lits and will be removed in a future release"
+    )]
     pub fn as_unweighted_soft_lits<VM>(
         self,
         var_manager: &mut VM,
@@ -648,37 +719,41 @@ impl Objective {
     where
         VM: ManageVars,
     {
+        self.into_unweighted_soft_lits(var_manager)
+    }
+
+    /// Converts the objective to hard clauses, unweighted soft literals, a unit
+    /// weight and an offset. If the objective is weighted, the soft literals
+    /// will appear as often as its weight in the output vector.
+    pub fn into_unweighted_soft_lits<VM>(
+        mut self,
+        var_manager: &mut VM,
+    ) -> (Cnf, impl LitIter, usize, isize)
+    where
+        VM: ManageVars,
+    {
+        let cnf = self.convert_to_soft_lits(var_manager);
         match self.0 {
-            IntObj::Weighted { .. } => {
-                let (cnf, softs) = self.as_soft_lits(var_manager);
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                offset,
+            } => {
+                debug_assert!(soft_clauses.is_empty());
                 let mut soft_unit_lits = vec![];
-                softs
-                    .0
+                soft_lits
                     .into_iter()
                     .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
-                (cnf, soft_unit_lits, 1, softs.1)
+                (cnf, soft_unit_lits, 1, offset)
             }
             IntObj::Unweighted {
                 offset,
                 unit_weight,
-                mut soft_lits,
+                soft_lits,
                 soft_clauses,
             } => {
+                debug_assert!(soft_clauses.is_empty());
                 if let Some(unit_weight) = unit_weight {
-                    let mut cnf = Cnf::new();
-                    cnf.clauses.reserve(soft_clauses.len());
-                    soft_lits.reserve(soft_clauses.len());
-                    for mut cl in soft_clauses {
-                        if cl.len() > 1 {
-                            let relax_lit = var_manager.new_var().pos_lit();
-                            cl.add(relax_lit);
-                            cnf.add_clause(cl);
-                            soft_lits.push(relax_lit);
-                        } else {
-                            assert!(cl.len() == 1);
-                            soft_lits.push(!cl[0]);
-                        }
-                    }
                     (cnf, soft_lits, unit_weight, offset)
                 } else {
                     (Cnf::new(), vec![], 1, offset)
@@ -813,6 +888,94 @@ impl Objective {
         };
         self
     }
+
+    /// Gets a weighted literal iterator over only the soft literals
+    ///
+    /// # Errors
+    ///
+    /// If the objective contains soft clauses that this iterator would miss, returns
+    /// [`RequiresSoftLits`]
+    pub fn iter_soft_lits(&self) -> Result<impl WLitIter + '_, RequiresSoftLits> {
+        if self.n_clauses() > 0 {
+            return Err(RequiresSoftLits);
+        }
+        Ok(match &self.0 {
+            IntObj::Weighted { soft_lits, .. } => ObjSoftLitIter::Weighted(soft_lits.iter()),
+            IntObj::Unweighted {
+                soft_lits,
+                unit_weight,
+                ..
+            } => ObjSoftLitIter::Unweighted(soft_lits.iter(), unit_weight.unwrap_or(0)),
+        })
+    }
+
+    /// Gets an iterator over the entire objective as soft clauses
+    pub fn iter_soft_cls(&self) -> impl WClsIter + '_ {
+        match &self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => ObjSoftClauseIter::Weighted(soft_lits.iter(), soft_clauses.iter()),
+            IntObj::Unweighted {
+                unit_weight,
+                soft_lits,
+                soft_clauses,
+                ..
+            } => ObjSoftClauseIter::Unweighted(
+                soft_lits.iter(),
+                soft_clauses.iter(),
+                unit_weight.unwrap_or(0),
+            ),
+        }
+    }
+}
+
+/// A wrapper type for iterators over soft literals in an objective
+enum ObjSoftLitIter<'a> {
+    Weighted(hash_map::Iter<'a, Lit, usize>),
+    Unweighted(slice::Iter<'a, Lit>, usize),
+}
+
+impl Iterator for ObjSoftLitIter<'_> {
+    type Item = (Lit, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ObjSoftLitIter::Weighted(iter) => iter.next().map(|(&l, &w)| (l, w)),
+            ObjSoftLitIter::Unweighted(iter, w) => iter.next().map(|&l| (l, *w)),
+        }
+    }
+}
+
+/// A wrapper type for iterators over soft clauses in an objective
+enum ObjSoftClauseIter<'a> {
+    Weighted(
+        hash_map::Iter<'a, Lit, usize>,
+        hash_map::Iter<'a, Clause, usize>,
+    ),
+    Unweighted(slice::Iter<'a, Lit>, slice::Iter<'a, Clause>, usize),
+}
+
+impl Iterator for ObjSoftClauseIter<'_> {
+    type Item = (Clause, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ObjSoftClauseIter::Weighted(lit_iter, cl_iter) => {
+                if let Some((&l, &w)) = lit_iter.next() {
+                    return Some((clause![!l], w));
+                }
+                cl_iter.next().map(|(cl, &w)| (cl.clone(), w))
+            }
+            ObjSoftClauseIter::Unweighted(lit_iter, cl_iter, w) => {
+                if let Some(&l) = lit_iter.next() {
+                    return Some((clause![!l], *w));
+                }
+                cl_iter.next().map(|cl| (cl.clone(), *w))
+            }
+        }
+    }
 }
 
 impl FromIterator<(Lit, usize)> for Objective {
@@ -865,7 +1028,7 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Creates a new optimization instance from constraints and an objective
     pub fn compose(mut constraints: SatInstance<VM>, objective: Objective) -> Self {
         if let Some(mv) = objective.max_var() {
-            constraints.var_manager().increase_next_free(mv);
+            constraints.var_manager_mut().increase_next_free(mv);
         }
         OptInstance {
             constrs: constraints,
@@ -876,57 +1039,93 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
     pub fn decompose(mut self) -> (SatInstance<VM>, Objective) {
         if let Some(mv) = self.obj.max_var() {
-            self.constrs.var_manager.increase_next_free(mv + 1);
+            self.constrs.var_manager_mut().increase_next_free(mv + 1);
         }
         (self.constrs, self.obj)
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_constraints has been renamed to constraints_mut and will be removed in a future release"
+    )]
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
     }
 
+    /// Gets a mutable reference to the hard constraints for modifying them
+    pub fn constraints_mut(&mut self) -> &mut SatInstance<VM> {
+        &mut self.constrs
+    }
+
+    /// Gets a reference to the hard constraints
+    pub fn constraints_ref(&self) -> &SatInstance<VM> {
+        &self.constrs
+    }
+
     /// Gets a mutable reference to the objective for modifying it
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_objective has been renamed to objective_mut and will be removed in a future release"
+    )]
     pub fn get_objective(&mut self) -> &mut Objective {
         &mut self.obj
+    }
+
+    /// Gets a mutable reference to the objective for modifying it
+    pub fn objective_mut(&mut self) -> &mut Objective {
+        &mut self.obj
+    }
+
+    /// Gets a reference to the objective
+    pub fn objective_ref(&self) -> &Objective {
+        &self.obj
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_var()`.
     pub fn new_var(&mut self) -> Var {
-        self.get_constraints().var_manager().new_var()
+        self.constraints_mut().var_manager_mut().new_var()
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_lit()`.
     pub fn new_lit(&mut self) -> Lit {
-        self.get_constraints().var_manager().new_lit()
+        self.constraints_mut().var_manager_mut().new_lit()
     }
 
     /// Gets the used variable with the highest index. This is a shortcut
     /// for `inst.get_constraints().var_manager().max_var()`.
-    pub fn max_var(&mut self) -> Option<Var> {
-        self.get_constraints().var_manager().max_var()
+    pub fn max_var(&self) -> Option<Var> {
+        self.constraints_ref().var_manager_ref().max_var()
     }
 
     /// Converts the instance to a set of hard and soft clauses, an objective
     /// offset and a variable manager
-    pub fn as_hard_cls_soft_cls(self) -> (Cnf, (impl WClsIter, isize), VM) {
-        let (cnf, mut vm) = self.constrs.as_cnf();
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
+    pub fn into_hard_cls_soft_cls(self) -> (Cnf, (impl WClsIter, isize), VM) {
+        let (cnf, mut vm) = self.constrs.into_cnf();
         if let Some(mv) = self.obj.max_var() {
             vm.increase_next_free(mv + 1);
         }
-        (cnf, self.obj.as_soft_cls(), vm)
+        (cnf, self.obj.into_soft_cls(), vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals, an
     /// objective offset and a variable manager
-    pub fn as_hard_cls_soft_lits(self) -> (Cnf, (impl WLitIter, isize), VM) {
-        let (mut cnf, mut vm) = self.constrs.as_cnf();
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
+    pub fn into_hard_cls_soft_lits(self) -> (Cnf, (impl WLitIter, isize), VM) {
+        let (mut cnf, mut vm) = self.constrs.into_cnf();
         if let Some(mv) = self.obj.max_var() {
             vm.increase_next_free(mv + 1);
         }
-        let (hard_softs, softs) = self.obj.as_soft_lits(&mut vm);
+        let (hard_softs, softs) = self.obj.into_soft_lits(&mut vm);
         cnf.extend(hard_softs);
         (cnf, softs, vm)
     }
@@ -967,22 +1166,36 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_dimacs(&mut writer)
     }
 
     /// Write to DIMACS WCNF (post 22)
+    #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        #[allow(deprecated)]
         self.to_dimacs_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
             writer,
         )
     }
 
     /// Writes the instance to DIMACS WCNF (post 22) converting non-clausal
     /// constraints with specific encoders.
+    #[deprecated(
+        since = "0.5.0",
+        note = "use convert_to_cnf_with_encoders and write_dimacs instead"
+    )]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -994,9 +1207,55 @@ impl<VM: ManageVars> OptInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
-        let soft_cls = self.obj.as_soft_cls();
-        fio::dimacs::write_wcnf_annotated(writer, cnf, soft_cls, vm.max_var())
+        let (cnf, vm) = self
+            .constrs
+            .into_cnf_with_encoders(card_encoder, pb_encoder);
+        let soft_cls = self.obj.into_soft_cls();
+        fio::dimacs::write_wcnf_annotated(writer, &cnf, soft_cls, Some(vm.n_used()))
+    }
+
+    /// Writes the instance to a DIMACS WCNF file at a path
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_dimacs(&mut writer)
+    }
+
+    /// Write to DIMACS WCNF (post 22)
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+        if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
+            return Err(RequiresClausal.into());
+        }
+        let n_vars = self.constrs.n_vars();
+        let offset = self.obj.offset();
+        let soft_cls = self.obj.iter_soft_cls();
+        Ok(fio::dimacs::write_wcnf_annotated(
+            writer,
+            &self.constrs.cnf,
+            (soft_cls, offset),
+            Some(n_vars),
+        )?)
     }
 
     /// Writes the instance to an OPB file at a path
@@ -1004,22 +1263,75 @@ impl<VM: ManageVars> OptInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_opb(&mut writer, opts)
     }
 
     /// Writes the instance to an OPB file
+    #[deprecated(since = "0.5.0", note = "use write_opb instead")]
     pub fn to_opb<W: io::Write>(
-        self,
+        mut self,
         writer: &mut W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
-        fio::opb::write_opt::<W, VM>(writer, self, opts)
+        let var_manager = self.constrs.var_manager_mut();
+        self.obj.convert_to_soft_lits(var_manager);
+        let offset = self.obj.offset();
+        let iter = self.obj.iter_soft_lits().unwrap();
+        fio::opb::write_opt::<W, VM, _>(writer, &self.constrs, (iter, offset), opts)
+    }
+
+    /// Writes the instance to an OPB file at a path
+    ///
+    /// This requires that the objective does not contain soft clauses. If it does, use
+    /// [`Objective::convert_to_soft_lits`] first.
+    ///
+    /// # Errors
+    ///
+    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_opb_path<P: AsRef<Path>>(
+        &self,
+        path: P,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<()> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_opb(&mut writer, opts)
+    }
+
+    /// Writes the instance to an OPB file
+    ///
+    /// This requires that the objective does not contain soft clauses. If it does, use
+    /// [`Objective::convert_to_soft_lits`] first.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance(crate).
+    ///
+    /// # Errors
+    ///
+    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_opb<W: io::Write>(
+        &self,
+        writer: &mut W,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<()> {
+        let offset = self.obj.offset();
+        let iter = self.obj.iter_soft_lits()?;
+        Ok(fio::opb::write_opt::<W, VM, _>(
+            writer,
+            &self.constrs,
+            (iter, offset),
+            opts,
+        )?)
     }
 
     /// Calculates the objective value of an assignment. Returns [`None`] if the
@@ -1053,14 +1365,14 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     ///
     /// If a DIMACS MCNF file is passed to this function, all objectives but the
     /// first are ignored.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         Self::from_dimacs_with_idx(reader, 0)
     }
 
     /// Parses a DIMACS instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
     /// For more details see [`OptInstance::from_dimacs`].
-    pub fn from_dimacs_with_idx<R: io::Read>(reader: R, obj_idx: usize) -> anyhow::Result<Self> {
+    pub fn from_dimacs_with_idx<R: io::BufRead>(reader: R, obj_idx: usize) -> anyhow::Result<Self> {
         fio::dimacs::parse_wcnf_with_idx(reader, obj_idx)
     }
 
@@ -1090,14 +1402,14 @@ impl<VM: ManageVars + Default> OptInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean optimization instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         Self::from_opb_with_idx(reader, 0, opts)
     }
 
     /// Parses an OPB instance from a reader object, selecting the objective
     /// with index `obj_idx` if multiple are available. The index starts at 0.
     /// For more details see [`OptInstance::from_opb`].
-    pub fn from_opb_with_idx<R: io::Read>(
+    pub fn from_opb_with_idx<R: io::BufRead>(
         reader: R,
         obj_idx: usize,
         opts: fio::opb::Options,
@@ -1134,9 +1446,9 @@ impl<VM: ManageVars + Default> FromIterator<WcnfLine> for OptInstance<VM> {
         for line in iter {
             match line {
                 WcnfLine::Comment(_) => (),
-                WcnfLine::Hard(cl) => inst.get_constraints().add_clause(cl),
+                WcnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
                 WcnfLine::Soft(cl, w) => {
-                    inst.get_objective().add_soft_clause(w, cl);
+                    inst.objective_mut().add_soft_clause(w, cl);
                 }
             }
         }

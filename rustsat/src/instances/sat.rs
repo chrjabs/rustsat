@@ -1,6 +1,6 @@
 //! # Satsifiability Instance Representations
 
-use std::{collections::TryReserveError, io, ops::Index, path::Path};
+use std::{cmp, collections::TryReserveError, io, ops::Index, path::Path};
 
 use crate::{
     clause,
@@ -10,16 +10,11 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Clause, Lit, Var,
     },
+    utils::LimitedIter,
+    RequiresClausal,
 };
 
-#[cfg(feature = "pyapi")]
-use crate::pyapi::{SingleOrList, SliceOrInt};
 use anyhow::Context;
-#[cfg(feature = "pyapi")]
-use pyo3::{
-    exceptions::{PyIndexError, PyRuntimeError},
-    prelude::*,
-};
 
 use super::{
     fio::{self, dimacs::CnfLine},
@@ -28,18 +23,9 @@ use super::{
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
-#[cfg_attr(feature = "pyapi", pyclass)]
-#[derive(Clone, Eq, Default)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
-    #[cfg(feature = "pyapi")]
-    modified: bool,
-}
-
-impl PartialEq for Cnf {
-    fn eq(&self, other: &Self) -> bool {
-        self.clauses == other.clauses
-    }
 }
 
 impl std::fmt::Debug for Cnf {
@@ -60,8 +46,6 @@ impl Cnf {
     pub fn with_capacity(capacity: usize) -> Cnf {
         Cnf {
             clauses: Vec::with_capacity(capacity),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 
@@ -93,6 +77,11 @@ impl Cnf {
     #[inline]
     pub fn len(&self) -> usize {
         self.clauses.len()
+    }
+
+    /// Adds a clause from a slice of literals
+    pub fn add_nary(&mut self, lits: &[Lit]) {
+        self.add_clause(lits.into())
     }
 
     /// See [`atomics::lit_impl_lit`]
@@ -168,8 +157,6 @@ impl Cnf {
         norm_clauses.dedup();
         Self {
             clauses: norm_clauses,
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 
@@ -178,8 +165,6 @@ impl Cnf {
     pub fn sanitize(self) -> Self {
         Self {
             clauses: self.into_iter().filter_map(|cl| cl.sanitize()).collect(),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 
@@ -191,11 +176,69 @@ impl Cnf {
         self.clauses[..].shuffle(&mut rng);
         self
     }
+
+    /// Adds a clause to the CNF
+    #[inline]
+    pub fn add_clause(&mut self, clause: Clause) {
+        self.clauses.push(clause);
+    }
+
+    /// Adds a unit clause to the CNF
+    pub fn add_unit(&mut self, unit: Lit) {
+        self.add_clause(clause![unit])
+    }
+
+    /// Adds a binary clause to the CNF
+    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+        self.add_clause(clause![lit1, lit2])
+    }
+
+    /// Adds a ternary clause to the CNF
+    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+        self.add_clause(clause![lit1, lit2, lit3])
+    }
+
+    /// Writes the CNF to a DIMACS CNF file at a path
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P, n_vars: u32) -> Result<(), io::Error> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_dimacs(&mut writer, n_vars)
+    }
+
+    /// Writes the CNF to DIMACS CNF
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
+        fio::dimacs::write_cnf_annotated(writer, self, n_vars)
+    }
 }
 
 impl CollectClauses for Cnf {
     fn n_clauses(&self) -> usize {
         self.clauses.len()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        let cl_iter = cl_iter.into_iter();
+        if let Some(ub) = cl_iter.size_hint().1 {
+            self.try_reserve(ub)?;
+            self.extend(cl_iter);
+        } else {
+            // Extend by reserving in exponential chunks
+            let mut cl_iter = cl_iter.peekable();
+            while cl_iter.peek().is_some() {
+                let additional = (self.len() + cmp::max(cl_iter.size_hint().0, 1))
+                    .next_power_of_two()
+                    - self.len();
+                self.try_reserve(additional)?;
+                self.extend(LimitedIter::new(&mut cl_iter, additional));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -213,8 +256,6 @@ impl FromIterator<Clause> for Cnf {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
         Self {
             clauses: iter.into_iter().collect(),
-            #[cfg(feature = "pyapi")]
-            modified: false,
         }
     }
 }
@@ -239,205 +280,6 @@ impl Index<usize> for Cnf {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.clauses[index]
-    }
-}
-
-#[cfg_attr(feature = "pyapi", pymethods)]
-impl Cnf {
-    /// Adds a clause to the CNF
-    #[inline]
-    pub fn add_clause(&mut self, clause: Clause) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.clauses.push(clause);
-    }
-
-    /// Adds a unit clause to the CNF
-    pub fn add_unit(&mut self, unit: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.add_clause(clause![unit])
-    }
-
-    /// Adds a binary clause to the CNF
-    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.add_clause(clause![lit1, lit2])
-    }
-
-    /// Adds a ternary clause to the CNF
-    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        #[cfg(feature = "pyapi")]
-        {
-            self.modified = true;
-        }
-        self.add_clause(clause![lit1, lit2, lit3])
-    }
-
-    #[cfg(feature = "pyapi")]
-    #[new]
-    fn pynew(clauses: Vec<Clause>) -> Self {
-        Self::from_iter(clauses)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __repr__(&self) -> String {
-        format!("{:?}", self)
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __len__(&self) -> usize {
-        self.len()
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
-        match idx {
-            SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.len().try_into().unwrap())?;
-                Ok(SingleOrList::List(
-                    (indices.start as usize..indices.stop as usize)
-                        .step_by(indices.step as usize)
-                        .map(|idx| self[idx].clone())
-                        .collect(),
-                ))
-            }
-            SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.len() || idx >= 0 && idx.unsigned_abs() >= self.len() {
-                    return Err(PyIndexError::new_err("out of bounds"));
-                }
-                let idx = if idx >= 0 {
-                    idx.unsigned_abs()
-                } else {
-                    self.len() - idx.unsigned_abs()
-                };
-                Ok(SingleOrList::Single(self[idx].clone()))
-            }
-        }
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `a -> b`
-    #[pyo3(name = "add_lit_impl_lit")]
-    fn py_add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.modified = true;
-        self.add_clause(atomics::lit_impl_lit(a, b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `a -> (b1 | b2 | ... | bm)`
-    #[pyo3(name = "add_lit_impl_clause")]
-    fn py_add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
-        self.modified = true;
-        self.add_clause(atomics::lit_impl_clause(a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `a -> (b1 & b2 & ... & bm)`
-    #[pyo3(name = "add_lit_impl_cube")]
-    fn py_add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::lit_impl_cube(a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 & a2 & ... & an) -> b`
-    #[pyo3(name = "add_cube_impl_lit")]
-    fn py_add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        self.modified = true;
-        self.add_clause(atomics::cube_impl_lit(&a, b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 | a2 | ... | an) -> b`
-    #[pyo3(name = "add_clause_impl_lit")]
-    fn py_add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
-        self.modified = true;
-        self.extend(atomics::clause_impl_lit(&a, b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
-    #[pyo3(name = "add_cube_impl_clause")]
-    fn py_add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.add_clause(atomics::cube_impl_clause(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
-    #[pyo3(name = "add_clause_impl_clause")]
-    fn py_add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::clause_impl_clause(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)`
-    #[pyo3(name = "add_clause_impl_cube")]
-    fn py_add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::clause_impl_cube(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
-    #[pyo3(name = "add_cube_impl_cube")]
-    fn py_add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
-        self.modified = true;
-        self.extend(atomics::cube_impl_cube(&a, &b))
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __iter__(mut slf: PyRefMut<'_, Self>) -> CnfIter {
-        slf.modified = false;
-        CnfIter {
-            cnf: slf.into(),
-            index: 0,
-        }
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __eq__(&self, other: &Cnf) -> bool {
-        self == other
-    }
-
-    #[cfg(feature = "pyapi")]
-    fn __ne__(&self, other: &Cnf) -> bool {
-        self != other
-    }
-}
-
-#[cfg(feature = "pyapi")]
-#[pyclass]
-struct CnfIter {
-    cnf: Py<Cnf>,
-    index: usize,
-}
-
-#[cfg(feature = "pyapi")]
-#[pymethods]
-impl CnfIter {
-    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
-    }
-
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Clause>> {
-        if slf.cnf.borrow(slf.py()).modified {
-            return Err(PyRuntimeError::new_err("cnf modified during iteration"));
-        }
-        if slf.index < slf.cnf.borrow(slf.py()).len() {
-            slf.index += 1;
-            return Ok(Some(slf.cnf.borrow(slf.py())[slf.index - 1].clone()));
-        }
-        return Ok(None);
     }
 }
 
@@ -483,6 +325,11 @@ impl<VM: ManageVars> SatInstance<VM> {
             self.var_manager.mark_used(l.var());
         });
         self.cnf.add_clause(cl);
+    }
+
+    /// Adds a clause from a slice of literals
+    pub fn add_nary(&mut self, lits: &[Lit]) {
+        self.add_clause(lits.into())
     }
 
     /// Adds a unit clause to the instance
@@ -603,27 +450,51 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.pbs.push(pb)
     }
 
+    /// Gets a reference to the internal CNF
+    pub fn cnf(&self) -> &Cnf {
+        &self.cnf
+    }
+
     /// Gets a reference to the variable manager
+    #[deprecated(
+        since = "0.5.0",
+        note = "var_manager has been renamed to var_manager_mut and will be removed in a future release"
+    )]
     pub fn var_manager(&mut self) -> &mut VM {
         &mut self.var_manager
+    }
+
+    /// Gets a mutable reference to the variable manager
+    pub fn var_manager_mut(&mut self) -> &mut VM {
+        &mut self.var_manager
+    }
+
+    /// Gets a reference to the variable manager
+    pub fn var_manager_ref(&self) -> &VM {
+        &self.var_manager
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.var_manager().new_var()`.
     pub fn new_var(&mut self) -> Var {
-        self.var_manager().new_var()
+        self.var_manager_mut().new_var()
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.var_manager().new_lit()`.
     pub fn new_lit(&mut self) -> Lit {
-        self.var_manager().new_lit()
+        self.var_manager_mut().new_lit()
     }
 
     /// Gets the used variable with the highest index. This is a shortcut
     /// for `inst.var_manager().max_var()`.
-    pub fn max_var(&mut self) -> Option<Var> {
-        self.var_manager().max_var()
+    pub fn max_var(&self) -> Option<Var> {
+        self.var_manager_ref().max_var()
+    }
+
+    /// Returns the number of variables in the variable manager of the instance
+    pub fn n_vars(&self) -> u32 {
+        self.var_manager_ref().n_used()
     }
 
     /// Converts the included variable manager to a different type
@@ -645,31 +516,117 @@ impl<VM: ManageVars> SatInstance<VM> {
 
     /// Converts the instance to a set of clauses.
     /// Uses the default encoders from the `encodings` module.
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_cnf has been renamed to into_cnf and will be removed in a future release"
+    )]
     pub fn as_cnf(self) -> (Cnf, VM) {
-        self.as_cnf_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+        self.into_cnf()
+    }
+
+    /// Converts the instance to a set of clauses.
+    /// Uses the default encoders from the `encodings` module.
+    ///
+    /// See [`Self::convert_to_cnf`] for converting in place
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
+    pub fn into_cnf(self) -> (Cnf, VM) {
+        self.into_cnf_with_encoders(
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
+        )
+    }
+
+    /// Converts the instance to a set of clauses inplace.
+    /// Uses the default encoders from the `encodings` module.
+    ///
+    /// See [`Self::into_cnf`] if you don't need to convert in place
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
+    pub fn convert_to_cnf(&mut self) {
+        self.convert_to_cnf_with_encoders(
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
         )
     }
 
     /// Converts the instance to a set of clauses with explicitly specified
     /// converters for non-clausal constraints.
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_cnf_with_encoders has been renamed to into_cnf_with_encoders and will be removed in a future release"
+    )]
     pub fn as_cnf_with_encoders<CardEnc, PBEnc>(
-        mut self,
-        mut card_encoder: CardEnc,
-        mut pb_encoder: PBEnc,
+        self,
+        card_encoder: CardEnc,
+        pb_encoder: PBEnc,
     ) -> (Cnf, VM)
     where
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
+        self.into_cnf_with_encoders(card_encoder, pb_encoder)
+    }
+
+    /// Converts the instance to a set of clauses with explicitly specified
+    /// converters for non-clausal constraints.
+    ///
+    /// See [`Self::into_cnf_with_encoders`] to convert in place
+    ///
+    /// # Panic
+    ///
+    /// The encoder functions might panic if the conversion runs out of memory.
+    pub fn into_cnf_with_encoders<CardEnc, PBEnc>(
+        mut self,
+        card_encoder: CardEnc,
+        pb_encoder: PBEnc,
+    ) -> (Cnf, VM)
+    where
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+    {
+        self.convert_to_cnf_with_encoders(card_encoder, pb_encoder);
+        (self.cnf, self.var_manager)
+    }
+
+    /// Converts the instance inplace to a set of clauses with explicitly specified
+    /// converters for non-clausal constraints.
+    ///
+    /// See [`Self::into_cnf_with_encoders`] if you don't need to convert in place
+    ///
+    /// # Panic
+    ///
+    /// The encoder functions might panic if the conversion runs out of memory.
+    pub fn convert_to_cnf_with_encoders<CardEnc, PBEnc>(
+        &mut self,
+        mut card_encoder: CardEnc,
+        mut pb_encoder: PBEnc,
+    ) where
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
+        PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
+    {
         self.cards
-            .into_iter()
+            .drain(..)
             .for_each(|constr| card_encoder(constr, &mut self.cnf, &mut self.var_manager));
         self.pbs
-            .into_iter()
+            .drain(..)
             .for_each(|constr| pb_encoder(constr, &mut self.cnf, &mut self.var_manager));
-        (self.cnf, self.var_manager)
     }
 
     /// Extends the instance by another instance
@@ -714,22 +671,36 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_dimacs(&mut writer)
     }
 
     /// Writes the instance to DIMACS CNF
+    #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        #[allow(deprecated)]
         self.to_dimacs_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
             writer,
         )
     }
 
     /// Writes the instance to DIMACS CNF converting non-clausal constraints
     /// with specific encoders.
+    #[deprecated(
+        since = "0.5.0",
+        note = "use convert_to_cnf_with_encoders and write_dimacs instead"
+    )]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -741,8 +712,45 @@ impl<VM: ManageVars> SatInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        let (cnf, vm) = self.as_cnf_with_encoders(card_encoder, pb_encoder);
-        fio::dimacs::write_cnf_annotated(writer, cnf, vm.max_var())
+        let (cnf, vm) = self.into_cnf_with_encoders(card_encoder, pb_encoder);
+        fio::dimacs::write_cnf_annotated(writer, &cnf, vm.n_used())
+    }
+
+    /// Writes the instance to a DIMACS CNF file at a path
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`Self::convert_to_cnf`] or [`Self::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_dimacs(&mut writer)
+    }
+
+    /// Writes the instance to DIMACS CNF
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`Self::convert_to_cnf`] or [`Self::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+        if self.n_cards() > 0 || self.n_pbs() > 0 {
+            return Err(RequiresClausal.into());
+        }
+        let n_vars = self.n_vars();
+        Ok(fio::dimacs::write_cnf_annotated(writer, &self.cnf, n_vars)?)
     }
 
     /// Writes the instance to an OPB file at a path
@@ -750,18 +758,44 @@ impl<VM: ManageVars> SatInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_opb(&mut writer, opts)
     }
 
     /// Writes the instance to an OPB file
+    #[deprecated(since = "0.5.0", note = "use write_opb instead")]
     pub fn to_opb<W: io::Write>(
         self,
+        writer: &mut W,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
+        fio::opb::write_sat(writer, &self, opts)
+    }
+
+    /// Writes the instance to an OPB file at a path
+    pub fn write_opb_path<P: AsRef<Path>>(
+        &self,
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<(), io::Error> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_opb(&mut writer, opts)
+    }
+
+    /// Writes the instance to an OPB file
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    pub fn write_opb<W: io::Write>(
+        &self,
         writer: &mut W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
@@ -801,11 +835,11 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if pb.is_clause() {
-                    cnf.add_clause(pb.as_clause().unwrap());
+                    cnf.add_clause(pb.into_clause().unwrap());
                     return None;
                 }
                 if pb.is_card() {
-                    cards.push(pb.as_card_constr().unwrap());
+                    cards.push(pb.into_card_constr().unwrap());
                     return None;
                 }
                 Some(pb)
@@ -832,7 +866,7 @@ impl<VM: ManageVars> SatInstance<VM> {
                     return None;
                 }
                 if card.is_clause() {
-                    cnf.add_clause(card.as_clause().unwrap());
+                    cnf.add_clause(card.into_clause().unwrap());
                     return None;
                 }
                 Some(card)
@@ -854,6 +888,7 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
+    /// Checks whether the instance is satisfied by the given assignment
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         for clause in self.cnf.iter() {
             if !clause.is_sat(assign) {
@@ -890,7 +925,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     ///
     /// If a DIMACS WCNF or MCNF file is parsed with this method, the objectives
     /// are ignored and only the constraints returned.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         fio::dimacs::parse_cnf(reader)
     }
 
@@ -910,7 +945,7 @@ impl<VM: ManageVars + Default> SatInstance<VM> {
     /// The file format expected by this parser is the OPB format for
     /// pseudo-boolean satisfaction instances. For details on the file format
     /// see [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         fio::opb::parse_sat(reader, opts)
     }
 
@@ -964,5 +999,18 @@ impl<VM: ManageVars + Default> From<Cnf> for SatInstance<VM> {
             })
         });
         inst
+    }
+}
+
+impl CollectClauses for SatInstance {
+    fn n_clauses(&self) -> usize {
+        self.n_clauses()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        self.cnf.extend_clauses(cl_iter)
     }
 }

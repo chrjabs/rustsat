@@ -8,6 +8,7 @@ use crate::{
         constraints::{CardConstraint, PBConstraint},
         Assignment, Lit, Var, WClsIter, WLitIter,
     },
+    RequiresClausal, RequiresSoftLits,
 };
 
 use super::{
@@ -40,7 +41,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     pub fn compose(mut constraints: SatInstance<VM>, objectives: Vec<Objective>) -> Self {
         objectives.iter().for_each(|o| {
             if let Some(mv) = o.max_var() {
-                constraints.var_manager().increase_next_free(mv + 1);
+                constraints.var_manager_mut().increase_next_free(mv + 1);
             }
         });
         MultiOptInstance {
@@ -67,33 +68,65 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_constraints has been renamed to constraints_mut and will be removed in a future release"
+    )]
     pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
+    }
+
+    /// Gets a mutable reference to the hard constraints for modifying them
+    pub fn constraints_mut(&mut self) -> &mut SatInstance<VM> {
+        &mut self.constrs
+    }
+
+    /// Gets a reference to the hard constraints
+    pub fn constraints_ref(&self) -> &SatInstance<VM> {
+        &self.constrs
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_var()`.
     pub fn new_var(&mut self) -> Var {
-        self.get_constraints().var_manager().new_var()
+        self.constraints_mut().var_manager_mut().new_var()
     }
 
     /// Reserves a new variable in the internal variable manager. This is a
     /// shortcut for `inst.get_constraints().var_manager().new_lit()`.
     pub fn new_lit(&mut self) -> Lit {
-        self.get_constraints().var_manager().new_lit()
+        self.constraints_mut().var_manager_mut().new_lit()
     }
 
     /// Gets the used variable with the highest index. This is a shortcut
     /// for `inst.get_constraints().var_manager().max_var()`.
-    pub fn max_var(&mut self) -> Option<Var> {
-        self.get_constraints().var_manager().max_var()
+    pub fn max_var(&self) -> Option<Var> {
+        self.constraints_ref().var_manager_ref().max_var()
     }
 
     /// Gets a mutable reference to the first objective for modifying it.
     /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    #[deprecated(
+        since = "0.5.0",
+        note = "get_objective has been renamed to objective_mut and will be removed in a future release"
+    )]
     pub fn get_objective(&mut self, obj_idx: usize) -> &mut Objective {
         assert!(obj_idx < self.objs.len());
         &mut self.objs[obj_idx]
+    }
+
+    /// Gets a mutable reference to the objective with index `obj_idx` for modifying it.
+    /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    pub fn objective_mut(&mut self, obj_idx: usize) -> &mut Objective {
+        assert!(obj_idx < self.objs.len());
+        &mut self.objs[obj_idx]
+    }
+
+    /// Gets a reference to the objective with index `obj_idx`.
+    /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
+    pub fn objective_ref(&self, obj_idx: usize) -> &Objective {
+        assert!(obj_idx < self.objs.len());
+        &self.objs[obj_idx]
     }
 
     /// Returns an iterator over references to the objectives
@@ -107,8 +140,21 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_hard_cls_soft_cls has been renamed to into_hard_cls_soft_cls and will be removed in a future release"
+    )]
     pub fn as_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
-        let (cnf, mut vm) = self.constrs.as_cnf();
+        self.into_hard_cls_soft_cls()
+    }
+
+    /// Converts the instance to a set of hard and soft clauses
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
+    pub fn into_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
+        let (cnf, mut vm) = self.constrs.into_cnf();
         let omv = self.objs.iter().fold(Var::new(0), |v, o| {
             if let Some(mv) = o.max_var() {
                 return std::cmp::max(v, mv);
@@ -116,13 +162,26 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             v
         });
         vm.increase_next_free(omv + 1);
-        let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
+        let soft_cls = self.objs.into_iter().map(|o| o.into_soft_cls()).collect();
         (cnf, soft_cls, vm)
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
+    #[deprecated(
+        since = "0.5.0",
+        note = "as_hard_cls_soft_lits has been renamed to into_hard_cls_soft_lits and will be removed in a future release"
+    )]
     pub fn as_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
-        let (mut cnf, mut vm) = self.constrs.as_cnf();
+        self.into_hard_cls_soft_lits()
+    }
+
+    /// Converts the instance to a set of hard clauses and soft literals
+    ///
+    /// # Panic
+    ///
+    /// This might panic if the conversion to [`Cnf`] runs out of memory.
+    pub fn into_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
+        let (mut cnf, mut vm) = self.constrs.into_cnf();
         let omv = self.objs.iter().fold(Var::new(0), |v, o| {
             if let Some(mv) = o.max_var() {
                 return std::cmp::max(v, mv);
@@ -134,7 +193,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             .objs
             .into_iter()
             .map(|o| {
-                let (hards, softs) = o.as_soft_lits(&mut vm);
+                let (hards, softs) = o.into_soft_lits(&mut vm);
                 cnf.extend(hards);
                 softs
             })
@@ -182,22 +241,36 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
     pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_dimacs(&mut writer)
     }
 
     /// Write to DIMACS MCNF
+    #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
     pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
+        #[allow(deprecated)]
         self.to_dimacs_with_encoders(
-            card::default_encode_cardinality_constraint,
-            pb::default_encode_pb_constraint,
+            |constr, cnf, vm| {
+                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                    .expect("cardinality encoding ran out of memory")
+            },
+            |constr, cnf, vm| {
+                pb::default_encode_pb_constraint(constr, cnf, vm)
+                    .expect("pb encoding ran out of memory")
+            },
             writer,
         )
     }
 
     /// Writes the instance to DIMACS MCNF converting non-clausal constraints
     /// with specific encoders.
+    #[deprecated(
+        since = "0.5.0",
+        note = "use convert_to_cnf_with_encoders and write_dimacs instead"
+    )]
     pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
         self,
         card_encoder: CardEnc,
@@ -209,9 +282,57 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
         PBEnc: FnMut(PBConstraint, &mut Cnf, &mut dyn ManageVars),
     {
-        let (cnf, vm) = self.constrs.as_cnf_with_encoders(card_encoder, pb_encoder);
-        let soft_cls = self.objs.into_iter().map(|o| o.as_soft_cls()).collect();
-        fio::dimacs::write_mcnf_annotated(writer, cnf, soft_cls, vm.max_var())
+        let (cnf, vm) = self
+            .constrs
+            .into_cnf_with_encoders(card_encoder, pb_encoder);
+        let soft_cls = self.objs.into_iter().map(|o| o.into_soft_cls());
+        fio::dimacs::write_mcnf_annotated(writer, &cnf, soft_cls, Some(vm.n_used()))
+    }
+
+    /// Writes the instance to a DIMACS MCNF file at a path
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_dimacs(&mut writer)
+    }
+
+    /// Write to DIMACS MCNF
+    ///
+    /// This requires that the instance is clausal, i.e., does not contain any non-converted
+    /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
+    /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    ///
+    /// # Errors
+    ///
+    /// - If the instance is not clausal, returns [`RequiresClausal`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+        if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
+            return Err(RequiresClausal.into());
+        }
+        let n_vars = self.constrs.n_vars();
+        let iter = self.objs.iter().map(|o| {
+            let offset = o.offset();
+            (o.iter_soft_cls(), offset)
+        });
+        Ok(fio::dimacs::write_mcnf_annotated(
+            writer,
+            &self.constrs.cnf,
+            iter,
+            Some(n_vars),
+        )?)
     }
 
     /// Writes the instance to an OPB file at a path
@@ -219,22 +340,87 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Performance
     ///
     /// For performance, consider using a [`std::io::BufWriter`] instance.
+    #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
     pub fn to_opb_path<P: AsRef<Path>>(
         self,
         path: P,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        #[allow(deprecated)]
         self.to_opb(&mut writer, opts)
     }
 
     /// Writes the instance to an OPB file
+    #[deprecated(since = "0.5.0", note = "use write_opb instead")]
     pub fn to_opb<W: io::Write>(
-        self,
+        mut self,
         writer: &mut W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
-        fio::opb::write_multi_opt::<W, VM>(writer, self, opts)
+        for obj in &mut self.objs {
+            let vm = self.constrs.var_manager_mut();
+            let hardened = obj.convert_to_soft_lits(vm);
+            self.constrs.cnf.extend(hardened);
+        }
+        let objs = self.objs.iter().map(|o| {
+            let offset = o.offset();
+            (o.iter_soft_lits().unwrap(), offset)
+        });
+        fio::opb::write_multi_opt::<W, VM, _, _>(writer, &self.constrs, objs, opts)
+    }
+
+    /// Writes the instance to an OPB file at a path
+    ///
+    /// This requires that the objective does not contain soft clauses. If it does, use
+    /// [`Objective::convert_to_soft_lits`] first.
+    ///
+    /// # Errors
+    ///
+    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_opb_path<P: AsRef<Path>>(
+        &self,
+        path: P,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<()> {
+        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        self.write_opb(&mut writer, opts)
+    }
+
+    /// Writes the instance to an OPB file
+    ///
+    /// This requires that the objective does not contain soft clauses. If it does, use
+    /// [`Objective::convert_to_soft_lits`] first.
+    ///
+    /// # Performance
+    ///
+    /// For performance, consider using a [`std::io::BufWriter`] instance(crate).
+    ///
+    /// # Errors
+    ///
+    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - Returns [`io::Error`] on errors during writing
+    pub fn write_opb<W: io::Write>(
+        &self,
+        writer: &mut W,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<()> {
+        let objs: Result<Vec<_>, RequiresSoftLits> = self
+            .objs
+            .iter()
+            .map(|o| {
+                let offset = o.offset();
+                Ok((o.iter_soft_lits()?, offset))
+            })
+            .collect();
+        let objs = objs?;
+        Ok(fio::opb::write_multi_opt::<W, VM, _, _>(
+            writer,
+            &self.constrs,
+            objs.into_iter(),
+            opts,
+        )?)
     }
 
     /// Calculates the objective values of an assignment. Returns [`None`] if the
@@ -283,7 +469,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// positive number preceded by an 'o', indicating what objective this soft
     /// clause belongs to. After that, the format is identical to a soft clause
     /// in a WCNF file.
-    pub fn from_dimacs<R: io::Read>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
         fio::dimacs::parse_mcnf(reader)
     }
 
@@ -302,7 +488,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// pseudo-boolean optimization instances with multiple objectives defined.
     /// For details on the file format see
     /// [here](https://www.cril.univ-artois.fr/PB12/format.pdf).
-    pub fn from_opb<R: io::Read>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
         fio::opb::parse_multi_opt(reader, opts)
     }
 
@@ -321,12 +507,12 @@ impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
         for line in iter {
             match line {
                 McnfLine::Comment(_) => (),
-                McnfLine::Hard(cl) => inst.get_constraints().add_clause(cl),
+                McnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
                 McnfLine::Soft(cl, w, oidx) => {
                     if oidx >= inst.objs.len() {
                         inst.objs.resize(oidx + 1, Default::default())
                     }
-                    inst.get_objective(oidx).add_soft_clause(w, cl);
+                    inst.objective_mut(oidx).add_soft_clause(w, cl);
                 }
             }
         }

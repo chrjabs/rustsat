@@ -27,6 +27,8 @@
 //! println!("cargo:rustc-flags=-l dylib=stdc++");
 //! ```
 
+#![warn(missing_docs)]
+
 use core::ffi::{c_int, c_void, CStr};
 
 use cpu_time::ProcessTime;
@@ -40,6 +42,7 @@ use rustsat::{
 };
 use thiserror::Error;
 
+/// Fatal error returned if the IPASIR API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("ipasir c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
@@ -186,7 +189,7 @@ impl Solve for IpasirSolver<'_, '_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         clause.iter().for_each(|l| match self.stats.max_var {
@@ -202,7 +205,7 @@ impl Solve for IpasirSolver<'_, '_> {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call IPASIR backend
-        for lit in &clause {
+        for lit in clause {
             unsafe { ffi::ipasir_add(self.handle, lit.to_ipasir()) }
         }
         unsafe { ffi::ipasir_add(self.handle, 0) };
@@ -366,6 +369,15 @@ impl Extend<Clause> for IpasirSolver<'_, '_> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         iter.into_iter()
             .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+    }
+}
+
+impl<'a> Extend<&'a Clause> for IpasirSolver<'_, '_> {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
     }
 }
 

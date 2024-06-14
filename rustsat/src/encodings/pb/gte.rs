@@ -154,14 +154,19 @@ impl EncodeIncremental for GeneralizedTotalizer {
 }
 
 impl BoundUpper for GeneralizedTotalizer {
-    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    fn encode_ub<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         };
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
@@ -172,10 +177,11 @@ impl BoundUpper for GeneralizedTotalizer {
                 range.start + 1..range.end + self.max_leaf_weight + 1,
                 collector,
                 var_manager,
-            ),
+            )?,
         };
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(())
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -236,13 +242,14 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         };
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
@@ -252,10 +259,11 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
                 range.start + 1..range.end + self.max_leaf_weight,
                 collector,
                 var_manager,
-            );
+            )?;
         }
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(())
     }
 }
 
@@ -331,12 +339,14 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
 /// [`super::InvertedGeneralizedTotalizer`] structs.
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 enum Node {
+    /// A weighted input literal, i.e., a leaf node of the tree
     Leaf {
         /// The input literal to the tree
         lit: Lit,
         /// The weight of the input literal
         weight: usize,
     },
+    /// An internal weighted node of the tree
     Internal {
         /// The weighted output literals of this node
         out_lits: BTreeMap<usize, Lit>,
@@ -410,12 +420,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Reserve vars if needed
@@ -434,19 +445,17 @@ impl Node {
                 let right_lits = right.lit_map(&mut right_tmp_map);
                 // Encode adder for current node
                 // Propagate left value
-                for (&left_val, &left_lit) in left_lits.range(range.clone()) {
-                    collector.extend([atomics::lit_impl_lit(
-                        left_lit,
-                        *out_lits.get(&left_val).unwrap(),
-                    )]);
-                }
+                collector.extend_clauses(left_lits.range(range.clone()).map(
+                    |(left_val, &left_lit)| {
+                        atomics::lit_impl_lit(left_lit, *out_lits.get(left_val).unwrap())
+                    },
+                ))?;
                 // Propagate right value
-                for (&right_val, &right_lit) in right_lits.range(range.clone()) {
-                    collector.extend([atomics::lit_impl_lit(
-                        right_lit,
-                        *out_lits.get(&right_val).unwrap(),
-                    )]);
-                }
+                collector.extend_clauses(right_lits.range(range.clone()).map(
+                    |(right_val, &right_lit)| {
+                        atomics::lit_impl_lit(right_lit, *out_lits.get(right_val).unwrap())
+                    },
+                ))?;
                 // Propagate sum
                 if range.end > 1 {
                     let clause_from_data =
@@ -477,10 +486,11 @@ impl Node {
                                         clause_from_data(left_val, right_val, left_lit, right_lit)
                                     })
                             });
-                    collector.extend(clause_iter);
+                    collector.extend_clauses(clause_iter)?;
                 }
             }
-        }
+        };
+        Ok(())
     }
 
     /// Encodes the output literals from the children to this node in a given
@@ -491,12 +501,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Ignore all previous encoding and encode from scratch
@@ -506,16 +517,18 @@ impl Node {
                 let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
                 let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
                 // Recurse
-                left.rec_encode(left_range, collector, var_manager);
-                right.rec_encode(right_range, collector, var_manager);
+                left.rec_encode(left_range, collector, var_manager)?;
+                right.rec_encode(right_range, collector, var_manager)?;
 
                 // Encode current node
                 let n_clauses_before = collector.n_clauses();
-                self.encode_range(range.clone(), collector, var_manager);
+                self.encode_range(range.clone(), collector, var_manager)?;
 
                 self.update_stats(range, collector.n_clauses() - n_clauses_before);
             }
-        }
+        };
+
+        Ok(())
     }
 
     /// Encodes the output literals from the children to this node in a given
@@ -525,12 +538,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         match self {
@@ -547,27 +561,28 @@ impl Node {
                 let left_range = Node::compute_required_min_enc(range.clone(), right.max_val());
                 let right_range = Node::compute_required_min_enc(range.clone(), left.max_val());
                 // Recurse
-                left.rec_encode_change(left_range, collector, var_manager);
-                right.rec_encode_change(right_range, collector, var_manager);
+                left.rec_encode_change(left_range, collector, var_manager)?;
+                right.rec_encode_change(right_range, collector, var_manager)?;
 
                 // Encode changes for current node
                 let n_clauses_before = collector.n_clauses();
                 if enc_range.is_empty() {
                     // First time encoding this node
-                    self.encode_range(range.clone(), collector, var_manager);
+                    self.encode_range(range.clone(), collector, var_manager)?;
                 } else {
                     // Partially encoded
                     if range.start < enc_range.start {
-                        self.encode_range(range.start..enc_range.start, collector, var_manager);
+                        self.encode_range(range.start..enc_range.start, collector, var_manager)?;
                     };
                     if range.end > enc_range.end {
-                        self.encode_range(enc_range.end..range.end, collector, var_manager);
+                        self.encode_range(enc_range.end..range.end, collector, var_manager)?;
                     };
                 };
 
                 self.update_stats(range, collector.n_clauses() - n_clauses_before);
             }
-        }
+        };
+        Ok(())
     }
 
     /// Reserves variables this node might need in a given range
@@ -713,7 +728,7 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        node.encode_range(0..9, &mut cnf, &mut var_manager);
+        node.encode_range(0..9, &mut cnf, &mut var_manager).unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 3),
@@ -755,7 +770,7 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        node.encode_range(0..7, &mut cnf, &mut var_manager);
+        node.encode_range(0..7, &mut cnf, &mut var_manager).unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 3),
@@ -797,7 +812,7 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        node.encode_range(4..7, &mut cnf, &mut var_manager);
+        node.encode_range(4..7, &mut cnf, &mut var_manager).unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
@@ -839,7 +854,7 @@ mod tests {
         let mut node = Node::new_internal(child1, child2);
         let mut var_manager = BasicVarManager::default();
         let mut cnf = Cnf::new();
-        node.encode_range(6..5, &mut cnf, &mut var_manager);
+        node.encode_range(6..5, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(cnf.len(), 0);
     }
 
@@ -854,7 +869,8 @@ mod tests {
         gte.extend(lits);
         assert_eq!(gte.enforce_ub(4), Err(Error::NotEncoded));
         let mut var_manager = BasicVarManager::default();
-        gte.encode_ub(0..7, &mut Cnf::new(), &mut var_manager);
+        gte.encode_ub(0..7, &mut Cnf::new(), &mut var_manager)
+            .unwrap();
         assert_eq!(gte.depth(), 3);
         assert_eq!(gte.n_vars(), 10);
     }
@@ -870,13 +886,14 @@ mod tests {
         gte1.extend(lits.clone());
         let mut var_manager = BasicVarManager::default();
         let mut cnf1 = Cnf::new();
-        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager);
+        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::default();
         gte2.extend(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf2 = Cnf::new();
-        gte2.encode_ub(0..3, &mut cnf2, &mut var_manager);
-        gte2.encode_ub_change(0..5, &mut cnf2, &mut var_manager);
+        gte2.encode_ub(0..3, &mut cnf2, &mut var_manager).unwrap();
+        gte2.encode_ub_change(0..5, &mut cnf2, &mut var_manager)
+            .unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), gte1.n_clauses());
         assert_eq!(cnf2.len(), gte2.n_clauses());
@@ -893,7 +910,7 @@ mod tests {
         gte1.extend(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf1 = Cnf::new();
-        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager);
+        gte1.encode_ub(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut gte2 = GeneralizedTotalizer::default();
         let mut lits = RsHashMap::default();
         lits.insert(lit![0], 10);
@@ -903,7 +920,7 @@ mod tests {
         gte2.extend(lits);
         let mut var_manager = BasicVarManager::default();
         let mut cnf2 = Cnf::new();
-        gte2.encode_ub(0..9, &mut cnf2, &mut var_manager);
+        gte2.encode_ub(0..9, &mut cnf2, &mut var_manager).unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), gte1.n_clauses());
         assert_eq!(cnf2.len(), gte2.n_clauses());
@@ -926,7 +943,8 @@ mod tests {
         lits.insert(lit![6], 1);
         gte.extend(lits);
         let mut gte_cnf = Cnf::new();
-        gte.encode_ub(3..8, &mut gte_cnf, &mut var_manager_gte);
+        gte.encode_ub(3..8, &mut gte_cnf, &mut var_manager_gte)
+            .unwrap();
         // Set up Tot
         let mut tot = card::Totalizer::default();
         tot.extend(vec![
@@ -939,7 +957,7 @@ mod tests {
             lit![6],
         ]);
         let mut tot_cnf = Cnf::new();
-        card::BoundUpper::encode_ub(&mut tot, 3..8, &mut tot_cnf, &mut var_manager_tot);
+        card::BoundUpper::encode_ub(&mut tot, 3..8, &mut tot_cnf, &mut var_manager_tot).unwrap();
         println!("{:?}", gte_cnf);
         println!("{:?}", tot_cnf);
         assert_eq!(var_manager_gte.new_var(), var_manager_tot.new_var());

@@ -23,6 +23,8 @@
 //! Without any features selected, the newest version will be used.
 //! If conflicting Kissat versions are requested, the newest requested version will be selected.
 
+#![warn(missing_docs)]
+
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
@@ -37,6 +39,7 @@ use rustsat::{
 };
 use thiserror::Error;
 
+/// Fatal error returned if the Kissat API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("kissat c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
@@ -188,6 +191,15 @@ impl Extend<Clause> for Kissat<'_> {
     }
 }
 
+impl<'a> Extend<&'a Clause> for Kissat<'_> {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 impl Solve for Kissat<'_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::kissat_signature() };
@@ -260,7 +272,7 @@ impl Solve for Kissat<'_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Kissat is non-incremental, so only add if in input or configuring state
         if !matches!(
             self.state,
@@ -288,7 +300,7 @@ impl Solve for Kissat<'_> {
         self.state = InternalSolverState::Input;
         // Call Kissat backend
         clause
-            .into_iter()
+            .iter()
             .for_each(|l| unsafe { ffi::kissat_add(self.handle, l.to_ipasir()) });
         unsafe { ffi::kissat_add(self.handle, 0) };
         Ok(())
@@ -422,93 +434,29 @@ impl fmt::Display for Limit {
     }
 }
 
+extern "C" fn panic_instead_of_abort() {
+    panic!("kissat called kissat_abort");
+}
+
+/// Changes Kissat's abort behaviour to cause a Rust panic instead
+pub fn panic_intead_of_abort() {
+    unsafe { ffi::kissat_call_function_instead_of_abort(Some(panic_instead_of_abort)) };
+}
+
+/// Changes Kissat's abort behaviour to call the given function instead
+pub fn call_instead_of_abort(abort: Option<extern "C" fn()>) {
+    unsafe { ffi::kissat_call_function_instead_of_abort(abort) };
+}
+
 #[cfg(test)]
 mod test {
-    use std::{
-        sync::{Arc, Mutex},
-        thread,
-    };
-
     use super::{Config, Kissat, Limit};
     use rustsat::{
         lit,
-        solvers::{Solve, SolverResult, SolverState, StateError},
-        types::{TernaryVal, Var},
+        solvers::{Solve, SolverState, StateError},
     };
 
-    #[test]
-    fn build_destroy() {
-        let _solver = Kissat::default();
-    }
-
-    #[test]
-    fn build_two() {
-        let _solver1 = Kissat::default();
-        let _solver2 = Kissat::default();
-    }
-
-    #[test]
-    fn tiny_instance_sat() {
-        let mut solver = Kissat::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_unsat() {
-        let mut solver = Kissat::default();
-        solver.add_unit(!lit![0]).unwrap();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_unit(lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_multithreaded_sat() {
-        let mutex_solver = Arc::new(Mutex::new(Kissat::default()));
-
-        {
-            // Build in one thread
-            let mut solver = mutex_solver.lock().unwrap();
-            solver.add_binary(lit![0], !lit![1]).unwrap();
-            solver.add_unit(lit![0]).unwrap();
-            solver.add_binary(lit![1], !lit![2]).unwrap();
-        }
-
-        // Now in another thread
-        let s = mutex_solver.clone();
-        let ret = thread::spawn(move || {
-            let mut solver = s.lock().unwrap();
-            solver.solve()
-        })
-        .join()
-        .unwrap();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-
-        // Finally, back in the main thread
-        let ret = {
-            let solver = mutex_solver.lock().unwrap();
-            solver.full_solution()
-        };
-
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res.var_value(Var::new(0)), TernaryVal::True),
-        }
-    }
+    rustsat_solvertests::basic_unittests!(Kissat);
 
     #[test]
     fn configure() {
@@ -553,6 +501,7 @@ mod ffi {
         _private: [u8; 0],
     }
 
+    #[link(name = "kissat", kind = "static")]
     extern "C" {
         // Redefinitions of Kissat API
         pub fn kissat_signature() -> *const c_char;
@@ -581,6 +530,8 @@ mod ffi {
         pub fn kissat_set_conflict_limit(solver: *mut KissatHandle, limit: c_uint);
         pub fn kissat_set_decision_limit(solver: *mut KissatHandle, limit: c_uint);
         pub fn kissat_print_statistics(solver: *mut KissatHandle);
+        // This is from `error.h`
+        pub fn kissat_call_function_instead_of_abort(abort: Option<extern "C" fn()>);
     }
 
     // Raw callbacks forwarding to user callbacks

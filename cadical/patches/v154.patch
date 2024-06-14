@@ -1,14 +1,14 @@
-From 0a29abb1115e1bf09819f27fb3fb2db09f0b6759 Mon Sep 17 00:00:00 2001
+From 3465e6b4145153961fad7d7d7b8e87f2f1992d33 Mon Sep 17 00:00:00 2001
 From: Christoph Jabs <christoph.jabs@helsinki.fi>
-Date: Wed, 23 Aug 2023 11:30:43 +0300
+Date: Thu, 18 Apr 2024 15:05:41 +0300
 Subject: [PATCH] extend C api
 
 ---
- src/cadical.hpp  |  6 +++++
- src/ccadical.cpp | 62 ++++++++++++++++++++++++++++++++++++++++++++++++
- src/ccadical.h   | 19 +++++++++++++++
- src/solver.cpp   | 24 +++++++++++++++++++
- 4 files changed, 111 insertions(+)
+ src/cadical.hpp  |   6 +++
+ src/ccadical.cpp | 102 +++++++++++++++++++++++++++++++++++++++++++++++
+ src/ccadical.h   |  26 ++++++++++++
+ src/solver.cpp   |  24 +++++++++++
+ 4 files changed, 158 insertions(+)
 
 diff --git a/src/cadical.hpp b/src/cadical.hpp
 index 066c94b..fa252af 100644
@@ -28,16 +28,51 @@ index 066c94b..fa252af 100644
  
    // Enables clausal proof tracing in DRAT format and returns 'true' if
 diff --git a/src/ccadical.cpp b/src/ccadical.cpp
-index e6e7d28..0d1ebad 100644
+index e6e7d28..0c2ca8a 100644
 --- a/src/ccadical.cpp
 +++ b/src/ccadical.cpp
-@@ -177,4 +177,66 @@ int ccadical_frozen (CCaDiCaL * ptr, int lit) {
+@@ -177,4 +177,106 @@ int ccadical_frozen (CCaDiCaL * ptr, int lit) {
    return ((Wrapper*) ptr)->solver->frozen (lit);
  }
  
 +/*------------------------------------------------------------------------*/
 +
 +// Extending C API (Christoph Jabs)
++
++int ccadical_add_mem (CCaDiCaL * wrapper, int lit) {
++  try {
++    ((Wrapper*) wrapper)->solver->add (lit);
++    return 0;
++  } catch (std::bad_alloc &) {
++    return OUT_OF_MEM;
++  }
++}
++
++int ccadical_assume_mem (CCaDiCaL * wrapper, int lit) {
++  try {
++    ((Wrapper*) wrapper)->solver->assume (lit);
++    return 0;
++  } catch (std::bad_alloc &) {
++    return OUT_OF_MEM;
++  }
++}
++
++int ccadical_constrain_mem (CCaDiCaL *wrapper, int lit){
++  try {
++    ((Wrapper*) wrapper)->solver->constrain (lit);
++    return 0;
++  } catch (std::bad_alloc &) {
++    return OUT_OF_MEM;
++  }
++}
++
++int ccadical_solve_mem (CCaDiCaL * wrapper) {
++  try {
++    return ((Wrapper*) wrapper)->solver->solve ();
++  } catch (std::bad_alloc &) {
++    return OUT_OF_MEM;
++  }
++}
 +
 +bool ccadical_configure (CCaDiCaL *ptr, const char *name) {
 +  return ((Wrapper *) ptr)->solver->configure (name);
@@ -72,8 +107,13 @@ index e6e7d28..0d1ebad 100644
 +  return ((Wrapper *) wrapper)->solver->simplify (rounds);
 +}
 +
-+void ccadical_reserve (CCaDiCaL *wrapper, int min_max_var) {
-+  return ((Wrapper *) wrapper)->solver->reserve (min_max_var);
++int ccadical_reserve (CCaDiCaL *wrapper, int min_max_var) {
++  try {
++    ((Wrapper *) wrapper)->solver->reserve (min_max_var);
++    return 0;
++  } catch (std::bad_alloc &) {
++    return OUT_OF_MEM;
++  }
 +}
 +
 +int64_t ccadical_propagations (CCaDiCaL *wrapper) {
@@ -99,15 +139,22 @@ index e6e7d28..0d1ebad 100644
 +/*------------------------------------------------------------------------*/
  }
 diff --git a/src/ccadical.h b/src/ccadical.h
-index 332f842..4c75ce4 100644
+index 332f842..4fc2ac4 100644
 --- a/src/ccadical.h
 +++ b/src/ccadical.h
-@@ -50,6 +50,25 @@ int ccadical_simplify (CCaDiCaL *);
+@@ -50,6 +50,32 @@ int ccadical_simplify (CCaDiCaL *);
  
  /*------------------------------------------------------------------------*/
  
 +// Extending C API (Christoph Jabs)
 +
++// This value is returned from _solve_mem, _add_mem, _constrain_mem, and _assume_mem
++const int OUT_OF_MEM = 50;
++
++int ccadical_add_mem (CCaDiCaL *, int lit);
++int ccadical_assume_mem (CCaDiCaL *, int lit);
++int ccadical_constrain_mem (CCaDiCaL *, int lit);
++int ccadical_solve_mem (CCaDiCaL *);
 +bool ccadical_configure (CCaDiCaL *, const char *);
 +void ccadical_phase (CCaDiCaL *, int lit);
 +void ccadical_unphase (CCaDiCaL *, int lit);
@@ -116,7 +163,7 @@ index 332f842..4c75ce4 100644
 +bool ccadical_limit_ret (CCaDiCaL *, const char *name, int val);
 +int64_t ccadical_redundant (CCaDiCaL *);
 +int ccadical_simplify_rounds (CCaDiCaL *, int rounds);
-+void ccadical_reserve (CCaDiCaL *, int min_max_var);
++int ccadical_reserve (CCaDiCaL *, int min_max_var);
 +int64_t ccadical_propagations (CCaDiCaL *);
 +int64_t ccadical_decisions (CCaDiCaL *);
 +int64_t ccadical_conflicts (CCaDiCaL *);
@@ -164,5 +211,5 @@ index 5648101..f7e7a34 100644
  
  void Solver::freeze (int lit) {
 -- 
-2.41.0
+2.44.0
 

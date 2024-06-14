@@ -51,7 +51,9 @@ pub mod gte;
 pub use gte::GeneralizedTotalizer;
 
 pub mod simulators;
+/// Inverted generalized totalizer that can be used for lower bounding PB expressions
 pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
+/// Double generalized totalizer that can be used for upper and lower bounding PB expressions
 pub type DoubleGeneralizedTotalizer =
     simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
 
@@ -89,7 +91,8 @@ pub trait BoundUpper: Encode {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing an upper bound (`weighted sum of
@@ -98,29 +101,33 @@ pub trait BoundUpper: Encode {
     /// [`Error::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound pseudo-boolean constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_ub_constr<Col>(
         constr: PBUBConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
     {
         let (lits, ub) = constr.decompose();
         let ub = if ub < 0 {
-            return Err(Error::Unsat);
+            anyhow::bail!(Error::Unsat);
         } else {
             ub as usize
         };
         let mut enc = Self::from_iter(lits);
-        enc.encode_ub(ub..ub + 1, collector, var_manager);
-        collector.extend(
+        enc.encode_ub(ub..ub + 1, collector, var_manager)?;
+        collector.extend_clauses(
             enc.enforce_ub(ub)
                 .unwrap()
                 .into_iter()
                 .map(|unit| clause![unit]),
-        );
+        )?;
         Ok(())
     }
     /// Gets the next smaller upper bound value that can be _easily_ encoded. This
@@ -143,7 +150,8 @@ pub trait BoundLower: Encode {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
@@ -154,11 +162,15 @@ pub trait BoundLower: Encode {
     /// is returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound pseudo-boolean constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_lb_constr<Col>(
         constr: PBLBConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
@@ -170,13 +182,13 @@ pub trait BoundLower: Encode {
             lb as usize
         };
         let mut enc = Self::from_iter(lits);
-        enc.encode_lb(lb..lb + 1, collector, var_manager);
-        collector.extend(
+        enc.encode_lb(lb..lb + 1, collector, var_manager)?;
+        collector.extend_clauses(
             enc.enforce_lb(lb)
                 .unwrap()
                 .into_iter()
                 .map(|unit| clause![unit]),
-        );
+        )?;
         Ok(())
     }
     /// Gets the next greater lower bound value that can be _easily_ encoded. This
@@ -197,12 +209,14 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize> + Clone,
     {
-        self.encode_ub(range.clone(), collector, var_manager);
-        self.encode_lb(range, collector, var_manager);
+        self.encode_ub(range.clone(), collector, var_manager)?;
+        self.encode_lb(range, collector, var_manager)?;
+        Ok(())
     }
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
@@ -217,37 +231,45 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Ok(assumps)
     }
     /// Encodes an equality pseudo-boolean constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_eq_constr<Col>(
         constr: PBEQConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
     {
         let (lits, b) = constr.decompose();
         let b = if b < 0 {
-            return Err(Error::Unsat);
+            anyhow::bail!(Error::Unsat);
         } else {
             b as usize
         };
         let mut enc = Self::from_iter(lits);
-        enc.encode_both(b..b + 1, collector, var_manager);
-        collector.extend(
+        enc.encode_both(b..b + 1, collector, var_manager)?;
+        collector.extend_clauses(
             enc.enforce_eq(b)
                 .unwrap()
                 .into_iter()
                 .map(|unit| clause![unit]),
-        );
+        )?;
         Ok(())
     }
     /// Encodes any pseudo-boolean constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_constr<Col>(
         constr: PBConstraint,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
@@ -283,7 +305,8 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
 }
@@ -300,7 +323,8 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
 }
@@ -316,12 +340,14 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize> + Clone,
     {
-        self.encode_ub_change(range.clone(), collector, var_manager);
-        self.encode_lb_change(range, collector, var_manager);
+        self.encode_ub_change(range.clone(), collector, var_manager)?;
+        self.encode_lb_change(range, collector, var_manager)?;
+        Ok(())
     }
 }
 
@@ -379,7 +405,7 @@ pub fn default_encode_pb_constraint<Col: CollectClauses>(
     constr: PBConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) {
+) -> Result<(), crate::OutOfMemory> {
     encode_pb_constraint::<DefBothBounding, Col>(constr, collector, var_manager)
 }
 
@@ -388,31 +414,34 @@ pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: Co
     constr: PBConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) {
+) -> Result<(), crate::OutOfMemory> {
     if constr.is_tautology() {
-        return;
+        return Ok(());
     }
     if constr.is_unsat() {
-        collector.extend([Clause::new()]);
-        return;
+        return collector.add_clause(Clause::new());
     }
     if constr.is_positive_assignment() {
-        collector.extend(constr.into_lits().into_iter().map(|(lit, _)| clause![lit]));
-        return;
+        return collector
+            .extend_clauses(constr.into_lits().into_iter().map(|(lit, _)| clause![lit]));
     }
     if constr.is_negative_assignment() {
-        collector.extend(constr.into_lits().into_iter().map(|(lit, _)| clause![!lit]));
-        return;
+        return collector
+            .extend_clauses(constr.into_lits().into_iter().map(|(lit, _)| clause![!lit]));
     }
     if constr.is_clause() {
-        collector.extend([constr.as_clause().unwrap()]);
-        return;
+        return collector.add_clause(constr.into_clause().unwrap());
     }
     if constr.is_card() {
-        let card = constr.as_card_constr().unwrap();
+        let card = constr.into_card_constr().unwrap();
         return card::default_encode_cardinality_constraint(card, collector, var_manager);
     }
-    PBE::encode_constr(constr, collector, var_manager).unwrap()
+    match PBE::encode_constr(constr, collector, var_manager) {
+        Ok(_) => Ok(()),
+        Err(err) => Err(err
+            .downcast::<crate::OutOfMemory>()
+            .expect("unexpected error when encoding constraint")),
+    }
 }
 
 fn prepare_ub_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {

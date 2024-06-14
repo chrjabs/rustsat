@@ -2,16 +2,18 @@
 //!
 //! In the C-API, literals are represented as IPASIR literals.
 //!
-//! This is the C-API for RustSAT. Currently this API is very minimal and not
-//! the focus of this project. For now, only the API of certain encodings is
-//! available.
+//! This is the C-API for RustSAT. Currently this API is very minimal and not the focus of this
+//! project. For now, only the API of certain encodings is available.
+//!
+//! For the API itself, see `rustsat.h`. To use RustSAT from an external project, build this crate
+//! and link against `librustsat_capi.a` (produced by `cargo` in `target/release`).
 
 pub mod encodings {
     //! # C-API For Encodings
 
     use std::ffi::{c_int, c_void};
 
-    use crate::{
+    use rustsat::{
         encodings::{self, CollectClauses},
         instances::ManageVars,
         types::{Clause, Var},
@@ -20,13 +22,19 @@ pub mod encodings {
     #[repr(C)]
     pub enum MaybeError {
         /// No error
-        Ok,
+        Ok = 0,
         /// Encode was not called before using the encoding
         NotEncoded,
         /// The requested encoding is unsatisfiable
         Unsat,
         /// The encoding is in an invalid state to perform this action
         InvalidState,
+        /// Invalid IPASIR-style literal
+        InvalidLiteral,
+        /// Precision divisor is not a power of 2
+        PrecisionNotPow2,
+        /// Attempting to decrease precision
+        PrecisionDecreased,
     }
 
     impl From<encodings::Error> for MaybeError {
@@ -34,6 +42,20 @@ pub mod encodings {
             match value {
                 encodings::Error::NotEncoded => MaybeError::NotEncoded,
                 encodings::Error::Unsat => MaybeError::Unsat,
+            }
+        }
+    }
+
+    impl From<Result<(), encodings::pb::dpw::PrecisionError>> for MaybeError {
+        fn from(value: Result<(), encodings::pb::dpw::PrecisionError>) -> Self {
+            match value {
+                Ok(_) => MaybeError::Ok,
+                Err(err) => match err {
+                    encodings::pb::dpw::PrecisionError::NotPow2 => MaybeError::PrecisionNotPow2,
+                    encodings::pb::dpw::PrecisionError::PrecisionDecreased => {
+                        MaybeError::PrecisionDecreased
+                    }
+                },
             }
         }
     }
@@ -60,6 +82,25 @@ pub mod encodings {
     impl CollectClauses for ClauseCollector {
         fn n_clauses(&self) -> usize {
             self.n_clauses
+        }
+
+        fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), rustsat::OutOfMemory>
+        where
+            T: IntoIterator<Item = Clause>,
+        {
+            cl_iter.into_iter().for_each(|cl| {
+                cl.into_iter()
+                    .for_each(|l| (self.ccol)(l.to_ipasir(), self.cdata));
+                (self.ccol)(0, self.cdata);
+            });
+            Ok(())
+        }
+
+        fn add_clause(&mut self, cl: Clause) -> Result<(), rustsat::OutOfMemory> {
+            cl.into_iter()
+                .for_each(|l| (self.ccol)(l.to_ipasir(), self.cdata));
+            (self.ccol)(0, self.cdata);
+            Ok(())
         }
     }
 
@@ -129,7 +170,7 @@ pub mod encodings {
 
         use std::ffi::{c_int, c_void};
 
-        use crate::{
+        use rustsat::{
             encodings::card::{BoundUpper, BoundUpperIncremental, DbTotalizer},
             types::Lit,
         };
@@ -144,15 +185,26 @@ pub mod encodings {
 
         /// Adds a new input literal to a [`DbTotalizer`]
         ///
+        /// # Errors
+        ///
+        /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+        ///   [`MaybeError::InvalidLiteral`] is returned
+        ///
         /// # Safety
         ///
         /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
         /// not yet been called on.
         #[no_mangle]
-        pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) {
+        pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(tot) };
-            boxed.extend([Lit::from_ipasir(lit).expect("invalid IPASIR literal")]);
+            let lit = if let Ok(lit) = Lit::from_ipasir(lit) {
+                lit
+            } else {
+                return MaybeError::InvalidLiteral;
+            };
+            boxed.extend([lit]);
             Box::into_raw(boxed);
+            MaybeError::Ok
         }
 
         /// Lazily builds the _change in_ cardinality encoding to enable upper
@@ -184,7 +236,9 @@ pub mod encodings {
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(tot) };
-            boxed.encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager);
+            boxed
+                .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+                .expect("clause collector returned out of memory");
             Box::into_raw(boxed);
         }
 
@@ -286,7 +340,7 @@ pub mod encodings {
 
         use std::ffi::{c_int, c_void};
 
-        use crate::{
+        use rustsat::{
             encodings::pb::{BoundUpper, BoundUpperIncremental, DynamicPolyWatchdog},
             types::Lit,
         };
@@ -299,9 +353,14 @@ pub mod encodings {
             Box::into_raw(Box::default())
         }
 
-        /// Adds a new input literal to a [`DynamicPolyWatchdog`]. Input
-        /// literals can only be added _before_ the encoding is built for the
-        /// first time. Otherwise [`MaybeError::InvalidState`] is returned.
+        /// Adds a new input literal to a [`DynamicPolyWatchdog`].
+        ///
+        /// # Errors
+        ///
+        /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+        ///   [`MaybeError::InvalidLiteral`] is returned
+        /// - If a literal is added _after_ the encoding is build, [`MaybeError::InvalidState`] is
+        ///   returned
         ///
         /// # Safety
         ///
@@ -314,16 +373,18 @@ pub mod encodings {
             weight: usize,
         ) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            if boxed.structure.is_some() {
-                return MaybeError::InvalidState;
-            }
-            boxed.in_lits.insert(
-                Lit::from_ipasir(lit).expect("invalid IPASIR literal"),
-                weight,
-            );
-            boxed.weight_sum += weight;
+            let lit = if let Ok(lit) = Lit::from_ipasir(lit) {
+                lit
+            } else {
+                return MaybeError::InvalidLiteral;
+            };
+            let res = boxed.add_input(lit, weight);
             Box::into_raw(boxed);
-            MaybeError::Ok
+            if res.is_ok() {
+                MaybeError::Ok
+            } else {
+                MaybeError::InvalidState
+            }
         }
 
         /// Lazily builds the _change in_ pseudo-boolean encoding to enable
@@ -332,12 +393,16 @@ pub mod encodings {
         /// literals at the moment.
         ///
         /// The min and max bounds are inclusive. After a call to
-        /// [`dpw_encode_ub`] with `min_bound=2` and `max_bound=4` bound
-        /// including `<= 2` and `<= 4` can be enforced.
+        /// [`dpw_encode_ub`] with `min_bound=2` and `max_bound=4`, bounds
+        /// satisfying `2 <= bound <= 4` can be enforced.
         ///
-        /// A call to `var_manager` must yield a new variable. The
-        /// encoding will be returned via the given callback function as
-        /// 0-terminated clauses (in the same way as IPASIR's `add`).
+        /// Clauses are returned via the `collector`. The `collector` function should expect
+        /// clauses to be passed similarly to `ipasir_add`, as a 0-terminated sequence of literals
+        /// where the literals are passed as the first argument and the `collector_data` as a
+        /// second.
+        ///
+        /// `n_vars_used` must be the number of variables already used and will be incremented by
+        /// the number of variables used up in the encoding.
         ///
         /// # Safety
         ///
@@ -356,7 +421,9 @@ pub mod encodings {
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            boxed.encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager);
+            boxed
+                .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+                .expect("clause collector returned out of memory");
             Box::into_raw(boxed);
         }
 
@@ -409,6 +476,107 @@ pub mod encodings {
             ret
         }
 
+        /// Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
+        /// effectively be built such that the weight of every input literal is divided by `divisor`
+        /// (interger division, rounding down). Divisor values must be powers of 2. After building
+        /// the encoding, the precision can only be increased, i.e., only call this function with
+        /// _decreasing_ divisor values.
+        ///
+        /// # Errors
+        ///
+        /// - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
+        /// - If `divisor` is larger than the last divisor, i.e., precision is attemted to be
+        ///   decreased, [`MaybeError::PrecisionDecreased`] is returned
+        ///
+        /// # Safety
+        ///
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
+        #[no_mangle]
+        pub unsafe extern "C" fn dpw_set_precision(
+            dpw: *mut DynamicPolyWatchdog,
+            divisor: usize,
+        ) -> MaybeError {
+            let mut boxed = unsafe { Box::from_raw(dpw) };
+            let ret = boxed.set_precision(divisor).into();
+            Box::into_raw(boxed);
+            ret
+        }
+
+        /// Gets the next possible precision divisor value
+        ///
+        /// Note that this is not the next possible precision value from the last _set_ precision but
+        /// from the last _encoded_ precision. The divisor value will always be a power of two so that
+        /// calling `set_precision` and then encoding will produce the smalles non-empty next segment
+        /// of the encoding.
+        ///
+        /// # Safety
+        ///
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
+        #[no_mangle]
+        pub unsafe extern "C" fn dpw_next_precision(dpw: *mut DynamicPolyWatchdog) -> usize {
+            let boxed = unsafe { Box::from_raw(dpw) };
+            let ret = boxed.next_precision();
+            Box::into_raw(boxed);
+            ret
+        }
+
+        /// Checks whether the encoding is already at the maximum precision
+        ///
+        /// # Safety
+        ///
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
+        #[no_mangle]
+        pub unsafe extern "C" fn dpw_is_max_precision(dpw: *mut DynamicPolyWatchdog) -> bool {
+            let boxed = unsafe { Box::from_raw(dpw) };
+            let ret = boxed.is_max_precision();
+            Box::into_raw(boxed);
+            ret
+        }
+
+        /// Given a range of output values to limit the encoding to, returns additional clauses that
+        /// "shrink" the encoding through hardening
+        ///
+        /// The output value range must be a range considering _all_ input literals, not only the
+        /// encoded ones.
+        ///
+        /// This is intended for, e.g., a MaxSAT solving application where a global lower bound is
+        /// derived and parts of the encoding can be hardened.
+        ///
+        /// The min and max bounds are inclusive. After a call to [`dpw_limit_range`] with
+        /// `min_value=2` and `max_value=4`, the encoding is valid for the value range `2 <= range
+        /// <= 4`.
+        ///
+        /// To not specify a bound, pass `0` for the lower bound or `SIZE_MAX` for the upper bound.
+        ///
+        /// Clauses are returned via the `collector`. The `collector` function should expect
+        /// clauses to be passed similarly to `ipasir_add`, as a 0-terminated sequence of literals
+        /// where the literals are passed as the first argument and the `collector_data` as a
+        /// second.
+        ///
+        /// # Safety
+        ///
+        /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
+        /// not yet been called on.
+        #[no_mangle]
+        pub unsafe extern "C" fn dpw_limit_range(
+            dpw: *mut DynamicPolyWatchdog,
+            min_value: usize,
+            max_value: usize,
+            collector: CClauseCollector,
+            collector_data: *mut c_void,
+        ) {
+            assert!(min_value <= max_value);
+            let mut collector = ClauseCollector::new(collector, collector_data);
+            let boxed = unsafe { Box::from_raw(dpw) };
+            boxed
+                .limit_range(min_value..=max_value, &mut collector)
+                .expect("clause collector returned out of memory");
+            Box::into_raw(boxed);
+        }
+
         /// Frees the memory associated with a [`DynamicPolyWatchdog`]
         ///
         /// # Safety
@@ -456,10 +624,10 @@ pub mod encodings {
 
                     int main() {
                         DynamicPolyWatchdog *dpw = dpw_new();
-                        dpw_add(dpw, 1, 1);
-                        dpw_add(dpw, 2, 1);
-                        dpw_add(dpw, 3, 2);
-                        dpw_add(dpw, 4, 2);
+                        assert(dpw_add(dpw, 1, 1) == Ok);
+                        assert(dpw_add(dpw, 2, 1) == Ok);
+                        assert(dpw_add(dpw, 3, 2) == Ok);
+                        assert(dpw_add(dpw, 4, 2) == Ok);
                         int n_used = 4;
                         int n_clauses = 0;
                         dpw_encode_ub(dpw, 0, 6, &n_used, &clause_counter, &n_clauses);
@@ -493,16 +661,17 @@ pub mod encodings {
 
                     int main() {
                         DynamicPolyWatchdog *dpw = dpw_new();
-                        dpw_add(dpw, 1, 5);
-                        dpw_add(dpw, 2, 3);
-                        dpw_add(dpw, 3, 8);
-                        dpw_add(dpw, 4, 7);
+                        assert(dpw_add(dpw, 1, 5) == Ok);
+                        assert(dpw_add(dpw, 2, 3) == Ok);
+                        assert(dpw_add(dpw, 3, 8) == Ok);
+                        assert(dpw_add(dpw, 4, 7) == Ok);
                         int n_used = 4;
                         int n_clauses = 0;
                         dpw_encode_ub(dpw, 0, 23, &n_used, &clause_counter, &n_clauses);
-                        for (size_t ub = 8; ub <= 23; ub++) {
+                        for (size_t ub = 7; ub < 23; ub++) {
                             size_t coarse_ub = dpw_coarse_ub(dpw, ub);
                             assert(coarse_ub <= ub);
+                            if (ub % 8 == 7) assert(coarse_ub == ub);
                             int n_assumps = 0;
                             assert(dpw_enforce_ub(dpw, coarse_ub, &assump_counter, &n_assumps) == Ok);
                             assert(n_assumps == 1);

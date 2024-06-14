@@ -1,0 +1,28 @@
+[package]
+name = "rustsat-pyapi"
+version = "0.5.1"
+edition = "2021"
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+license = "MIT"
+description = "This library aims to provide implementations of elements commonly used in the development on software in the area of satisfiability solving. The focus of the library is to provide as much ease of use without giving up on performance."
+keywords = ["sat", "satisfiability", "encodings"]
+repository = "https://github.com/chrjabs/rustsat"
+readme = "README.md"
+
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rustsat = { version = "0.5.1", path = "../rustsat", default-features = false }
+pyo3 = { version = "0.21.1", features = [
+  "extension-module",
+  "abi3",
+  "abi3-py37",
+] }
+
+[build-dependencies]
+pyo3-build-config = { version = "0.21.1" }
+
+[lib]
+crate-type = ["cdylib"]

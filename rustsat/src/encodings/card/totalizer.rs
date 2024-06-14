@@ -121,14 +121,19 @@ impl EncodeIncremental for Totalizer {
 }
 
 impl BoundUpper for Totalizer {
-    fn encode_ub<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    fn encode_ub<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         };
         self.extend_tree();
         match &mut self.root {
@@ -136,11 +141,12 @@ impl BoundUpper for Totalizer {
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
                 let n_clauses_before = collector.n_clauses();
-                root.rec_encode_ub(range, collector, var_manager);
+                root.rec_encode_ub(range, collector, var_manager)?;
                 self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
             }
-        }
+        };
+        Ok(())
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
@@ -169,14 +175,19 @@ impl BoundUpper for Totalizer {
 }
 
 impl BoundLower for Totalizer {
-    fn encode_lb<Col, R>(&mut self, range: R, collector: &mut Col, var_manager: &mut dyn ManageVars)
+    fn encode_lb<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_lb_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         };
         self.extend_tree();
         match &mut self.root {
@@ -184,11 +195,12 @@ impl BoundLower for Totalizer {
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
                 let n_clauses_before = collector.n_clauses();
-                root.rec_encode_lb(range, collector, var_manager);
+                root.rec_encode_lb(range, collector, var_manager)?;
                 self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
             }
-        }
+        };
+        Ok(())
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
@@ -224,13 +236,14 @@ impl BoundUpperIncremental for Totalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         };
         self.extend_tree();
         match &mut self.root {
@@ -238,11 +251,12 @@ impl BoundUpperIncremental for Totalizer {
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
                 let n_clauses_before = collector.n_clauses();
-                root.rec_encode_ub_change(range, collector, var_manager);
+                root.rec_encode_ub_change(range, collector, var_manager)?;
                 self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
             }
-        }
+        };
+        Ok(())
     }
 }
 
@@ -252,13 +266,14 @@ impl BoundLowerIncremental for Totalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
         let range = super::prepare_lb_range(self, range);
         if range.is_empty() {
-            return;
+            return Ok(());
         };
         self.extend_tree();
         match &mut self.root {
@@ -266,11 +281,12 @@ impl BoundLowerIncremental for Totalizer {
             Some(root) => {
                 let n_vars_before = var_manager.n_used();
                 let n_clauses_before = collector.n_clauses();
-                root.rec_encode_lb_change(range, collector, var_manager);
+                root.rec_encode_lb_change(range, collector, var_manager)?;
                 self.n_clauses += collector.n_clauses() - n_clauses_before;
                 self.n_vars += var_manager.n_used() - n_vars_before;
             }
-        }
+        };
+        Ok(())
     }
 }
 
@@ -321,10 +337,12 @@ pub(super) type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 /// accessed but only through [`Totalizer`].
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 enum Node {
+    /// An input literal, i.e., a leaf node of the tree
     Leaf {
         /// The input literal to the tree
         lit: Lit,
     },
+    /// An internal node of the tree
     Internal {
         /// The output literals of this node
         out_lits: Vec<Option<Lit>>,
@@ -389,12 +407,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Reserve vars if needed
@@ -447,9 +466,11 @@ impl Node {
                     (0..=right_lits.len())
                         .filter_map(move |right_val| clause_for_vals(left_val, right_val))
                 });
-                collector.extend(clause_iter);
+                collector.extend_clauses(clause_iter)?;
             }
-        }
+        };
+
+        Ok(())
     }
 
     /// Encodes the lower bound adder for this node in a given range. This
@@ -460,12 +481,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Reserve vars if needed
@@ -525,9 +547,11 @@ impl Node {
                     (0..=right_lits.len())
                         .filter_map(move |right_val| clause_for_vals(left_val, right_val))
                 });
-                collector.extend(clause_iter);
+                collector.extend_clauses(clause_iter)?;
             }
-        }
+        };
+
+        Ok(())
     }
 
     /// Encodes the upper bound adder from the children to this node in a given
@@ -538,12 +562,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         match self {
@@ -560,16 +585,17 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                left.rec_encode_ub(left_range, collector, var_manager);
-                right.rec_encode_ub(right_range, collector, var_manager);
+                left.rec_encode_ub(left_range, collector, var_manager)?;
+                right.rec_encode_ub(right_range, collector, var_manager)?;
 
                 // Ignore all previous encoding and encode from scratch
                 let n_clauses_before = collector.n_clauses();
-                self.encode_ub_range(range.clone(), collector, var_manager);
+                self.encode_ub_range(range.clone(), collector, var_manager)?;
 
                 self.update_stats(range, lb_range, collector.n_clauses() - n_clauses_before);
             }
         }
+        Ok(())
     }
 
     /// Encodes the lower bound adder from the children to this node in a given
@@ -580,12 +606,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         match self {
@@ -602,16 +629,18 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                left.rec_encode_lb(left_range, collector, var_manager);
-                right.rec_encode_lb(right_range, collector, var_manager);
+                left.rec_encode_lb(left_range, collector, var_manager)?;
+                right.rec_encode_lb(right_range, collector, var_manager)?;
 
                 // Ignore all previous encoding and encode from scratch
                 let n_clauses_before = collector.n_clauses();
-                self.encode_lb_range(range.clone(), collector, var_manager);
+                self.encode_lb_range(range.clone(), collector, var_manager)?;
 
                 self.update_stats(ub_range, range, collector.n_clauses() - n_clauses_before);
             }
-        }
+        };
+
+        Ok(())
     }
 
     /// Encodes the upper bound adder from the children to this node in a given
@@ -621,12 +650,13 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         let range = self.limit_range(range);
         if range.is_empty() {
-            return;
+            return Ok(());
         }
 
         match self {
@@ -645,27 +675,29 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                left.rec_encode_ub_change(left_range, collector, var_manager);
-                right.rec_encode_ub_change(right_range, collector, var_manager);
+                left.rec_encode_ub_change(left_range, collector, var_manager)?;
+                right.rec_encode_ub_change(right_range, collector, var_manager)?;
 
                 // Encode changes for current node
                 let n_clauses_before = collector.n_clauses();
                 if ub_range.is_empty() {
                     // First time encoding this node
-                    self.encode_ub_range(range.clone(), collector, var_manager)
+                    self.encode_ub_range(range.clone(), collector, var_manager)?;
                 } else {
                     // Part already encoded
                     if range.start < ub_range.start {
-                        self.encode_ub_range(range.start..ub_range.start, collector, var_manager);
+                        self.encode_ub_range(range.start..ub_range.start, collector, var_manager)?;
                     };
                     if range.end > ub_range.end {
-                        self.encode_ub_range(ub_range.end..range.end, collector, var_manager);
+                        self.encode_ub_range(ub_range.end..range.end, collector, var_manager)?;
                     };
                 };
 
                 self.update_stats(range, lb_range, collector.n_clauses() - n_clauses_before);
             }
-        }
+        };
+
+        Ok(())
     }
 
     /// Encodes the lower bound adder from the children to this node in a given
@@ -675,7 +707,8 @@ impl Node {
         range: Range<usize>,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
     {
         match self {
@@ -694,27 +727,29 @@ impl Node {
                 let left_range = Node::compute_required_range(range.clone(), right.max_val());
                 let right_range = Node::compute_required_range(range.clone(), left.max_val());
                 // Recurse
-                left.rec_encode_lb_change(left_range, collector, var_manager);
-                right.rec_encode_lb_change(right_range, collector, var_manager);
+                left.rec_encode_lb_change(left_range, collector, var_manager)?;
+                right.rec_encode_lb_change(right_range, collector, var_manager)?;
 
                 // Encode changes for current node
                 let n_clauses_before = collector.n_clauses();
                 if lb_range.is_empty() {
                     // First time encoding this node
-                    self.encode_lb_range(range.clone(), collector, var_manager)
+                    self.encode_lb_range(range.clone(), collector, var_manager)?;
                 } else {
                     // Part already encoded
                     if range.start < lb_range.start {
-                        self.encode_lb_range(range.start..lb_range.start, collector, var_manager);
+                        self.encode_lb_range(range.start..lb_range.start, collector, var_manager)?;
                     };
                     if range.end > lb_range.end {
-                        self.encode_lb_range(lb_range.end..range.end, collector, var_manager);
+                        self.encode_lb_range(lb_range.end..range.end, collector, var_manager)?;
                     };
                 };
 
                 self.update_stats(ub_range, range, collector.n_clauses() - n_clauses_before);
             }
-        }
+        };
+
+        Ok(())
     }
 
     /// Reserves variables this node might need for indices in a given range.
@@ -852,8 +887,10 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![2]);
         let mut cnf = Cnf::new();
-        node.encode_ub_range(0..3, &mut cnf, &mut var_manager);
-        node.encode_lb_range(0..3, &mut cnf, &mut var_manager);
+        node.encode_ub_range(0..3, &mut cnf, &mut var_manager)
+            .unwrap();
+        node.encode_lb_range(0..3, &mut cnf, &mut var_manager)
+            .unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
@@ -890,8 +927,10 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![5]);
         let mut cnf = Cnf::new();
-        node.encode_ub_range(0..5, &mut cnf, &mut var_manager);
-        node.encode_lb_range(0..5, &mut cnf, &mut var_manager);
+        node.encode_ub_range(0..5, &mut cnf, &mut var_manager)
+            .unwrap();
+        node.encode_lb_range(0..5, &mut cnf, &mut var_manager)
+            .unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -908,7 +947,8 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![2]);
         let mut cnf = Cnf::new();
-        node.encode_lb_range(0..2, &mut cnf, &mut var_manager);
+        node.encode_lb_range(0..2, &mut cnf, &mut var_manager)
+            .unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 1),
@@ -945,8 +985,10 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![7]);
         let mut cnf = Cnf::new();
-        node.encode_ub_range(0..4, &mut cnf, &mut var_manager);
-        node.encode_lb_range(0..4, &mut cnf, &mut var_manager);
+        node.encode_ub_range(0..4, &mut cnf, &mut var_manager)
+            .unwrap();
+        node.encode_lb_range(0..4, &mut cnf, &mut var_manager)
+            .unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -983,8 +1025,10 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![7]);
         let mut cnf = Cnf::new();
-        node.encode_ub_range(3..3, &mut cnf, &mut var_manager);
-        node.encode_lb_range(3..3, &mut cnf, &mut var_manager);
+        node.encode_ub_range(3..3, &mut cnf, &mut var_manager)
+            .unwrap();
+        node.encode_lb_range(3..3, &mut cnf, &mut var_manager)
+            .unwrap();
         assert_eq!(cnf.len(), 0);
     }
 
@@ -1017,8 +1061,10 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![7]);
         let mut cnf = Cnf::new();
-        node.encode_ub_range(2..4, &mut cnf, &mut var_manager);
-        node.encode_lb_range(2..4, &mut cnf, &mut var_manager);
+        node.encode_ub_range(2..4, &mut cnf, &mut var_manager)
+            .unwrap();
+        node.encode_lb_range(2..4, &mut cnf, &mut var_manager)
+            .unwrap();
         match &node {
             Node::Leaf { .. } => panic!(),
             Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
@@ -1035,8 +1081,8 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
-        tot.encode_ub(0..5, &mut cnf, &mut var_manager);
-        tot.encode_lb(0..5, &mut cnf, &mut var_manager);
+        tot.encode_ub(0..5, &mut cnf, &mut var_manager).unwrap();
+        tot.encode_lb(0..5, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(tot.depth(), 3);
         assert_eq!(cnf.len(), 28);
         assert_eq!(tot.n_clauses(), 28);
@@ -1052,7 +1098,7 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
-        tot.encode_both(3..4, &mut cnf, &mut var_manager);
+        tot.encode_both(3..4, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(tot.depth(), 3);
         assert_eq!(cnf.len(), 12);
         assert_eq!(cnf.len(), tot.n_clauses());
@@ -1065,14 +1111,15 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf1 = Cnf::new();
-        tot1.encode_ub(0..5, &mut cnf1, &mut var_manager);
+        tot1.encode_ub(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf2 = Cnf::new();
-        tot2.encode_ub(0..3, &mut cnf2, &mut var_manager);
-        tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager);
+        tot2.encode_ub(0..3, &mut cnf2, &mut var_manager).unwrap();
+        tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager)
+            .unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
         assert_eq!(cnf2.len(), tot2.n_clauses());
@@ -1085,14 +1132,15 @@ mod tests {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf1 = Cnf::new();
-        tot1.encode_lb(0..5, &mut cnf1, &mut var_manager);
+        tot1.encode_lb(0..5, &mut cnf1, &mut var_manager).unwrap();
         let mut tot2 = Totalizer::default();
         tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf2 = Cnf::new();
-        tot2.encode_lb(0..3, &mut cnf2, &mut var_manager);
-        tot2.encode_lb_change(0..5, &mut cnf2, &mut var_manager);
+        tot2.encode_lb(0..3, &mut cnf2, &mut var_manager).unwrap();
+        tot2.encode_lb_change(0..5, &mut cnf2, &mut var_manager)
+            .unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
         assert_eq!(cnf2.len(), tot2.n_clauses());

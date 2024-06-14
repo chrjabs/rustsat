@@ -123,24 +123,6 @@ impl Default for VarManager {
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
-    Io(io::Error),
-    Parsing(String),
-}
-
-impl From<io::Error> for Error {
-    fn from(value: io::Error) -> Self {
-        Error::Io(value)
-    }
-}
-
-impl From<nom::Err<nom::error::Error<&str>>> for Error {
-    fn from(value: nom::Err<nom::error::Error<&str>>) -> Self {
-        Error::Parsing(value.to_string())
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Similarity {
     Similar(usize),
@@ -179,7 +161,7 @@ impl Encoding {
         in_reader: R,
         variant: Variant,
         sim_map: Map,
-    ) -> Result<Self, Error> {
+    ) -> anyhow::Result<Self> {
         if variant != Variant::Binary {
             panic!("only the binary encoding is implemented so far");
         }
@@ -187,7 +169,7 @@ impl Encoding {
         let mut ident_map = RsHashMap::default();
         let mut next_idx: u32 = 0;
         let process_line =
-            |line: Result<String, io::Error>| -> Option<Result<(String, String, f64), Error>> {
+            |line: Result<String, io::Error>| -> Option<anyhow::Result<(String, String, f64)>> {
                 let line = line.ok()?;
                 let line = line.trim_start();
                 if line.starts_with('%') {

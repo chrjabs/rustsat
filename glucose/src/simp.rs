@@ -5,6 +5,8 @@
 
 use core::ffi::{c_int, CStr};
 
+use crate::handle_oom;
+
 use super::{AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
 use ffi::Glucose4Handle;
@@ -28,8 +30,12 @@ unsafe impl Send for Glucose {}
 
 impl Default for Glucose {
     fn default() -> Self {
+        let handle = unsafe { ffi::cglucosesimp4_init() };
+        if handle.is_null() {
+            panic!("not enough memory to initialize glucose solver")
+        }
         Self {
-            handle: unsafe { ffi::cglucosesimp4_init() },
+            handle,
             state: Default::default(),
             stats: Default::default(),
         }
@@ -90,6 +96,15 @@ impl Extend<Clause> for Glucose {
     }
 }
 
+impl<'a> Extend<&'a Clause> for Glucose {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 impl Solve for Glucose {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::cglucose4_signature() };
@@ -111,7 +126,7 @@ impl Solve for Glucose {
         }
         let start = ProcessTime::now();
         // Solve with glucose backend
-        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::cglucosesimp4_solve(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -158,7 +173,7 @@ impl Solve for Glucose {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -166,10 +181,10 @@ impl Solve for Glucose {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call glucose backend
-        clause.into_iter().for_each(|l| unsafe {
-            ffi::cglucosesimp4_add(self.handle, l.to_ipasir());
-        });
-        unsafe { ffi::cglucosesimp4_add(self.handle, 0) };
+        for l in clause {
+            handle_oom!(unsafe { ffi::cglucosesimp4_add(self.handle, l.to_ipasir()) });
+        }
+        handle_oom!(unsafe { ffi::cglucosesimp4_add(self.handle, 0) });
         Ok(())
     }
 }
@@ -186,7 +201,7 @@ impl SolveIncremental for Glucose {
         for a in assumps {
             unsafe { ffi::cglucosesimp4_assume(self.handle, a.to_ipasir()) }
         }
-        let res = unsafe { ffi::cglucosesimp4_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::cglucosesimp4_solve(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -251,7 +266,7 @@ impl InterruptSolver for Interrupter {
 impl PhaseLit for Glucose {
     /// Forces the default decision phase of a variable to a certain value
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
-        unsafe { ffi::cglucosesimp4_phase(self.handle, lit.to_ipasir()) };
+        handle_oom!(unsafe { ffi::cglucosesimp4_phase(self.handle, lit.to_ipasir()) });
         Ok(())
     }
 
@@ -352,92 +367,15 @@ impl Drop for Glucose {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        sync::{Arc, Mutex},
-        thread,
-    };
-
     use super::Glucose;
     use rustsat::{
         lit,
-        solvers::{Solve, SolveStats, SolverResult},
+        solvers::{Solve, SolveStats},
         var,
     };
 
-    #[test]
-    fn build_destroy() {
-        let _solver = Glucose::default();
-    }
-
-    #[test]
-    fn build_two() {
-        let _solver1 = Glucose::default();
-        let _solver2 = Glucose::default();
-    }
-
-    #[test]
-    fn tiny_instance_sat() {
-        let mut solver = Glucose::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_unsat() {
-        let mut solver = Glucose::default();
-        solver.add_unit(!lit![0]).unwrap();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_unit(lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_multithreaded_sat() {
-        let mutex_solver = Arc::new(Mutex::new(Glucose::default()));
-        let ret = {
-            let mut solver = mutex_solver.lock().unwrap();
-            solver.add_binary(lit![0], !lit![1]).unwrap();
-            solver.add_binary(lit![1], !lit![2]).unwrap();
-            solver.solve()
-        };
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-
-        // Now in another thread
-        let s = mutex_solver.clone();
-        let ret = thread::spawn(move || {
-            let mut solver = s.lock().unwrap();
-            solver.solve()
-        })
-        .join()
-        .unwrap();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-
-        // Finally, back in the main thread
-        let ret = {
-            let mut solver = mutex_solver.lock().unwrap();
-            solver.solve()
-        };
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-    }
+    rustsat_solvertests::basic_unittests!(Glucose);
+    rustsat_solvertests::freezing_unittests!(Glucose);
 
     #[test]
     fn backend_stats() {
@@ -466,17 +404,18 @@ mod ffi {
         _private: [u8; 0],
     }
 
+    #[link(name = "glucose4", kind = "static")]
     extern "C" {
         // Redefinitions of Glucose C API
         pub fn cglucose4_signature() -> *const c_char;
         pub fn cglucosesimp4_init() -> *mut Glucose4Handle;
         pub fn cglucosesimp4_release(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int);
+        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int) -> c_int;
         pub fn cglucosesimp4_assume(solver: *mut Glucose4Handle, lit: c_int);
         pub fn cglucosesimp4_solve(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
         pub fn cglucosesimp4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_phase(solver: *mut Glucose4Handle, lit: c_int);
+        pub fn cglucosesimp4_phase(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
         pub fn cglucosesimp4_unphase(solver: *mut Glucose4Handle, lit: c_int);
         pub fn cglucosesimp4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
         pub fn cglucosesimp4_n_clauses(solver: *mut Glucose4Handle) -> c_int;

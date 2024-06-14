@@ -96,7 +96,7 @@ use thiserror::Error;
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
-pub trait Solve: Extend<Clause> {
+pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     /// Gets a signature of the solver implementation
     fn signature(&self) -> &'static str;
     /// Reserves memory in the solver until a maximum variables, if the solver
@@ -175,10 +175,19 @@ pub trait Solve: Extend<Clause> {
     /// - If the solver is not in the satisfied state
     /// - A specific implementation might return other errors
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal>;
-    /// Adds a clause to the solver
+    /// Adds a clause to the solver.
     /// If the solver is in the satisfied or unsatisfied state before, it is in
     /// the input state afterwards.
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()>;
+    ///
+    /// This method can be implemented by solvers that can truly take ownership of the clause.
+    /// Otherwise, it will fall back to the mandatory [`Solve::add_clause_ref`] method.
+    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+        self.add_clause_ref(&clause)
+    }
+    /// Adds a clause to the solver by reference.
+    /// If the solver is in the satisfied or unsatisfied state before, it is in
+    /// the input state afterwards.
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()>;
     /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
     fn add_unit(&mut self, lit: Lit) -> anyhow::Result<()> {
         self.add_clause(clause![lit])
@@ -194,6 +203,10 @@ pub trait Solve: Extend<Clause> {
     /// Adds all clauses from a [`Cnf`] instance.
     fn add_cnf(&mut self, cnf: Cnf) -> anyhow::Result<()> {
         cnf.into_iter().try_for_each(|cl| self.add_clause(cl))
+    }
+    /// Adds all clauses from a [`Cnf`] instance by reference.
+    fn add_cnf_ref(&mut self, cnf: &Cnf) -> anyhow::Result<()> {
+        cnf.iter().try_for_each(|cl| self.add_clause_ref(cl))
     }
 }
 
@@ -235,6 +248,7 @@ pub trait Learn<'learn> {
 
 /// Trait for all solvers that can be asynchronously interrupt.
 pub trait Interrupt {
+    /// The interrupter of the solver
     type Interrupter: InterruptSolver + Send + 'static;
     /// Gets a thread safe interrupter object that can be used to terminate the solver
     fn interrupter(&mut self) -> Self::Interrupter;
@@ -439,7 +453,9 @@ pub enum ControlSignal {
 /// A solver state error
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub struct StateError {
+    /// The state required for the operation
     pub required_state: SolverState,
+    /// The state that the solver is actually in
     pub actual_state: SolverState,
 }
 
@@ -453,8 +469,34 @@ impl fmt::Display for StateError {
     }
 }
 
+macro_rules! pass_oom_or_panic {
+    ($result:expr) => {{
+        match $result {
+            Ok(res) => res,
+            Err(err) => match err.downcast::<crate::OutOfMemory>() {
+                Ok(oom) => return Err(oom),
+                Err(err) => panic!("unexpected error in clause collector: {err}"),
+            },
+        }
+    }};
+}
+
 impl<S: Solve + SolveStats> CollectClauses for S {
     fn n_clauses(&self) -> usize {
         self.n_clauses()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        for cl in cl_iter {
+            pass_oom_or_panic!(self.add_clause(cl));
+        }
+        Ok(())
+    }
+
+    fn add_clause(&mut self, cl: Clause) -> Result<(), crate::OutOfMemory> {
+        Ok(pass_oom_or_panic!(self.add_clause(cl)))
     }
 }

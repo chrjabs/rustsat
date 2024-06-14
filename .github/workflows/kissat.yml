@@ -32,4 +32,3 @@ jobs:
         run: cargo test -p rustsat-kissat --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
-

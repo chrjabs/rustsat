@@ -1,0 +1,6 @@
+* #variable= 4 #constraint= 3
+* A handwritten OPB sat instance for basic testing
+min: 1 x1 2 x2;
+5 x1 -3 x2 >= 4;
+5 x3 -3 x4 >= 2;
+5 ~x4 >= 4;

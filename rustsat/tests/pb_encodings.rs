@@ -49,17 +49,19 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     let mut enc = PBE::default();
     enc.extend(lits);
 
-    enc.encode_ub(0..3, &mut solver, &mut var_manager);
+    enc.encode_ub(0..3, &mut solver, &mut var_manager).unwrap();
     let assumps = enc.enforce_ub(2).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..5, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..5, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(4).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..6, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..6, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -68,12 +70,14 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     lits.insert(lit![5], 4);
     enc.extend(lits);
 
-    enc.encode_ub_change(0..6, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..6, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..10, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..10, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -86,12 +90,14 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     lits.insert(lit![10], 2);
     enc.extend(lits);
 
-    enc.encode_ub_change(0..10, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..10, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..15, &mut solver, &mut var_manager);
+    enc.encode_ub_change(0..15, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_ub(14).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Sat);
@@ -109,7 +115,8 @@ fn test_pb_eq<PBE: BoundBothIncremental + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 2);
     let mut enc = PBE::from(lits);
 
-    enc.encode_both(4..5, &mut solver, &mut var_manager);
+    enc.encode_both(4..5, &mut solver, &mut var_manager)
+        .unwrap();
 
     let mut assumps = enc.enforce_eq(4).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
@@ -170,7 +177,7 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 3);
     let mut enc = PBE::from(lits);
 
-    enc.encode_lb(0..11, &mut solver, &mut var_manager);
+    enc.encode_lb(0..11, &mut solver, &mut var_manager).unwrap();
     let assumps = enc.enforce_lb(10).unwrap();
     let res = solver.solve_assumps(&assumps).unwrap();
     assert_eq!(res, SolverResult::Unsat);
@@ -193,7 +200,7 @@ fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 1);
     let mut enc = PBE::from(lits);
 
-    enc.encode_ub(2..3, &mut solver, &mut var_manager);
+    enc.encode_ub(2..3, &mut solver, &mut var_manager).unwrap();
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
     let res = solver.solve_assumps(&assumps).unwrap();
@@ -291,7 +298,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
 
-    let max_val = weights.iter().fold(0, |sum, &w| sum + w);
+    let max_val = weights.iter().sum::<usize>();
     let expected = |assign: usize, bound: usize| {
         let sum = (0..4).fold(0, |sum, idx| sum + ((assign >> idx) & 1) * weights[3 - idx]);
         if sum <= bound {
@@ -305,8 +312,10 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
         if decreasing {
             bound = max_val - bound;
         }
+        println!("bound: {}", bound);
 
-        enc.encode_ub_change(bound..bound + 1, &mut solver, &mut var_manager);
+        enc.encode_ub_change(bound..bound + 1, &mut solver, &mut var_manager)
+            .unwrap();
         let assumps = enc.enforce_ub(bound).unwrap();
 
         test_all!(
@@ -415,3 +424,177 @@ generate_exhaustive!(
     tot_sim,
     simulators::Card<rustsat::encodings::card::Totalizer>
 );
+
+mod dpw_inc_prec {
+    use rustsat::{
+        encodings::pb::{dpw::DynamicPolyWatchdog, BoundUpper, BoundUpperIncremental},
+        instances::{BasicVarManager, Cnf, ManageVars, OptInstance},
+        lit,
+        solvers::{
+            Solve, SolveIncremental,
+            SolverResult::{self, Sat, Unsat},
+        },
+        types::RsHashMap,
+        var,
+    };
+    use rustsat_tools::{test_all, test_assignment};
+
+    #[test]
+    fn incremental_precision() {
+        let weights = [5, 8, 7, 3];
+        let mut lits = RsHashMap::default();
+        lits.insert(lit![0], weights[0]);
+        lits.insert(lit![1], weights[1]);
+        lits.insert(lit![2], weights[2]);
+        lits.insert(lit![3], weights[3]);
+        for decreasing in [false, true] {
+            println!("decreasing: {}", decreasing);
+            let mut solver = rustsat_minisat::core::Minisat::default();
+            let mut enc = DynamicPolyWatchdog::from(lits.clone());
+            let mut var_manager = BasicVarManager::default();
+            var_manager.increase_next_free(var![4]);
+
+            for prec in 0..3 {
+                let prec_div = 1 << (3 - prec);
+                println!("precision: {}", prec_div);
+                enc.set_precision(prec_div).unwrap();
+
+                let max_val = weights.iter().fold(0, |sum, &w| sum + (w / prec_div));
+                let expected = |assign: usize, bound: usize| {
+                    let sum = (0..4).fold(0, |sum, idx| {
+                        sum + ((assign >> idx) & 1) * (weights[3 - idx] / prec_div)
+                    });
+                    if sum <= bound {
+                        Sat
+                    } else {
+                        Unsat
+                    }
+                };
+
+                for mut bound in 0..=max_val {
+                    if decreasing {
+                        bound = max_val - bound;
+                    }
+                    println!("bound: {}", bound);
+                    let mut cnf = Cnf::default();
+                    enc.encode_ub_change(bound..bound + 1, &mut cnf, &mut var_manager)
+                        .unwrap();
+                    println!("extending encoding: {:?}", cnf);
+                    solver.add_cnf(cnf).unwrap();
+                    let assumps = enc.enforce_ub(bound).unwrap();
+
+                    test_all!(
+                        solver,
+                        assumps, //
+                        expected(0b1111, bound),
+                        expected(0b1110, bound),
+                        expected(0b1101, bound),
+                        expected(0b1100, bound),
+                        expected(0b1011, bound),
+                        expected(0b1010, bound),
+                        expected(0b1001, bound),
+                        expected(0b1000, bound),
+                        expected(0b0111, bound),
+                        expected(0b0110, bound),
+                        expected(0b0101, bound),
+                        expected(0b0100, bound),
+                        expected(0b0011, bound),
+                        expected(0b0010, bound),
+                        expected(0b0001, bound),
+                        expected(0b0000, bound)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn incremental_precision_2() {
+        let inst: OptInstance = OptInstance::from_dimacs_path("./data/inc-sis-fails.wcnf").unwrap();
+        let (constr, obj) = inst.decompose();
+        let (cnf, mut vm) = constr.into_cnf();
+        let (hardened, (softs, offset)) = obj.into_soft_lits(&mut vm);
+        debug_assert!(hardened.is_empty());
+        debug_assert_eq!(offset, 0);
+        let mut solver = rustsat_minisat::core::Minisat::default();
+        solver.add_cnf(cnf).unwrap();
+        let mut enc = DynamicPolyWatchdog::from_iter(softs);
+
+        enc.set_precision(8192).unwrap();
+        enc.encode_ub_change(0..=1, &mut solver, &mut vm).unwrap();
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(1).unwrap()).unwrap(),
+            SolverResult::Sat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(0).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+
+        enc.set_precision(1024).unwrap();
+        enc.encode_ub_change(0..=9, &mut solver, &mut vm).unwrap();
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(9).unwrap()).unwrap(),
+            SolverResult::Sat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(8).unwrap()).unwrap(),
+            SolverResult::Sat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(7).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(0).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+    }
+
+    #[test]
+    fn incremental_precision_3() {
+        let inst: OptInstance = OptInstance::from_dimacs_path("./data/inc-sis-fails.wcnf").unwrap();
+        let (constr, obj) = inst.decompose();
+        let (cnf, mut vm) = constr.into_cnf();
+        let (hardened, (softs, offset)) = obj.into_soft_lits(&mut vm);
+        debug_assert!(hardened.is_empty());
+        debug_assert_eq!(offset, 0);
+        let mut solver = rustsat_minisat::core::Minisat::default();
+        solver.add_cnf(cnf).unwrap();
+        let mut enc = DynamicPolyWatchdog::from_iter(softs);
+
+        enc.set_precision(2048).unwrap();
+        enc.encode_ub_change(0..=4, &mut solver, &mut vm).unwrap();
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(4).unwrap()).unwrap(),
+            SolverResult::Sat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(2).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(0).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+
+        enc.set_precision(1024).unwrap();
+        enc.encode_ub_change(0..=9, &mut solver, &mut vm).unwrap();
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(9).unwrap()).unwrap(),
+            SolverResult::Sat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(8).unwrap()).unwrap(),
+            SolverResult::Sat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(7).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+        debug_assert_eq!(
+            solver.solve_assumps(&enc.enforce_ub(0).unwrap()).unwrap(),
+            SolverResult::Unsat
+        );
+    }
+}

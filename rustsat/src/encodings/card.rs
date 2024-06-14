@@ -67,7 +67,8 @@ pub trait BoundUpper: Encode {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
@@ -76,24 +77,28 @@ pub trait BoundUpper: Encode {
     /// [`Error::NotEncoded`] will be returned.
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes an upper bound cardinality constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_ub_constr<Col>(
         constr: CardUBConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
     {
         let (lits, ub) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_ub(ub..ub + 1, collector, var_manager);
-        collector.extend(
+        enc.encode_ub(ub..ub + 1, collector, var_manager)?;
+        collector.extend_clauses(
             enc.enforce_ub(ub)
                 .unwrap()
                 .into_iter()
                 .map(|unit| clause![unit]),
-        );
+        )?;
         Ok(())
     }
 }
@@ -110,7 +115,8 @@ pub trait BoundLower: Encode {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
@@ -121,24 +127,28 @@ pub trait BoundLower: Encode {
     /// returned.
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
     /// Encodes a lower bound cardinality constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_lb_constr<Col>(
         constr: CardLBConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
     {
         let (lits, lb) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_lb(lb..lb + 1, collector, var_manager);
-        collector.extend(
+        enc.encode_lb(lb..lb + 1, collector, var_manager)?;
+        collector.extend_clauses(
             enc.enforce_lb(lb)
                 .unwrap()
                 .into_iter()
                 .map(|unit| clause![unit]),
-        );
+        )?;
         Ok(())
     }
 }
@@ -154,12 +164,14 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize> + Clone,
     {
-        self.encode_ub(range.clone(), collector, var_manager);
-        self.encode_lb(range, collector, var_manager);
+        self.encode_ub(range.clone(), collector, var_manager)?;
+        self.encode_lb(range, collector, var_manager)?;
+        Ok(())
     }
     /// Returns assumptions for enforcing an equality (`sum of lits = b`) or an
     /// error if the encoding does not support one of the two required bound
@@ -174,32 +186,40 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         Ok(assumps)
     }
     /// Encodes an equality cardinality constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_eq_constr<Col>(
         constr: CardEQConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
     {
         let (lits, b) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_both(b..b + 1, collector, var_manager);
-        collector.extend(
+        enc.encode_both(b..b + 1, collector, var_manager)?;
+        collector.extend_clauses(
             enc.enforce_eq(b)
                 .unwrap()
                 .into_iter()
                 .map(|unit| clause![unit]),
-        );
+        )?;
         Ok(())
     }
     /// Encodes any cardinality constraint to CNF
+    ///
+    /// # Errors
+    ///
+    /// Either an [`Error`] of [`crate::OutOfMemory`]
     fn encode_constr<Col>(
         constr: CardConstraint,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), Error>
+    ) -> anyhow::Result<()>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
@@ -235,7 +255,8 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
 }
@@ -252,7 +273,8 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize>;
 }
@@ -268,11 +290,12 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) where
+    ) -> Result<(), crate::OutOfMemory>
+    where
         Col: CollectClauses,
         R: RangeBounds<usize> + Clone,
     {
-        self.encode_ub_change(range.clone(), collector, var_manager);
+        self.encode_ub_change(range.clone(), collector, var_manager)?;
         self.encode_lb_change(range, collector, var_manager)
     }
 }
@@ -330,7 +353,7 @@ pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) {
+) -> Result<(), crate::OutOfMemory> {
     encode_cardinality_constraint::<DefBothBounding, Col>(constr, collector, var_manager)
 }
 
@@ -339,27 +362,28 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: Col
     constr: CardConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) {
+) -> Result<(), crate::OutOfMemory> {
     if constr.is_tautology() {
-        return;
+        return Ok(());
     }
     if constr.is_unsat() {
-        collector.extend([Clause::new()]);
-        return;
+        return collector.add_clause(Clause::new());
     }
     if constr.is_positive_assignment() {
-        collector.extend(constr.into_lits().into_iter().map(|lit| clause![lit]));
-        return;
+        return collector.extend_clauses(constr.into_lits().into_iter().map(|lit| clause![lit]));
     }
     if constr.is_negative_assignment() {
-        collector.extend(constr.into_lits().into_iter().map(|lit| clause![!lit]));
-        return;
+        return collector.extend_clauses(constr.into_lits().into_iter().map(|lit| clause![!lit]));
     }
     if constr.is_clause() {
-        collector.extend([constr.as_clause().unwrap()]);
-        return;
+        return collector.add_clause(constr.into_clause().unwrap());
     }
-    CE::encode_constr(constr, collector, var_manager).unwrap()
+    match CE::encode_constr(constr, collector, var_manager) {
+        Ok(_) => Ok(()),
+        Err(err) => Err(err
+            .downcast::<crate::OutOfMemory>()
+            .expect("unexpected error when encoding constraint")),
+    }
 }
 
 fn prepare_ub_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {

@@ -20,6 +20,8 @@
 //! Without any features selected, the newest version will be used.
 //! If conflicting CaDiCaL versions are requested, the newest requested version will be selected.
 
+#![warn(missing_docs)]
+
 use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
@@ -33,6 +35,30 @@ use rustsat::solvers::{
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
 
+const OUT_OF_MEM: c_int = 50;
+
+macro_rules! handle_oom {
+    ($val:expr) => {{
+        let val = $val;
+        if val == crate::OUT_OF_MEM {
+            return anyhow::Context::context(
+                Err(rustsat::OutOfMemory::ExternalApi),
+                "cadical out of memory",
+            );
+        }
+        val
+    }};
+    ($val:expr, noanyhow) => {{
+        let val = $val;
+        if val == crate::OUT_OF_MEM {
+            return Err(rustsat::OutOfMemory::ExternalApi);
+        }
+        val
+    }};
+}
+pub(crate) use handle_oom;
+
+/// Fatal error returned if the CaDiCaL API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("cadical c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
@@ -80,6 +106,10 @@ unsafe impl Send for CaDiCaL<'_, '_> {}
 
 impl Default for CaDiCaL<'_, '_> {
     fn default() -> Self {
+        let handle = unsafe { ffi::ccadical_init() };
+        if handle.is_null() {
+            panic!("not enough memory to initialize CaDiCaL solver")
+        }
         let solver = Self {
             handle: unsafe { ffi::ccadical_init() },
             state: Default::default(),
@@ -117,7 +147,7 @@ impl CaDiCaL<'_, '_> {
     /// _Note_: If this is used, in addition to [`SolveIncremental::core`],
     /// [`CaDiCaL::tmp_clause_in_core`] needs to be checked to determine if the
     /// temporary clause is part of the core.
-    pub fn add_tmp_clause(&mut self, clause: Clause) {
+    pub fn add_tmp_clause(&mut self, clause: Clause) -> Result<(), rustsat::OutOfMemory> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -126,9 +156,16 @@ impl CaDiCaL<'_, '_> {
         self.state = InternalSolverState::Input;
         // Call CaDiCaL backend
         for lit in &clause {
-            unsafe { ffi::ccadical_constrain(self.handle, lit.to_ipasir()) }
+            handle_oom!(
+                unsafe { ffi::ccadical_constrain_mem(self.handle, lit.to_ipasir()) },
+                noanyhow
+            );
         }
-        unsafe { ffi::ccadical_constrain(self.handle, 0) }
+        handle_oom!(
+            unsafe { ffi::ccadical_constrain_mem(self.handle, 0) },
+            noanyhow
+        );
+        Ok(())
     }
 
     /// Checks whether the temporary clause is part of the core if in
@@ -274,6 +311,18 @@ impl CaDiCaL<'_, '_> {
         unsafe { ffi::ccadical_print_statistics(self.handle) }
     }
 
+    /// Executes the given number of preprocessing rounds
+    ///
+    /// # CaDiCaL Documentation
+    ///
+    /// This function executes the given number of preprocessing rounds. It is
+    /// similar to 'solve' with 'limits ("preprocessing", rounds)' except that
+    /// no CDCL nor local search, nor lucky phases are executed.  The result
+    /// values are also the same: 0=UNKNOWN, 10=SATISFIABLE, 20=UNSATISFIABLE.
+    /// As 'solve' it resets current assumptions and limits before returning.
+    /// The numbers of rounds should not be negative.  If the number of rounds
+    /// is zero only clauses are restored (if necessary) and top level unit
+    /// propagation is performed, which both take some time.
     pub fn simplify(&mut self, rounds: u32) -> anyhow::Result<SolverResult> {
         // If already solved, return state
         if let InternalSolverState::Sat = self.state {
@@ -305,6 +354,18 @@ impl CaDiCaL<'_, '_> {
         }
     }
 
+    /// Executes the given number of preprocessing rounds under assumptions
+    ///
+    /// # CaDiCaL Documentation
+    ///
+    /// This function executes the given number of preprocessing rounds. It is
+    /// similar to 'solve' with 'limits ("preprocessing", rounds)' except that
+    /// no CDCL nor local search, nor lucky phases are executed.  The result
+    /// values are also the same: 0=UNKNOWN, 10=SATISFIABLE, 20=UNSATISFIABLE.
+    /// As 'solve' it resets current assumptions and limits before returning.
+    /// The numbers of rounds should not be negative.  If the number of rounds
+    /// is zero only clauses are restored (if necessary) and top level unit
+    /// propagation is performed, which both take some time.
     pub fn simplify_assumps(
         &mut self,
         assumps: Vec<Lit>,
@@ -320,7 +381,7 @@ impl CaDiCaL<'_, '_> {
         let rounds: c_int = rounds.try_into()?;
         // Simplify with CaDiCaL backend under assumptions
         for a in &assumps {
-            unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
+            handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
         }
         match unsafe { ffi::ccadical_simplify_rounds(self.handle, rounds) } {
             0 => {
@@ -351,6 +412,15 @@ impl Extend<Clause> for CaDiCaL<'_, '_> {
     }
 }
 
+impl<'a> Extend<&'a Clause> for CaDiCaL<'_, '_> {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 impl Solve for CaDiCaL<'_, '_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ccadical_signature() };
@@ -362,7 +432,7 @@ impl Solve for CaDiCaL<'_, '_> {
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
         self.state = InternalSolverState::Input;
-        unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) };
+        handle_oom!(unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) });
         Ok(())
     }
 
@@ -378,7 +448,7 @@ impl Solve for CaDiCaL<'_, '_> {
         }
         let start = ProcessTime::now();
         // Solve with CaDiCaL backend
-        let res = unsafe { ffi::ccadical_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -427,7 +497,7 @@ impl Solve for CaDiCaL<'_, '_> {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.stats.avg_clause_len =
@@ -435,10 +505,10 @@ impl Solve for CaDiCaL<'_, '_> {
                 / self.stats.n_clauses as f32;
         self.state = InternalSolverState::Input;
         // Call CaDiCaL backend
-        clause
-            .into_iter()
-            .for_each(|l| unsafe { ffi::ccadical_add(self.handle, l.to_ipasir()) });
-        unsafe { ffi::ccadical_add(self.handle, 0) };
+        for &l in clause {
+            handle_oom!(unsafe { ffi::ccadical_add_mem(self.handle, l.to_ipasir()) });
+        }
+        handle_oom!(unsafe { ffi::ccadical_add_mem(self.handle, 0) });
         Ok(())
     }
 }
@@ -448,9 +518,9 @@ impl SolveIncremental for CaDiCaL<'_, '_> {
         let start = ProcessTime::now();
         // Solve with CaDiCaL backend
         for a in assumps {
-            unsafe { ffi::ccadical_assume(self.handle, a.to_ipasir()) }
+            handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
         }
-        let res = unsafe { ffi::ccadical_solve(self.handle) };
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -638,18 +708,11 @@ impl FreezeVar for CaDiCaL<'_, '_> {
 }
 
 // >= v1.5.4
-#[cfg(any(
-    feature = "v1-5-4",
-    feature = "v1-5-5",
-    feature = "v1-5-6",
-    feature = "v1-6-0",
-    feature = "v1-7-0",
-    all(
-        not(feature = "v1-5-3"),
-        not(feature = "v1-5-2"),
-        not(feature = "v1-5-1"),
-        not(feature = "v1-5-0")
-    )
+#[cfg(all(
+    not(feature = "v1-5-3"),
+    not(feature = "v1-5-2"),
+    not(feature = "v1-5-1"),
+    not(feature = "v1-5-0")
 ))]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
@@ -797,178 +860,18 @@ impl fmt::Display for Limit {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        sync::{Arc, Mutex},
-        thread,
-    };
-
     use super::{CaDiCaL, Config, Limit};
     use rustsat::{
         lit,
-        solvers::{
-            ControlSignal, FreezeVar, Learn, Solve, SolverResult, SolverState, StateError,
-            Terminate,
-        },
+        solvers::{Solve, SolverState, StateError},
         types::TernaryVal,
         var,
     };
 
-    #[test]
-    fn build_destroy() {
-        let _solver = CaDiCaL::default();
-    }
-
-    #[test]
-    fn build_two() {
-        let _solver1 = CaDiCaL::default();
-        let _solver2 = CaDiCaL::default();
-    }
-
-    #[test]
-    fn tiny_instance_sat() {
-        let mut solver = CaDiCaL::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_unsat() {
-        let mut solver = CaDiCaL::default();
-        solver.add_unit(!lit![0]).unwrap();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_unit(lit![2]).unwrap();
-        let ret = solver.solve();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
-
-    #[test]
-    fn tiny_instance_multithreaded_sat() {
-        let mutex_solver = Arc::new(Mutex::new(CaDiCaL::default()));
-        let ret = {
-            let mut solver = mutex_solver.lock().unwrap();
-            solver.add_binary(lit![0], !lit![1]).unwrap();
-            solver.add_binary(lit![1], !lit![2]).unwrap();
-            solver.solve()
-        };
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-
-        // Now in another thread
-        let s = mutex_solver.clone();
-        let ret = thread::spawn(move || {
-            let mut solver = s.lock().unwrap();
-            solver.solve()
-        })
-        .join()
-        .unwrap();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Sat),
-        }
-
-        // Now add to solver in other thread
-        let s = mutex_solver.clone();
-        let ret = thread::spawn(move || {
-            let mut solver = s.lock().unwrap();
-            solver.add_unit(!lit![0]).unwrap();
-            solver.add_unit(lit![2]).unwrap();
-            solver.solve()
-        })
-        .join()
-        .unwrap();
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-
-        // Finally, back in the main thread
-        let ret = {
-            let mut solver = mutex_solver.lock().unwrap();
-            solver.add_binary(lit![0], !lit![1]).unwrap();
-            solver.add_binary(lit![1], !lit![2]).unwrap();
-            solver.solve()
-        };
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
-
-    #[test]
-    fn termination_callback() {
-        let mut solver = CaDiCaL::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_binary(lit![2], !lit![3]).unwrap();
-        solver.add_binary(lit![3], !lit![4]).unwrap();
-        solver.add_binary(lit![4], !lit![5]).unwrap();
-        solver.add_binary(lit![5], !lit![6]).unwrap();
-        solver.add_binary(lit![6], !lit![7]).unwrap();
-        solver.add_binary(lit![7], !lit![8]).unwrap();
-        solver.add_binary(lit![8], !lit![9]).unwrap();
-
-        solver.attach_terminator(|| ControlSignal::Terminate);
-
-        let ret = solver.solve();
-
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Interrupted),
-        }
-
-        // Note: since IPASIR doesn't specify _when_ the terminator callback needs
-        // to be called, there is no guarantee that the callback is actually
-        // called during solving. This might cause this test to fail with some solvers.
-    }
-
-    #[test]
-    fn learner_callback() {
-        let mut solver = CaDiCaL::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-        solver.add_binary(lit![1], !lit![2]).unwrap();
-        solver.add_binary(lit![2], !lit![3]).unwrap();
-        solver.add_binary(lit![3], !lit![4]).unwrap();
-        solver.add_binary(lit![4], !lit![5]).unwrap();
-        solver.add_binary(lit![5], !lit![6]).unwrap();
-        solver.add_binary(lit![6], !lit![7]).unwrap();
-        solver.add_binary(lit![7], !lit![8]).unwrap();
-        solver.add_binary(lit![8], !lit![9]).unwrap();
-        solver.add_unit(lit![9]).unwrap();
-        solver.add_unit(!lit![0]).unwrap();
-
-        let mut cl_len = 0;
-
-        solver.attach_learner(
-            |clause| {
-                cl_len = clause.len();
-            },
-            10,
-        );
-
-        let ret = solver.solve();
-
-        drop(solver);
-
-        // Note: it is hard to create a testing instance on which clause learning
-        // actually happens and therefore it is not actually tested if the
-        // callback is called
-
-        match ret {
-            Err(e) => panic!("got error when solving: {}", e),
-            Ok(res) => assert_eq!(res, SolverResult::Unsat),
-        }
-    }
+    rustsat_solvertests::basic_unittests!(CaDiCaL);
+    rustsat_solvertests::termination_unittests!(CaDiCaL);
+    rustsat_solvertests::learner_unittests!(CaDiCaL);
+    rustsat_solvertests::freezing_unittests!(CaDiCaL);
 
     #[test]
     fn configure() {
@@ -1019,20 +922,6 @@ mod test {
         assert_eq!(solver.get_redundant(), 0);
         assert_eq!(solver.current_lit_val(lit![0]), TernaryVal::DontCare);
     }
-
-    #[test]
-    fn freezing() {
-        let mut solver = CaDiCaL::default();
-        solver.add_binary(lit![0], !lit![1]).unwrap();
-
-        solver.freeze_var(var![0]).unwrap();
-
-        assert!(solver.is_frozen(var![0]).unwrap());
-
-        solver.melt_var(var![0]).unwrap();
-
-        assert!(!solver.is_frozen(var![0]).unwrap());
-    }
 }
 
 mod ffi {
@@ -1047,14 +936,15 @@ mod ffi {
         _private: [u8; 0],
     }
 
+    #[link(name = "cadical", kind = "static")]
     extern "C" {
         // Redefinitions of CaDiCaL C API
         pub fn ccadical_signature() -> *const c_char;
         pub fn ccadical_init() -> *mut CaDiCaLHandle;
         pub fn ccadical_release(solver: *mut CaDiCaLHandle);
-        pub fn ccadical_add(solver: *mut CaDiCaLHandle, lit_or_zero: c_int);
-        pub fn ccadical_assume(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_solve(solver: *mut CaDiCaLHandle) -> c_int;
+        pub fn ccadical_add_mem(solver: *mut CaDiCaLHandle, lit_or_zero: c_int) -> c_int;
+        pub fn ccadical_assume_mem(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
+        pub fn ccadical_solve_mem(solver: *mut CaDiCaLHandle) -> c_int;
         pub fn ccadical_val(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_failed(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_set_terminate(
@@ -1068,7 +958,7 @@ mod ffi {
             max_length: c_int,
             learn: Option<extern "C" fn(state: *const c_void, clause: *const c_int)>,
         );
-        pub fn ccadical_constrain(solver: *mut CaDiCaLHandle, lit: c_int);
+        pub fn ccadical_constrain_mem(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
         pub fn ccadical_constraint_failed(solver: *mut CaDiCaLHandle) -> c_int;
         pub fn ccadical_set_option_ret(
             solver: *mut CaDiCaLHandle,
@@ -1095,26 +985,20 @@ mod ffi {
         pub fn ccadical_phase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_unphase(solver: *mut CaDiCaLHandle, lit: c_int);
         pub fn ccadical_vars(solver: *mut CaDiCaLHandle) -> c_int;
-        pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int);
+        pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int) -> c_int;
         pub fn ccadical_propagations(solver: *mut CaDiCaLHandle) -> i64;
         pub fn ccadical_decisions(solver: *mut CaDiCaLHandle) -> i64;
         pub fn ccadical_conflicts(solver: *mut CaDiCaLHandle) -> i64;
     }
 
     // >= v1.5.4
-    #[cfg(any(
-        feature = "v1-5-4",
-        feature = "v1-5-5",
-        feature = "v1-5-6",
-        feature = "v1-6-0",
-        feature = "v1-7-0",
-        all(
-            not(feature = "v1-5-3"),
-            not(feature = "v1-5-2"),
-            not(feature = "v1-5-1"),
-            not(feature = "v1-5-0")
-        )
+    #[cfg(all(
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-0")
     ))]
+    #[link(name = "cadical", kind = "static")]
     extern "C" {
         pub fn ccadical_flip(solver: *mut CaDiCaLHandle, lit: c_int) -> bool;
         pub fn ccadical_flippable(solver: *mut CaDiCaLHandle, lit: c_int) -> bool;

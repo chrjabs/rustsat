@@ -32,9 +32,9 @@ jobs:
       - name: Build Python package
         uses: PyO3/maturin-action@v1
         with:
-          args: -i python --manifest-path rustsat/Cargo.toml
+          args: -i python --manifest-path pyapi/Cargo.toml
       - name: Install Python package
-        run: pip install target/wheels/rustsat*.whl
+        run: pip install --no-index --find-links target/wheels/ rustsat
       - name: Build Python API docs
         run: pip install pdoc && pdoc -o _site/pyapi/ rustsat
       - name: Upload artifact

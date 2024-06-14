@@ -7,11 +7,7 @@ macro_rules! test_assignment {
         assumps.extend($assumps);
         let res = $solver.solve_assumps(&assumps).unwrap();
         if res == rustsat::solvers::SolverResult::Sat && res != $result {
-            let mut max_var = rustsat::var![0];
-            for a in assumps {
-                max_var = std::cmp::max(a.var(), max_var);
-            }
-            println!("{}", $solver.solution(max_var).unwrap());
+            println!("{}", $solver.full_solution().unwrap());
         }
         debug_assert_eq!(res, $result);
     }};

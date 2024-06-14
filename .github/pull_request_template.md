@@ -14,3 +14,4 @@
 - [ ] I have added documentation for new features
 - [ ] The test suite still passes on this PR
 - [ ] I have added tests for new features / tests that would have caught the bug this PR fixes (please explain if not)
+- [ ] If this PR contains breaking changes, it is against the [`next-major`](https://github.com/chrjabs/rustsat/tree/next-major) branch, not against [`main`](https://github.com/chrjabs/rustsat/tree/main)

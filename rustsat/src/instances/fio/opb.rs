@@ -27,7 +27,7 @@ use nom::{
     IResult,
 };
 use std::{
-    io::{self, BufRead, BufReader, Read, Write},
+    io::{self, BufRead, Write},
     num::TryFromIntError,
 };
 
@@ -92,7 +92,7 @@ enum OpbData {
 /// Parses the constraints from an OPB file as a [`SatInstance`]
 pub fn parse_sat<R, VM>(reader: R, opts: Options) -> anyhow::Result<SatInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     let data = parse_opb_data(reader, opts)?;
@@ -114,7 +114,7 @@ pub fn parse_opt_with_idx<R, VM>(
     opts: Options,
 ) -> anyhow::Result<OptInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     use super::ObjNoExist;
@@ -149,7 +149,7 @@ where
 /// index (starting from 0).
 pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
 where
-    R: Read,
+    R: BufRead,
     VM: ManageVars + Default,
 {
     let data = parse_opb_data(reader, opts)?;
@@ -164,8 +164,7 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: Read>(reader: R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
-    let mut reader = BufReader::new(reader);
+fn parse_opb_data<R: BufRead>(mut reader: R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
     let mut buf = String::new();
     let mut data = vec![];
     // TODO: consider not necessarily reading a full line
@@ -350,7 +349,7 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
 /// Writes a [`SatInstance`] to an OPB file
 pub fn write_sat<W, VM>(
     writer: &mut W,
-    inst: SatInstance<VM>,
+    inst: &SatInstance<VM>,
     opts: Options,
 ) -> Result<(), io::Error>
 where
@@ -371,125 +370,103 @@ where
     writeln!(writer, "* {} cardinality constraints", inst.cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", inst.pbs.len())?;
     inst.cnf
-        .into_iter()
+        .iter()
         .try_for_each(|cl| write_clause(writer, cl, opts))?;
     inst.cards
-        .into_iter()
+        .iter()
         .try_for_each(|card| write_card(writer, card, opts))?;
     inst.pbs
-        .into_iter()
+        .iter()
         .try_for_each(|pb| write_pb(writer, pb, opts))?;
     writer.flush()
 }
 
 #[cfg(feature = "optimization")]
-/// Writes an [`OptInstance`] to an OPB file
-pub fn write_opt<W, VM>(
+/// Writes an optimization instance to an OPB file
+pub fn write_opt<W, VM, LI>(
     writer: &mut W,
-    inst: OptInstance<VM>,
+    constrs: &SatInstance<VM>,
+    obj: (LI, isize),
     opts: Options,
 ) -> Result<(), io::Error>
 where
     W: Write,
+    LI: WLitIter,
     VM: ManageVars,
 {
-    let (constrs, obj) = inst.decompose();
-    let cnf = constrs.cnf;
-    let cards = constrs.cards;
-    let pbs = constrs.pbs;
-    let mut vm = constrs.var_manager;
-    let (hardened, softs) = obj.as_soft_lits(&mut vm);
+    let cnf = &constrs.cnf;
+    let cards = &constrs.cards;
+    let pbs = &constrs.pbs;
     writeln!(
         writer,
         "* #variable = {} #constraint= {}",
-        vm.n_used(),
+        constrs.n_vars(),
         cnf.len() + cards.len() + pbs.len()
     )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
-    if let Some(max_var) = vm.max_var() {
+    if let Some(max_var) = constrs.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
     }
     writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
-    writeln!(
-        writer,
-        "* {} relaxed and hardened soft clauses",
-        hardened.len()
-    )?;
-    write_objective(writer, softs, opts)?;
-    hardened
-        .into_iter()
-        .try_for_each(|cl| write_clause(writer, cl, opts))?;
-    cnf.into_iter()
+    write_objective(writer, obj, opts)?;
+    cnf.iter()
         .try_for_each(|cl| write_clause(writer, cl, opts))?;
     cards
-        .into_iter()
+        .iter()
         .try_for_each(|card| write_card(writer, card, opts))?;
-    pbs.into_iter()
-        .try_for_each(|pb| write_pb(writer, pb, opts))?;
+    pbs.iter().try_for_each(|pb| write_pb(writer, pb, opts))?;
     writer.flush()
 }
 
 #[cfg(feature = "multiopt")]
 /// Writes a [`MultiOptInstance`] to an OPB file
-pub fn write_multi_opt<W, VM>(
+pub fn write_multi_opt<W, VM, Iter, LI>(
     writer: &mut W,
-    inst: MultiOptInstance<VM>,
+    constrs: &SatInstance<VM>,
+    mut objs: Iter,
     opts: Options,
 ) -> Result<(), io::Error>
 where
     W: Write,
     VM: ManageVars,
+    Iter: Iterator<Item = (LI, isize)>,
+    LI: WLitIter,
 {
-    let (constrs, objs) = inst.decompose();
-    let cnf = constrs.cnf;
-    let cards = constrs.cards;
-    let pbs = constrs.pbs;
-    let mut vm = constrs.var_manager;
-    let (hardened, objs) = objs
-        .into_iter()
-        .map(|o| o.as_soft_lits(&mut vm))
-        .unzip::<_, _, Vec<_>, Vec<_>>();
+    let cnf = &constrs.cnf;
+    let cards = &constrs.cards;
+    let pbs = &constrs.pbs;
     writeln!(
         writer,
         "* #variable = {} #constraint= {}",
-        vm.n_used(),
+        constrs.n_vars(),
         cnf.len() + cards.len() + pbs.len()
     )?;
     writeln!(writer, "* OPB file written by RustSAT")?;
-    if let Some(max_var) = vm.max_var() {
+    if let Some(max_var) = constrs.max_var() {
         writeln!(writer, "* maximum variable: {}", max_var)?;
     }
     writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
     write!(writer, "* ( ")?;
-    hardened
-        .iter()
-        .try_for_each(|h| write!(writer, "{} ", h.len()))?;
     writeln!(writer, ") relaxed and hardened soft clauses",)?;
-    objs.into_iter()
-        .try_for_each(|softs| write_objective(writer, softs, opts))?;
-    hardened.into_iter().try_for_each(|h| {
-        h.into_iter()
-            .try_for_each(|cl| write_clause(writer, cl, opts))
-    })?;
-    cnf.into_iter()
+    objs.try_for_each(|softs| write_objective(writer, softs, opts))?;
+    cnf.iter()
         .try_for_each(|cl| write_clause(writer, cl, opts))?;
     cards
-        .into_iter()
+        .iter()
         .try_for_each(|card| write_card(writer, card, opts))?;
-    pbs.into_iter()
-        .try_for_each(|pb| write_pb(writer, pb, opts))?;
+    pbs.iter().try_for_each(|pb| write_pb(writer, pb, opts))?;
     writer.flush()
 }
 
 /// Writes a clause to an OPB file
-fn write_clause<W: Write>(writer: &mut W, clause: Clause, opts: Options) -> Result<(), io::Error> {
+fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Result<(), io::Error> {
     if opts.no_negated_lits {
         let mut rhs: isize = 1;
-        clause.into_iter().try_for_each(|l| {
+        clause.iter().try_for_each(|l| {
             if l.is_pos() {
                 write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
@@ -499,7 +476,7 @@ fn write_clause<W: Write>(writer: &mut W, clause: Clause, opts: Options) -> Resu
         })?;
         writeln!(writer, ">= {};", rhs)
     } else {
-        clause.into_iter().try_for_each(|l| {
+        clause.iter().try_for_each(|l| {
             if l.is_pos() {
                 write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
@@ -513,123 +490,137 @@ fn write_clause<W: Write>(writer: &mut W, clause: Clause, opts: Options) -> Resu
 /// Writes a cardinality constraint to an OPB file
 fn write_card<W: Write>(
     writer: &mut W,
-    card: CardConstraint,
+    card: &CardConstraint,
     opts: Options,
 ) -> Result<(), io::Error> {
+    let mut iter_a;
+    let mut iter_b;
+    let neg_lit = |l: &Lit| !*l;
     if opts.no_negated_lits {
-        let (lits, bound, op) = match card {
+        let (lits, bound, op): (&mut dyn Iterator<Item = Lit>, _, _) = match card {
             CardConstraint::UB(constr) => {
-                let (lits, bound) = constr.decompose();
-                let bound = lits.len() as isize - bound as isize;
+                let (lits, bound) = constr.decompose_ref();
+                let bound = lits.len() as isize - *bound as isize;
                 // Flip operator by negating literals
-                let lits: Vec<Lit> = lits.into_iter().map(|l| !l).collect();
-                (lits, bound, ">=")
+                iter_a = lits.iter().map(neg_lit);
+                (&mut iter_a, bound, ">=")
             }
             CardConstraint::LB(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound as isize, ">=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound as isize, ">=")
             }
             CardConstraint::EQ(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound as isize, "=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound as isize, "=")
             }
         };
         let mut offset = 0;
-        lits.into_iter().try_for_each(|l| {
+        for l in lits {
             if l.is_pos() {
-                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
+                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)?;
             } else {
                 offset += 1;
-                write!(writer, "-1 x{} ", l.vidx32() + opts.first_var_idx)
+                write!(writer, "-1 x{} ", l.vidx32() + opts.first_var_idx)?;
             }
-        })?;
+        }
         writeln!(writer, "{} {};", op, bound - offset)
     } else {
-        let (lits, bound, op) = match card {
+        let (lits, bound, op): (&mut dyn Iterator<Item = Lit>, _, _) = match card {
             CardConstraint::UB(constr) => {
-                let (lits, bound) = constr.decompose();
-                let bound = lits.len() as isize - bound as isize;
+                let (lits, bound) = constr.decompose_ref();
+                let bound = lits.len() as isize - *bound as isize;
                 // Flip operator by negating literals
-                let lits: Vec<Lit> = lits.into_iter().map(|l| !l).collect();
-                (lits, bound, ">=")
+                iter_a = lits.iter().map(neg_lit);
+                (&mut iter_a, bound, ">=")
             }
             CardConstraint::LB(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound as isize, ">=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound as isize, ">=")
             }
             CardConstraint::EQ(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound as isize, "=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound as isize, "=")
             }
         };
-        lits.into_iter().try_for_each(|l| {
+        for l in lits {
             if l.is_pos() {
-                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
+                write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)?;
             } else {
-                write!(writer, "1 ~x{} ", l.vidx32() + opts.first_var_idx)
+                write!(writer, "1 ~x{} ", l.vidx32() + opts.first_var_idx)?;
             }
-        })?;
+        }
         writeln!(writer, "{} {};", op, bound)
     }
 }
 
 /// Writes a pseudo-boolean constraint to an OPB file
-fn write_pb<W: Write>(writer: &mut W, pb: PBConstraint, opts: Options) -> Result<(), io::Error> {
+fn write_pb<W: Write>(writer: &mut W, pb: &PBConstraint, opts: Options) -> Result<(), io::Error> {
+    let mut iter_a;
+    let mut iter_b;
+    let neg_lit = |(l, w): &(Lit, usize)| (!*l, *w);
     if opts.no_negated_lits {
-        let (lits, bound, op) = match pb {
+        let (lits, bound, op): (&mut dyn Iterator<Item = (Lit, usize)>, _, _) = match pb {
             PBConstraint::UB(constr) => {
-                let (lits, bound) = constr.decompose();
+                let (lits, bound) = constr.decompose_ref();
                 let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
                 // Flip operator by negating literals
-                let lits = lits.into_iter().map(|(l, w)| (!l, w)).collect();
-                (lits, weight_sum as isize - bound, ">=")
+                iter_a = lits.iter().map(neg_lit);
+                (&mut iter_a, weight_sum as isize - bound, ">=")
             }
             PBConstraint::LB(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound, ">=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound, ">=")
             }
             PBConstraint::EQ(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound, "=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound, "=")
             }
         };
         let mut offset: isize = 0;
-        lits.into_iter().try_for_each(|(l, w)| {
+        for (l, w) in lits {
             if l.is_pos() {
-                write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)
+                write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)?;
             } else {
                 // TODO: consider returning error for usize -> isize cast
                 let w = w as isize;
                 offset += w;
-                write!(writer, "{} x{} ", -w, l.vidx32() + opts.first_var_idx)
+                write!(writer, "{} x{} ", -w, l.vidx32() + opts.first_var_idx)?;
             }
-        })?;
+        }
         writeln!(writer, "{} {};", op, bound - offset)
     } else {
-        let (lits, bound, op) = match pb {
+        let (lits, bound, op): (&mut dyn Iterator<Item = (Lit, usize)>, _, _) = match pb {
             PBConstraint::UB(constr) => {
-                let (lits, bound) = constr.decompose();
+                let (lits, bound) = constr.decompose_ref();
                 let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
                 // Flip operator by negating literals
-                let lits = lits.into_iter().map(|(l, w)| (!l, w)).collect();
-                (lits, weight_sum as isize - bound, ">=")
+                iter_a = lits.iter().map(neg_lit);
+                (&mut iter_a, weight_sum as isize - bound, ">=")
             }
             PBConstraint::LB(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound, ">=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound, ">=")
             }
             PBConstraint::EQ(constr) => {
-                let (lits, bound) = constr.decompose();
-                (lits, bound, "=")
+                let (lits, bound) = constr.decompose_ref();
+                iter_b = lits.iter().copied();
+                (&mut iter_b, *bound, "=")
             }
         };
-        lits.into_iter().try_for_each(|(l, w)| {
+        for (l, w) in lits {
             if l.is_pos() {
-                write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)
+                write!(writer, "{} x{} ", w, l.vidx32() + opts.first_var_idx)?;
             } else {
-                write!(writer, "{} ~x{} ", w, l.vidx32() + opts.first_var_idx)
+                write!(writer, "{} ~x{} ", w, l.vidx32() + opts.first_var_idx)?;
             }
-        })?;
+        }
         writeln!(writer, "{} {};", op, bound)
     }
 }
@@ -925,19 +916,19 @@ mod test {
 
         let mut cursor = Cursor::new(vec![]);
 
-        write_clause(&mut cursor, cl.clone(), Options::default()).unwrap();
+        write_clause(&mut cursor, &cl, Options::default()).unwrap();
 
         cursor.rewind().unwrap();
 
         let (cnf, _) = super::parse_sat::<_, BasicVarManager>(cursor, Options::default())
             .unwrap()
-            .as_cnf();
+            .into_cnf();
 
         assert_eq!(cnf.len(), 1);
         assert_eq!(cnf.into_iter().next().unwrap().normalize(), cl.normalize());
     }
 
-    fn write_parse_inst_test(in_inst: SatInstance, true_inst: SatInstance, opts: Options) {
+    fn write_parse_inst_test(in_inst: &SatInstance, true_inst: SatInstance, opts: Options) {
         let mut cursor = Cursor::new(vec![]);
 
         write_sat(&mut cursor, in_inst, opts).unwrap();
@@ -946,8 +937,8 @@ mod test {
 
         let parsed_inst: SatInstance = super::parse_sat(cursor, opts).unwrap();
 
-        let (parsed_cnf, parsed_vm) = parsed_inst.as_cnf();
-        let (true_cnf, true_vm) = true_inst.as_cnf();
+        let (parsed_cnf, parsed_vm) = parsed_inst.into_cnf();
+        let (true_cnf, true_vm) = true_inst.into_cnf();
 
         assert_eq!(parsed_vm, true_vm);
         assert_eq!(parsed_cnf.normalize(), true_cnf.normalize());
@@ -967,19 +958,19 @@ mod test {
         in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst, Options::default());
+        write_parse_inst_test(&in_inst, true_inst, Options::default());
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst, Options::default());
+        write_parse_inst_test(&in_inst, true_inst, Options::default());
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst, Options::default());
+        write_parse_inst_test(&in_inst, true_inst, Options::default());
     }
 
     #[test]
@@ -992,26 +983,28 @@ mod test {
         // constraint as well.
         let lits = vec![(!lit![3], 1), (lit![4], 1), (!lit![5], 1)];
 
-        let mut alt_opb_opts = Options::default();
-        alt_opb_opts.no_negated_lits = false;
+        let alt_opb_opts = Options {
+            no_negated_lits: false,
+            ..Default::default()
+        };
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_ub(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst, alt_opb_opts);
+        write_parse_inst_test(&in_inst, true_inst, alt_opb_opts);
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_eq(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst, alt_opb_opts);
+        write_parse_inst_test(&in_inst, true_inst, alt_opb_opts);
 
         let mut in_inst: SatInstance = SatInstance::new();
         in_inst.add_card_constr(CardConstraint::new_lb(vec![!lit![3], lit![4], !lit![5]], 2));
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
-        write_parse_inst_test(in_inst, true_inst, alt_opb_opts);
+        write_parse_inst_test(&in_inst, true_inst, alt_opb_opts);
     }
 
     #[test]
@@ -1020,34 +1013,36 @@ mod test {
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst, Options::default());
+        write_parse_inst_test(&true_inst, true_inst.clone(), Options::default());
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst, Options::default());
+        write_parse_inst_test(&true_inst, true_inst.clone(), Options::default());
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst, Options::default());
+        write_parse_inst_test(&true_inst, true_inst.clone(), Options::default());
     }
 
     #[test]
     fn write_parse_pb_neg_lits() {
         let lits = vec![(!lit![6], 3), (!lit![7], -5), (lit![8], 2), (lit![9], -4)];
 
-        let mut alt_opb_opts = Options::default();
-        alt_opb_opts.no_negated_lits = false;
+        let alt_opb_opts = Options {
+            no_negated_lits: false,
+            ..Default::default()
+        };
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_ub(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst, alt_opb_opts);
+        write_parse_inst_test(&true_inst, true_inst.clone(), alt_opb_opts);
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_eq(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst, alt_opb_opts);
+        write_parse_inst_test(&true_inst, true_inst.clone(), alt_opb_opts);
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_pb_constr(PBConstraint::new_lb(lits.clone(), 2));
-        write_parse_inst_test(true_inst.clone(), true_inst, alt_opb_opts);
+        write_parse_inst_test(&true_inst, true_inst.clone(), alt_opb_opts);
     }
 }

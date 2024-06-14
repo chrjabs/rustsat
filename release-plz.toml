@@ -27,6 +27,16 @@ publish_allow_dirty = false
 semver_check = true
 
 [[package]]
-name = "rustsat-ipasir"
+name = "rustsat-solvertests"
+release = false
+git_release_enable = false
+
+[[package]]
+name = "rustsat-capi"
+release = false
+git_release_enable = false
+
+[[package]]
+name = "rustsat-pyapi"
 release = false
 git_release_enable = false

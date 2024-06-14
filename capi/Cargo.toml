@@ -1,0 +1,26 @@
+[package]
+name = "rustsat-capi"
+version = "0.5.1"
+edition = "2021"
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+license = "MIT"
+description = "C-API for the RustSAT library"
+keywords = ["sat", "satisfiability", "encodings"]
+
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rustsat = { version = "0.5.1", path = "../rustsat", default-features = false, features = [
+  "internals",
+] }
+
+[build-dependencies]
+cbindgen = "0.26.0"
+
+[dev-dependencies]
+inline-c = "0.1.7"
+
+[lib]
+crate-type = ["staticlib"]
