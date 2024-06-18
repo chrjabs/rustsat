@@ -399,6 +399,25 @@ impl CardConstraint {
         }
     }
 
+    /// Gets the number of literals in the constraint
+    pub fn len(&self) -> usize {
+        match self {
+            CardConstraint::UB(constr) => constr.lits.len(),
+            CardConstraint::LB(constr) => constr.lits.len(),
+            CardConstraint::EQ(constr) => constr.lits.len(),
+        }
+    }
+
+    /// Checks whether the constraint is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Gets the number of literals in the constraint
+    pub fn n_lits(&self) -> usize {
+        self.len()
+    }
+
     /// Changes the bound on the constraint
     pub fn change_bound(&mut self, b: usize) {
         match self {
@@ -535,6 +554,12 @@ impl CardConstraint {
             CardConstraint::LB(constr) => count >= constr.b,
             CardConstraint::EQ(constr) => count == constr.b,
         }
+    }
+}
+
+impl From<Clause> for CardConstraint {
+    fn from(value: Clause) -> Self {
+        CardConstraint::new_lb(value, 1)
     }
 }
 
@@ -784,6 +809,25 @@ impl PBConstraint {
         *b += b_add;
     }
 
+    /// Gets the number of literals in the constraint
+    pub fn len(&self) -> usize {
+        match self {
+            PBConstraint::UB(constr) => constr.lits.len(),
+            PBConstraint::LB(constr) => constr.lits.len(),
+            PBConstraint::EQ(constr) => constr.lits.len(),
+        }
+    }
+
+    /// Checks whether the constraint is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Gets the number of literals in the constraint
+    pub fn n_lits(&self) -> usize {
+        self.len()
+    }
+
     /// Checks if the constraint is always satisfied
     pub fn is_tautology(&self) -> bool {
         match self {
@@ -1023,6 +1067,31 @@ impl PBConstraint {
                     false
                 }
             }
+        }
+    }
+}
+
+impl From<Clause> for PBConstraint {
+    fn from(value: Clause) -> Self {
+        PBConstraint::new_lb(value.into_iter().map(|l| (l, 1)), 1)
+    }
+}
+
+impl From<CardConstraint> for PBConstraint {
+    fn from(value: CardConstraint) -> Self {
+        match value {
+            CardConstraint::UB(constr) => PBConstraint::new_ub(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+            CardConstraint::LB(constr) => PBConstraint::new_lb(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+            CardConstraint::EQ(constr) => PBConstraint::new_eq(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
         }
     }
 }

@@ -319,6 +319,18 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.pbs.len()
     }
 
+    /// Returns the total number of constraints
+    ///
+    /// This will always be equal to the sum of clauses, cardinality constraints, and PB
+    /// constraints.
+    /// ```
+    /// let inst = rustsat::instances::SatInstance::default();
+    /// assert_eq!(inst.n_constraints(), inst.n_clauses() + inst.n_cards() + inst.n_pbs());
+    /// ```
+    pub fn n_constraints(&self) -> usize {
+        self.n_clauses() + self.n_cards() + self.n_pbs()
+    }
+
     /// Adds a clause to the instance
     pub fn add_clause(&mut self, cl: Clause) {
         cl.iter().for_each(|l| {
@@ -627,6 +639,15 @@ impl<VM: ManageVars> SatInstance<VM> {
         self.pbs
             .drain(..)
             .for_each(|constr| pb_encoder(constr, &mut self.cnf, &mut self.var_manager));
+    }
+
+    /// Converts the instance to a set of [`PBConstraint`]s
+    pub fn into_pbs(mut self) -> (Vec<PBConstraint>, VM) {
+        self.pbs
+            .extend(self.cards.into_iter().map(PBConstraint::from));
+        self.pbs
+            .extend(self.cnf.into_iter().map(PBConstraint::from));
+        (self.pbs, self.var_manager)
     }
 
     /// Extends the instance by another instance
