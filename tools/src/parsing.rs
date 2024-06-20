@@ -4,7 +4,7 @@ use anyhow::Context;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{line_ending, not_line_ending, space0},
+    character::complete::{line_ending, multispace1, not_line_ending, space0},
     combinator::{map, recognize},
     error::{context, Error as NomErr},
     sequence::{pair, tuple},
@@ -66,6 +66,32 @@ where
                     .with_context(|| format!("failed to parse list end/separator '{input}'"))?;
                 return Ok(remain);
             }
+        };
+    }
+}
+
+pub fn callback_separated<'input, T, P>(
+    input: &'input str,
+    mut parse: P,
+    mut callback: impl FnMut(T) -> anyhow::Result<()>,
+) -> anyhow::Result<&str>
+where
+    P: FnMut(&'input str) -> nom::IResult<&'input str, T>,
+{
+    let mut buf = input.trim_start();
+    loop {
+        let (remain, val) = parse(buf)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse value in list '{input}'"))?;
+        callback(val)?;
+        buf = match multispace1::<_, NomErr<_>>(remain) {
+            Ok((remain, _)) => {
+                if remain.is_empty() {
+                    return Ok("");
+                }
+                remain
+            }
+            Err(_) => return Ok(remain),
         };
     }
 }

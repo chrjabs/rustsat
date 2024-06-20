@@ -9,6 +9,7 @@ pub mod encodings {
     //! # Encodings for Encoding Generators
 
     pub mod assignment;
+    pub mod facilitylocation;
     pub mod knapsack;
 
     pub mod cnf {
@@ -22,6 +23,7 @@ pub mod encodings {
         //! PB Encodings
 
         pub mod assignment;
+        pub mod facilitylocation;
         pub mod knapsack;
     }
 }

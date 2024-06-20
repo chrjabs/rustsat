@@ -10,6 +10,8 @@
 //! ## PBO Encodings
 //!
 //! - `knapsack`: Multi-criteria 0-1 knapsack.
+//! - `assignment`: Multi-criteria assignment problem.
+//! - `facility-location`: Multi-criteria 0/1 uncapacitated facility location problem.
 //!
 //! ## References
 //!
@@ -30,7 +32,7 @@ use rustsat_tools::encodings::{
         self,
         clustering::{self, saturating_map, scaling_map, Encoding, Variant},
     },
-    knapsack, pb,
+    facilitylocation, knapsack, pb,
 };
 use std::{fs::File, io, path::PathBuf};
 
@@ -83,8 +85,10 @@ struct PbArgs {
 enum PbEncoding {
     /// Generate a knapsack encoding
     Knapsack(KnapsackArgs),
-    /// Generate a assignment problem encoding
+    /// Generate an assignment problem encoding
     Assignment(AssignmentArgs),
+    /// Generate a facility location problem encoding
+    FacilityLocation(FacilityLocationArgs),
 }
 
 #[derive(Args)]
@@ -150,6 +154,12 @@ enum KnapsackInputFormat {
 #[derive(Args)]
 struct AssignmentArgs {
     /// The input file in the format as provided by [MOO-Library](http://home.ku.edu.tr/~moolibrary/)
+    in_path: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct FacilityLocationArgs {
+    /// The input file in the format as provided by [vOptLib](https://github.com/vOptSolver/vOptLib/tree/master/UFLP)
     in_path: Option<PathBuf>,
 }
 
@@ -268,6 +278,23 @@ fn pb_assignment(
     pb::assignment::Encoding::new(inst)
 }
 
+fn input_facility_location(
+    args: &FacilityLocationArgs,
+) -> anyhow::Result<facilitylocation::FacilityLocation> {
+    if let Some(path) = &args.in_path {
+        let reader = io::BufReader::new(File::open(path)?);
+        facilitylocation::FacilityLocation::from_file(reader)
+    } else {
+        facilitylocation::FacilityLocation::from_file(io::BufReader::new(io::stdin()))
+    }
+}
+
+fn pb_facility_location(
+    inst: facilitylocation::FacilityLocation,
+) -> impl Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+    pb::facilitylocation::Encoding::new(inst)
+}
+
 fn write_cnf(
     encoding: impl Iterator<Item = dimacs::McnfLine>,
     path: Option<PathBuf>,
@@ -346,6 +373,10 @@ fn main() -> anyhow::Result<()> {
                 PbEncoding::Assignment(args) => {
                     let inst = input_assignment(&args)?;
                     Box::new(pb_assignment(inst))
+                }
+                PbEncoding::FacilityLocation(args) => {
+                    let inst = input_facility_location(&args)?;
+                    Box::new(pb_facility_location(inst))
                 }
             };
             write_pb(enc, out_path, opts)

@@ -1,4 +1,4 @@
-//! # PB (Multi-Criteria) Knapsack Encoding
+//! # PB (Multi-Criteria) Assignment Problem Encoding
 
 use rustsat::{
     instances::fio::opb,
