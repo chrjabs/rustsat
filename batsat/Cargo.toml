@@ -15,10 +15,10 @@ readme = "README.md"
 debug = []
 
 [dependencies]
-batsat = "0.5.0"                                                               # when changing this version, do not forget to update signature
-rustsat = { version = "0.5.1", path = "../rustsat", default-features = false }
-anyhow = { version = "1.0.80" }
-thiserror = { version = "1.0.57" }
+batsat = "0.5.0"           # when changing this version, do not forget to update signature
+anyhow.workspace = true
+thiserror.workspace = true
+rustsat.workspace = true
 
 [dev-dependencies]
 rustsat-solvertests = { path = "../solvertests" }
