@@ -6,6 +6,7 @@ members = [
   "glucose",
   "minisat",
   "ipasir",
+  "batsat",
   "solvertests",
   "capi",
   "pyapi",
