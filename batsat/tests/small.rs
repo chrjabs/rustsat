@@ -5,7 +5,7 @@ use rustsat::{
 use rustsat_batsat::BatsatBasicSolver;
 
 #[test]
-fn core_ms_segfault() {
+fn ms_segfault() {
     let mut solver = BatsatBasicSolver::default();
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path("./data/minisat-segfault.cnf").unwrap();
@@ -15,7 +15,7 @@ fn core_ms_segfault() {
 }
 
 #[test]
-fn simp_small_sat() {
+fn small_sat() {
     let mut solver = BatsatBasicSolver::default();
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path("./data/AProVE11-12.cnf").unwrap();
@@ -27,7 +27,7 @@ fn simp_small_sat() {
 // Note: this instance seems too hard for batsat to solve
 #[test]
 #[ignore]
-fn simp_small_unsat() {
+fn small_unsat() {
     let mut solver = BatsatBasicSolver::default();
     let inst: SatInstance<BasicVarManager> =
         SatInstance::from_dimacs_path("./data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf")
