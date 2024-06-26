@@ -30,6 +30,15 @@ impl Extend<Clause> for BatsatBasicSolver {
     }
 }
 
+impl<'a> Extend<&'a Clause> for BatsatBasicSolver {
+    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+        iter.into_iter().for_each(|cl| {
+            self.add_clause_ref(cl)
+                .expect("Error adding clause in extend")
+        })
+    }
+}
+
 impl Solve for BatsatBasicSolver {
     fn signature(&self) -> &'static str {
         "BatSat 0.5.0"
@@ -59,6 +68,17 @@ impl Solve for BatsatBasicSolver {
     }
 
     fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
+        let mut c: Vec<batsat::Lit> = clause
+            .iter()
+            .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
+            .collect::<Vec<batsat::Lit>>();
+
+        self.0.add_clause_reuse(&mut c);
+
+        Ok(())
+    }
+
+    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
         let mut c: Vec<batsat::Lit> = clause
             .iter()
             .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
