@@ -43,7 +43,6 @@ impl Solve for BatsatBasicSolver {
                 error: "BatSat Solver is in an UNSAT state".into(),
             }
             .into()),
-
             _ => unreachable!(),
         }
     }
@@ -65,10 +64,9 @@ impl Solve for BatsatBasicSolver {
             .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
             .collect::<Vec<batsat::Lit>>();
 
-        match self.0.add_clause_reuse(&mut c) {
-            true => Ok(()),
-            false => Ok(()), //Err(SolverError::Api("Currently in an UNSAT state".into())),
-        }
+        self.0.add_clause_reuse(&mut c);
+
+        Ok(())
     }
 }
 
