@@ -15,13 +15,8 @@ pub struct InvalidApiReturn {
     error: &'static str,
 }
 
+#[derive(Default)]
 pub struct BatsatBasicSolver(BasicSolver);
-
-impl Default for BatsatBasicSolver {
-    fn default() -> BatsatBasicSolver {
-        BatsatBasicSolver(BasicSolver::default())
-    }
-}
 
 impl Extend<Clause> for BatsatBasicSolver {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
@@ -49,7 +44,7 @@ impl Solve for BatsatBasicSolver {
             x if x == lbool::TRUE => Ok(SolverResult::Sat),
             x if x == lbool::FALSE => Ok(SolverResult::Unsat),
             x if x == lbool::UNDEF => Err(InvalidApiReturn {
-                error: "BatSat Solver is in an UNSAT state".into(),
+                error: "BatSat Solver is in an UNSAT state",
             }
             .into()),
             _ => unreachable!(),
@@ -94,19 +89,14 @@ impl SolveIncremental for BatsatBasicSolver {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         let a = assumps
             .iter()
-            .map(|l| {
-                batsat::Lit::new(
-                    self.0.var_of_int((l.vidx32() + 1).try_into().unwrap()),
-                    l.is_pos(),
-                )
-            })
+            .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
             .collect::<Vec<_>>();
 
         match self.0.solve_limited(&a) {
             x if x == lbool::TRUE => Ok(SolverResult::Sat),
             x if x == lbool::FALSE => Ok(SolverResult::Unsat),
             x if x == lbool::UNDEF => Err(InvalidApiReturn {
-                error: "BatSat Solver is in an UNSAT state".into(),
+                error: "BatSat Solver is in an UNSAT state",
             }
             .into()),
             _ => unreachable!(),
