@@ -84,6 +84,3 @@ fn assumption_sequence() {
     let solver = BatsatBasicSolver::default();
     test_assumption_sequence(solver);
 }
-
-// Note: Cannot test prepro version of minisat with this small example because
-// the variable are eliminated by preprocessing

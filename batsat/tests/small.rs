@@ -24,7 +24,7 @@ fn simp_small_sat() {
     assert_eq!(res, SolverResult::Sat);
 }
 
-// Note: this instance seems too hard for minisat to solve
+// Note: this instance seems too hard for batsat to solve
 #[test]
 #[ignore]
 fn simp_small_unsat() {
