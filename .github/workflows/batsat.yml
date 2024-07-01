@@ -2,9 +2,9 @@ name: BatSat
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,9 +26,5 @@ jobs:
           shared-key: "build-test"
       - name: Cargo build
         run: cargo build -p rustsat-batsat --verbose
-        env:
-          CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
       - name: Cargo test
         run: cargo test -p rustsat-batsat --verbose
-        env:
-          CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}

@@ -11,9 +11,6 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[features]
-debug = []
-
 [dependencies]
 batsat = "0.5.0"           # when changing this version, do not forget to update signature
 anyhow.workspace = true
