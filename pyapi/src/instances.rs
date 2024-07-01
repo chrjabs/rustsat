@@ -1,7 +1,7 @@
 //! # Python API for RustSAT Instance Types
 
 use pyo3::{
-    exceptions::{PyIndexError, PyRuntimeError},
+    exceptions::{PyRuntimeError, PyTypeError},
     prelude::*,
 };
 
@@ -13,7 +13,7 @@ use rustsat::{
 
 use crate::{
     types::{Clause, Lit},
-    SingleOrList, SliceOrInt,
+    SingleOrList,
 };
 
 /// Simple counting variable manager
@@ -74,7 +74,7 @@ impl VarManager {
 
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
-#[pyclass]
+#[pyclass(sequence)]
 #[derive(Debug, Clone, Eq, Default)]
 pub struct Cnf {
     cnf: RsCnf,
@@ -148,34 +148,25 @@ impl Cnf {
         self.cnf.len()
     }
 
-    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Clause>> {
-        #![allow(clippy::cast_sign_loss)]
-        match idx {
-            SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.__len__().try_into().unwrap())?;
-                debug_assert!(indices.start >= 0);
-                debug_assert!(indices.stop >= 0);
-                debug_assert!(indices.step >= 0);
-                Ok(SingleOrList::List(
-                    (indices.start as usize..indices.stop as usize)
-                        .step_by(indices.step as usize)
-                        .map(|idx| self.cnf[idx].clone().into())
-                        .collect(),
-                ))
-            }
-            SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.__len__()
-                    || idx >= 0 && idx.unsigned_abs() >= self.__len__()
-                {
-                    return Err(PyIndexError::new_err("out of bounds"));
-                }
-                let idx = if idx >= 0 {
-                    idx.unsigned_abs()
-                } else {
-                    self.__len__() - idx.unsigned_abs()
-                };
-                Ok(SingleOrList::Single(self.cnf[idx].clone().into()))
-            }
+    #[allow(clippy::cast_sign_loss)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<SingleOrList<Clause>> {
+        if let Ok(idx) = idx.extract::<i32>() {
+            let idx: usize = idx.try_into().expect("got unexpected negative index");
+            Ok(SingleOrList::Single(self.cnf[idx].clone().into()))
+        } else if let Ok(slice) = idx.downcast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.__len__().try_into().unwrap())?;
+            debug_assert!(indices.start >= 0);
+            debug_assert!(indices.stop >= 0);
+            debug_assert!(indices.step >= 0);
+            Ok(SingleOrList::List(
+                (indices.start as usize..indices.stop as usize)
+                    .step_by(indices.step as usize)
+                    .map(|idx| self.cnf[idx].clone().into())
+                    .collect(),
+            ))
+        } else {
+            Err(PyTypeError::new_err("Unsupported type"))
         }
     }
 
