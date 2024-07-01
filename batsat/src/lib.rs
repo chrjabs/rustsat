@@ -1,10 +1,10 @@
-//! # rustsat-batsat - Interface to the BatSat SAT Solver for RustSAT
+//! # rustsat-batsat - Interface to the `BatSat` SAT Solver for `RustSAT`
 //!
 //! Interface to the [BatSat](https://github.com/c-cube/batsat) incremental SAT-Solver to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 //!
-//! # BatSat Version
+//! # `BatSat` Version
 //!
-//! The version of BatSat in this crate is Version 0.5.0.
+//! The version of `BatSat` in this crate is Version 0.5.0.
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -16,19 +16,21 @@ use rustsat::{
 };
 use thiserror::Error;
 
+/// API Error from the `BatSat` library (for example if the solver is in an UNSAT state)
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("BatSat returned an invalid value: {error}")]
 pub struct InvalidApiReturn {
     error: &'static str,
 }
 
+/// RustSAT Interface to the `BatSat` Solver which is fully implemented in Rust [BatSat](https://github.com/c-cube/batsat)
 #[derive(Default)]
 pub struct BatsatBasicSolver(BasicSolver);
 
 impl Extend<Clause> for BatsatBasicSolver {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         iter.into_iter()
-            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
 }
 
@@ -36,8 +38,8 @@ impl<'a> Extend<&'a Clause> for BatsatBasicSolver {
     fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
-                .expect("Error adding clause in extend")
-        })
+                .expect("Error adding clause in extend");
+        });
     }
 }
 
