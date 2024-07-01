@@ -3,13 +3,13 @@
 use core::{ffi::c_int, fmt};
 
 use pyo3::{
-    exceptions::{PyIndexError, PyRuntimeError, PyValueError},
+    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
     prelude::*,
 };
 
 use rustsat::types::{Clause as RsClause, Lit as RsLit};
 
-use crate::{SingleOrList, SliceOrInt};
+use crate::SingleOrList;
 
 /// Type representing literals, possibly negated boolean variables.
 ///
@@ -19,7 +19,7 @@ use crate::{SingleOrList, SliceOrInt};
 /// whether the literal is negated or not. This way the literal can directly
 /// be used to index data structures with the two literals of a variable
 /// being close together.
-#[pyclass]
+#[pyclass(frozen, eq, ord, hash)]
 #[repr(transparent)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub struct Lit(RsLit);
@@ -63,17 +63,6 @@ impl Lit {
         Lit(!self.0)
     }
 
-    fn __richcmp__(&self, other: &Lit, op: pyo3::basic::CompareOp) -> bool {
-        op.matches(self.cmp(other))
-    }
-
-    fn __hash__(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
-
     /// Gets the IPASIR/DIMACS representation of the literal
     #[allow(clippy::wrong_self_convention)]
     fn to_ipasir(&self) -> c_int {
@@ -92,7 +81,7 @@ impl Lit {
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
-#[pyclass]
+#[pyclass(sequence)]
 #[derive(Eq, PartialOrd, Ord, Clone, Default)]
 pub struct Clause {
     cl: RsClause,
@@ -170,34 +159,25 @@ impl Clause {
         self.cl.len()
     }
 
-    fn __getitem__(&self, idx: SliceOrInt) -> PyResult<SingleOrList<Lit>> {
-        #![allow(clippy::cast_sign_loss)]
-        match idx {
-            SliceOrInt::Slice(slice) => {
-                let indices = slice.indices(self.__len__().try_into().unwrap())?;
-                debug_assert!(indices.start >= 0);
-                debug_assert!(indices.stop >= 0);
-                debug_assert!(indices.step >= 0);
-                Ok(SingleOrList::List(
-                    (indices.start as usize..indices.stop as usize)
-                        .step_by(indices.step as usize)
-                        .map(|idx| Lit(self.cl[idx]))
-                        .collect(),
-                ))
-            }
-            SliceOrInt::Int(idx) => {
-                if idx.unsigned_abs() > self.__len__()
-                    || idx >= 0 && idx.unsigned_abs() >= self.__len__()
-                {
-                    return Err(PyIndexError::new_err("out of bounds"));
-                }
-                let idx = if idx >= 0 {
-                    idx.unsigned_abs()
-                } else {
-                    self.__len__() - idx.unsigned_abs()
-                };
-                Ok(SingleOrList::Single(Lit(self.cl[idx])))
-            }
+    #[allow(clippy::cast_sign_loss)]
+    #[allow(clippy::needless_pass_by_value)]
+    fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<SingleOrList<Lit>> {
+        if let Ok(idx) = idx.extract::<i32>() {
+            let idx: usize = idx.try_into().expect("got unexpected negative index");
+            Ok(SingleOrList::Single(Lit(self.cl[idx])))
+        } else if let Ok(slice) = idx.downcast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.__len__().try_into().unwrap())?;
+            debug_assert!(indices.start >= 0);
+            debug_assert!(indices.stop >= 0);
+            debug_assert!(indices.step >= 0);
+            Ok(SingleOrList::List(
+                (indices.start as usize..indices.stop as usize)
+                    .step_by(indices.step as usize)
+                    .map(|idx| Lit(self.cl[idx]))
+                    .collect(),
+            ))
+        } else {
+            Err(PyTypeError::new_err("Unsupported type"))
         }
     }
 
