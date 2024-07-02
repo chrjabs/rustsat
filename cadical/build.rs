@@ -6,10 +6,134 @@ use std::{
     env,
     fs::{self, File},
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     str,
 };
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Version {
+    // Note: derived order makes top < bottom
+    V150,
+    V151,
+    V152,
+    V153,
+    V154,
+    V155,
+    V156,
+    V160,
+    V170,
+    V171,
+    V172,
+    V173,
+    V174,
+    V175,
+    V180,
+    V190,
+    V191,
+    V192,
+    V193,
+    V194,
+    #[default]
+    V195,
+}
+
+impl Version {
+    fn determine() -> Self {
+        if cfg!(feature = "v1-9-5") {
+            Version::V195
+        } else if cfg!(feature = "v1-9-4") {
+            Version::V194
+        } else if cfg!(feature = "v1-9-3") {
+            Version::V193
+        } else if cfg!(feature = "v1-9-2") {
+            Version::V192
+        } else if cfg!(feature = "v1-9-1") {
+            Version::V191
+        } else if cfg!(feature = "v1-9-0") {
+            Version::V190
+        } else if cfg!(feature = "v1-8-0") {
+            Version::V180
+        } else if cfg!(feature = "v1-7-5") {
+            Version::V175
+        } else if cfg!(feature = "v1-7-4") {
+            Version::V174
+        } else if cfg!(feature = "v1-7-3") {
+            Version::V173
+        } else if cfg!(feature = "v1-7-2") {
+            Version::V172
+        } else if cfg!(feature = "v1-7-1") {
+            Version::V171
+        } else if cfg!(feature = "v1-7-0") {
+            Version::V170
+        } else if cfg!(feature = "v1-6-0") {
+            Version::V160
+        } else if cfg!(feature = "v1-5-6") {
+            Version::V156
+        } else if cfg!(feature = "v1-5-5") {
+            Version::V155
+        } else if cfg!(feature = "v1-5-4") {
+            Version::V154
+        } else if cfg!(feature = "v1-5-3") {
+            Version::V153
+        } else if cfg!(feature = "v1-5-2") {
+            Version::V152
+        } else if cfg!(feature = "v1-5-1") {
+            Version::V151
+        } else if cfg!(feature = "v1-5-0") {
+            Version::V150
+        } else {
+            // default to newest version
+            Version::default()
+        }
+    }
+
+    fn reference(self) -> &'static str {
+        match self {
+            Version::V150 => "refs/tags/rel-1.5.0",
+            Version::V151 => "refs/tags/rel-1.5.1",
+            Version::V152 => "refs/tags/rel-1.5.2",
+            Version::V153 => "refs/tags/rel-1.5.3",
+            Version::V154 => "refs/tags/rel-1.5.4",
+            Version::V155 => "refs/tags/rel-1.5.5",
+            Version::V156 => "refs/tags/rel-1.5.6",
+            Version::V160 => "refs/tags/rel-1.6.0",
+            Version::V170 => "refs/tags/rel-1.7.0",
+            Version::V171 => "refs/tags/rel-1.7.1",
+            Version::V172 => "refs/tags/rel-1.7.2",
+            Version::V173 => "refs/tags/rel-1.7.3",
+            Version::V174 => "refs/tags/rel-1.7.4",
+            Version::V175 => "refs/tags/rel-1.7.5",
+            Version::V180 => "refs/tags/rel-1.8.0",
+            Version::V190 => "refs/tags/rel-1.9.0",
+            Version::V191 => "refs/tags/rel-1.9.1",
+            Version::V192 => "refs/tags/rel-1.9.2",
+            Version::V193 => "refs/tags/rel-1.9.3",
+            Version::V194 => "refs/tags/rel-1.9.4",
+            Version::V195 => "refs/tags/rel-1.9.5",
+        }
+    }
+
+    fn patch(self) -> &'static str {
+        #![allow(clippy::enum_glob_use)]
+        use Version::*;
+        match self {
+            V150 | V151 | V152 | V153 => "v150.patch",
+            V154 | V155 => "v154.patch",
+            V156 => "v156.patch",
+            V160 => "v160.patch",
+            V170 => "v170.patch",
+            V171 | V172 | V173 | V174 | V175 => "v171.patch",
+            V180 => "v180.patch",
+            V190 | V191 => "v190.patch",
+            V192 | V193 | V194 | V195 => "v192.patch",
+        }
+    }
+
+    fn has_flip(self) -> bool {
+        self >= Version::V154
+    }
+}
 
 fn main() {
     if std::env::var("DOCS_RS").is_ok() {
@@ -20,60 +144,11 @@ fn main() {
     #[cfg(all(feature = "quiet", feature = "logging"))]
     compile_error!("cannot combine cadical features quiet and logging");
 
-    // Select commit based on features. If conflict, always choose newest release
-    let (tag, patch) = if cfg!(feature = "v1-9-5") {
-        ("refs/tags/rel-1.9.5", "patches/v192.patch")
-    } else if cfg!(feature = "v1-9-4") {
-        ("refs/tags/rel-1.9.4", "patches/v192.patch")
-    } else if cfg!(feature = "v1-9-3") {
-        ("refs/tags/rel-1.9.3", "patches/v192.patch")
-    } else if cfg!(feature = "v1-9-2") {
-        ("refs/tags/rel-1.9.2", "patches/v192.patch")
-    } else if cfg!(feature = "v1-9-1") {
-        ("refs/tags/rel-1.9.1", "patches/v190.patch")
-    } else if cfg!(feature = "v1-9-0") {
-        ("refs/tags/rel-1.9.0", "patches/v190.patch")
-    } else if cfg!(feature = "v1-8-0") {
-        ("refs/tags/rel-1.8.0", "patches/v180.patch")
-    } else if cfg!(feature = "v1-7-5") {
-        ("refs/tags/rel-1.7.5", "patches/v171.patch")
-    } else if cfg!(feature = "v1-7-4") {
-        ("refs/tags/rel-1.7.4", "patches/v171.patch")
-    } else if cfg!(feature = "v1-7-3") {
-        ("refs/tags/rel-1.7.3", "patches/v171.patch")
-    } else if cfg!(feature = "v1-7-2") {
-        ("refs/tags/rel-1.7.2", "patches/v171.patch")
-    } else if cfg!(feature = "v1-7-1") {
-        ("refs/tags/rel-1.7.1", "patches/v171.patch")
-    } else if cfg!(feature = "v1-7-0") {
-        ("refs/tags/rel-1.7.0", "patches/v170.patch")
-    } else if cfg!(feature = "v1-6-0") {
-        ("refs/tags/rel-1.6.0", "patches/v160.patch")
-    } else if cfg!(feature = "v1-5-6") {
-        ("refs/tags/rel-1.5.6", "patches/v156.patch")
-    } else if cfg!(feature = "v1-5-5") {
-        ("refs/tags/rel-1.5.5", "patches/v154.patch")
-    } else if cfg!(feature = "v1-5-4") {
-        ("refs/tags/rel-1.5.4", "patches/v154.patch")
-    } else if cfg!(feature = "v1-5-3") {
-        ("refs/tags/rel-1.5.3", "patches/v150.patch")
-    } else if cfg!(feature = "v1-5-2") {
-        ("refs/tags/rel-1.5.2", "patches/v150.patch")
-    } else if cfg!(feature = "v1-5-1") {
-        ("refs/tags/rel-1.5.1", "patches/v150.patch")
-    } else if cfg!(feature = "v1-5-0") {
-        ("refs/tags/rel-1.5.0", "patches/v150.patch")
-    } else {
-        // default to newest version
-        ("refs/tags/rel-1.9.5", "patches/v192.patch")
-    };
-
     // Build C++ library
     build(
         "https://github.com/arminbiere/cadical.git",
         "master",
-        tag,
-        patch,
+        Version::determine(),
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -87,15 +162,29 @@ fn main() {
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
+
+    for ext in ["h", "cpp"] {
+        for file in glob(&format!("cppsrc/*.{ext}")).unwrap() {
+            println!("cargo::rerun-if-changed={:?}", file.unwrap());
+        }
+    }
 }
 
-fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
+fn build(repo: &str, branch: &str, version: Version) {
     let out_dir = env::var("OUT_DIR").unwrap();
-    let mut cadical_dir_str = out_dir.clone();
-    cadical_dir_str.push_str("/cadical");
-    let cadical_dir = Path::new(&cadical_dir_str);
-    if update_repo(cadical_dir, repo, branch, reference, patch)
-        || !Path::new(&out_dir).join("libcadical.a").exists()
+    let cadical_dir_str = {
+        let mut tmp = out_dir.clone();
+        tmp.push_str("/cadical");
+        tmp
+    };
+    let cadical_dir = { Path::new(&cadical_dir_str) };
+    if update_repo(
+        cadical_dir,
+        repo,
+        branch,
+        version.reference(),
+        Path::new("patches").join(version.patch()),
+    ) || !Path::new(&out_dir).join("libcadical.a").exists()
     {
         // Repo changed, rebuild
         // We specify the build manually here instead of calling make for better portability
@@ -134,6 +223,9 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
         cadical_build.define("QUIET", None); // --quiet
         #[cfg(feature = "logging")]
         cadical_build.define("LOGGING", None); // --log
+        if version.has_flip() {
+            cadical_build.define("FLIP", None);
+        }
 
         // Generate build header
         let mut build_header = File::create(cadical_dir.join("src").join("build.hpp"))
@@ -146,11 +238,12 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
         write!(
                 build_header,
                 "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
-                cadical_version, reference, compiler_desc, compiler_flags, chrono::Utc::now()
+                cadical_version, version.reference(), compiler_desc, compiler_flags, chrono::Utc::now()
             ).expect("Failed to write CaDiCaL build.hpp");
         // Build CaDiCaL
         cadical_build
             .include(cadical_dir.join("src"))
+            .include("cppsrc")
             .warnings(false)
             .files(src_files)
             .compile("cadical");
@@ -158,7 +251,7 @@ fn build(repo: &str, branch: &str, reference: &str, patch: &str) {
 }
 
 /// Returns true if there were changes, false if not
-fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: &str) -> bool {
+fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: PathBuf) -> bool {
     let mut changed = false;
     let repo = if let Ok(repo) = git2::Repository::open(repo_path) {
         if repo.find_reference(reference).is_err() {
@@ -206,7 +299,7 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
 }
 
 /// Applies a patch to the repo
-fn apply_patch(repo: &Repository, patch: &str) {
+fn apply_patch(repo: &Repository, patch: PathBuf) {
     let mut f = File::open(patch).unwrap();
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).unwrap();

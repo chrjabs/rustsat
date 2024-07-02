@@ -1,216 +1,47 @@
-From 6cf91b4876a3887f8d676e3092ded5debfd03682 Mon Sep 17 00:00:00 2001
+From 78e9c894413a254b0e30508e136fa1415208d657 Mon Sep 17 00:00:00 2001
 From: Christoph Jabs <christoph.jabs@helsinki.fi>
-Date: Thu, 18 Apr 2024 15:07:07 +0300
+Date: Tue, 2 Jul 2024 14:23:50 +0300
 Subject: [PATCH] extend C api
 
 ---
- src/cadical.hpp  |   6 +++
- src/ccadical.cpp | 103 +++++++++++++++++++++++++++++++++++++++++++++++
- src/ccadical.h   |  26 ++++++++++++
- src/solver.cpp   |  24 +++++++++++
- 4 files changed, 159 insertions(+)
+ src/cadical.hpp  | 2 ++
+ src/ccadical.cpp | 2 ++
+ src/solver.cpp   | 2 ++
+ 3 files changed, 6 insertions(+)
 
 diff --git a/src/cadical.hpp b/src/cadical.hpp
-index 26cb9ca..d7539fc 100644
+index 26cb9ca..fdb5e21 100644
 --- a/src/cadical.hpp
 +++ b/src/cadical.hpp
-@@ -688,6 +688,12 @@ public:
-   void phase (int lit);
-   void unphase (int lit);
+@@ -804,6 +804,8 @@ public:
+   //
+   static void build (FILE *file, const char *prefix = "c ");
  
-+  //------------------------------------------------------------------------
-+  // Get some selected statistics
-+  int64_t propagations () const;
-+  int64_t decisions () const;
-+  int64_t conflicts () const;
++#include "cadical_extension.hpp"
 +
-   //------------------------------------------------------------------------
+ private:
+   //==== start of state ====================================================
  
-   // Enables clausal proof tracing in DRAT format and returns 'true' if
 diff --git a/src/ccadical.cpp b/src/ccadical.cpp
-index ac11e44..4caf767 100644
+index ac11e44..8747cbf 100644
 --- a/src/ccadical.cpp
 +++ b/src/ccadical.cpp
-@@ -173,4 +173,107 @@ void ccadical_melt (CCaDiCaL *ptr, int lit) {
- int ccadical_frozen (CCaDiCaL *ptr, int lit) {
+@@ -174,3 +174,5 @@ int ccadical_frozen (CCaDiCaL *ptr, int lit) {
    return ((Wrapper *) ptr)->solver->frozen (lit);
  }
-+
-+/*------------------------------------------------------------------------*/
-+
-+// Extending C API (Christoph Jabs)
-+
-+int ccadical_add_mem (CCaDiCaL * wrapper, int lit) {
-+  try {
-+    ((Wrapper*) wrapper)->solver->add (lit);
-+    return 0;
-+  } catch (std::bad_alloc &) {
-+    return OUT_OF_MEM;
-+  }
-+}
-+
-+int ccadical_assume_mem (CCaDiCaL * wrapper, int lit) {
-+  try {
-+    ((Wrapper*) wrapper)->solver->assume (lit);
-+    return 0;
-+  } catch (std::bad_alloc &) {
-+    return OUT_OF_MEM;
-+  }
-+}
-+
-+int ccadical_constrain_mem (CCaDiCaL *wrapper, int lit){
-+  try {
-+    ((Wrapper*) wrapper)->solver->constrain (lit);
-+    return 0;
-+  } catch (std::bad_alloc &) {
-+    return OUT_OF_MEM;
-+  }
-+}
-+
-+int ccadical_solve_mem (CCaDiCaL * wrapper) {
-+  try {
-+    return ((Wrapper*) wrapper)->solver->solve ();
-+  } catch (std::bad_alloc &) {
-+    return OUT_OF_MEM;
-+  }
-+}
-+
-+bool ccadical_configure (CCaDiCaL *ptr, const char *name) {
-+  return ((Wrapper *) ptr)->solver->configure (name);
-+}
-+
-+void ccadical_phase (CCaDiCaL *ptr, int lit) {
-+  ((Wrapper *) ptr)->solver->phase (lit);
-+}
-+
-+void ccadical_unphase (CCaDiCaL *ptr, int lit) {
-+  ((Wrapper *) ptr)->solver->unphase (lit);
-+}
-+
-+int ccadical_vars (CCaDiCaL *ptr) {
-+  return ((Wrapper *) ptr)->solver->vars ();
-+}
-+
-+bool ccadical_set_option_ret (CCaDiCaL *wrapper, const char *name,
-+                              int val) {
-+  return ((Wrapper *) wrapper)->solver->set (name, val);
-+}
-+
-+bool ccadical_limit_ret (CCaDiCaL *wrapper, const char *name, int val) {
-+  return ((Wrapper *) wrapper)->solver->limit (name, val);
-+}
-+
-+int64_t ccadical_redundant (CCaDiCaL *wrapper) {
-+  return ((Wrapper *) wrapper)->solver->redundant ();
-+}
-+
-+int ccadical_simplify_rounds (CCaDiCaL *wrapper, int rounds) {
-+  return ((Wrapper *) wrapper)->solver->simplify (rounds);
-+}
-+
-+int ccadical_reserve (CCaDiCaL *wrapper, int min_max_var) {
-+  try {
-+    ((Wrapper *) wrapper)->solver->reserve (min_max_var);
-+    return 0;
-+  } catch (std::bad_alloc &) {
-+    return OUT_OF_MEM;
-+  }
-+}
-+
-+int64_t ccadical_propagations (CCaDiCaL *wrapper) {
-+  return ((Wrapper *) wrapper)->solver->propagations ();
-+}
-+
-+int64_t ccadical_decisions (CCaDiCaL *wrapper) {
-+  return ((Wrapper *) wrapper)->solver->decisions ();
-+}
-+
-+int64_t ccadical_conflicts (CCaDiCaL *wrapper) {
-+  return ((Wrapper *) wrapper)->solver->conflicts ();
-+}
-+
-+bool ccadical_flip (CCaDiCaL *wrapper, int lit) {
-+  return ((Wrapper *) wrapper)->solver->flip (lit);
-+}
-+
-+bool ccadical_flippable (CCaDiCaL *wrapper, int lit) {
-+  return ((Wrapper *) wrapper)->solver->flippable (lit);
-+}
-+
-+/*------------------------------------------------------------------------*/
  }
-diff --git a/src/ccadical.h b/src/ccadical.h
-index 30a79b3..ca11867 100644
---- a/src/ccadical.h
-+++ b/src/ccadical.h
-@@ -50,6 +50,32 @@ int ccadical_simplify (CCaDiCaL *);
- 
- /*------------------------------------------------------------------------*/
- 
-+// Extending C API (Christoph Jabs)
 +
-+// This value is returned from _solve_mem, _add_mem, _constrain_mem, and _assume_mem
-+const int OUT_OF_MEM = 50;
-+
-+int ccadical_add_mem (CCaDiCaL *, int lit);
-+int ccadical_assume_mem (CCaDiCaL *, int lit);
-+int ccadical_constrain_mem (CCaDiCaL *, int lit);
-+int ccadical_solve_mem (CCaDiCaL *);
-+bool ccadical_configure (CCaDiCaL *, const char *);
-+void ccadical_phase (CCaDiCaL *, int lit);
-+void ccadical_unphase (CCaDiCaL *, int lit);
-+int ccadical_vars (CCaDiCaL *);
-+bool ccadical_set_option_ret (CCaDiCaL *, const char *name, int val);
-+bool ccadical_limit_ret (CCaDiCaL *, const char *name, int val);
-+int64_t ccadical_redundant (CCaDiCaL *);
-+int ccadical_simplify_rounds (CCaDiCaL *, int rounds);
-+int ccadical_reserve (CCaDiCaL *, int min_max_var);
-+int64_t ccadical_propagations (CCaDiCaL *);
-+int64_t ccadical_decisions (CCaDiCaL *);
-+int64_t ccadical_conflicts (CCaDiCaL *);
-+bool ccadical_flip (CCaDiCaL *, int lit);
-+bool ccadical_flippable (CCaDiCaL *, int lit);
-+
-+/*------------------------------------------------------------------------*/
-+
- // Support legacy names used before moving to more IPASIR conforming names.
- 
- #define ccadical_reset ccadical_release
++#include "ccadical_extension.cpp"
 diff --git a/src/solver.cpp b/src/solver.cpp
-index 9ac3887..fd964fd 100644
+index 9ac3887..e0a2989 100644
 --- a/src/solver.cpp
 +++ b/src/solver.cpp
-@@ -898,6 +898,30 @@ int64_t Solver::irredundant () const {
-   return res;
+@@ -1469,3 +1469,5 @@ void Solver::error (const char *fmt, ...) {
  }
  
-+int64_t Solver::propagations () const {
-+  TRACE ("propagations");
-+  REQUIRE_VALID_STATE ();
-+  int64_t res = internal->stats.propagations.search;
-+  LOG_API_CALL_RETURNS ("propagations", res);
-+  return res;
-+}
+ } // namespace CaDiCaL
 +
-+int64_t Solver::decisions () const {
-+  TRACE ("decisions");
-+  REQUIRE_VALID_STATE ();
-+  int64_t res = internal->stats.decisions;
-+  LOG_API_CALL_RETURNS ("decisions", res);
-+  return res;
-+}
-+
-+int64_t Solver::conflicts () const {
-+  TRACE ("conflicts");
-+  REQUIRE_VALID_STATE ();
-+  int64_t res = internal->stats.conflicts;
-+  LOG_API_CALL_RETURNS ("conflicts", res);
-+  return res;
-+}
-+
- /*------------------------------------------------------------------------*/
- 
- void Solver::freeze (int lit) {
++#include "solver_extension.cpp"
 -- 
-2.44.0
+2.45.2
 
