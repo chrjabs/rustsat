@@ -206,7 +206,7 @@ pub fn phasing(input: MacroInput) -> TokenStream {
     ts.extend(quote! {
         #[test]
         #ignore
-        fn assumption_sequence() {
+        fn user_phases() {
             use rustsat::{
                 instances::{SatInstance},
                 lit,
