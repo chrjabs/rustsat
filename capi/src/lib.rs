@@ -51,7 +51,7 @@ pub mod encodings {
     impl From<Result<(), encodings::pb::dpw::PrecisionError>> for MaybeError {
         fn from(value: Result<(), encodings::pb::dpw::PrecisionError>) -> Self {
             match value {
-                Ok(_) => MaybeError::Ok,
+                Ok(()) => MaybeError::Ok,
                 Err(err) => match err {
                     encodings::pb::dpw::PrecisionError::NotPow2 => MaybeError::PrecisionNotPow2,
                     encodings::pb::dpw::PrecisionError::PrecisionDecreased => {
@@ -202,9 +202,7 @@ pub mod encodings {
         #[no_mangle]
         pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(tot) };
-            let lit = if let Ok(lit) = Lit::from_ipasir(lit) {
-                lit
-            } else {
+            let Ok(lit) = Lit::from_ipasir(lit) else {
                 return MaybeError::InvalidLiteral;
             };
             boxed.extend([lit]);
@@ -382,9 +380,7 @@ pub mod encodings {
             weight: usize,
         ) -> MaybeError {
             let mut boxed = unsafe { Box::from_raw(dpw) };
-            let lit = if let Ok(lit) = Lit::from_ipasir(lit) {
-                lit
-            } else {
+            let Ok(lit) = Lit::from_ipasir(lit) else {
                 return MaybeError::InvalidLiteral;
             };
             let res = boxed.add_input(lit, weight);

@@ -17,6 +17,7 @@ pub mod dimacs;
 pub mod opb;
 
 /// An error for when a requested objective does not exist
+#[cfg(feature = "optimization")]
 #[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
 #[error("the file only has {0} objectives")]
 pub struct ObjNoExist(usize);

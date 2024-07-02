@@ -172,9 +172,9 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
             continue;
         }
         if buf.starts_with('p') {
-            let (_, preamble) = parse_p_line(&buf)
-                .map_err(nom::Err::<NomError<&str>>::to_owned)
-                .with_context(|| format!("failed to parse p line '{buf}'"))?;
+            let Ok((_, preamble)) = parse_p_line(&buf) else {
+                return Err(InvalidPLine(buf).into());
+            };
             return Ok((reader, preamble));
         }
         break;

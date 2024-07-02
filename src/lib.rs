@@ -68,7 +68,6 @@
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
-use core::fmt;
 use std::collections::TryReserveError;
 
 use thiserror::Error;
@@ -83,14 +82,10 @@ pub mod utils;
 /// Error returned if the user tries to perform an action that is not allowed
 ///
 /// The parameter will hold an explanation of why the action is not allowed
+#[cfg(feature = "internals")]
 #[derive(Error, Debug)]
+#[error("action not allowed: {0}")]
 pub struct NotAllowed(&'static str);
-
-impl fmt::Display for NotAllowed {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "action not allowed: {}", self.0)
-    }
-}
 
 #[cfg(feature = "bench")]
 #[cfg(test)]

@@ -30,8 +30,10 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///
 /// # References
 ///
-/// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
-/// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+/// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
+///     Constraints_, CP 2003.
+/// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
+///     Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default)]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
@@ -429,6 +431,7 @@ impl Node {
     /// Adjusts the connections of the node to draining a range of nodes. If the
     /// nodes references a nodes within the drained range, it returns that
     /// [`NodeId`] as an Error.
+    #[allow(dead_code)]
     fn drain(&mut self, range: Range<NodeId>) -> Result<(), NodeId> {
         match &mut self.0 {
             INode::Leaf(_) | INode::Dummy => Ok(()),
