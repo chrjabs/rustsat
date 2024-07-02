@@ -1,0 +1,47 @@
+From 4bd4976c8539ea4121d234dde135e7723f60a7d1 Mon Sep 17 00:00:00 2001
+From: Christoph Jabs <christoph.jabs@helsinki.fi>
+Date: Tue, 2 Jul 2024 14:23:50 +0300
+Subject: [PATCH] extend C api
+
+---
+ src/cadical.hpp  | 2 ++
+ src/ccadical.cpp | 2 ++
+ src/solver.cpp   | 2 ++
+ 3 files changed, 6 insertions(+)
+
+diff --git a/src/cadical.hpp b/src/cadical.hpp
+index a803292..2301c40 100644
+--- a/src/cadical.hpp
++++ b/src/cadical.hpp
+@@ -898,6 +898,8 @@ public:
+   //
+   static void build (FILE *file, const char *prefix = "c ");
+ 
++#include "cadical_extension.hpp"
++
+ private:
+   //==== start of state ====================================================
+ 
+diff --git a/src/ccadical.cpp b/src/ccadical.cpp
+index 88ab164..8186054 100644
+--- a/src/ccadical.cpp
++++ b/src/ccadical.cpp
+@@ -186,3 +186,5 @@ void ccadical_conclude (CCaDiCaL *ptr) {
+   ((Wrapper *) ptr)->solver->conclude ();
+ }
+ }
++
++#include "ccadical_extension.cpp"
+diff --git a/src/solver.cpp b/src/solver.cpp
+index e917b3c..34535c1 100644
+--- a/src/solver.cpp
++++ b/src/solver.cpp
+@@ -1632,3 +1632,5 @@ void Solver::error (const char *fmt, ...) {
+ }
+ 
+ } // namespace CaDiCaL
++
++#include "solver_extension.cpp"
+-- 
+2.45.2
+

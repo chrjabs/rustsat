@@ -34,13 +34,16 @@ enum Version {
     V192,
     V193,
     V194,
-    #[default]
     V195,
+    #[default]
+    V200,
 }
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v1-9-5") {
+        if cfg!(feature = "v2-0-0") {
+            Version::V200
+        } else if cfg!(feature = "v1-9-5") {
             Version::V195
         } else if cfg!(feature = "v1-9-4") {
             Version::V194
@@ -111,6 +114,7 @@ impl Version {
             Version::V193 => "refs/tags/rel-1.9.3",
             Version::V194 => "refs/tags/rel-1.9.4",
             Version::V195 => "refs/tags/rel-1.9.5",
+            Version::V200 => "refs/tags/rel-2.0.0",
         }
     }
 
@@ -127,6 +131,7 @@ impl Version {
             V180 => "v180.patch",
             V190 | V191 => "v190.patch",
             V192 | V193 | V194 | V195 => "v192.patch",
+            V200 => "v200.patch",
         }
     }
 
