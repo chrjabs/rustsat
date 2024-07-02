@@ -90,3 +90,9 @@ pub fn phasing_tests(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as MacroInput);
     integration::phasing(input).into()
 }
+
+#[proc_macro]
+pub fn flipping_tests(tokens: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(tokens as MacroInput);
+    integration::flipping(input).into()
+}

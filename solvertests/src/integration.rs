@@ -237,3 +237,48 @@ pub fn phasing(input: MacroInput) -> TokenStream {
     });
     ts
 }
+
+pub fn flipping(input: MacroInput) -> TokenStream {
+    let slv = input.slv;
+    let ignoretok = |idx: usize| -> Option<Attribute> {
+        if input.bools.len() > idx && input.bools[idx] {
+            Some(parse_quote! {#[ignore]})
+        } else {
+            None
+        }
+    };
+    let mut ts = quote! {
+        macro_rules! init_slv {
+            ($slv:ty) => {
+                <$slv>::default()
+            };
+            ($init:expr) => {
+                $init
+            };
+        }
+    };
+    let ignore = ignoretok(0);
+    ts.extend(quote! {
+        #[test]
+        #ignore
+        fn flipping_lits() {
+            use rustsat::{
+                clause, lit,
+                solvers::{FlipLit, Solve, SolveIncremental, SolverResult},
+            };
+            let mut solver = init_slv!(#slv);
+            solver.add_clause(clause![lit![0]]).unwrap();
+            solver.add_clause(clause![lit![1], lit![2]]).unwrap();
+            assert_eq!(
+                solver.solve_assumps(&[lit![1], lit![2]]).unwrap(),
+                SolverResult::Sat
+            );
+            assert!(!solver.is_flippable(!lit![0]).unwrap());
+            assert!(solver.is_flippable(!lit![1]).unwrap());
+            assert!(solver.is_flippable(!lit![2]).unwrap());
+            assert!(solver.flip_lit(!lit![1]).unwrap());
+            assert!(!solver.is_flippable(!lit![2]).unwrap());
+        }
+    });
+    ts
+}
