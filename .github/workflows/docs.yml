@@ -32,7 +32,7 @@ jobs:
             echo "failed for main crate"
             return=false
           fi
-          for dir in tools cadical kissat minisat glucose ipasir capi pyapi; do
+          for dir in tools cadical kissat minisat glucose batsat ipasir capi pyapi; do
             cd ${dir}
             if ! cargo rdme --check; then
               echo "failed for ${dir}"
