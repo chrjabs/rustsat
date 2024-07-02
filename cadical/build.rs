@@ -138,6 +138,10 @@ impl Version {
     fn has_flip(self) -> bool {
         self >= Version::V154
     }
+
+    fn has_tracer(self) -> bool {
+        self >= Version::V200
+    }
 }
 
 fn main() {
@@ -263,6 +267,9 @@ fn build(repo: &str, branch: &str, version: Version) {
         cadical_build.define("LOGGING", None); // --log
         if version.has_flip() {
             cadical_build.define("FLIP", None);
+        }
+        if version.has_tracer() {
+            cadical_build.define("TRACER", None);
         }
 
         // Generate build header
