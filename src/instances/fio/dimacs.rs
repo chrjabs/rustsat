@@ -507,7 +507,7 @@ pub fn write_cnf_annotated<W: Write>(
     n_vars: u32,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
-    writeln!(writer, "p cnf {} {}", n_vars, cnf.len())?;
+    writeln!(writer, "p cnf {n_vars} {}", cnf.len())?;
     cnf.iter().try_for_each(|cl| write_clause(writer, cl))?;
     writer.flush()
 }

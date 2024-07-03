@@ -11,7 +11,10 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::types::{self, Assignment};
+use crate::{
+    solvers::{SolverResult, SolverState},
+    types::{self, Assignment},
+};
 
 pub mod dimacs;
 pub mod opb;
@@ -97,6 +100,24 @@ pub enum SolverOutput {
     Unsat,
     /// The solver did not solve the instance
     Unknown,
+}
+
+impl SolverOutput {
+    pub(crate) fn result(&self) -> SolverResult {
+        match self {
+            SolverOutput::Sat(_) => SolverResult::Sat,
+            SolverOutput::Unsat => SolverResult::Unsat,
+            SolverOutput::Unknown => SolverResult::Interrupted,
+        }
+    }
+
+    pub(crate) fn state(&self) -> SolverState {
+        match self {
+            SolverOutput::Sat(_) => SolverState::Sat,
+            SolverOutput::Unsat => SolverState::Unsat,
+            SolverOutput::Unknown => SolverState::Unknown,
+        }
+    }
 }
 
 /// Possible errors in SAT solver output parsing

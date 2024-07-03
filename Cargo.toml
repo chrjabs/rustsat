@@ -42,6 +42,7 @@ rustsat-cadical = { version = "0.3.1", path = "./cadical" }
 rustsat-minisat = { version = "0.3.1", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 signal-hook = "0.3.17"
+tempfile = "3.10.1"
 visibility = "0.1.0"
 xz2 = "0.1.7"
 
@@ -67,10 +68,12 @@ bzip2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 rustc-hash = { workspace = true, optional = true }
+tempfile.workspace = true
 xz2 = { workspace = true, optional = true }
 
 [dev-dependencies]
-rustsat-minisat = { path = "./minisat" }
+rustsat-minisat.workspace = true
+rustsat-solvertests.workspace = true
 rustsat-tools = { path = "./tools" }
 
 [features]
