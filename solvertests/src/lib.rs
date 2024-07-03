@@ -14,8 +14,7 @@ enum InitBy {
 
 impl Parse for InitBy {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let typr: syn::Result<Type> = input.parse();
-        Ok(if let Ok(typ) = typr {
+        Ok(if let syn::Result::<Type>::Ok(typ) = input.parse() {
             Self::Default(typ)
         } else {
             Self::Expr(input.parse()?)

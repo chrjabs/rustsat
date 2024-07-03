@@ -76,6 +76,12 @@
 //! - Fork used in solver crate:
 //!   [https://github.com/chrjabs/glucose4](https://github.com/chrjabs/glucose4)
 //!
+//! ### External Solvers
+//!
+//! RustSAT provides an interface for calling external solver binaries by passing them DIMACS input
+//! and parsing their output written to `<stdout>`. For more details, see the [`ExternalSolver`]
+//! type.
+//!
 //! ### IPASIR
 //!
 //! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
@@ -92,6 +98,9 @@ use crate::{
 use core::time::Duration;
 use std::fmt;
 use thiserror::Error;
+
+pub mod external;
+pub use external::Solver as ExternalSolver;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
@@ -517,6 +526,8 @@ pub enum SolverState {
     Sat,
     /// The query was found unsatisfiable.
     Unsat,
+    /// Solving was terminated before a conclusion was reached
+    Unknown,
 }
 
 impl fmt::Display for SolverState {
@@ -526,6 +537,7 @@ impl fmt::Display for SolverState {
             SolverState::Input => write!(f, "INPUT"),
             SolverState::Sat => write!(f, "SAT"),
             SolverState::Unsat => write!(f, "UNSAT"),
+            SolverState::Unknown => write!(f, "UNKNOWN"),
         }
     }
 }

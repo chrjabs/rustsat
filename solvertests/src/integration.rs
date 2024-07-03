@@ -16,22 +16,16 @@ pub fn base(input: MacroInput) -> TokenStream {
         }
     };
     let mut ts = quote! {
+        macro_rules! init_slv {
+            ($slv:ty) => {
+                <$slv>::default()
+            };
+            ($init:expr) => {
+                $init
+            };
+        }
+
         macro_rules! test_inst {
-            ($slv:ty, $inst:expr, $res:expr) => {{
-                let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-                let mut solver = <$slv>::default();
-                let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path(format!("{manifest}/{}", $inst))
-                    .expect("failed to parse instance");
-                rustsat::solvers::Solve::add_cnf_ref(&mut solver, inst.cnf())
-                    .expect("failed to add cnf to solver");
-                let res = rustsat::solvers::Solve::solve(&mut solver).expect("failed solving");
-                assert_eq!(res, $res);
-                if $res == rustsat::solvers::SolverResult::Sat {
-                    let sol = rustsat::solvers::Solve::solution(&solver, inst.max_var().expect("no variables in instance"))
-                        .expect("failed to get solution from solver");
-                    assert!(inst.is_sat(&sol));
-                }
-            }};
             ($init:expr, $inst:expr, $res:expr) => {{
                 let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
                 let mut solver = $init;
@@ -54,7 +48,9 @@ pub fn base(input: MacroInput) -> TokenStream {
         #[test]
         #ignore
         fn small_sat() {
-            test_inst!(#slv, "data/AProVE11-12.cnf", rustsat::solvers::SolverResult::Sat);
+            let testid = "small_sat";
+            let solver = init_slv!(#slv);
+            test_inst!(solver, "data/AProVE11-12.cnf", rustsat::solvers::SolverResult::Sat);
         }
     });
     let ignore = ignoretok(1);
@@ -62,7 +58,9 @@ pub fn base(input: MacroInput) -> TokenStream {
         #[test]
         #ignore
         fn small_unsat() {
-            test_inst!(#slv, "data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf", rustsat::solvers::SolverResult::Unsat);
+            let testid = "small_unsat";
+            let solver = init_slv!(#slv);
+            test_inst!(solver, "data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf", rustsat::solvers::SolverResult::Unsat);
         }
     });
     let ignore = ignoretok(2);
@@ -70,7 +68,9 @@ pub fn base(input: MacroInput) -> TokenStream {
         #[test]
         #ignore
         fn minisat_segfault() {
-            test_inst!(#slv, "data/minisat-segfault.cnf", rustsat::solvers::SolverResult::Unsat);
+            let testid = "minisat_segfault";
+            let solver = init_slv!(#slv);
+            test_inst!(solver, "data/minisat-segfault.cnf", rustsat::solvers::SolverResult::Unsat);
         }
     });
     ts
@@ -106,6 +106,7 @@ pub fn incremental(input: MacroInput) -> TokenStream {
                 solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
             };
 
+            let testid = "assumption_sequence";
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("data/small.cnf").unwrap();
@@ -214,6 +215,7 @@ pub fn phasing(input: MacroInput) -> TokenStream {
                 types::TernaryVal::{True, False},
                 var,
             };
+            let testid = "user_phases";
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("data/small.cnf").unwrap();
