@@ -4,7 +4,7 @@
 //! constraints. It defines traits for (non-)incremental PB constraints and
 //! encodings implementing these traits.
 //!
-//! ## Example Useage
+//! ## Example Usage
 //!
 //! ```
 //! # use rustsat::{
