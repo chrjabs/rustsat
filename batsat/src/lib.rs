@@ -1,12 +1,12 @@
-//! # rustsat-batsat - Interface to the `BatSat` SAT Solver for `RustSAT`
+//! # rustsat-batsat - Interface to the BatSat SAT Solver for RustSAT
 //!
 //! Interface to the [BatSat](https://github.com/c-cube/batsat) incremental SAT-Solver to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 //!
-//! `BatSat` is fully implemented in Rust which has advantages in restricted compilation scenarios like WebAssembly.
+//! BatSat is fully implemented in Rust which has advantages in restricted compilation scenarios like WebAssembly.
 //!
-//! # `BatSat` Version
+//! # BatSat Version
 //!
-//! The version of `BatSat` in this crate is Version 0.5.0.
+//! The version of BatSat in this crate is Version 0.5.0.
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -18,14 +18,14 @@ use rustsat::{
 };
 use thiserror::Error;
 
-/// API Error from the `BatSat` library (for example if the solver is in an UNSAT state)
+/// API Error from the BatSat library (for example if the solver is in an UNSAT state)
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("BatSat returned an invalid value: {error}")]
 pub struct InvalidApiReturn {
     error: &'static str,
 }
 
-/// RustSAT wrapper for the `BasicSolver` Solver from `BatSat`
+/// RustSAT wrapper for the [`BasicSolver`] Solver from BatSat
 #[derive(Default)]
 pub struct BatsatBasicSolver(BasicSolver);
 
