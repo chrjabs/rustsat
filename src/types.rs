@@ -767,10 +767,10 @@ impl Assignment {
     /// - Invalid solver output: [`fio::SatSolverOutputError`]
     /// - Invalid v line: [`InvalidVLine`]
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let reader = std::io::BufReader::new(
+        let mut reader = std::io::BufReader::new(
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?,
         );
-        let output = fio::parse_sat_solver_output(reader)?;
+        let output = fio::parse_sat_solver_output(&mut reader)?;
         match output {
             SolverOutput::Sat(solution) => Ok(solution),
             _ => anyhow::bail!("solver output does not indicate satisfiability"),

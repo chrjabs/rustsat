@@ -29,7 +29,7 @@ fn main() -> anyhow::Result<()> {
     let mut inst: SatInstance = if let Some(in_path) = args.in_path {
         SatInstance::from_opb_path(in_path, opb_opts).context("error parsing the input file")?
     } else {
-        SatInstance::from_opb(io::BufReader::new(io::stdin()), opb_opts)
+        SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
             .context("error parsing input")?
     };
 

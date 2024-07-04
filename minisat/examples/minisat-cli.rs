@@ -46,10 +46,13 @@ fn main() -> anyhow::Result<()> {
                 .context("error parsing the input file as OPB")?,
         }
     } else if args.opb {
-        SatInstance::from_opb(io::BufReader::new(io::stdin()), opb::Options::default())
-            .context("error parsing input as OPB")?
+        SatInstance::from_opb(
+            &mut io::BufReader::new(io::stdin()),
+            opb::Options::default(),
+        )
+        .context("error parsing input as OPB")?
     } else {
-        SatInstance::from_dimacs(io::BufReader::new(io::stdin()))
+        SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
             .context("error parsing input as CNF")?
     };
 

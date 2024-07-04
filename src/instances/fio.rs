@@ -120,7 +120,7 @@ pub enum SatSolverOutputError {
 ///
 /// Either [`SatSolverOutputError`], [`types::InvalidVLine`], or other parsing errors on invalid
 /// input.
-pub fn parse_sat_solver_output<R: BufRead>(reader: R) -> anyhow::Result<SolverOutput> {
+pub fn parse_sat_solver_output<R: BufRead>(reader: &mut R) -> anyhow::Result<SolverOutput> {
     let mut is_sat = false;
     let mut solution: Option<Assignment> = None;
 
@@ -184,50 +184,43 @@ mod tests {
         ]));
 
         let data = "c this is a comment\ns SATISFIABLE\nv 1 -2 4 -5 6 0\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, ground_truth);
 
         let data = "c this is a comment\nv 1 -2 4 -5 6 0\ns SATISFIABLE\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, ground_truth);
 
         let data = "c this is a comment\ns SATISFIABLE\nv 1 -2 4 \nv -5 6 0\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, ground_truth);
     }
 
     #[test]
     fn parse_solver_output_unsat() {
         let data = "c this is a comment\ns UNSATISFIABLE\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, SolverOutput::Unsat);
     }
 
     #[test]
     fn parse_solver_output_unknown() {
         let data = "c this is a comment\ns UNKNOWN\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, SolverOutput::Unknown);
     }
 
     #[test]
     fn parse_solver_output_indeterminate() {
         let data = "c this is a comment\ns INDETERMINATE\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, SolverOutput::Unknown);
     }
 
     #[test]
     fn parse_solver_output_noslinewithvline() {
         let data = "c this is a comment\nv 1 -2 4 -5 6 0\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader);
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data));
         assert!(matches!(
             res.unwrap_err().downcast::<SatSolverOutputError>(),
             Ok(SatSolverOutputError::NoSLine)
@@ -237,8 +230,7 @@ mod tests {
     #[test]
     fn parse_solver_output_novlinewithsatisfy() {
         let data = "c this is a comment\ns SATISFIABLE\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader);
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data));
         assert!(matches!(
             res.unwrap_err().downcast::<SatSolverOutputError>(),
             Ok(SatSolverOutputError::NoVLine)
@@ -248,8 +240,7 @@ mod tests {
     #[test]
     fn parse_solver_output_emptysolution() {
         let data = "c this is a comment\ns SATISFIABLE\nv 0\n";
-        let reader = io::Cursor::new(data);
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut io::Cursor::new(data)).unwrap();
         assert_eq!(res, SolverOutput::Sat(Assignment::default()));
     }
 
@@ -259,33 +250,33 @@ mod tests {
         let instance: SatInstance =
             SatInstance::from_dimacs_path(format!("{manifest}/data/AProVE11-12.cnf")).unwrap();
 
-        let reader = super::open_compressed_uncompressed_read(format!(
+        let mut reader = super::open_compressed_uncompressed_read(format!(
             "{manifest}/data/gimsatul-AProVE11-12.log"
         ))
         .unwrap();
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
             assert!(instance.is_sat(&sol));
         } else {
             panic!()
         }
 
-        let reader = super::open_compressed_uncompressed_read(format!(
+        let mut reader = super::open_compressed_uncompressed_read(format!(
             "{manifest}/data/kissat-AProVE11-12.log"
         ))
         .unwrap();
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
             assert!(instance.is_sat(&sol));
         } else {
             panic!()
         }
 
-        let reader = super::open_compressed_uncompressed_read(format!(
+        let mut reader = super::open_compressed_uncompressed_read(format!(
             "{manifest}/data/cadical-AProVE11-12.log"
         ))
         .unwrap();
-        let res = parse_sat_solver_output(reader).unwrap();
+        let res = parse_sat_solver_output(&mut reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
             assert!(instance.is_sat(&sol));
         } else {
@@ -296,28 +287,28 @@ mod tests {
     #[test]
     fn parse_solver_output_unsat_logs() {
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-        let reader = super::open_compressed_uncompressed_read(format!(
+        let mut reader = super::open_compressed_uncompressed_read(format!(
             "{manifest}/data/gimsatul-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log"
         ))
         .unwrap();
         assert_eq!(
-            parse_sat_solver_output(reader).unwrap(),
+            parse_sat_solver_output(&mut reader).unwrap(),
             SolverOutput::Unsat
         );
-        let reader = super::open_compressed_uncompressed_read(format!(
+        let mut reader = super::open_compressed_uncompressed_read(format!(
             "{manifest}/data/kissat-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log"
         ))
         .unwrap();
         assert_eq!(
-            parse_sat_solver_output(reader,).unwrap(),
+            parse_sat_solver_output(&mut reader).unwrap(),
             SolverOutput::Unsat
         );
-        let reader = super::open_compressed_uncompressed_read(format!(
+        let mut reader = super::open_compressed_uncompressed_read(format!(
             "{manifest}/data/cadical-smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.log"
         ))
         .unwrap();
         assert_eq!(
-            parse_sat_solver_output(reader,).unwrap(),
+            parse_sat_solver_output(&mut reader).unwrap(),
             SolverOutput::Unsat
         );
     }

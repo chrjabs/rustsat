@@ -94,7 +94,7 @@ enum OpbData {
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_sat<R, VM>(reader: R, opts: Options) -> anyhow::Result<SatInstance<VM>>
+pub fn parse_sat<R, VM>(reader: &mut R, opts: Options) -> anyhow::Result<SatInstance<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -117,7 +117,7 @@ where
 ///
 /// Parsing errors or [`io::Error`].
 pub fn parse_opt_with_idx<R, VM>(
-    reader: R,
+    reader: &mut R,
     obj_idx: usize,
     opts: Options,
 ) -> anyhow::Result<OptInstance<VM>>
@@ -159,7 +159,7 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_multi_opt<R, VM>(reader: R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
+pub fn parse_multi_opt<R, VM>(reader: &mut R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -176,7 +176,7 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: BufRead>(mut reader: R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
+fn parse_opb_data<R: BufRead>(reader: &mut R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
     let mut buf = String::new();
     let mut data = vec![];
     // TODO: consider not necessarily reading a full line
@@ -984,8 +984,7 @@ mod test {
     fn multi_opb_data() {
         let data = "* test\n5 x1 -3 x2 >= 4;\nmin: 1 x1;";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
-        if let Ok(data) = parse_opb_data(reader, Options::default()) {
+        if let Ok(data) = parse_opb_data(&mut BufReader::new(reader), Options::default()) {
             assert_eq!(data.len(), 3);
             assert_eq!(data[0], OpbData::Cmt(String::from("* test\n")));
             assert!(matches!(data[1], OpbData::Constr(_)));
@@ -995,8 +994,7 @@ mod test {
         }
         let data = "* test\n5 x1 -3 x2 >= 4;\nmin: x1;";
         let reader = Cursor::new(data);
-        let reader = BufReader::new(reader);
-        assert!(parse_opb_data(reader, Options::default()).is_err());
+        assert!(parse_opb_data(&mut BufReader::new(reader), Options::default()).is_err());
     }
 
     #[test]
@@ -1009,7 +1007,7 @@ mod test {
 
         cursor.rewind().unwrap();
 
-        let (cnf, _) = super::parse_sat::<_, BasicVarManager>(cursor, Options::default())
+        let (cnf, _) = super::parse_sat::<_, BasicVarManager>(&mut cursor, Options::default())
             .unwrap()
             .into_cnf();
 
@@ -1024,7 +1022,7 @@ mod test {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst: SatInstance = super::parse_sat(cursor, opts).unwrap();
+        let parsed_inst: SatInstance = super::parse_sat(&mut cursor, opts).unwrap();
 
         let (parsed_cnf, parsed_vm) = parsed_inst.into_cnf();
         let (true_cnf, true_vm) = true_inst.into_cnf();
