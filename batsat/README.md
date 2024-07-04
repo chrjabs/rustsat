@@ -5,14 +5,14 @@
 
 <!-- cargo-rdme start -->
 
-# rustsat-batsat - Interface to the `BatSat` SAT Solver for `RustSAT`
+# rustsat-batsat - Interface to the BatSat SAT Solver for RustSAT
 
 Interface to the [BatSat](https://github.com/c-cube/batsat) incremental SAT-Solver to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 
-`BatSat` is fully implemented in Rust which has advantages in restricted compilation scenarios like WebAssembly.
+BatSat is fully implemented in Rust which has advantages in restricted compilation scenarios like WebAssembly.
 
-# `BatSat` Version
+# BatSat Version
 
-The version of `BatSat` in this crate is Version 0.5.0.
+The version of BatSat in this crate is Version 0.5.0.
 
 <!-- cargo-rdme end -->
