@@ -3,7 +3,7 @@
 //! The module contains implementations of CNF encodings for at-most-1
 //! constraints.
 //!
-//! ## Example Useage
+//! ## Example Usage
 //!
 //! ```
 //! # use rustsat::{
