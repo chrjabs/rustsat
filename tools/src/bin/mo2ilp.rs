@@ -31,9 +31,9 @@ struct Args {
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 1)]
     first_var_idx: u32,
-    /// Don't remove unused variables
-    #[arg(long)]
-    no_remove_unused: bool,
+    /// Specify what to do with variables that do not appear in the instance
+    #[arg(long, value_enum, default_value_t = UnusedVars::AssignZero)]
+    unused_vars: UnusedVars,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -50,11 +50,22 @@ enum InputFormat {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
-pub enum OutputFormat {
+enum OutputFormat {
     /// Custom input format for [Bauss et al. 2023](https://git.uni-wuppertal.de/bauss/adaptive-improvements-of-multi-objective-branch-and-bound)
     Bauss,
     /// FGT format read by [Forget et al. 2022](https://github.com/NicolasJForget/LinearRelaxationBasedMultiObjectiveBranchAndBound/tree/v2.0)
     Fgt,
+}
+
+/// What to do with variables that do not appear in the instance
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+enum UnusedVars {
+    /// Don't do anything
+    Nothing,
+    /// Remove them, decreasing the index of the remaining variables
+    Remove,
+    /// Assign them to zero
+    AssignZero,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -67,15 +78,29 @@ fn main() -> anyhow::Result<()> {
     let inst = parse_instance(args.in_path, args.input_format, opb_opts)
         .context("failed to parse input instance")?;
 
-    let inst = if args.no_remove_unused {
-        inst
-    } else {
-        let (mut constr, objs) = inst
-            .reindex_ordered(ReindexingVarManager::default())
-            .decompose();
-        let next_free = constr.new_var();
-        let (constr, _) = constr.change_var_manager(|_| BasicVarManager::from_next_free(next_free));
-        MultiOptInstance::compose(constr, objs)
+    let inst = match args.unused_vars {
+        UnusedVars::Nothing => inst,
+        UnusedVars::Remove => {
+            let (mut constr, objs) = inst
+                .reindex_ordered(ReindexingVarManager::default())
+                .decompose();
+            let next_free = constr.new_var();
+            let (constr, _) =
+                constr.change_var_manager(|_| BasicVarManager::from_next_free(next_free));
+            MultiOptInstance::compose(constr, objs)
+        }
+        UnusedVars::AssignZero => {
+            let varset = inst.var_set();
+            let n_vars = inst.constraints_ref().n_vars();
+            let mut inst = inst;
+            for idx in 0..n_vars {
+                let var = Var::new(idx);
+                if !varset.contains(&var) {
+                    inst.constraints_mut().add_unit(var.neg_lit());
+                }
+            }
+            inst
+        }
     };
 
     if let Some(path) = args.out_path {
