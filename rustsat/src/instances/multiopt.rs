@@ -228,11 +228,18 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         MultiOptInstance { constrs, objs }
     }
 
-    fn var_set(&self, varset: &mut BTreeSet<Var>) {
-        self.constrs.var_set(varset);
+    fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+        self.constrs.extend_var_set(varset);
         for o in &self.objs {
             o.var_set(varset);
         }
+    }
+
+    /// Gets the set of variables in the instance
+    pub fn var_set(&self) -> BTreeSet<Var> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        varset
     }
 
     /// Reindex all variables in the instance in order
@@ -242,7 +249,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     #[must_use]
     pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
         let mut varset = BTreeSet::new();
-        self.var_set(&mut varset);
+        self.extend_var_set(&mut varset);
         // reindex variables in order to ensure ordered reindexing
         for var in varset {
             reindexer.reindex(var);

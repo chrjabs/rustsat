@@ -683,7 +683,7 @@ impl<VM: ManageVars> SatInstance<VM> {
         }
     }
 
-    pub(crate) fn var_set(&self, varset: &mut BTreeSet<Var>) {
+    pub(crate) fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
         varset.extend(self.cnf.iter().flat_map(|cl| cl.iter().map(Lit::var)));
         varset.extend(self.cards.iter().flat_map(|card| card.iter().map(Lit::var)));
         varset.extend(
@@ -693,6 +693,13 @@ impl<VM: ManageVars> SatInstance<VM> {
         );
     }
 
+    /// Gets the set of variables in the instance
+    pub fn var_set(&self) -> BTreeSet<Var> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        varset
+    }
+
     /// Reindex all variables in the instance in order
     ///
     /// If the reindexing variable manager produces new free variables in order, this results in
@@ -700,7 +707,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     #[must_use]
     pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> SatInstance<R> {
         let mut varset = BTreeSet::new();
-        self.var_set(&mut varset);
+        self.extend_var_set(&mut varset);
         // reindex variables in order to ensure ordered reindexing
         for var in varset {
             reindexer.reindex(var);
