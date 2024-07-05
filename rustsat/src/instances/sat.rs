@@ -1,6 +1,12 @@
 //! # Satsifiability Instance Representations
 
-use std::{cmp, collections::TryReserveError, io, ops::Index, path::Path};
+use std::{
+    cmp,
+    collections::{BTreeSet, TryReserveError},
+    io,
+    ops::Index,
+    path::Path,
+};
 
 use crate::{
     clause,
@@ -657,6 +663,7 @@ impl<VM: ManageVars> SatInstance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
+    #[must_use]
     pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> SatInstance<R> {
         self.cnf
             .iter_mut()
@@ -674,6 +681,31 @@ impl<VM: ManageVars> SatInstance<VM> {
             pbs: self.pbs,
             var_manager: reindexer,
         }
+    }
+
+    pub(crate) fn var_set(&self, varset: &mut BTreeSet<Var>) {
+        varset.extend(self.cnf.iter().flat_map(|cl| cl.iter().map(Lit::var)));
+        varset.extend(self.cards.iter().flat_map(|card| card.iter().map(Lit::var)));
+        varset.extend(
+            self.pbs
+                .iter()
+                .flat_map(|pbs| pbs.iter().map(|(l, _)| l.var())),
+        );
+    }
+
+    /// Reindex all variables in the instance in order
+    ///
+    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// the variable _order_ being preserved with gaps in the variable space being closed
+    #[must_use]
+    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> SatInstance<R> {
+        let mut varset = BTreeSet::new();
+        self.var_set(&mut varset);
+        // reindex variables in order to ensure ordered reindexing
+        for var in varset {
+            reindexer.reindex(var);
+        }
+        self.reindex(reindexer)
     }
 
     #[cfg(feature = "rand")]
@@ -1053,5 +1085,23 @@ impl CollectClauses for SatInstance {
         T: IntoIterator<Item = Clause>,
     {
         self.cnf.extend_clauses(cl_iter)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{clause, instances::Cnf, lit};
+
+    #[test]
+    fn reindex_ordered() {
+        let mut inst: super::SatInstance = super::SatInstance::default();
+        inst.add_nary(&[lit![4], lit![1]]);
+        inst.add_nary(&[lit![0], lit![2]]);
+        let inst = inst.reindex_ordered(super::super::ReindexingVarManager::default());
+        let (cnf, _) = inst.into_cnf();
+        assert_eq!(
+            cnf,
+            Cnf::from_iter([clause![lit![3], lit![1]], clause![lit![0], lit![2]]])
+        );
     }
 }

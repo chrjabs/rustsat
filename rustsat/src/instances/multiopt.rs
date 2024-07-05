@@ -1,6 +1,6 @@
 //! # Multi-Objective Optimization Instance Representations
 
-use std::{io, path::Path};
+use std::{collections::BTreeSet, io, path::Path};
 
 use crate::{
     encodings::{card, pb},
@@ -226,6 +226,28 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             .collect();
         let constrs = self.constrs.reindex(reindexer);
         MultiOptInstance { constrs, objs }
+    }
+
+    fn var_set(&self, varset: &mut BTreeSet<Var>) {
+        self.constrs.var_set(varset);
+        for o in &self.objs {
+            o.var_set(varset);
+        }
+    }
+
+    /// Reindex all variables in the instance in order
+    ///
+    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// the variable _order_ being preserved with gaps in the variable space being closed
+    #[must_use]
+    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
+        let mut varset = BTreeSet::new();
+        self.var_set(&mut varset);
+        // reindex variables in order to ensure ordered reindexing
+        for var in varset {
+            reindexer.reindex(var);
+        }
+        self.reindex(reindexer)
     }
 
     #[cfg(feature = "rand")]
