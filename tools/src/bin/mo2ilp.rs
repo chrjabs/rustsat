@@ -10,7 +10,7 @@ use itertools::Itertools;
 use rustsat::{
     instances::{
         fio::{self, opb::Options as OpbOptions},
-        ManageVars, MultiOptInstance, Objective,
+        BasicVarManager, ManageVars, MultiOptInstance, Objective, ReindexingVarManager,
     },
     types::{constraints::PBConstraint, Var},
 };
@@ -31,6 +31,9 @@ struct Args {
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 1)]
     first_var_idx: u32,
+    /// Don't remove unused variables
+    #[arg(long)]
+    no_remove_unused: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -63,6 +66,17 @@ fn main() -> anyhow::Result<()> {
 
     let inst = parse_instance(args.in_path, args.input_format, opb_opts)
         .context("failed to parse input instance")?;
+
+    let inst = if args.no_remove_unused {
+        inst
+    } else {
+        let (mut constr, objs) = inst
+            .reindex_ordered(ReindexingVarManager::default())
+            .decompose();
+        let next_free = constr.new_var();
+        let (constr, _) = constr.change_var_manager(|_| BasicVarManager::from_next_free(next_free));
+        MultiOptInstance::compose(constr, objs)
+    };
 
     if let Some(path) = args.out_path {
         write_instance(
