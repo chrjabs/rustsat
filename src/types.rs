@@ -609,7 +609,7 @@ macro_rules! ipasir_lit {
 }
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 pub enum TernaryVal {
     /// Positive assignment.
@@ -617,6 +617,7 @@ pub enum TernaryVal {
     /// Negative assignment.
     False,
     /// Formula is satisfied, no matter the assignment.
+    #[default]
     DontCare,
 }
 
