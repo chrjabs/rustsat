@@ -11,32 +11,85 @@
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
-use batsat::{intmap::AsIndex, lbool, BasicSolver, SolverInterface};
-use rustsat::{
-    solvers::{Solve, SolveIncremental, SolverResult},
-    types::{Clause, Lit, TernaryVal},
-};
-use thiserror::Error;
+use std::time::Duration;
 
-/// API Error from the BatSat library (for example if the solver is in an UNSAT state)
-#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
-#[error("BatSat returned an invalid value: {error}")]
-pub struct InvalidApiReturn {
-    error: &'static str,
+use batsat::{intmap::AsIndex, lbool, Callbacks, SolverInterface};
+use cpu_time::ProcessTime;
+use rustsat::{
+    solvers::{Solve, SolveIncremental, SolveStats, SolverResult, SolverStats},
+    types::{Clause, Lit, TernaryVal, Var},
+};
+
+/// RustSAT wrapper for [`batsat::BasicSolver`]
+pub type BasicSolver = Solver<batsat::BasicCallbacks>;
+
+/// RustSAT wrapper for a [`batsat::Solver`] Solver from BatSat
+#[derive(Default)]
+pub struct Solver<Cb: Callbacks> {
+    internal: batsat::Solver<Cb>,
+    n_sat: usize,
+    n_unsat: usize,
+    n_terminated: usize,
+    avg_clause_len: f32,
+    cpu_time: Duration,
 }
 
-/// RustSAT wrapper for the [`BasicSolver`] Solver from BatSat
-#[derive(Default)]
-pub struct BatsatBasicSolver(BasicSolver);
+impl<Cb: Callbacks> Solver<Cb> {
+    /// Gets a reference to the internal [`BasicSolver`]
+    #[must_use]
+    pub fn batsat_ref(&self) -> &batsat::Solver<Cb> {
+        &self.internal
+    }
 
-impl Extend<Clause> for BatsatBasicSolver {
+    /// Gets a mutable reference to the internal [`BasicSolver`]
+    #[must_use]
+    pub fn batsat_mut(&mut self) -> &mut batsat::Solver<Cb> {
+        &mut self.internal
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    #[inline]
+    fn update_avg_clause_len(&mut self, clause: &Clause) {
+        self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses()) as f32)
+            + clause.len() as f32)
+            / (self.n_clauses() + 1) as f32;
+    }
+
+    fn solve_track_stats(&mut self, assumps: &[Lit]) -> SolverResult {
+        let a = assumps
+            .iter()
+            .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32() + 1), l.is_pos()))
+            .collect::<Vec<_>>();
+
+        let start = ProcessTime::now();
+        let ret = match self.internal.solve_limited(&a) {
+            x if x == lbool::TRUE => {
+                self.n_sat += 1;
+                SolverResult::Sat
+            }
+            x if x == lbool::FALSE => {
+                self.n_unsat += 1;
+                SolverResult::Unsat
+            }
+            x if x == lbool::UNDEF => {
+                self.n_terminated += 1;
+                SolverResult::Interrupted
+            }
+            _ => unreachable!(),
+        };
+        self.cpu_time += start.elapsed();
+        ret
+    }
+}
+
+impl<Cb: Callbacks> Extend<Clause> for Solver<Cb> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         iter.into_iter()
             .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
 }
 
-impl<'a> Extend<&'a Clause> for BatsatBasicSolver {
+impl<'a, Cb: Callbacks> Extend<&'a Clause> for Solver<Cb> {
     fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
@@ -45,27 +98,19 @@ impl<'a> Extend<&'a Clause> for BatsatBasicSolver {
     }
 }
 
-impl Solve for BatsatBasicSolver {
+impl<Cb: Callbacks> Solve for Solver<Cb> {
     fn signature(&self) -> &'static str {
         "BatSat 0.5.0"
     }
 
     fn solve(&mut self) -> anyhow::Result<SolverResult> {
-        match self.0.solve_limited(&[]) {
-            x if x == lbool::TRUE => Ok(SolverResult::Sat),
-            x if x == lbool::FALSE => Ok(SolverResult::Unsat),
-            x if x == lbool::UNDEF => Err(InvalidApiReturn {
-                error: "BatSat Solver is in an UNSAT state",
-            }
-            .into()),
-            _ => unreachable!(),
-        }
+        Ok(self.solve_track_stats(&[]))
     }
 
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
         let l = batsat::Lit::new(batsat::Var::from_index(lit.vidx() + 1), lit.is_pos());
 
-        match self.0.value_lit(l) {
+        match self.internal.value_lit(l) {
             x if x == lbool::TRUE => Ok(TernaryVal::True),
             x if x == lbool::FALSE => Ok(TernaryVal::False),
             x if x == lbool::UNDEF => Ok(TernaryVal::DontCare),
@@ -73,53 +118,84 @@ impl Solve for BatsatBasicSolver {
         }
     }
 
-    fn add_clause(&mut self, clause: Clause) -> anyhow::Result<()> {
-        let mut c: Vec<batsat::Lit> = clause
-            .iter()
-            .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
-            .collect::<Vec<batsat::Lit>>();
-
-        self.0.add_clause_reuse(&mut c);
-
-        Ok(())
-    }
-
     fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
+        self.update_avg_clause_len(clause);
+
         let mut c: Vec<batsat::Lit> = clause
             .iter()
-            .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
+            .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32() + 1), l.is_pos()))
             .collect::<Vec<batsat::Lit>>();
 
-        self.0.add_clause_reuse(&mut c);
+        self.internal.add_clause_reuse(&mut c);
 
         Ok(())
     }
 }
 
-impl SolveIncremental for BatsatBasicSolver {
+impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
-        let a = assumps
-            .iter()
-            .map(|l| batsat::Lit::new(self.0.var_of_int(l.vidx32() + 1), l.is_pos()))
-            .collect::<Vec<_>>();
-
-        match self.0.solve_limited(&a) {
-            x if x == lbool::TRUE => Ok(SolverResult::Sat),
-            x if x == lbool::FALSE => Ok(SolverResult::Unsat),
-            x if x == lbool::UNDEF => Err(InvalidApiReturn {
-                error: "BatSat Solver is in an UNSAT state",
-            }
-            .into()),
-            _ => unreachable!(),
-        }
+        Ok(self.solve_track_stats(assumps))
     }
 
     fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
         Ok(self
-            .0
+            .internal
             .unsat_core()
             .iter()
             .map(|l| Lit::new(l.var().idx() - 1, !l.sign()))
             .collect::<Vec<_>>())
     }
+}
+
+impl<Cb: Callbacks> SolveStats for Solver<Cb> {
+    fn stats(&self) -> SolverStats {
+        SolverStats {
+            n_sat: self.n_sat,
+            n_unsat: self.n_unsat,
+            n_terminated: self.n_terminated,
+            n_clauses: self.n_clauses(),
+            max_var: self.max_var(),
+            avg_clause_len: self.avg_clause_len,
+            cpu_solve_time: self.cpu_time,
+        }
+    }
+
+    fn n_sat_solves(&self) -> usize {
+        self.n_sat
+    }
+
+    fn n_unsat_solves(&self) -> usize {
+        self.n_unsat
+    }
+
+    fn n_terminated(&self) -> usize {
+        self.n_terminated
+    }
+
+    fn n_clauses(&self) -> usize {
+        usize::try_from(self.internal.num_clauses()).expect("more than `usize::MAX` clauses")
+    }
+
+    fn max_var(&self) -> Option<Var> {
+        let num = self.internal.num_vars();
+        if num > 0 {
+            // BatSat returns a value that is off by one
+            Some(Var::new(num - 2))
+        } else {
+            None
+        }
+    }
+
+    fn avg_clause_len(&self) -> f32 {
+        self.avg_clause_len
+    }
+
+    fn cpu_solve_time(&self) -> Duration {
+        self.cpu_time
+    }
+}
+
+#[cfg(test)]
+mod test {
+    rustsat_solvertests::basic_unittests!(super::BasicSolver, false);
 }

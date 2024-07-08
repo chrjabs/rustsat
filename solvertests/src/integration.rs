@@ -4,9 +4,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_quote, Attribute};
 
-use super::MacroInput;
+use super::IntegrationInput;
 
-pub fn base(input: MacroInput) -> TokenStream {
+pub fn base(input: IntegrationInput) -> TokenStream {
     let slv = input.slv;
     let ignoretok = |idx: usize| -> Option<Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
@@ -76,7 +76,7 @@ pub fn base(input: MacroInput) -> TokenStream {
     ts
 }
 
-pub fn incremental(input: MacroInput) -> TokenStream {
+pub fn incremental(input: IntegrationInput) -> TokenStream {
     let slv = input.slv;
     let ignoretok = |idx: usize| -> Option<Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
@@ -184,7 +184,7 @@ pub fn incremental(input: MacroInput) -> TokenStream {
     ts
 }
 
-pub fn phasing(input: MacroInput) -> TokenStream {
+pub fn phasing(input: IntegrationInput) -> TokenStream {
     let slv = input.slv;
     let ignoretok = |idx: usize| -> Option<Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
@@ -238,7 +238,7 @@ pub fn phasing(input: MacroInput) -> TokenStream {
     ts
 }
 
-pub fn flipping(input: MacroInput) -> TokenStream {
+pub fn flipping(input: IntegrationInput) -> TokenStream {
     let slv = input.slv;
     let ignoretok = |idx: usize| -> Option<Attribute> {
         if input.bools.len() > idx && input.bools[idx] {

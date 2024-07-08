@@ -14,6 +14,7 @@ readme = "README.md"
 [dependencies]
 batsat = "0.5.0"           # when changing this version, do not forget to update signature
 anyhow.workspace = true
+cpu-time.workspace = true
 thiserror.workspace = true
 rustsat.workspace = true
 

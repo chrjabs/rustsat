@@ -76,6 +76,22 @@
 //! - Fork used in solver crate:
 //!   [https://github.com/chrjabs/glucose4](https://github.com/chrjabs/glucose4)
 //!
+//! ### BatSat
+//!
+//! [BatSat](https://github.com/c-cube/batsat) is a SAT solver based on Minisat but fully
+//! implemented in Rust. Because it is fully implemented in Rust, it is a good choice for
+//! restricted compilation scenarios like WebAssembly. BatSat is available through the
+//! [`rustsat-batsat`](httpe://crates.io/crates/rustsat-batsat) crate.
+//!
+//! #### References
+//!
+//! - Solver interface crate:
+//!   [https://crates.io/crates/rustsat-batsat](https://crates.io/crate/rustsat-batsat)
+//! - BatSat crate:
+//!   [https://crate.io/crates/batsat](https://crates.io/crate/batsat)
+//! - BatSat repository:
+//!   [https://github.com/c-cube/batsat](https://github.com/c-cube/batsat)
+//!
 //! ### External Solvers
 //!
 //! RustSAT provides an interface for calling external solver binaries by passing them DIMACS input
