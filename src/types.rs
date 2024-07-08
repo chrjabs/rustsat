@@ -877,6 +877,18 @@ impl Assignment {
         anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
         Ok(())
     }
+
+    /// Gets an iterator over literals assigned to true
+    pub fn iter(&self) -> impl Iterator<Item = Lit> + '_ {
+        self.assignment
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, tv)| match tv {
+                TernaryVal::True => Some(Lit::new(idx as u32, false)),
+                TernaryVal::False => Some(Lit::new(idx as u32, true)),
+                TernaryVal::DontCare => None,
+            })
+    }
 }
 
 impl fmt::Debug for Assignment {
