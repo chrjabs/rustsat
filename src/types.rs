@@ -92,6 +92,22 @@ impl Var {
         Var { idx }
     }
 
+    /// Creates a literal with a given negation from the variable
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustsat::types::{Var,Lit};
+    /// let var = Var::new(5);
+    /// let lit = Lit::positive(5);
+    /// assert_eq!(lit, var.lit(false));
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn lit(self, negated: bool) -> Lit {
+        unsafe { Lit::new_unchecked(self.idx, negated) }
+    }
+
     /// Creates a literal that is not negated.
     ///
     /// # Examples
