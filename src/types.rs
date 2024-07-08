@@ -81,9 +81,14 @@ impl Var {
     /// Indices start from 0.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub fn new_unchecked(idx: u32) -> Var {
+    pub unsafe fn new_unchecked(idx: u32) -> Var {
+        debug_assert!(idx <= Var::MAX_IDX);
         Var { idx }
     }
 
@@ -100,7 +105,7 @@ impl Var {
     #[inline]
     #[must_use]
     pub fn pos_lit(self) -> Lit {
-        Lit::positive_unchecked(self.idx)
+        unsafe { Lit::positive_unchecked(self.idx) }
     }
 
     /// Creates a negated literal.
@@ -116,7 +121,7 @@ impl Var {
     #[inline]
     #[must_use]
     pub fn neg_lit(self) -> Lit {
-        Lit::negative_unchecked(self.idx)
+        unsafe { Lit::negative_unchecked(self.idx) }
     }
 
     /// Returns the index of the variable. This is a `usize` to enable easier
@@ -304,8 +309,13 @@ impl Lit {
     /// Creates a new (negated or not) literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[must_use]
-    pub fn new_unchecked(idx: u32, negated: bool) -> Lit {
+    pub unsafe fn new_unchecked(idx: u32, negated: bool) -> Lit {
+        debug_assert!(idx <= Var::MAX_IDX);
         Lit {
             lidx: Lit::represent(idx, negated),
         }
@@ -350,18 +360,26 @@ impl Lit {
     /// Creates a new positive literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub fn positive_unchecked(idx: u32) -> Lit {
+    pub unsafe fn positive_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, false)
     }
 
     /// Creates a new negated literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub fn negative_unchecked(idx: u32) -> Lit {
+    pub unsafe fn negative_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, true)
     }
 
@@ -415,7 +433,7 @@ impl Lit {
     #[inline]
     #[must_use]
     pub fn var(self) -> Var {
-        Var::new_unchecked(self.vidx32())
+        unsafe { Var::new_unchecked(self.vidx32()) }
     }
 
     /// True if the literal is positive.
