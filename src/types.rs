@@ -60,7 +60,7 @@ impl Var {
     /// If `idx > Var::MAX_IDX`.
     #[must_use]
     pub fn new(idx: u32) -> Var {
-        assert!(idx < Var::MAX_IDX, "variable index too high");
+        assert!(idx <= Var::MAX_IDX, "variable index too high");
         Var { idx }
     }
 
@@ -256,6 +256,15 @@ impl fmt::Display for Var {
 impl fmt::Debug for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "x{}", self.idx)
+    }
+}
+
+#[cfg(kani)]
+impl kani::Arbitrary for Var {
+    fn any() -> Self {
+        let idx = u32::any();
+        kani::assume(idx <= Var::MAX_IDX);
+        Var::new(idx)
     }
 }
 
@@ -571,6 +580,14 @@ impl fmt::Debug for Lit {
         } else {
             write!(f, "x{}", self.vidx())
         }
+    }
+}
+
+#[cfg(kani)]
+impl kani::Arbitrary for Lit {
+    fn any() -> Self {
+        let var = Var::any();
+        var.lit(bool::any())
     }
 }
 
@@ -1222,5 +1239,22 @@ mod tests {
         ]);
         let res = Assignment::from_vline(vline).unwrap();
         assert_eq!(res, ground_truth);
+    }
+}
+
+#[cfg(kani)]
+mod proofs {
+    #[kani::proof]
+    fn pos_lit() {
+        let var: super::Var = kani::any();
+        let lit = var.pos_lit();
+        assert_eq!(var, lit.var());
+    }
+
+    #[kani::proof]
+    fn neg_lit() {
+        let var: super::Var = kani::any();
+        let lit = var.neg_lit();
+        assert_eq!(var, lit.var());
     }
 }
