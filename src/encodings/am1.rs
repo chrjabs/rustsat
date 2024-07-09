@@ -32,6 +32,9 @@ pub use ladder::Ladder;
 mod bitwise;
 pub use bitwise::Bitwise;
 
+mod commander;
+pub use commander::Commander;
+
 /// Trait for all at-most-1 encodings
 pub trait Encode {
     /// Gets the number of literals in the encoding
