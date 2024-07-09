@@ -1,2 +1,9 @@
-doc-valid-idents = ["RustSAT", "CaDiCaL", "MaxSAT", "BatSat", ".."]
+doc-valid-idents = [
+  "RustSAT",
+  "CaDiCaL",
+  "MaxSAT",
+  "BatSat",
+  "AllDifferent",
+  "..",
+]
 avoid-breaking-exported-api = false
