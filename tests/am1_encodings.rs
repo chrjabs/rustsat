@@ -87,3 +87,8 @@ fn bitwise() {
 fn commander() {
     test_am1::<am1::Commander<2>>();
 }
+
+#[test]
+fn bimander() {
+    test_am1::<am1::Bimander<2>>();
+}

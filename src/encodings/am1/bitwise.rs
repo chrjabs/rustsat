@@ -47,7 +47,7 @@ impl Encode for Bitwise {
         }
         let prev_clauses = collector.n_clauses();
 
-        let p = utils::digits(self.in_lits.len(), 2);
+        let p = utils::digits(self.in_lits.len() - 1, 2);
         let aux_vars: Vec<_> = (0..p).map(|_| var_manager.new_var()).collect();
 
         let clause = |idx: usize, k: usize| {
