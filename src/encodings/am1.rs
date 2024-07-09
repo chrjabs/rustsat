@@ -29,6 +29,9 @@ pub use pairwise::Pairwise;
 mod ladder;
 pub use ladder::Ladder;
 
+mod bitwise;
+pub use bitwise::Bitwise;
+
 /// Trait for all at-most-1 encodings
 pub trait Encode {
     /// Gets the number of literals in the encoding

@@ -1,5 +1,5 @@
 use rustsat::{
-    encodings::am1::{Encode, Ladder, Pairwise},
+    encodings::am1,
     instances::{BasicVarManager, Cnf, ManageVars},
     lit,
     solvers::{
@@ -12,7 +12,7 @@ use rustsat::{
 
 use rustsat_tools::{test_all, test_assignment};
 
-fn test_am1<AM1: Encode + From<Vec<Lit>>>() {
+fn test_am1<AM1: am1::Encode + From<Vec<Lit>>>() {
     let mut solver = rustsat_minisat::core::Minisat::default();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![3]);
@@ -70,10 +70,15 @@ fn test_am1<AM1: Encode + From<Vec<Lit>>>() {
 
 #[test]
 fn pairwise() {
-    test_am1::<Pairwise>()
+    test_am1::<am1::Pairwise>()
 }
 
 #[test]
 fn ladder() {
-    test_am1::<Ladder>()
+    test_am1::<am1::Ladder>()
+}
+
+#[test]
+fn bitwise() {
+    test_am1::<am1::Bitwise>()
 }
