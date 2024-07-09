@@ -70,15 +70,20 @@ fn test_am1<AM1: am1::Encode + From<Vec<Lit>>>() {
 
 #[test]
 fn pairwise() {
-    test_am1::<am1::Pairwise>()
+    test_am1::<am1::Pairwise>();
 }
 
 #[test]
 fn ladder() {
-    test_am1::<am1::Ladder>()
+    test_am1::<am1::Ladder>();
 }
 
 #[test]
 fn bitwise() {
-    test_am1::<am1::Bitwise>()
+    test_am1::<am1::Bitwise>();
+}
+
+#[test]
+fn commander() {
+    test_am1::<am1::Commander<2>>();
 }
