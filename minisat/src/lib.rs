@@ -25,8 +25,6 @@ use thiserror::Error;
 pub mod core;
 pub mod simp;
 
-const OUT_OF_MEM: c_int = 50;
-
 /// Fatal error returned if the Minisat API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("minisat c-api returned an invalid value: {api_call} -> {value}")]
@@ -87,7 +85,7 @@ impl fmt::Display for Limit {
 macro_rules! handle_oom {
     ($val:expr) => {{
         let val = $val;
-        if val == crate::OUT_OF_MEM {
+        if val == $crate::ffi::OUT_OF_MEM {
             return anyhow::Context::context(
                 Err(rustsat::OutOfMemory::ExternalApi),
                 "minisat out of memory",
@@ -97,3 +95,10 @@ macro_rules! handle_oom {
     }};
 }
 pub(crate) use handle_oom;
+
+pub(crate) mod ffi {
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+}

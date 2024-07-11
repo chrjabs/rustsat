@@ -20,6 +20,7 @@ edition = "2021"
 [workspace.dependencies]
 anyhow = "1.0.86"
 atty = "0.2.14"
+bindgen = "0.69.4"
 bzip2 = "0.4.4"
 cc = { version = "1.0.104", features = ["parallel"] }
 chrono = "0.4.38"

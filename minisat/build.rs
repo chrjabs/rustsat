@@ -1,6 +1,9 @@
 #![warn(clippy::pedantic)]
 
-use std::{env, path::Path};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 fn main() {
     if std::env::var("DOCS_RS").is_ok() {
@@ -16,15 +19,28 @@ fn main() {
 
     println!("cargo:rerun-if-changed=cppsrc/");
 
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-flags=-l dylib=c++");
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    println!("cargo:rustc-flags=-l dylib=stdc++");
-
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
+    println!("cargo:rustc-link-lib=minisat");
+
+    // Link c++ std lib
+    // Note: this should be _after_ linking the solver itself so that it is actually pulled in
+    #[cfg(target_os = "macos")]
+    println!("cargo:rustc-link-lib=dylib=c++");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+
+    // Generate Rust FFI bindings
+    let bindings = bindgen::Builder::default()
+        .header("cppsrc/minisat/cminisat.h")
+        .allowlist_file("cppsrc/minisat/cminisat.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .generate()
+        .expect("Unable to generate ffi bindings");
+    bindings
+        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .expect("Could not write ffi bindings");
 }
 
 fn build() {

@@ -5,11 +5,7 @@
 
 use core::ffi::{c_int, CStr};
 
-use crate::handle_oom;
-
-use super::{AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
-use ffi::Glucose4Handle;
 use rustsat::{
     solvers::{
         FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
@@ -19,9 +15,11 @@ use rustsat::{
     types::{Clause, Lit, TernaryVal, Var},
 };
 
+use super::{ffi, handle_oom, AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
+
 /// The Glucose 4 solver type with preprocessing
 pub struct Glucose {
-    handle: *mut Glucose4Handle,
+    handle: *mut ffi::CGlucoseSimp4,
     state: InternalSolverState,
     stats: SolverStats,
 }
@@ -259,7 +257,7 @@ impl Interrupt for Glucose {
 /// An Interrupter for the Glucose 4 Simp solver
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut Glucose4Handle,
+    handle: *mut ffi::CGlucoseSimp4,
 }
 
 unsafe impl Send for Interrupter {}
@@ -405,43 +403,5 @@ mod test {
         assert_eq!(solver.n_learnts(), 0);
         assert_eq!(solver.n_clauses(), 9);
         assert_eq!(solver.max_var(), Some(var![9]));
-    }
-}
-
-mod ffi {
-    use core::ffi::{c_char, c_int};
-
-    #[repr(C)]
-    pub struct Glucose4Handle {
-        _private: [u8; 0],
-    }
-
-    #[link(name = "glucose4", kind = "static")]
-    extern "C" {
-        // Redefinitions of Glucose C API
-        pub fn cglucose4_signature() -> *const c_char;
-        pub fn cglucosesimp4_init() -> *mut Glucose4Handle;
-        pub fn cglucosesimp4_release(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int) -> c_int;
-        pub fn cglucosesimp4_assume(solver: *mut Glucose4Handle, lit: c_int);
-        pub fn cglucosesimp4_solve(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_phase(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucosesimp4_unphase(solver: *mut Glucose4Handle, lit: c_int);
-        pub fn cglucosesimp4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_n_learnts(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_n_vars(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucosesimp4_set_conf_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucosesimp4_set_prop_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucosesimp4_set_no_limit(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_interrupt(solver: *mut Glucose4Handle);
-        pub fn cglucosesimp4_set_frozen(solver: *mut Glucose4Handle, var: c_int, frozen: bool);
-        pub fn cglucosesimp4_is_frozen(solver: *mut Glucose4Handle, var: c_int) -> c_int;
-        pub fn cglucosesimp4_is_eliminated(solver: *mut Glucose4Handle, var: c_int) -> c_int;
-        pub fn cglucosesimp4_propagations(solver: *mut Glucose4Handle) -> u64;
-        pub fn cglucosesimp4_decisions(solver: *mut Glucose4Handle) -> u64;
-        pub fn cglucosesimp4_conflicts(solver: *mut Glucose4Handle) -> u64;
     }
 }

@@ -149,30 +149,63 @@ fn main() {
     #[cfg(all(feature = "quiet", feature = "logging"))]
     compile_error!("cannot combine cadical features quiet and logging");
 
+    let version = Version::determine();
+
     // Build C++ library
     build(
         "https://github.com/arminbiere/cadical.git",
         "master",
-        Version::determine(),
+        version,
     );
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-flags=-l dylib=c++");
-
-    #[cfg(not(target_os = "macos"))]
-    println!("cargo:rustc-flags=-l dylib=stdc++");
-
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
+    println!("cargo:rustc-link-lib=cadical");
+
+    // Link c++ std lib
+    // Note: this should be _after_ linking the solver itself so that it is actually pulled in
+    #[cfg(target_os = "macos")]
+    println!("cargo:rustc-link-lib=dylib=c++");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    println!("cargo:rustc-link-lib=dylib=stdc++");
 
     for ext in ["h", "cpp"] {
         for file in glob(&format!("cppsrc/*.{ext}")).unwrap() {
             println!("cargo::rerun-if-changed={:?}", file.unwrap());
         }
     }
+
+    // Generate Rust FFI bindings
+    let bindings = bindgen::Builder::default()
+        .clang_arg("-Icppsrc")
+        .header(format!("{out_dir}/cadical/src/ccadical.h"))
+        .allowlist_file(format!("{out_dir}/cadical/src/ccadical.h"))
+        .allowlist_file("cppsrc/ccadical_extension.h")
+        .blocklist_item("FILE")
+        .blocklist_function("ccadical_add")
+        .blocklist_function("ccadical_assume")
+        .blocklist_function("ccadical_solve")
+        .blocklist_function("ccadical_constrain")
+        .blocklist_function("ccadical_set_option")
+        .blocklist_function("ccadical_limit")
+        .blocklist_function("ccadical_trace_proof")
+        .blocklist_function("ccadical_close_proof")
+        .blocklist_function("ccadical_conclude")
+        .blocklist_function("ccadical_simplify");
+    let bindings = if version.has_flip() {
+        bindings.clang_arg("-DFLIP")
+    } else {
+        bindings
+    };
+    let bindings = bindings
+        .generate()
+        .expect("Unable to generate ffi bindings");
+    bindings
+        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .expect("Could not write ffi bindings");
 }
 
 fn build(repo: &str, branch: &str, version: Version) {

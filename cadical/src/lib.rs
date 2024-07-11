@@ -27,7 +27,6 @@ use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use cpu_time::ProcessTime;
-use ffi::CaDiCaLHandle;
 use rustsat::solvers::{
     ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn, LimitConflicts,
     LimitDecisions, PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState,
@@ -36,12 +35,10 @@ use rustsat::solvers::{
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
 
-const OUT_OF_MEM: c_int = 50;
-
 macro_rules! handle_oom {
     ($val:expr) => {{
         let val = $val;
-        if val == crate::OUT_OF_MEM {
+        if val == $crate::ffi::OUT_OF_MEM {
             return anyhow::Context::context(
                 Err(rustsat::OutOfMemory::ExternalApi),
                 "cadical out of memory",
@@ -51,7 +48,7 @@ macro_rules! handle_oom {
     }};
     ($val:expr, noanyhow) => {{
         let val = $val;
-        if val == crate::OUT_OF_MEM {
+        if val == $crate::ffi::OUT_OF_MEM {
             return Err(rustsat::OutOfMemory::ExternalApi);
         }
         val
@@ -96,7 +93,7 @@ type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
 /// The CaDiCaL solver type
 pub struct CaDiCaL<'term, 'learn> {
-    handle: *mut CaDiCaLHandle,
+    handle: *mut ffi::CCaDiCaL,
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     learner_cb: OptLearnCallbackStore<'learn>,
@@ -632,7 +629,7 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr =
-            std::ptr::from_ref(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
+            std::ptr::from_mut(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe {
             ffi::ccadical_set_terminate(self.handle, cb_ptr, Some(ffi::ccadical_terminate_cb));
         }
@@ -640,7 +637,7 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
 
     fn detach_terminator(&mut self) {
         self.terminate_cb = None;
-        unsafe { ffi::ccadical_set_terminate(self.handle, std::ptr::null(), None) }
+        unsafe { ffi::ccadical_set_terminate(self.handle, std::ptr::null_mut(), None) }
     }
 }
 
@@ -676,7 +673,7 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
     {
         self.learner_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr =
-            std::ptr::from_ref(self.learner_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
+            std::ptr::from_mut(self.learner_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe {
             ffi::ccadical_set_learn(
                 self.handle,
@@ -689,7 +686,7 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
 
     fn detach_learner(&mut self) {
         self.terminate_cb = None;
-        unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null(), 0, None) }
+        unsafe { ffi::ccadical_set_learn(self.handle, std::ptr::null_mut(), 0, None) }
     }
 }
 
@@ -705,7 +702,7 @@ impl Interrupt for CaDiCaL<'_, '_> {
 /// An Interrupter for the CaDiCaL solver
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut CaDiCaLHandle,
+    handle: *mut ffi::CCaDiCaL,
 }
 
 unsafe impl Send for Interrupter {}
@@ -1009,96 +1006,30 @@ mod test {
 }
 
 mod ffi {
-    use core::ffi::{c_char, c_int, c_void};
-    use rustsat::{solvers::ControlSignal, types::Lit};
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+
+    use core::ffi::{c_int, c_void};
     use std::slice;
+
+    use rustsat::{solvers::ControlSignal, types::Lit};
 
     use super::{LearnCallbackPtr, TermCallbackPtr};
 
-    #[repr(C)]
-    pub struct CaDiCaLHandle {
-        _private: [u8; 0],
-    }
-
-    #[link(name = "cadical", kind = "static")]
-    extern "C" {
-        // Redefinitions of CaDiCaL C API
-        pub fn ccadical_signature() -> *const c_char;
-        pub fn ccadical_init() -> *mut CaDiCaLHandle;
-        pub fn ccadical_release(solver: *mut CaDiCaLHandle);
-        pub fn ccadical_add_mem(solver: *mut CaDiCaLHandle, lit_or_zero: c_int) -> c_int;
-        pub fn ccadical_assume_mem(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
-        pub fn ccadical_solve_mem(solver: *mut CaDiCaLHandle) -> c_int;
-        pub fn ccadical_val(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
-        pub fn ccadical_failed(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
-        pub fn ccadical_set_terminate(
-            solver: *mut CaDiCaLHandle,
-            state: *const c_void,
-            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
-        );
-        pub fn ccadical_set_learn(
-            solver: *mut CaDiCaLHandle,
-            state: *const c_void,
-            max_length: c_int,
-            learn: Option<extern "C" fn(state: *const c_void, clause: *const c_int)>,
-        );
-        pub fn ccadical_constrain_mem(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
-        pub fn ccadical_constraint_failed(solver: *mut CaDiCaLHandle) -> c_int;
-        pub fn ccadical_set_option_ret(
-            solver: *mut CaDiCaLHandle,
-            name: *const c_char,
-            val: c_int,
-        ) -> bool;
-        pub fn ccadical_get_option(solver: *mut CaDiCaLHandle, name: *const c_char) -> c_int;
-        pub fn ccadical_limit_ret(
-            solver: *mut CaDiCaLHandle,
-            name: *const c_char,
-            limit: c_int,
-        ) -> bool;
-        pub fn ccadical_print_statistics(solver: *mut CaDiCaLHandle);
-        pub fn ccadical_active(solver: *mut CaDiCaLHandle) -> i64;
-        pub fn ccadical_irredundant(solver: *mut CaDiCaLHandle) -> i64;
-        pub fn ccadical_redundant(solver: *mut CaDiCaLHandle) -> i64;
-        pub fn ccadical_fixed(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
-        pub fn ccadical_terminate(solver: *mut CaDiCaLHandle);
-        pub fn ccadical_freeze(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_frozen(solver: *mut CaDiCaLHandle, lit: c_int) -> c_int;
-        pub fn ccadical_melt(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_simplify_rounds(solver: *mut CaDiCaLHandle, rounds: c_int) -> c_int;
-        pub fn ccadical_configure(solver: *mut CaDiCaLHandle, name: *const c_char) -> bool;
-        pub fn ccadical_phase(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_unphase(solver: *mut CaDiCaLHandle, lit: c_int);
-        pub fn ccadical_vars(solver: *mut CaDiCaLHandle) -> c_int;
-        pub fn ccadical_reserve(solver: *mut CaDiCaLHandle, min_max_var: c_int) -> c_int;
-        pub fn ccadical_propagations(solver: *mut CaDiCaLHandle) -> i64;
-        pub fn ccadical_decisions(solver: *mut CaDiCaLHandle) -> i64;
-        pub fn ccadical_conflicts(solver: *mut CaDiCaLHandle) -> i64;
-    }
-
-    // >= v1.5.4
-    #[cfg(all(
-        not(feature = "v1-5-3"),
-        not(feature = "v1-5-2"),
-        not(feature = "v1-5-1"),
-        not(feature = "v1-5-0")
-    ))]
-    #[link(name = "cadical", kind = "static")]
-    extern "C" {
-        pub fn ccadical_flip(solver: *mut CaDiCaLHandle, lit: c_int) -> bool;
-        pub fn ccadical_flippable(solver: *mut CaDiCaLHandle, lit: c_int) -> bool;
-    }
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
     // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn ccadical_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb = unsafe { &mut *(ptr as *mut TermCallbackPtr<'_>) };
+    pub extern "C" fn ccadical_terminate_cb(ptr: *mut c_void) -> c_int {
+        let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr<'_>>() };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
         }
     }
 
-    pub extern "C" fn ccadical_learn_cb(ptr: *const c_void, clause: *const c_int) {
-        let cb = unsafe { &mut *(ptr as *mut LearnCallbackPtr<'_>) };
+    pub extern "C" fn ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
+        let cb = unsafe { &mut *ptr.cast::<LearnCallbackPtr<'_>>() };
 
         let mut cnt = 0;
         for n in 0.. {

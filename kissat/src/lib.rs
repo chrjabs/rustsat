@@ -30,7 +30,6 @@ use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
 use cpu_time::ProcessTime;
-use ffi::KissatHandle;
 use rustsat::{
     solvers::{
         ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
@@ -74,7 +73,7 @@ type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
 
 /// The Kissat solver type
 pub struct Kissat<'term> {
-    handle: *mut KissatHandle,
+    handle: *mut ffi::kissat,
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     stats: SolverStats,
@@ -375,13 +374,13 @@ impl<'term> Terminate<'term> for Kissat<'term> {
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr =
-            std::ptr::from_ref(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
+            std::ptr::from_mut(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe { ffi::kissat_set_terminate(self.handle, cb_ptr, Some(ffi::kissat_terminate_cb)) }
     }
 
     fn detach_terminator(&mut self) {
         self.terminate_cb = None;
-        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null(), None) }
+        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null_mut(), None) }
     }
 }
 
@@ -398,7 +397,7 @@ impl Interrupt for Kissat<'_> {
 /// An Interrupter for the Kissat solver
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut KissatHandle,
+    handle: *mut ffi::kissat,
 }
 
 unsafe impl Send for Interrupter {}
@@ -495,7 +494,7 @@ pub fn panic_intead_of_abort() {
 }
 
 /// Changes Kissat's abort behaviour to call the given function instead
-pub fn call_instead_of_abort(abort: Option<extern "C" fn()>) {
+pub fn call_instead_of_abort(abort: Option<unsafe extern "C" fn()>) {
     unsafe { ffi::kissat_call_function_instead_of_abort(abort) };
 }
 
@@ -543,51 +542,21 @@ mod test {
 }
 
 mod ffi {
-    use super::TermCallbackPtr;
-    use core::ffi::{c_char, c_int, c_uint, c_void};
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+
+    use core::ffi::{c_int, c_void};
+
     use rustsat::solvers::ControlSignal;
 
-    #[repr(C)]
-    pub struct KissatHandle {
-        _private: [u8; 0],
-    }
+    use super::TermCallbackPtr;
 
-    #[link(name = "kissat", kind = "static")]
-    extern "C" {
-        // Redefinitions of Kissat API
-        pub fn kissat_signature() -> *const c_char;
-        pub fn kissat_init() -> *mut KissatHandle;
-        pub fn kissat_release(solver: *mut KissatHandle);
-        pub fn kissat_add(solver: *mut KissatHandle, lit_or_zero: c_int);
-        pub fn kissat_solve(solver: *mut KissatHandle) -> c_int;
-        pub fn kissat_value(solver: *mut KissatHandle, lit: c_int) -> c_int;
-        pub fn kissat_set_terminate(
-            solver: *mut KissatHandle,
-            state: *const c_void,
-            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
-        );
-        pub fn kissat_terminate(solver: *mut KissatHandle);
-        pub fn kissat_reserve(solver: *mut KissatHandle, max_var: c_int);
-        pub fn kissat_id() -> *const c_char;
-        pub fn kissat_version() -> *const c_char;
-        pub fn kissat_compiler() -> *const c_char;
-        pub fn kissat_set_option(
-            solver: *mut KissatHandle,
-            name: *const c_char,
-            val: c_int,
-        ) -> c_int;
-        pub fn kissat_get_option(solver: *mut KissatHandle, name: *const c_char) -> c_int;
-        pub fn kissat_set_configuration(solver: *mut KissatHandle, name: *const c_char) -> c_int;
-        pub fn kissat_set_conflict_limit(solver: *mut KissatHandle, limit: c_uint);
-        pub fn kissat_set_decision_limit(solver: *mut KissatHandle, limit: c_uint);
-        pub fn kissat_print_statistics(solver: *mut KissatHandle);
-        // This is from `error.h`
-        pub fn kissat_call_function_instead_of_abort(abort: Option<extern "C" fn()>);
-    }
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
     // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn kissat_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb = unsafe { &mut *(ptr as *mut TermCallbackPtr) };
+    pub extern "C" fn kissat_terminate_cb(ptr: *mut c_void) -> c_int {
+        let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr>() };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,

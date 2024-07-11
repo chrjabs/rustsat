@@ -3,8 +3,6 @@
 
 extern "C" {
 
-const int OUT_OF_MEM = 50;
-
 int ccadical_add_mem(CCaDiCaL *wrapper, int lit) {
   try {
     ((Wrapper *)wrapper)->solver->add(lit);

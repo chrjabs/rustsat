@@ -47,6 +47,7 @@ thiserror.workspace = true
 rustsat.workspace = true
 
 [build-dependencies]
+bindgen.workspace = true
 cc.workspace = true
 git2.workspace = true
 glob.workspace = true

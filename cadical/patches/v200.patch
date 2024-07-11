@@ -1,13 +1,14 @@
-From 4bd4976c8539ea4121d234dde135e7723f60a7d1 Mon Sep 17 00:00:00 2001
+From 42d92c89a5a5b52ed86f7549fd8a5d9392fb525e Mon Sep 17 00:00:00 2001
 From: Christoph Jabs <christoph.jabs@helsinki.fi>
-Date: Tue, 2 Jul 2024 14:23:50 +0300
+Date: Thu, 11 Jul 2024 15:52:35 +0300
 Subject: [PATCH] extend C api
 
 ---
  src/cadical.hpp  | 2 ++
  src/ccadical.cpp | 2 ++
+ src/ccadical.h   | 2 ++
  src/solver.cpp   | 2 ++
- 3 files changed, 6 insertions(+)
+ 4 files changed, 8 insertions(+)
 
 diff --git a/src/cadical.hpp b/src/cadical.hpp
 index a803292..2301c40 100644
@@ -32,6 +33,19 @@ index 88ab164..8186054 100644
  }
 +
 +#include "ccadical_extension.cpp"
+diff --git a/src/ccadical.h b/src/ccadical.h
+index 6d1b3ff..a8f1b48 100644
+--- a/src/ccadical.h
++++ b/src/ccadical.h
+@@ -60,6 +60,8 @@ int ccadical_simplify (CCaDiCaL *);
+ #define ccadical_sat ccadical_solve
+ #define ccadical_deref ccadical_val
+ 
++#include "ccadical_extension.h"
++
+ /*------------------------------------------------------------------------*/
+ #ifdef __cplusplus
+ }
 diff --git a/src/solver.cpp b/src/solver.cpp
 index e917b3c..34535c1 100644
 --- a/src/solver.cpp
