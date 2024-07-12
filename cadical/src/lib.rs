@@ -14,7 +14,7 @@
 //! ## CaDiCaL Versions
 //!
 //! CaDiCaL versions can be selected via cargo crate features.
-//! All CaDiCaL versions up to [Version 1.9.4](https://github.com/arminbiere/cadical/releases/tag/rel-1.9.4) are available.
+//! All CaDiCaL versions up to [Version 2.0.0](https://github.com/arminbiere/cadical/releases/tag/rel-2.0.0) are available.
 //! For the full list of versions and the changelog see [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
 //!
 //! Without any features selected, the newest version will be used.
@@ -34,6 +34,61 @@ use rustsat::solvers::{
 };
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
+
+mod ffi;
+
+// >= 2.0.0
+#[cfg(all(
+    not(feature = "v1-5-0"),
+    not(feature = "v1-5-1"),
+    not(feature = "v1-5-2"),
+    not(feature = "v1-5-3"),
+    not(feature = "v1-5-4"),
+    not(feature = "v1-5-5"),
+    not(feature = "v1-5-6"),
+    not(feature = "v1-6-0"),
+    not(feature = "v1-7-0"),
+    not(feature = "v1-7-1"),
+    not(feature = "v1-7-2"),
+    not(feature = "v1-7-3"),
+    not(feature = "v1-7-4"),
+    not(feature = "v1-7-5"),
+    not(feature = "v1-8-0"),
+    not(feature = "v1-9-0"),
+    not(feature = "v1-9-1"),
+    not(feature = "v1-9-2"),
+    not(feature = "v1-9-3"),
+    not(feature = "v1-9-4"),
+    not(feature = "v1-9-5"),
+    not(feature = "v2-0-0"),
+))]
+mod tracer;
+// >= 2.0.0
+#[cfg(all(
+    not(feature = "v1-5-0"),
+    not(feature = "v1-5-1"),
+    not(feature = "v1-5-2"),
+    not(feature = "v1-5-3"),
+    not(feature = "v1-5-4"),
+    not(feature = "v1-5-5"),
+    not(feature = "v1-5-6"),
+    not(feature = "v1-6-0"),
+    not(feature = "v1-7-0"),
+    not(feature = "v1-7-1"),
+    not(feature = "v1-7-2"),
+    not(feature = "v1-7-3"),
+    not(feature = "v1-7-4"),
+    not(feature = "v1-7-5"),
+    not(feature = "v1-8-0"),
+    not(feature = "v1-9-0"),
+    not(feature = "v1-9-1"),
+    not(feature = "v1-9-2"),
+    not(feature = "v1-9-3"),
+    not(feature = "v1-9-4"),
+    not(feature = "v1-9-5"),
+    not(feature = "v2-0-0"),
+))]
+pub use tracer::{ClauseId, Conclusion, TraceProof};
 
 macro_rules! handle_oom {
     ($val:expr) => {{
@@ -1002,48 +1057,5 @@ mod test {
         assert_eq!(solver.get_irredundant(), 9);
         assert_eq!(solver.get_redundant(), 0);
         assert_eq!(solver.current_lit_val(lit![0]), TernaryVal::DontCare);
-    }
-}
-
-mod ffi {
-    #![allow(non_upper_case_globals)]
-    #![allow(non_camel_case_types)]
-    #![allow(non_snake_case)]
-
-    use core::ffi::{c_int, c_void};
-    use std::slice;
-
-    use rustsat::{solvers::ControlSignal, types::Lit};
-
-    use super::{LearnCallbackPtr, TermCallbackPtr};
-
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
-    // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn ccadical_terminate_cb(ptr: *mut c_void) -> c_int {
-        let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr<'_>>() };
-        match cb() {
-            ControlSignal::Continue => 0,
-            ControlSignal::Terminate => 1,
-        }
-    }
-
-    pub extern "C" fn ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
-        let cb = unsafe { &mut *ptr.cast::<LearnCallbackPtr<'_>>() };
-
-        let mut cnt = 0;
-        for n in 0.. {
-            if unsafe { *clause.offset(n) } != 0 {
-                cnt += 1;
-            }
-        }
-        let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
-        let clause = int_slice
-            .iter()
-            .map(|il| {
-                Lit::from_ipasir(*il).expect("Invalid literal in learned clause from CaDiCaL")
-            })
-            .collect();
-        cb(clause);
     }
 }
