@@ -60,7 +60,7 @@ impl Var {
     /// If `idx > Var::MAX_IDX`.
     #[must_use]
     pub fn new(idx: u32) -> Var {
-        assert!(idx < Var::MAX_IDX, "variable index too high");
+        assert!(idx <= Var::MAX_IDX, "variable index too high");
         Var { idx }
     }
 
@@ -81,10 +81,31 @@ impl Var {
     /// Indices start from 0.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub fn new_unchecked(idx: u32) -> Var {
+    pub unsafe fn new_unchecked(idx: u32) -> Var {
+        debug_assert!(idx <= Var::MAX_IDX);
         Var { idx }
+    }
+
+    /// Creates a literal with a given negation from the variable
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustsat::types::{Var,Lit};
+    /// let var = Var::new(5);
+    /// let lit = Lit::positive(5);
+    /// assert_eq!(lit, var.lit(false));
+    /// ```
+    #[inline]
+    #[must_use]
+    pub fn lit(self, negated: bool) -> Lit {
+        unsafe { Lit::new_unchecked(self.idx, negated) }
     }
 
     /// Creates a literal that is not negated.
@@ -100,7 +121,7 @@ impl Var {
     #[inline]
     #[must_use]
     pub fn pos_lit(self) -> Lit {
-        Lit::positive_unchecked(self.idx)
+        unsafe { Lit::positive_unchecked(self.idx) }
     }
 
     /// Creates a negated literal.
@@ -116,7 +137,7 @@ impl Var {
     #[inline]
     #[must_use]
     pub fn neg_lit(self) -> Lit {
-        Lit::negative_unchecked(self.idx)
+        unsafe { Lit::negative_unchecked(self.idx) }
     }
 
     /// Returns the index of the variable. This is a `usize` to enable easier
@@ -245,6 +266,15 @@ impl pidgeons::VarLike for Var {
     }
 }
 
+#[cfg(kani)]
+impl kani::Arbitrary for Var {
+    fn any() -> Self {
+        let idx = u32::any();
+        kani::assume(idx <= Var::MAX_IDX);
+        Var::new(idx)
+    }
+}
+
 /// More easily creates variables. Mainly used in tests.
 ///
 /// # Examples
@@ -311,8 +341,13 @@ impl Lit {
     /// Creates a new (negated or not) literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[must_use]
-    pub fn new_unchecked(idx: u32, negated: bool) -> Lit {
+    pub unsafe fn new_unchecked(idx: u32, negated: bool) -> Lit {
+        debug_assert!(idx <= Var::MAX_IDX);
         Lit {
             lidx: Lit::represent(idx, negated),
         }
@@ -357,18 +392,26 @@ impl Lit {
     /// Creates a new positive literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub fn positive_unchecked(idx: u32) -> Lit {
+    pub unsafe fn positive_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, false)
     }
 
     /// Creates a new negated literal with a given index.
     /// Does not perform any check on the index, therefore might produce an inconsistent variable.
     /// Only use this for performance reasons if you are sure that `idx <= Var::MAX_IDX`.
+    ///
+    /// # Safety
+    ///
+    /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub fn negative_unchecked(idx: u32) -> Lit {
+    pub unsafe fn negative_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, true)
     }
 
@@ -422,7 +465,7 @@ impl Lit {
     #[inline]
     #[must_use]
     pub fn var(self) -> Var {
-        Var::new_unchecked(self.vidx32())
+        unsafe { Var::new_unchecked(self.vidx32()) }
     }
 
     /// True if the literal is positive.
@@ -560,6 +603,14 @@ impl From<Lit> for pidgeons::Axiom {
     }
 }
 
+#[cfg(kani)]
+impl kani::Arbitrary for Lit {
+    fn any() -> Self {
+        let var = Var::any();
+        var.lit(bool::any())
+    }
+}
+
 /// More easily creates literals. Mainly used in tests.
 ///
 /// # Examples
@@ -595,7 +646,7 @@ macro_rules! ipasir_lit {
 }
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 #[repr(u8)]
 pub enum TernaryVal {
     /// Positive assignment.
@@ -603,6 +654,7 @@ pub enum TernaryVal {
     /// Negative assignment.
     False,
     /// Formula is satisfied, no matter the assignment.
+    #[default]
     DontCare,
 }
 
@@ -787,10 +839,10 @@ impl Assignment {
     /// - Invalid solver output: [`fio::SatSolverOutputError`]
     /// - Invalid v line: [`InvalidVLine`]
     pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let reader = std::io::BufReader::new(
+        let mut reader = std::io::BufReader::new(
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?,
         );
-        let output = fio::parse_sat_solver_output(reader)?;
+        let output = fio::parse_sat_solver_output(&mut reader)?;
         match output {
             SolverOutput::Sat(solution) => Ok(solution),
             _ => anyhow::bail!("solver output does not indicate satisfiability"),
@@ -845,6 +897,27 @@ impl Assignment {
         anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
         Ok(())
     }
+
+    /// Gets an iterator over literals assigned to true
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn iter(&self) -> impl Iterator<Item = Lit> + '_ {
+        self.assignment
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, tv)| match tv {
+                TernaryVal::True => Some(Lit::new(idx as u32, false)),
+                TernaryVal::False => Some(Lit::new(idx as u32, true)),
+                TernaryVal::DontCare => None,
+            })
+    }
+}
+
+#[cfg(kani)]
+impl Assignment {
+    /// Generates a random assignment with the given number of variables
+    pub fn arbitrary(n_vars: u32) -> Self {
+        Self::from_iter((0..n_vars).map(|_| <bool as kani::Arbitrary>::any()))
+    }
 }
 
 impl fmt::Debug for Assignment {
@@ -885,6 +958,18 @@ impl FromIterator<Lit> for Assignment {
         let mut assignment = Assignment::default();
         iter.into_iter().for_each(|l| assignment.assign_lit(l));
         assignment
+    }
+}
+
+impl FromIterator<TernaryVal> for Assignment {
+    fn from_iter<T: IntoIterator<Item = TernaryVal>>(iter: T) -> Self {
+        Self::from(iter.into_iter().collect::<Vec<_>>())
+    }
+}
+
+impl FromIterator<bool> for Assignment {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        iter.into_iter().map(TernaryVal::from).collect()
     }
 }
 
@@ -1214,5 +1299,22 @@ mod tests {
         ]);
         let res = Assignment::from_vline(vline).unwrap();
         assert_eq!(res, ground_truth);
+    }
+}
+
+#[cfg(kani)]
+mod proofs {
+    #[kani::proof]
+    fn pos_lit() {
+        let var: super::Var = kani::any();
+        let lit = var.pos_lit();
+        assert_eq!(var, lit.var());
+    }
+
+    #[kani::proof]
+    fn neg_lit() {
+        let var: super::Var = kani::any();
+        let lit = var.neg_lit();
+        assert_eq!(var, lit.var());
     }
 }

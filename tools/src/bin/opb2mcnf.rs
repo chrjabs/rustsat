@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
         MultiOptInstance::from_opb_path(in_path, opb_opts)
             .context("error parsing the input file")?
     } else {
-        MultiOptInstance::from_opb(io::BufReader::new(io::stdin()), opb_opts)
+        MultiOptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
             .context("error parsing input")?
     };
 

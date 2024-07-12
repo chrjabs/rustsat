@@ -5,7 +5,7 @@ use std::{
     env,
     fs::{self, File},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     str,
 };
@@ -43,6 +43,25 @@ fn main() {
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
+    println!("cargo:rustc-link-lib=kissat");
+
+    // Generate Rust FFI bindings
+    let bindings = bindgen::Builder::default()
+        .header(format!("{out_dir}/kissat/src/kissat.h"))
+        .header(format!("{out_dir}/kissat/src/error.h"))
+        .blocklist_function("kissat_copyright")
+        .blocklist_function("kissat_build")
+        .blocklist_function("kissat_banner")
+        .blocklist_function("kissat_has_configuration")
+        .blocklist_function("kissat_error")
+        .blocklist_function("kissat_fatal")
+        .blocklist_function("kissat_fatal_message_start")
+        .blocklist_function("kissat_abort")
+        .generate()
+        .expect("Unable to generate ffi bindings");
+    bindings
+        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .expect("Could not write ffi bindings");
 }
 
 fn build(repo: &str, branch: &str, reference: &str) {

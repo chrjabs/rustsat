@@ -51,8 +51,10 @@ typedef enum MaybeError {
  *
  * # References
  *
- * - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
- * - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+ * - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
+ *     Constraints_, CP 2003.
+ * - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
+ *     Cardinality Constraints for MaxSAT_, CP 2014.
  */
 typedef struct DbTotalizer DbTotalizer;
 
@@ -68,7 +70,7 @@ typedef struct DbTotalizer DbTotalizer;
  * ## References
  *
  * - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
- *   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+ *     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
  */
 typedef struct DynamicPolyWatchdog DynamicPolyWatchdog;
 

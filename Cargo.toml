@@ -9,6 +9,7 @@ members = [
   "solvertests",
   "capi",
   "pyapi",
+  "batsat",
   "pidgeons",
 ]
 resolver = "2"
@@ -18,28 +19,29 @@ license = "MIT"
 edition = "2021"
 
 [workspace.dependencies]
-anyhow = "1.0.83"
+anyhow = "1.0.86"
 atty = "0.2.14"
+bindgen = "0.69.4"
 bzip2 = "0.4.4"
-cc = { version = "1.0.97", features = ["parallel"] }
-chrono = "0.4.31"
-clap = { version = "4.5.4", features = ["derive", "cargo"] }
+cc = { version = "1.0.104", features = ["parallel"] }
+chrono = "0.4.38"
+clap = { version = "4.5.8", features = ["derive", "cargo"] }
 cmake = "0.1.50"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
 flate2 = { version = "1.0.30", features = [
   "zlib-ng",
 ], default-features = false }
-git2 = "0.18.3"
+git2 = "0.19.0"
 glob = "0.3.1"
 itertools = "0.13.0"
 nom = "7.1.3"
 pidgeons = { version = "0.1.0", path = "./pidgeons" }
 termcolor = "1.4.1"
-thiserror = "1.0.60"
+thiserror = "1.0.61"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
-rustc-hash = "1.1.0"
+rustc-hash = "2.0.0"
 rustsat = { version = "0.5.1", path = "./", default-features = false }
 rustsat-cadical = { version = "0.3.1", path = "./cadical" }
 rustsat-minisat = { version = "0.3.1", path = "./minisat" }
@@ -71,12 +73,14 @@ bzip2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 rustc-hash = { workspace = true, optional = true }
+tempfile.workspace = true
 xz2 = { workspace = true, optional = true }
 pidgeons = { workspace = true, optional = true }
 itertools = { workspace = true, optional = true }
 
 [dev-dependencies]
-rustsat-minisat = { path = "./minisat" }
+rustsat-minisat.workspace = true
+rustsat-solvertests.workspace = true
 rustsat-tools = { path = "./tools" }
 tempfile.workspace = true
 
@@ -106,3 +110,6 @@ name = "print-lits"
 [profile.profiling]
 inherits = "release"
 debug = 1
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

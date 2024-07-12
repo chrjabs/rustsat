@@ -5,8 +5,8 @@
 //! ## References
 //!
 //! - \[1\] Jeremias Berg and Matti Järvisalo: _Cost-optimal constrained
-//! correlation clustering via weighted partial Maximum Satisfiability_, AIJ
-//! 2017.
+//!     correlation clustering via weighted partial Maximum Satisfiability_, AIJ
+//!     2017.
 
 use std::{fmt, io};
 

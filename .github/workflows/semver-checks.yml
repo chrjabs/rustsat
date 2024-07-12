@@ -43,6 +43,10 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           package: rustsat-ipasir
+      - name: BatSat
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-batsat
       - name: Pidgeons
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:

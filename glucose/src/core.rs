@@ -5,11 +5,7 @@
 
 use core::ffi::{c_int, CStr};
 
-use crate::handle_oom;
-
-use super::{InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
-use ffi::Glucose4Handle;
 use rustsat::{
     solvers::{
         GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations, PhaseLit,
@@ -18,9 +14,11 @@ use rustsat::{
     types::{Clause, Lit, TernaryVal, Var},
 };
 
+use super::{ffi, handle_oom, InternalSolverState, InvalidApiReturn, Limit};
+
 /// The Glucose 4 solver type without preprocessing
 pub struct Glucose {
-    handle: *mut Glucose4Handle,
+    handle: *mut ffi::CGlucose4,
     state: InternalSolverState,
     stats: SolverStats,
 }
@@ -247,7 +245,7 @@ impl Interrupt for Glucose {
 /// An Interrupter for the Glucose 4 Core solver
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut Glucose4Handle,
+    handle: *mut ffi::CGlucose4,
 }
 
 unsafe impl Send for Interrupter {}
@@ -376,40 +374,5 @@ mod test {
         assert_eq!(solver.n_learnts(), 0);
         assert_eq!(solver.n_clauses(), 9);
         assert_eq!(solver.max_var(), Some(var![9]));
-    }
-}
-
-mod ffi {
-    use core::ffi::{c_char, c_int};
-
-    #[repr(C)]
-    pub struct Glucose4Handle {
-        _private: [u8; 0],
-    }
-
-    #[link(name = "glucose4", kind = "static")]
-    extern "C" {
-        // Redefinitions of Glucose C API
-        pub fn cglucose4_signature() -> *const c_char;
-        pub fn cglucose4_init() -> *mut Glucose4Handle;
-        pub fn cglucose4_release(solver: *mut Glucose4Handle);
-        pub fn cglucose4_add(solver: *mut Glucose4Handle, lit_or_zero: c_int) -> c_int;
-        pub fn cglucose4_assume(solver: *mut Glucose4Handle, lit: c_int);
-        pub fn cglucose4_solve(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_val(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucose4_failed(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucose4_phase(solver: *mut Glucose4Handle, lit: c_int) -> c_int;
-        pub fn cglucose4_unphase(solver: *mut Glucose4Handle, lit: c_int);
-        pub fn cglucose4_n_assigns(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_n_clauses(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_n_learnts(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_n_vars(solver: *mut Glucose4Handle) -> c_int;
-        pub fn cglucose4_set_conf_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucose4_set_prop_limit(solver: *mut Glucose4Handle, limit: i64);
-        pub fn cglucose4_set_no_limit(solver: *mut Glucose4Handle);
-        pub fn cglucose4_interrupt(solver: *mut Glucose4Handle);
-        pub fn cglucose4_propagations(solver: *mut Glucose4Handle) -> u64;
-        pub fn cglucose4_decisions(solver: *mut Glucose4Handle) -> u64;
-        pub fn cglucose4_conflicts(solver: *mut Glucose4Handle) -> u64;
     }
 }

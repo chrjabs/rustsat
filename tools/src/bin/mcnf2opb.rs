@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
     let inst: MultiOptInstance = if let Some(in_path) = args.in_path {
         MultiOptInstance::from_dimacs_path(in_path).context("error parsing the input file")?
     } else {
-        MultiOptInstance::from_dimacs(io::BufReader::new(io::stdin()))
+        MultiOptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
             .context("error parsing input")?
     };
 

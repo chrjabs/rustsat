@@ -25,6 +25,7 @@ thiserror.workspace = true
 rustsat.workspace = true
 
 [build-dependencies]
+bindgen.workspace = true
 cmake.workspace = true
 
 [dev-dependencies]

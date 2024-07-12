@@ -233,6 +233,17 @@ impl Cnf {
     pub fn write_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
         fio::dimacs::write_cnf_annotated(writer, self, n_vars)
     }
+
+    /// Checks whether the CNF is satisfied by the given assignment
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        for clause in &self.clauses {
+            if !clause.is_sat(assign) {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl<'slf> IntoIterator for &'slf Cnf {
@@ -955,11 +966,10 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Checks whether the instance is satisfied by the given assignment
+    #[must_use]
     pub fn is_sat(&self, assign: &Assignment) -> bool {
-        for clause in &self.cnf {
-            if !clause.is_sat(assign) {
-                return false;
-            }
+        if !self.cnf.is_sat(assign) {
+            return false;
         }
         for card in &self.cards {
             if !card.is_sat(assign) {
@@ -996,7 +1006,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
         fio::dimacs::parse_cnf(reader)
     }
 
@@ -1008,9 +1018,9 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let reader =
+        let mut reader =
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
-        Instance::from_dimacs(reader)
+        Instance::from_dimacs(&mut reader)
     }
 
     /// Parses an OPB instance from a reader object.
@@ -1024,7 +1034,10 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(
+        reader: &mut R,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<Self> {
         fio::opb::parse_sat(reader, opts)
     }
 
@@ -1036,9 +1049,9 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
-        let reader =
+        let mut reader =
             fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
-        Instance::from_opb(reader, opts)
+        Instance::from_opb(&mut reader, opts)
     }
 }
 

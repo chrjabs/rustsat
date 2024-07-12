@@ -32,7 +32,8 @@ fn main() -> anyhow::Result<()> {
     let inst: SatInstance = if let Some(in_path) = args.in_path {
         SatInstance::from_dimacs_path(in_path).context("error parsing the input file")?
     } else {
-        SatInstance::from_dimacs(io::BufReader::new(io::stdin())).context("error parsing input")?
+        SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+            .context("error parsing input")?
     };
 
     if let Some(out_path) = args.out_path {

@@ -26,7 +26,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 /// # References
 ///
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
-///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[derive(Default)]
 pub struct DbGte {
     /// Input literals and weights not yet in the tree
@@ -326,7 +326,7 @@ pub mod referenced {
     /// ## References
     ///
     /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
-    ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
     pub struct Gte<'totdb> {
         /// A node connection to the root
         root: NodeCon,
@@ -342,7 +342,7 @@ pub mod referenced {
     /// ## References
     ///
     /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
-    ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
     pub struct GteCell<'totdb> {
         /// A node connection to the root
         root: NodeCon,

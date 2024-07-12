@@ -14,8 +14,7 @@ enum InitBy {
 
 impl Parse for InitBy {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let typr: syn::Result<Type> = input.parse();
-        Ok(if let Ok(typ) = typr {
+        Ok(if let syn::Result::<Type>::Ok(typ) = input.parse() {
             Self::Default(typ)
         } else {
             Self::Expr(input.parse()?)
@@ -32,12 +31,12 @@ impl ToTokens for InitBy {
     }
 }
 
-struct MacroInput {
+struct IntegrationInput {
     slv: InitBy,
     bools: Vec<bool>,
 }
 
-impl Parse for MacroInput {
+impl Parse for IntegrationInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let slv: InitBy = input.parse()?;
         if input.is_empty() {
@@ -50,10 +49,31 @@ impl Parse for MacroInput {
     }
 }
 
+struct BasicUnitInput {
+    slv: Type,
+    mt: Option<bool>,
+}
+
+impl Parse for BasicUnitInput {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let slv: Type = input.parse()?;
+        if input.is_empty() {
+            return Ok(Self { slv, mt: None });
+        }
+        let _: Token![,] = input.parse()?;
+        let mt: LitBool = input.parse()?;
+        Ok(Self {
+            slv,
+            mt: Some(mt.value),
+        })
+    }
+}
+
 #[proc_macro]
 pub fn basic_unittests(tokens: TokenStream) -> TokenStream {
-    let slv = parse_macro_input!(tokens as Type);
-    unit::basic(slv).into()
+    let input = parse_macro_input!(tokens as BasicUnitInput);
+    let mt = input.mt.unwrap_or(true);
+    unit::basic(input.slv, mt).into()
 }
 
 #[proc_macro]
@@ -76,18 +96,24 @@ pub fn freezing_unittests(tokens: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn base_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as MacroInput);
+    let input = parse_macro_input!(tokens as IntegrationInput);
     integration::base(input).into()
 }
 
 #[proc_macro]
 pub fn incremental_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as MacroInput);
+    let input = parse_macro_input!(tokens as IntegrationInput);
     integration::incremental(input).into()
 }
 
 #[proc_macro]
 pub fn phasing_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as MacroInput);
+    let input = parse_macro_input!(tokens as IntegrationInput);
     integration::phasing(input).into()
+}
+
+#[proc_macro]
+pub fn flipping_tests(tokens: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(tokens as IntegrationInput);
+    integration::flipping(input).into()
 }

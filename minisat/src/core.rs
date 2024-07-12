@@ -5,9 +5,7 @@
 
 use core::ffi::{c_int, CStr};
 
-use super::{handle_oom, InternalSolverState, InvalidApiReturn, Limit};
 use cpu_time::ProcessTime;
-use ffi::MinisatHandle;
 use rustsat::{
     solvers::{
         GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations, PhaseLit,
@@ -16,9 +14,11 @@ use rustsat::{
     types::{Clause, Lit, TernaryVal, Var},
 };
 
+use super::{ffi, handle_oom, InternalSolverState, InvalidApiReturn, Limit};
+
 /// The Minisat solver type without preprocessing
 pub struct Minisat {
-    handle: *mut MinisatHandle,
+    handle: *mut ffi::CMinisat,
     state: InternalSolverState,
     stats: SolverStats,
 }
@@ -245,7 +245,7 @@ impl Interrupt for Minisat {
 /// An Interrupter for the Minisat Core solver
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut MinisatHandle,
+    handle: *mut ffi::CMinisat,
 }
 
 unsafe impl Send for Interrupter {}
@@ -374,39 +374,5 @@ mod test {
         assert_eq!(solver.n_learnts(), 0);
         assert_eq!(solver.n_clauses(), 9);
         assert_eq!(solver.max_var(), Some(var![9]));
-    }
-}
-
-mod ffi {
-    use core::ffi::{c_char, c_int};
-
-    #[repr(C)]
-    pub struct MinisatHandle {
-        _private: [u8; 0],
-    }
-    #[link(name = "minisat", kind = "static")]
-    extern "C" {
-        // Redefinitions of Minisat C API
-        pub fn cminisat_signature() -> *const c_char;
-        pub fn cminisat_init() -> *mut MinisatHandle;
-        pub fn cminisat_release(solver: *mut MinisatHandle);
-        pub fn cminisat_add(solver: *mut MinisatHandle, lit_or_zero: c_int) -> c_int;
-        pub fn cminisat_assume(solver: *mut MinisatHandle, lit: c_int);
-        pub fn cminisat_solve(solver: *mut MinisatHandle) -> c_int;
-        pub fn cminisat_val(solver: *mut MinisatHandle, lit: c_int) -> c_int;
-        pub fn cminisat_failed(solver: *mut MinisatHandle, lit: c_int) -> c_int;
-        pub fn cminisat_phase(solver: *mut MinisatHandle, lit: c_int) -> c_int;
-        pub fn cminisat_unphase(solver: *mut MinisatHandle, lit: c_int);
-        pub fn cminisat_n_assigns(solver: *mut MinisatHandle) -> c_int;
-        pub fn cminisat_n_clauses(solver: *mut MinisatHandle) -> c_int;
-        pub fn cminisat_n_learnts(solver: *mut MinisatHandle) -> c_int;
-        pub fn cminisat_n_vars(solver: *mut MinisatHandle) -> c_int;
-        pub fn cminisat_set_conf_limit(solver: *mut MinisatHandle, limit: i64);
-        pub fn cminisat_set_prop_limit(solver: *mut MinisatHandle, limit: i64);
-        pub fn cminisat_set_no_limit(solver: *mut MinisatHandle);
-        pub fn cminisat_interrupt(solver: *mut MinisatHandle);
-        pub fn cminisat_propagations(solver: *mut MinisatHandle) -> u64;
-        pub fn cminisat_decisions(solver: *mut MinisatHandle) -> u64;
-        pub fn cminisat_conflicts(solver: *mut MinisatHandle) -> u64;
     }
 }

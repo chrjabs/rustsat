@@ -1221,6 +1221,7 @@ impl Node {
     /// Adjusts the connections of the node to draining a range of nodes. If the
     /// nodes references a nodes within the drained range, it returns that
     /// [`NodeId`] as an Error.
+    #[allow(dead_code)]
     fn drain(&mut self, range: ops::Range<NodeId>) -> Result<(), NodeId> {
         match self {
             Node::Leaf(_) | Node::Dummy => Ok(()),

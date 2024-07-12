@@ -1452,7 +1452,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
         Self::from_dimacs_with_idx(reader, 0)
     }
 
@@ -1463,7 +1463,10 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_with_idx<R: io::BufRead>(reader: R, obj_idx: usize) -> anyhow::Result<Self> {
+    pub fn from_dimacs_with_idx<R: io::BufRead>(
+        reader: &mut R,
+        obj_idx: usize,
+    ) -> anyhow::Result<Self> {
         fio::dimacs::parse_wcnf_with_idx(reader, obj_idx)
     }
 
@@ -1475,8 +1478,8 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_dimacs(reader)
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_dimacs(&mut reader)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
@@ -1490,8 +1493,8 @@ impl<VM: ManageVars + Default> Instance<VM> {
         path: P,
         obj_idx: usize,
     ) -> anyhow::Result<Self> {
-        let reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_dimacs_with_idx(reader, obj_idx)
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_dimacs_with_idx(&mut reader, obj_idx)
     }
 
     /// Parses an OPB instance from a reader object.
@@ -1505,7 +1508,10 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(
+        reader: &mut R,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<Self> {
         Self::from_opb_with_idx(reader, 0, opts)
     }
 
@@ -1517,7 +1523,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_with_idx<R: io::BufRead>(
-        reader: R,
+        reader: &mut R,
         obj_idx: usize,
         opts: fio::opb::Options,
     ) -> anyhow::Result<Self> {
@@ -1532,8 +1538,8 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
-        let reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_opb(reader, opts)
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_opb(&mut reader, opts)
     }
 
     /// Parses an OPB instance from a file path, selecting the objective with
@@ -1550,8 +1556,8 @@ impl<VM: ManageVars + Default> Instance<VM> {
         obj_idx: usize,
         opts: fio::opb::Options,
     ) -> anyhow::Result<Self> {
-        let reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_opb_with_idx(reader, obj_idx, opts)
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_opb_with_idx(&mut reader, obj_idx, opts)
     }
 }
 

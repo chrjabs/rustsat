@@ -4,8 +4,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Type;
 
-pub fn basic(slv: Type) -> TokenStream {
-    quote! {
+pub fn basic(slv: Type, multi_threaded: bool) -> TokenStream {
+    let mut ts = quote! {
         #[test]
         fn build_destroy() {
             let _solver = #slv::default();
@@ -78,47 +78,51 @@ pub fn basic(slv: Type) -> TokenStream {
                 Ok(res) => assert_eq!(res, SolverResult::Unsat),
             }
         }
+    };
+    if multi_threaded {
+        ts.extend(quote! {
+            #[test]
+            fn tiny_instance_multithreaded_sat() {
+                use std::{sync::{Arc, Mutex}, thread};
+                use rustsat::{lit, var, types::TernaryVal, solvers::{Solve, SolverResult}};
 
-        #[test]
-        fn tiny_instance_multithreaded_sat() {
-            use std::{sync::{Arc, Mutex}, thread};
-            use rustsat::{lit, var, types::TernaryVal, solvers::{Solve, SolverResult}};
+                let mutex_solver = Arc::new(Mutex::new(#slv::default()));
 
-            let mutex_solver = Arc::new(Mutex::new(#slv::default()));
+                {
+                    // Build in one thread
+                    let mut solver = mutex_solver.lock().unwrap();
+                    solver.add_binary(lit![0], !lit![1]).unwrap();
+                    solver.add_unit(lit![0]).unwrap();
+                    solver.add_binary(lit![1], !lit![2]).unwrap();
+                }
 
-            {
-                // Build in one thread
-                let mut solver = mutex_solver.lock().unwrap();
-                solver.add_binary(lit![0], !lit![1]).unwrap();
-                solver.add_unit(lit![0]).unwrap();
-                solver.add_binary(lit![1], !lit![2]).unwrap();
+                // Now in another thread
+                let s = mutex_solver.clone();
+                let ret = thread::spawn(move || {
+                    let mut solver = s.lock().unwrap();
+                    solver.solve()
+                })
+                .join()
+                .unwrap();
+                match ret {
+                    Err(e) => panic!("got error when solving: {}", e),
+                    Ok(res) => assert_eq!(res, SolverResult::Sat),
+                }
+
+                // Finally, back in the main thread
+                let ret = {
+                    let solver = mutex_solver.lock().unwrap();
+                    solver.full_solution()
+                };
+
+                match ret {
+                    Err(e) => panic!("got error when solving: {}", e),
+                    Ok(res) => assert_eq!(res.var_value(var![0]), TernaryVal::True),
+                }
             }
-
-            // Now in another thread
-            let s = mutex_solver.clone();
-            let ret = thread::spawn(move || {
-                let mut solver = s.lock().unwrap();
-                solver.solve()
-            })
-            .join()
-            .unwrap();
-            match ret {
-                Err(e) => panic!("got error when solving: {}", e),
-                Ok(res) => assert_eq!(res, SolverResult::Sat),
-            }
-
-            // Finally, back in the main thread
-            let ret = {
-                let solver = mutex_solver.lock().unwrap();
-                solver.full_solution()
-            };
-
-            match ret {
-                Err(e) => panic!("got error when solving: {}", e),
-                Ok(res) => assert_eq!(res.var_value(var![0]), TernaryVal::True),
-            }
-        }
-    }
+        });
+    };
+    ts
 }
 
 pub fn termination(slv: Type) -> TokenStream {

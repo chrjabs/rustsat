@@ -76,6 +76,28 @@
 //! - Fork used in solver crate:
 //!   [https://github.com/chrjabs/glucose4](https://github.com/chrjabs/glucose4)
 //!
+//! ### BatSat
+//!
+//! [BatSat](https://github.com/c-cube/batsat) is a SAT solver based on Minisat but fully
+//! implemented in Rust. Because it is fully implemented in Rust, it is a good choice for
+//! restricted compilation scenarios like WebAssembly. BatSat is available through the
+//! [`rustsat-batsat`](httpe://crates.io/crates/rustsat-batsat) crate.
+//!
+//! #### References
+//!
+//! - Solver interface crate:
+//!   [https://crates.io/crates/rustsat-batsat](https://crates.io/crate/rustsat-batsat)
+//! - BatSat crate:
+//!   [https://crate.io/crates/batsat](https://crates.io/crate/batsat)
+//! - BatSat repository:
+//!   [https://github.com/c-cube/batsat](https://github.com/c-cube/batsat)
+//!
+//! ### External Solvers
+//!
+//! RustSAT provides an interface for calling external solver binaries by passing them DIMACS input
+//! and parsing their output written to `<stdout>`. For more details, see the [`ExternalSolver`]
+//! type.
+//!
 //! ### IPASIR
 //!
 //! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
@@ -92,6 +114,9 @@ use crate::{
 use core::time::Duration;
 use std::fmt;
 use thiserror::Error;
+
+pub mod external;
+pub use external::Solver as ExternalSolver;
 
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
@@ -517,6 +542,8 @@ pub enum SolverState {
     Sat,
     /// The query was found unsatisfiable.
     Unsat,
+    /// Solving was terminated before a conclusion was reached
+    Unknown,
 }
 
 impl fmt::Display for SolverState {
@@ -526,6 +553,7 @@ impl fmt::Display for SolverState {
             SolverState::Input => write!(f, "INPUT"),
             SolverState::Sat => write!(f, "SAT"),
             SolverState::Unsat => write!(f, "UNSAT"),
+            SolverState::Unknown => write!(f, "UNKNOWN"),
         }
     }
 }

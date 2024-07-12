@@ -55,7 +55,7 @@ pub struct InvalidPLine(String);
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_cnf<R, VM>(reader: R) -> anyhow::Result<SatInstance<VM>>
+pub fn parse_cnf<R, VM>(reader: &mut R) -> anyhow::Result<SatInstance<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -78,7 +78,7 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_wcnf_with_idx<R, VM>(reader: R, obj_idx: usize) -> anyhow::Result<OptInstance<VM>>
+pub fn parse_wcnf_with_idx<R, VM>(reader: &mut R, obj_idx: usize) -> anyhow::Result<OptInstance<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -103,7 +103,7 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_mcnf<R, VM>(reader: R) -> anyhow::Result<MultiOptInstance<VM>>
+pub fn parse_mcnf<R, VM>(reader: &mut R) -> anyhow::Result<MultiOptInstance<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -136,12 +136,12 @@ enum Preamble {
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_dimacs<R, VM>(reader: R) -> anyhow::Result<BodyContent<VM>>
+fn parse_dimacs<R, VM>(reader: &mut R) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
 {
-    let (reader, preamble) = parse_preamble(reader)?;
+    let preamble = parse_preamble(reader)?;
     let content = match preamble {
         Preamble::Cnf {
             n_vars: _,    // Intentionally ignored (lean acceptance)
@@ -164,7 +164,7 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
+fn parse_preamble<R: BufRead>(reader: &mut R) -> anyhow::Result<Preamble> {
     let mut buf = String::new();
     while reader.read_line(&mut buf)? > 0 {
         if buf.starts_with('c') || buf.trim().is_empty() {
@@ -172,16 +172,16 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
             continue;
         }
         if buf.starts_with('p') {
-            let (_, preamble) = parse_p_line(&buf)
-                .map_err(nom::Err::<NomError<&str>>::to_owned)
-                .with_context(|| format!("failed to parse p line '{buf}'"))?;
-            return Ok((reader, preamble));
+            let Ok((_, preamble)) = parse_p_line(&buf) else {
+                return Err(InvalidPLine(buf).into());
+            };
+            return Ok(preamble);
         }
         break;
     }
     #[cfg(feature = "optimization")]
     {
-        Ok((reader, Preamble::NoPLine { first_line: buf }))
+        Ok(Preamble::NoPLine { first_line: buf })
     }
     #[cfg(not(feature = "optimization"))]
     {
@@ -194,7 +194,7 @@ fn parse_preamble<R: BufRead>(mut reader: R) -> anyhow::Result<(R, Preamble)> {
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_cnf_body<R, VM>(mut reader: R) -> anyhow::Result<BodyContent<VM>>
+fn parse_cnf_body<R, VM>(reader: &mut R) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -226,7 +226,7 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_wcnf_pre22_body<R, VM>(mut reader: R, top: usize) -> anyhow::Result<BodyContent<VM>>
+fn parse_wcnf_pre22_body<R, VM>(reader: &mut R, top: usize) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -259,7 +259,7 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_no_pline_body<R, VM>(mut reader: R, first_line: &str) -> anyhow::Result<BodyContent<VM>>
+fn parse_no_pline_body<R, VM>(reader: &mut R, first_line: &str) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -507,7 +507,7 @@ pub fn write_cnf_annotated<W: Write>(
     n_vars: u32,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
-    writeln!(writer, "p cnf {} {}", n_vars, cnf.len())?;
+    writeln!(writer, "p cnf {n_vars} {}", cnf.len())?;
     cnf.iter().try_for_each(|cl| write_clause(writer, cl))?;
     writer.flush()
 }
@@ -939,12 +939,9 @@ mod tests {
     #[test]
     fn parse_cnf_preamble() {
         let data = "c test\np cnf 5 2\n1 2 0";
-        let reader = Cursor::new(data);
-
-        let (_, preamble) = parse_preamble(reader).unwrap();
 
         assert_eq!(
-            preamble,
+            parse_preamble(&mut Cursor::new(data)).unwrap(),
             Preamble::Cnf {
                 n_vars: 5,
                 n_clauses: 2,
@@ -956,12 +953,9 @@ mod tests {
     #[test]
     fn parse_wcnf_pre22_preamble() {
         let data = "c test\np wcnf 5 2 10\n1 2 0";
-        let reader = Cursor::new(data);
-
-        let (_, preamble) = parse_preamble(reader).unwrap();
 
         assert_eq!(
-            preamble,
+            parse_preamble(&mut Cursor::new(data)).unwrap(),
             Preamble::WcnfPre22 {
                 n_vars: 5,
                 n_clauses: 2,
@@ -974,12 +968,9 @@ mod tests {
     #[test]
     fn parse_wcnf_post22_preamble() {
         let data = "c test\nh 5 2 0\n1 2 0";
-        let reader = Cursor::new(data);
-
-        let (_, preamble) = parse_preamble(reader).unwrap();
 
         assert_eq!(
-            preamble,
+            parse_preamble(&mut Cursor::new(data)).unwrap(),
             Preamble::NoPLine {
                 first_line: String::from("h 5 2 0\n"),
             }
@@ -990,12 +981,9 @@ mod tests {
     #[test]
     fn parse_mcnf_preamble() {
         let data = "c test\no1 2 0\nh 5 2 0";
-        let reader = Cursor::new(data);
-
-        let (_, preamble) = parse_preamble(reader).unwrap();
 
         assert_eq!(
-            preamble,
+            parse_preamble(&mut Cursor::new(data)).unwrap(),
             Preamble::NoPLine {
                 first_line: String::from("o1 2 0\n")
             }
@@ -1005,9 +993,8 @@ mod tests {
     #[test]
     fn parse_cnf_body_pass() {
         let data = "1 2 0\n-3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_cnf_body(reader).unwrap();
+        let parsed_inst = parse_cnf_body(&mut Cursor::new(data)).unwrap();
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -1023,9 +1010,8 @@ mod tests {
     #[test]
     fn parse_wcnf_pre22_body_pass() {
         let data = "42 1 2 0\n10 -3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_wcnf_pre22_body(reader, 42).unwrap();
+        let parsed_inst = parse_wcnf_pre22_body(&mut Cursor::new(data), 42).unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1039,9 +1025,8 @@ mod tests {
     #[test]
     fn parse_wcnf_post22_body_pass() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_no_pline_body(reader, "c test").unwrap();
+        let parsed_inst = parse_no_pline_body(&mut Cursor::new(data), "c test").unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1055,9 +1040,8 @@ mod tests {
     #[test]
     fn parse_mcnf_body_pass() {
         let data = "h 1 2 0\no2 10 -3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_no_pline_body(reader, "c test\n").unwrap();
+        let parsed_inst = parse_no_pline_body(&mut Cursor::new(data), "c test\n").unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1073,9 +1057,8 @@ mod tests {
     #[test]
     fn parse_cnf() {
         let data = "p cnf 5 2\n1 2 0\n-3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -1091,9 +1074,8 @@ mod tests {
     #[test]
     fn parse_wcnf_pre22() {
         let data = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1107,9 +1089,8 @@ mod tests {
     #[test]
     fn parse_wcnf_post22() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1123,9 +1104,8 @@ mod tests {
     #[test]
     fn parse_mcnf() {
         let data = "c test\nh 1 2 0\no2 10 -3 4 5 0\no1 3 -1 0\n";
-        let reader = Cursor::new(data);
 
-        let parsed_inst = parse_dimacs(reader).unwrap();
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj0 = Objective::new();
@@ -1149,7 +1129,7 @@ mod tests {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst: SatInstance = super::parse_cnf(cursor).unwrap();
+        let parsed_inst: SatInstance = super::parse_cnf(&mut cursor).unwrap();
         let (parsed_cnf, _) = parsed_inst.into_cnf();
 
         assert_eq!(parsed_cnf, true_cnf);
@@ -1176,7 +1156,7 @@ mod tests {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst = super::parse_wcnf_with_idx(cursor, 0).unwrap();
+        let parsed_inst = super::parse_wcnf_with_idx(&mut cursor, 0).unwrap();
 
         assert_eq!(parsed_inst, OptInstance::compose(true_constrs, true_obj));
     }
@@ -1209,7 +1189,7 @@ mod tests {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst = super::parse_mcnf(cursor).unwrap();
+        let parsed_inst = super::parse_mcnf(&mut cursor).unwrap();
 
         assert_eq!(
             parsed_inst,

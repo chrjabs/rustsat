@@ -502,7 +502,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: R) -> anyhow::Result<Self> {
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
         fio::dimacs::parse_mcnf(reader)
     }
 
@@ -513,8 +513,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_dimacs(reader)
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_dimacs(&mut reader)
     }
 
     /// Parses an OPB instance from a reader object.
@@ -529,7 +529,10 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb<R: io::BufRead>(reader: R, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb<R: io::BufRead>(
+        reader: &mut R,
+        opts: fio::opb::Options,
+    ) -> anyhow::Result<Self> {
         fio::opb::parse_multi_opt(reader, opts)
     }
 
@@ -541,8 +544,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
     pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
-        let reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_opb(reader, opts)
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        Self::from_opb(&mut reader, opts)
     }
 }
 
