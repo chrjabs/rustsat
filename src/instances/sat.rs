@@ -233,6 +233,17 @@ impl Cnf {
     pub fn write_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
         fio::dimacs::write_cnf_annotated(writer, self, n_vars)
     }
+
+    /// Checks whether the CNF is satisfied by the given assignment
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        for clause in &self.clauses {
+            if !clause.is_sat(assign) {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl<'slf> IntoIterator for &'slf Cnf {
@@ -955,11 +966,10 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Checks whether the instance is satisfied by the given assignment
+    #[must_use]
     pub fn is_sat(&self, assign: &Assignment) -> bool {
-        for clause in &self.cnf {
-            if !clause.is_sat(assign) {
-                return false;
-            }
+        if !self.cnf.is_sat(assign) {
+            return false;
         }
         for card in &self.cards {
             if !card.is_sat(assign) {

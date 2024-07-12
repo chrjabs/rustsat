@@ -879,6 +879,7 @@ impl Assignment {
     }
 
     /// Gets an iterator over literals assigned to true
+    #[allow(clippy::cast_possible_truncation)]
     pub fn iter(&self) -> impl Iterator<Item = Lit> + '_ {
         self.assignment
             .iter()
@@ -888,6 +889,14 @@ impl Assignment {
                 TernaryVal::False => Some(Lit::new(idx as u32, true)),
                 TernaryVal::DontCare => None,
             })
+    }
+}
+
+#[cfg(kani)]
+impl Assignment {
+    /// Generates a random assignment with the given number of variables
+    pub fn arbitrary(n_vars: u32) -> Self {
+        Self::from_iter((0..n_vars).map(|_| <bool as kani::Arbitrary>::any()))
     }
 }
 
@@ -929,6 +938,18 @@ impl FromIterator<Lit> for Assignment {
         let mut assignment = Assignment::default();
         iter.into_iter().for_each(|l| assignment.assign_lit(l));
         assignment
+    }
+}
+
+impl FromIterator<TernaryVal> for Assignment {
+    fn from_iter<T: IntoIterator<Item = TernaryVal>>(iter: T) -> Self {
+        Self::from(iter.into_iter().collect::<Vec<_>>())
+    }
+}
+
+impl FromIterator<bool> for Assignment {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        iter.into_iter().map(TernaryVal::from).collect()
     }
 }
 
