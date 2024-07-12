@@ -201,12 +201,10 @@ pub mod encodings {
         /// If the passed `lit` is an invalid IPASIR literal
         #[no_mangle]
         pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeError {
-            let mut boxed = unsafe { Box::from_raw(tot) };
             let Ok(lit) = Lit::from_ipasir(lit) else {
                 return MaybeError::InvalidLiteral;
             };
-            boxed.extend([lit]);
-            Box::into_raw(boxed);
+            unsafe { (*tot).extend([lit]) };
             MaybeError::Ok
         }
 
@@ -242,11 +240,10 @@ pub mod encodings {
             assert!(min_bound <= max_bound);
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
-            let mut boxed = unsafe { Box::from_raw(tot) };
-            boxed
-                .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
-                .expect("clause collector returned out of memory");
-            Box::into_raw(boxed);
+            unsafe {
+                (*tot).encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+            }
+            .expect("clause collector returned out of memory");
         }
 
         /// Returns an assumption/unit for enforcing an upper bound (`sum of
@@ -264,17 +261,14 @@ pub mod encodings {
             ub: usize,
             assump: &mut c_int,
         ) -> MaybeError {
-            let boxed = unsafe { Box::from_raw(tot) };
-            let ret = match boxed.enforce_ub(ub) {
+            match unsafe { (*tot).enforce_ub(ub) } {
                 Ok(assumps) => {
                     debug_assert_eq!(assumps.len(), 1);
                     *assump = assumps[0].to_ipasir();
                     MaybeError::Ok
                 }
                 Err(err) => err.into(),
-            };
-            Box::into_raw(boxed);
-            ret
+            }
         }
 
         /// Frees the memory associated with a [`DbTotalizer`]
@@ -379,13 +373,10 @@ pub mod encodings {
             lit: c_int,
             weight: usize,
         ) -> MaybeError {
-            let mut boxed = unsafe { Box::from_raw(dpw) };
             let Ok(lit) = Lit::from_ipasir(lit) else {
                 return MaybeError::InvalidLiteral;
             };
-            let res = boxed.add_input(lit, weight);
-            Box::into_raw(boxed);
-            if res.is_ok() {
+            if unsafe { (*dpw).add_input(lit, weight) }.is_ok() {
                 MaybeError::Ok
             } else {
                 MaybeError::InvalidState
@@ -425,11 +416,10 @@ pub mod encodings {
             assert!(min_bound <= max_bound);
             let mut collector = ClauseCollector::new(collector, collector_data);
             let mut var_manager = VarManager::new(n_vars_used);
-            let mut boxed = unsafe { Box::from_raw(dpw) };
-            boxed
-                .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
-                .expect("clause collector returned out of memory");
-            Box::into_raw(boxed);
+            unsafe {
+                (*dpw).encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+            }
+            .expect("clause collector returned out of memory");
         }
 
         /// Returns assumptions/units for enforcing an upper bound (`sum of lits
@@ -452,8 +442,7 @@ pub mod encodings {
             collector: CAssumpCollector,
             collector_data: *mut c_void,
         ) -> MaybeError {
-            let boxed = unsafe { Box::from_raw(dpw) };
-            let ret = match boxed.enforce_ub(ub) {
+            match unsafe { (*dpw).enforce_ub(ub) } {
                 Ok(assumps) => {
                     for l in assumps {
                         collector(l.to_ipasir(), collector_data);
@@ -461,9 +450,7 @@ pub mod encodings {
                     MaybeError::Ok
                 }
                 Err(err) => err.into(),
-            };
-            Box::into_raw(boxed);
-            ret
+            }
         }
 
         /// Gets the next smaller upper bound value that can be encoded without
@@ -475,10 +462,7 @@ pub mod encodings {
         /// not yet been called on.
         #[no_mangle]
         pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {
-            let boxed = unsafe { Box::from_raw(dpw) };
-            let ret = boxed.coarse_ub(ub);
-            Box::into_raw(boxed);
-            ret
+            unsafe { (*dpw).coarse_ub(ub) }
         }
 
         /// Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
@@ -502,10 +486,7 @@ pub mod encodings {
             dpw: *mut DynamicPolyWatchdog,
             divisor: usize,
         ) -> MaybeError {
-            let mut boxed = unsafe { Box::from_raw(dpw) };
-            let ret = boxed.set_precision(divisor).into();
-            Box::into_raw(boxed);
-            ret
+            unsafe { (*dpw).set_precision(divisor) }.into()
         }
 
         /// Gets the next possible precision divisor value
@@ -521,10 +502,7 @@ pub mod encodings {
         /// not yet been called on.
         #[no_mangle]
         pub unsafe extern "C" fn dpw_next_precision(dpw: *mut DynamicPolyWatchdog) -> usize {
-            let boxed = unsafe { Box::from_raw(dpw) };
-            let ret = boxed.next_precision();
-            Box::into_raw(boxed);
-            ret
+            unsafe { (*dpw).next_precision() }
         }
 
         /// Checks whether the encoding is already at the maximum precision
@@ -535,10 +513,7 @@ pub mod encodings {
         /// not yet been called on.
         #[no_mangle]
         pub unsafe extern "C" fn dpw_is_max_precision(dpw: *mut DynamicPolyWatchdog) -> bool {
-            let boxed = unsafe { Box::from_raw(dpw) };
-            let ret = boxed.is_max_precision();
-            Box::into_raw(boxed);
-            ret
+            unsafe { (*dpw).is_max_precision() }
         }
 
         /// Given a range of output values to limit the encoding to, returns additional clauses that
@@ -575,11 +550,8 @@ pub mod encodings {
         ) {
             assert!(min_value <= max_value);
             let mut collector = ClauseCollector::new(collector, collector_data);
-            let boxed = unsafe { Box::from_raw(dpw) };
-            boxed
-                .limit_range(min_value..=max_value, &mut collector)
+            unsafe { (*dpw).limit_range(min_value..=max_value, &mut collector) }
                 .expect("clause collector returned out of memory");
-            Box::into_raw(boxed);
         }
 
         /// Frees the memory associated with a [`DynamicPolyWatchdog`]
