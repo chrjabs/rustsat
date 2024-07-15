@@ -21,6 +21,76 @@ fn con_idx(idx: usize, con: NodeCon) -> usize {
     con.rev_map(idx + 1) - 1
 }
 
+/// Helper to get a slice of the output literals of a given unweighted node
+macro_rules! get_lit_slice {
+    ($self:expr, $id:expr, $buf:expr) => {{
+        match &$self.nodes[$id.0] {
+            Node::Leaf(lit) => {
+                $buf = LitData::new_lit(*lit);
+                std::slice::from_ref(&$buf)
+            }
+            Node::Unit(UnitNode { lits, .. }) => lits,
+            Node::General(_) | Node::Dummy => unreachable!(),
+        }
+    }};
+}
+
+/// Helper to get and store semantic definitions for proof logging. This is in a macro to not
+/// borrow all of self as mutable
+#[cfg(feature = "proof-logging")]
+macro_rules! get_semantics {
+    ($self:expr, $id:expr, $val:expr, $leafs:expr, $typ:expr, $proof:expr) => {
+        'semantics: {
+            use crate::types::constraints::CardConstraint;
+            use pidgeons::VarLike;
+
+            #[allow(clippy::int_plus_one)]
+            {
+                debug_assert!($val <= $self[$id].len() + 1);
+            }
+            if let Some(def) = $self.semantic_defs.get(&($id, $val, $typ)) {
+                break 'semantics (*def).into();
+            }
+            if $self[$id].is_leaf() {
+                if $val == 0 {
+                    let olit = *$self[$id].lit(1).unwrap();
+                    break 'semantics olit.into();
+                }
+                break 'semantics SemDefinition::None;
+            }
+            let sem = CardConstraint::new_lb($leafs.iter().copied(), $val);
+            let def = if $val == 0 {
+                match $typ {
+                    SemDefTyp::If => panic!("If semantic with `val=0` is undefined"),
+                    SemDefTyp::OnlyIf => $proof.redundant(&sem, &[])?,
+                }
+            } else if $val > $self[$id].len() {
+                match $typ {
+                    SemDefTyp::If => $proof
+                        .redundant(&CardConstraint::new_lb($leafs.iter().map(|l| !*l), 0), &[])?,
+                    SemDefTyp::OnlyIf => {
+                        panic!("Only if semantic with `val=|X|+1` is undefined")
+                    }
+                }
+            } else {
+                let olit = *$self[$id].lit($val).unwrap();
+                match $typ {
+                    SemDefTyp::If => $proof.redundant(
+                        &atomics::card_impl_lit(&sem, olit),
+                        &[olit.var().substitute_fixed(true)],
+                    )?,
+                    SemDefTyp::OnlyIf => $proof.redundant(
+                        &atomics::lit_impl_card(olit, &sem),
+                        &[olit.var().substitute_fixed(false)],
+                    )?,
+                }
+            };
+            $self.semantic_defs.insert(($id, $val, $typ), def);
+            def.into()
+        }
+    };
+}
+
 /// A totalizer database
 #[derive(Default, Clone)]
 pub struct Db {
@@ -186,7 +256,6 @@ impl Db {
                     return Ok(None);
                 }
 
-                debug_assert!(val <= node.max_val);
                 debug_assert!(node.lits.contains_key(&val));
 
                 let lcon = node.left;
@@ -254,60 +323,6 @@ impl Db {
             }
             Node::Dummy => Ok(None),
         }
-    }
-
-    /// Stores the constraint IDs of the semantic definitions of an output literal
-    #[cfg(feature = "proof-logging")]
-    fn get_semantics<W: std::io::Write>(
-        &mut self,
-        id: NodeId,
-        val: usize,
-        leafs: &[Lit],
-        typ: SemDefTyp,
-        proof: &mut pidgeons::Proof<W>,
-    ) -> std::io::Result<SemDefinition> {
-        use crate::types::constraints::CardConstraint;
-        use pidgeons::VarLike;
-
-        debug_assert!(val <= self[id].len() + 1);
-        Ok(if let Some(def) = self.semantic_defs.get(&(id, val, typ)) {
-            (*def).into()
-        } else {
-            if self[id].is_leaf() {
-                if val == 0 {
-                    let olit = *self[id].lit(1).unwrap();
-                    return Ok(olit.into());
-                }
-                return Ok(SemDefinition::None);
-            }
-            let sem = CardConstraint::new_lb(leafs.iter().copied(), val);
-            let def = if val == 0 {
-                match typ {
-                    SemDefTyp::If => panic!("If semantic with `val=0` is undefined"),
-                    SemDefTyp::OnlyIf => proof.redundant(&sem, &[])?,
-                }
-            } else if val > self[id].len() {
-                match typ {
-                    SemDefTyp::If => proof
-                        .redundant(&CardConstraint::new_lb(leafs.iter().map(|l| !*l), 0), &[])?,
-                    SemDefTyp::OnlyIf => panic!("Only if semantic with `val=|X|+1` is undefined"),
-                }
-            } else {
-                let olit = *self[id].lit(val).unwrap();
-                match typ {
-                    SemDefTyp::If => proof.redundant(
-                        &atomics::card_impl_lit(&sem, olit),
-                        &[olit.var().substitute_fixed(true)],
-                    )?,
-                    SemDefTyp::OnlyIf => proof.redundant(
-                        &atomics::lit_impl_card(olit, &sem),
-                        &[olit.var().substitute_fixed(false)],
-                    )?,
-                }
-            };
-            self.semantic_defs.insert((id, val, typ), def);
-            def.into()
-        })
     }
 
     /// First step of [`Self::define_pos_tot`]: checks preconditions and potentially returns
@@ -469,7 +484,7 @@ impl Db {
         }
     }
 
-    /// Last step of [`Self::define_pos_tot`]
+    /// Last step of [`Self::define_unweighted`]
     ///
     /// # Panics
     ///
@@ -496,23 +511,9 @@ impl Db {
 
         // Get lit slices of children
         let l_tmp_olit;
-        let llits = match &self[pre.lcon.id] {
-            Node::Leaf(lit) => {
-                l_tmp_olit = LitData::new_lit(*lit);
-                std::slice::from_ref(&l_tmp_olit)
-            }
-            Node::Unit(UnitNode { lits, .. }) => lits,
-            Node::General(_) | Node::Dummy => unreachable!(),
-        };
+        let llits = get_lit_slice!(self, pre.lcon.id, l_tmp_olit);
         let r_tmp_olit;
-        let rlits = match &self[pre.rcon.id] {
-            Node::Leaf(lit) => {
-                r_tmp_olit = LitData::new_lit(*lit);
-                std::slice::from_ref(&r_tmp_olit)
-            }
-            Node::Unit(UnitNode { lits, .. }) => lits,
-            Node::General(_) | Node::Dummy => unreachable!(),
-        };
+        let rlits = get_lit_slice!(self, pre.rcon.id, r_tmp_olit);
 
         // Encode
         // If semantics
@@ -606,7 +607,7 @@ impl Db {
     }
 
     #[cfg(feature = "proof-logging")]
-    /// Recursion for unweighted totalizer encoding
+    /// Recursion for unweighted totalizer encoding with certificate
     fn recurse_unweighted_cert<Col, W>(
         &mut self,
         pre: &PrecondResult,
@@ -616,7 +617,7 @@ impl Db {
         leafs: &mut [Lit],
     ) -> anyhow::Result<()>
     where
-        Col: CollectClauses,
+        Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
         let (left_leafs, right_leafs) = leafs.split_at_mut(self.con_len(pre.lcon));
@@ -679,6 +680,121 @@ impl Db {
         Ok(())
     }
 
+    /// Last step of [`Self::define_unweighted_cert`]
+    ///
+    /// # Panics
+    ///
+    /// If the semantics are already encoded.
+    #[cfg(feature = "proof-logging")]
+    #[allow(clippy::too_many_arguments)]
+    fn encode_unweighted_cert<W, Col>(
+        &mut self,
+        id: NodeId,
+        idx: usize,
+        olit: Lit,
+        req_semantics: Semantics,
+        pre: &PrecondResult,
+        collector: &mut Col,
+        proof: &mut pidgeons::Proof<W>,
+        leafs: &mut [Lit],
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+    {
+        use pidgeons::OperationLike;
+
+        // Store what part of the encoding we need to build
+        let new_semantics = self[id].unit().lits[idx]
+            .missing_semantics(req_semantics)
+            .expect("semantics are already encoded");
+
+        // Mark positive literal as encoded (done first to avoid borrow checker problems)
+        self[id].mut_unit().lits[idx].add_semantics(req_semantics);
+
+        // Get lit slices of children
+        let l_tmp_olit;
+        let llits = get_lit_slice!(self, pre.lcon.id, l_tmp_olit);
+        let r_tmp_olit;
+        let rlits = get_lit_slice!(self, pre.rcon.id, r_tmp_olit);
+
+        let (left_leafs, right_leafs) = leafs.split_at(self.con_len(pre.lcon));
+
+        // Encode
+        // If semantics
+        for lval in pre.left_if.clone() {
+            let rval = idx + 1 - lval;
+            debug_assert!(pre.right_if.contains(&rval));
+            debug_assert!(new_semantics.has_if());
+            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut nlits = 0;
+            if lval > 0 {
+                lhs[nlits] = *unreachable_none!(llits[con_idx(lval - 1, pre.lcon)].lit());
+                nlits += 1;
+            }
+            if rval > 0 {
+                lhs[nlits] = *unreachable_none!(rlits[con_idx(rval - 1, pre.rcon)].lit());
+                nlits += 1;
+            }
+            let left_def = get_semantics!(
+                self,
+                pre.lcon.id,
+                pre.lcon.rev_map(lval),
+                left_leafs,
+                SemDefTyp::OnlyIf,
+                proof
+            );
+            let right_def = get_semantics!(
+                self,
+                pre.rcon.id,
+                pre.rcon.rev_map(rval),
+                right_leafs,
+                SemDefTyp::OnlyIf,
+                proof
+            );
+            let this_def = get_semantics!(self, id, idx + 1, leafs, SemDefTyp::If, proof);
+            let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
+            collector.add_cert_clause(atomics::cube_impl_lit(&lhs[..nlits], olit), id)?;
+        }
+        // Only if semantics
+        for lval in pre.left_only_if.clone() {
+            let rval = idx - lval;
+            debug_assert!(pre.right_only_if.contains(&rval));
+            debug_assert!(new_semantics.has_only_if());
+            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut nlits = 0;
+            if lval < self.con_len(pre.lcon) {
+                lhs[nlits] = !*unreachable_none!(llits[con_idx(lval, pre.lcon)].lit());
+                nlits += 1;
+            }
+            if rval < self.con_len(pre.rcon) {
+                lhs[nlits] = !*unreachable_none!(rlits[con_idx(rval, pre.rcon)].lit());
+                nlits += 1;
+            }
+            let left_def = get_semantics!(
+                self,
+                pre.lcon.id,
+                pre.lcon.rev_map(lval + 1),
+                left_leafs,
+                SemDefTyp::If,
+                proof
+            );
+            let right_def = get_semantics!(
+                self,
+                pre.rcon.id,
+                pre.rcon.rev_map(rval + 1),
+                right_leafs,
+                SemDefTyp::If,
+                proof
+            );
+            let this_def = get_semantics!(self, id, idx + 1, leafs, SemDefTyp::OnlyIf, proof);
+            let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
+            collector.add_cert_clause(atomics::cube_impl_lit(&lhs[..nlits], !olit), id)?;
+        }
+
+        Ok(())
+    }
+
     /// Defines a positive output, assuming that the structure is a non-weighted totalizer, and
     /// certifies its derivation in the provided proof
     ///
@@ -694,6 +810,7 @@ impl Db {
     /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
     /// - If writing the proof fails, returns [`std::io::Error`]
     #[cfg(feature = "proof-logging")]
+    #[allow(clippy::too_many_arguments)]
     pub fn define_unweighted_cert<Col, W>(
         &mut self,
         id: NodeId,
@@ -705,11 +822,9 @@ impl Db {
         leafs: &mut [Lit],
     ) -> anyhow::Result<Lit>
     where
-        Col: CollectClauses,
+        Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
-        use pidgeons::OperationLike;
-
         debug_assert_eq!(leafs.len(), self[id].len());
 
         let pre = match self.precond_unweighted(id, idx, semantics) {
@@ -729,56 +844,13 @@ impl Db {
         };
 
         // Encode children (recurse)
-        let left_len = self.con_len(pre.lcon);
         self.recurse_unweighted_cert(&pre, collector, var_manager, proof, leafs)?;
 
         // Reserve variable for this node, if needed
         let olit = self.get_olit(id, idx, var_manager);
 
         // Encode this node
-        self.encode_unweighted(id, idx, olit, semantics, &pre, collector)?;
-
-        // Derive clauses in proof (in the same order that they were yielded)
-        for lval in pre.left_if.clone() {
-            let rval = idx + 1 - lval;
-            let (left_leafs, right_leafs) = leafs.split_at(left_len);
-            let left_def = self.get_semantics(
-                pre.lcon.id,
-                pre.lcon.rev_map(lval),
-                left_leafs,
-                SemDefTyp::OnlyIf,
-                proof,
-            )?;
-            let right_def = self.get_semantics(
-                pre.rcon.id,
-                pre.rcon.rev_map(rval),
-                right_leafs,
-                SemDefTyp::OnlyIf,
-                proof,
-            )?;
-            let this_def = self.get_semantics(id, idx + 1, leafs, SemDefTyp::If, proof)?;
-            proof.operations(&(this_def + left_def + right_def).saturate())?;
-        }
-        for lval in pre.left_only_if.clone() {
-            let rval = idx - lval;
-            let (left_leafs, right_leafs) = leafs.split_at(left_len);
-            let left_def = self.get_semantics(
-                pre.lcon.id,
-                pre.lcon.rev_map(lval + 1),
-                left_leafs,
-                SemDefTyp::If,
-                proof,
-            )?;
-            let right_def = self.get_semantics(
-                pre.rcon.id,
-                pre.rcon.rev_map(rval + 1),
-                right_leafs,
-                SemDefTyp::If,
-                proof,
-            )?;
-            let this_def = self.get_semantics(id, idx + 1, leafs, SemDefTyp::OnlyIf, proof)?;
-            proof.operations(&(this_def + left_def + right_def).saturate())?;
-        }
+        self.encode_unweighted_cert(id, idx, olit, semantics, &pre, collector, proof, leafs)?;
 
         Ok(olit)
     }

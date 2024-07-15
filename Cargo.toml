@@ -85,7 +85,7 @@ rustsat-tools = { path = "./tools" }
 tempfile.workspace = true
 
 [features]
-default = ["optimization", "fxhash"]
+default = ["optimization", "fxhash", "proof-logging"]
 internals = []
 fxhash = ["dep:rustc-hash"]
 optimization = []

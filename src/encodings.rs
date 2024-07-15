@@ -34,6 +34,36 @@ pub trait CollectClauses {
     }
 }
 
+/// Trait for collecting clauses including their [`pidgeons::AbsConstraintId`] in a proof
+///
+/// The default implementation of this traint simply ignores the proof log IDs
+#[cfg(feature = "proof-logging")]
+pub trait CollectCertClauses: CollectClauses {
+    /// Extends the collector with an iterator of clauses and proof log IDs
+    ///
+    /// # Errors
+    ///
+    /// If the collector runs out of memory, return an [`crate::OutOfMemory`] error.
+    fn extend_cert_clauses<T>(&mut self, cl_iter: T) -> Result<(), crate::OutOfMemory>
+    where
+        T: IntoIterator<Item = (Clause, pidgeons::AbsConstraintId)>,
+    {
+        self.extend_clauses(cl_iter.into_iter().map(|(cl, _)| cl))
+    }
+    /// Adds one clause and proof log ID to the collector
+    ///
+    /// # Errors
+    ///
+    /// If the collector runs out of memory, return an [`crate::OutOfMemory`] error.
+    fn add_cert_clause(
+        &mut self,
+        cl: Clause,
+        id: pidgeons::AbsConstraintId,
+    ) -> Result<(), crate::OutOfMemory> {
+        self.extend_cert_clauses([(cl, id)])
+    }
+}
+
 /// Errors from encodings
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum Error {

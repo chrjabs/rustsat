@@ -16,7 +16,7 @@ pub enum ProblemType {
     Optimization,
 }
 
-/// Different options to refer to a constraint
+/// A constraint ID referring to a constraint
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ConstraintId(ConstrIdInternal);
 
