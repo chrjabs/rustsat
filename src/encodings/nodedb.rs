@@ -138,6 +138,9 @@ pub trait NodeLike: ops::Index<usize, Output = Lit> {
     /// Gets the distance to the leaf furthest away in the subtree
     fn depth(&self) -> usize;
 
+    /// Gets the number of leafs in the subtree rooted at this node
+    fn n_leafs(&self) -> usize;
+
     /// Creates a new internal node
     fn internal<Db>(left: NodeCon, right: NodeCon, db: &Db) -> Self
     where
@@ -553,7 +556,8 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         self.merge_balanced(&merged_cons)
     }
 
-    /// Gets an iterator over the literals at the leafs of the subtree rooted at a given node
+    /// Gets an iterator over the literals at the leafs of the subtree rooted at a given node and
+    /// the weight with which they appear at the given node
     fn leaf_iter(&self, node: NodeId) -> LeafIter<'_, Self>
     where
         Self: Sized,
@@ -568,7 +572,7 @@ pub struct LeafIter<'db, Db> {
     db: &'db Db,
     /// The trace of the iterator. Everything left of the last node in the trace has already been
     /// explored.
-    trace: Vec<(NodeId, bool)>,
+    trace: Vec<(NodeId, bool, usize)>,
 }
 
 impl<'db, Db> LeafIter<'db, Db>
@@ -577,10 +581,12 @@ where
 {
     /// Creates a new leaf iterator
     pub fn new(db: &'db Db, root: NodeId) -> Self {
-        let mut trace = vec![(root, false)];
+        let mut trace = vec![(root, false, 1)];
         let mut current = root;
+        let mut mult = 1;
         while let Some(con) = db[current].left() {
-            trace.push((con.id, false));
+            mult *= con.multiplier();
+            trace.push((con.id, false, mult));
             current = con.id;
         }
         Self { db, trace }
@@ -591,7 +597,7 @@ impl<'db, Db> Iterator for LeafIter<'db, Db>
 where
     Db: NodeById,
 {
-    type Item = Lit;
+    type Item = (Lit, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.trace.is_empty() {
@@ -599,7 +605,9 @@ where
         }
 
         // get item to yield
-        let lit = self.db[self.trace.last().unwrap().0][1];
+        let elem = unreachable_none!(self.trace.last());
+        let lit = self.db[elem.0][1];
+        let weight = elem.2;
         // find last element in trace to which we moved left
         let mut last = self.trace.len();
         while last > 0 && self.trace[last - 1].1 {
@@ -610,20 +618,20 @@ where
         self.trace.drain(last..);
         if last == 0 {
             // done iterating
-            return Some(lit);
+            return Some((lit, weight));
         }
         // Extend trace to next leaf
-        self.trace.push((
-            self.db[self.trace.last().unwrap().0].right().unwrap().id,
-            true,
-        ));
+        let con = unreachable_none!(self.db[self.trace.last().unwrap().0].right());
+        let mut mult = unreachable_none!(self.trace.last()).2 * con.multiplier();
+        self.trace.push((con.id, true, mult));
         let mut current = self.trace.last().unwrap().0;
         while let Some(con) = self.db[current].left() {
-            self.trace.push((con.id, false));
+            mult *= con.multiplier();
+            self.trace.push((con.id, false, mult));
             current = con.id;
         }
 
-        Some(lit)
+        Some((lit, weight))
     }
 }
 

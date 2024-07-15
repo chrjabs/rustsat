@@ -131,7 +131,7 @@ pub fn lit_impl_card(lit: Lit, card: &CardConstraint) -> PbConstraint {
 pub fn card_impl_lit(card: &CardConstraint, lit: Lit) -> PbConstraint {
     assert!(
         !card.is_unsat(),
-        "the constraint must be satisfiable to reify it"
+        "the constraint must be satisfiable to reify it: {card}"
     );
     match card {
         CardConstraint::Ub(c) => {
@@ -171,7 +171,7 @@ pub fn card_impl_lit(card: &CardConstraint, lit: Lit) -> PbConstraint {
 pub fn lit_impl_pb(lit: Lit, pb: &PbConstraint) -> PbConstraint {
     assert!(
         !pb.is_unsat(),
-        "the constraint must be satisfiable to reify it"
+        "the constraint must be satisfiable to reify it: {pb}"
     );
     let mut pb = pb.clone();
     match pb {

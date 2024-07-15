@@ -18,16 +18,36 @@ use super::{Axiom, ConstraintId};
 #[derive(Clone, Debug)]
 pub struct OperationSequence(Vec<Operation>);
 
+impl OperationSequence {
+    /// Crates an empty operation sequence
+    ///
+    /// **Note**: Trying to write an empty operation sequence will panic
+    #[must_use]
+    pub fn empty() -> OperationSequence {
+        OperationSequence(vec![])
+    }
+
+    /// Checks whether the operation sequence is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 impl OperationLike for OperationSequence {
     #[must_use]
     fn saturate(mut self) -> OperationSequence {
-        self.0.push(Operation::Sat);
+        if !self.is_empty() {
+            self.0.push(Operation::Sat);
+        }
         self
     }
 
     #[must_use]
     fn weaken(mut self) -> OperationSequence {
-        self.0.push(Operation::Weak);
+        if !self.is_empty() {
+            self.0.push(Operation::Weak);
+        }
         self
     }
 }
@@ -40,6 +60,7 @@ impl From<Operation> for OperationSequence {
 
 impl fmt::Display for OperationSequence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        assert!(!self.is_empty(), "cannot write empty operation sequence");
         write!(f, "{}", self.0.iter().format(" "))
     }
 }
@@ -48,9 +69,11 @@ impl Mul<usize> for OperationSequence {
     type Output = OperationSequence;
 
     fn mul(mut self, rhs: usize) -> Self::Output {
-        self.0.push(Operation::Mult(
-            rhs.try_into().expect("cannot multiply by zero"),
-        ));
+        if !self.is_empty() {
+            self.0.push(Operation::Mult(
+                rhs.try_into().expect("cannot multiply by zero"),
+            ));
+        }
         self
     }
 }
@@ -67,9 +90,11 @@ impl Div<usize> for OperationSequence {
     type Output = OperationSequence;
 
     fn div(mut self, rhs: usize) -> Self::Output {
-        self.0.push(Operation::Div(
-            rhs.try_into().expect("cannot divide by zero"),
-        ));
+        if !self.is_empty() {
+            self.0.push(Operation::Div(
+                rhs.try_into().expect("cannot divide by zero"),
+            ));
+        }
         self
     }
 }
@@ -147,8 +172,12 @@ impl<O: OperationLike> Add<O> for OperationSequence {
 
     fn add(mut self, rhs: O) -> Self::Output {
         let rhs = Into::<OperationSequence>::into(rhs);
-        self.0.extend(rhs.0);
-        self.0.push(Operation::Add);
+        if !rhs.is_empty() {
+            self.0.extend(rhs.0);
+            if self.0.len() > 1 {
+                self.0.push(Operation::Add);
+            }
+        }
         self
     }
 }

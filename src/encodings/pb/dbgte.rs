@@ -254,7 +254,7 @@ impl BoundUpperIncremental for DbGte {
                 )
                 .try_for_each(|val| {
                     self.db
-                        .define_pos(con.id, val, collector, var_manager)?
+                        .define_weighted(con.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
                 })?;
@@ -594,7 +594,7 @@ pub mod referenced {
                 )
                 .try_for_each(|val| {
                     self.db
-                        .define_pos(self.root.id, val, collector, var_manager)?
+                        .define_weighted(self.root.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
                 })?;
@@ -624,7 +624,7 @@ pub mod referenced {
             vals.try_for_each(|val| {
                 self.db
                     .borrow_mut()
-                    .define_pos(self.root.id, val, collector, var_manager)?
+                    .define_weighted(self.root.id, val, collector, var_manager)?
                     .unwrap();
                 Ok::<(), crate::OutOfMemory>(())
             })?;

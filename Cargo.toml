@@ -76,7 +76,7 @@ rustc-hash = { workspace = true, optional = true }
 tempfile.workspace = true
 xz2 = { workspace = true, optional = true }
 pidgeons = { workspace = true, optional = true }
-itertools = { workspace = true, optional = true }
+itertools = { workspace = true }
 
 [dev-dependencies]
 rustsat-minisat.workspace = true
@@ -94,7 +94,7 @@ compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
 ipasir-display = []
-proof-logging = ["dep:pidgeons", "dep:itertools"]
+proof-logging = ["dep:pidgeons"]
 all = ["multiopt", "compression", "rand", "fxhash", "proof-logging"]
 
 [package.metadata.docs.rs]

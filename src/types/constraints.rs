@@ -10,6 +10,7 @@ use std::{
     ops::{self, Not, RangeBounds},
 };
 
+use itertools::Itertools;
 use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
@@ -642,10 +643,25 @@ impl<'slf> IntoIterator for &'slf mut CardConstraint {
     }
 }
 
+impl fmt::Display for CardConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CardConstraint::Ub(CardUbConstr { lits, b }) => {
+                write!(f, "{} <= {b}", lits.iter().format(" + "))
+            }
+            CardConstraint::Lb(CardLbConstr { lits, b }) => {
+                write!(f, "{} >= {b}", lits.iter().format(" + "))
+            }
+            CardConstraint::Eq(CardEqConstr { lits, b }) => {
+                write!(f, "{} = {b}", lits.iter().format(" + "))
+            }
+        }
+    }
+}
+
 #[cfg(feature = "proof-logging")]
 impl pidgeons::ConstraintLike for CardConstraint {
     fn constr_str(&self) -> String {
-        use itertools::Itertools;
         use pidgeons::VarLike;
 
         match self {
@@ -1280,6 +1296,37 @@ impl PbConstraint {
                 } else {
                     false
                 }
+            }
+        }
+    }
+}
+
+impl fmt::Display for PbConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PbConstraint::Ub(PbUbConstr { lits, b, .. }) => {
+                write!(
+                    f,
+                    "{} <= {b}",
+                    lits.iter()
+                        .format_with(" + ", |(l, w), f| f(&format_args!("{w} * {l}")))
+                )
+            }
+            PbConstraint::Lb(PbLbConstr { lits, b, .. }) => {
+                write!(
+                    f,
+                    "{} >= {b}",
+                    lits.iter()
+                        .format_with(" + ", |(l, w), f| f(&format_args!("{w} * {l}")))
+                )
+            }
+            PbConstraint::Eq(PbEqConstr { lits, b, .. }) => {
+                write!(
+                    f,
+                    "{} = {b}",
+                    lits.iter()
+                        .format_with(" + ", |(l, w), f| f(&format_args!("{w} * {l}")))
+                )
             }
         }
     }
