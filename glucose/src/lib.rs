@@ -100,5 +100,16 @@ pub(crate) mod ffi {
     #![allow(non_upper_case_globals)]
     #![allow(non_camel_case_types)]
     #![allow(non_snake_case)]
+
+    use std::os::raw::{c_int, c_void};
+
+    use rustsat::types::Lit;
+
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+    pub extern "C" fn rustsat_glucose_collect_lits(vec: *mut c_void, lit: c_int) {
+        let vec = vec.cast::<Vec<Lit>>();
+        let lit = Lit::from_ipasir(lit).expect("got invalid IPASIR lit from Glucose");
+        unsafe { (*vec).push(lit) };
+    }
 }

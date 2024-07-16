@@ -29,8 +29,8 @@ use std::{cmp::Ordering, ffi::CString, fmt};
 use cpu_time::ProcessTime;
 use rustsat::solvers::{
     ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn, LimitConflicts,
-    LimitDecisions, PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState,
-    SolverStats, StateError, Terminate,
+    LimitDecisions, PhaseLit, Propagate, PropagateResult, Solve, SolveIncremental, SolveStats,
+    SolverResult, SolverState, SolverStats, StateError, Terminate,
 };
 use rustsat::types::{Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
@@ -208,7 +208,7 @@ impl CaDiCaL<'_, '_> {
         if self.state == InternalSolverState::Configuring {
             let config_name: &CStr = config.into();
             let ret = unsafe { ffi::ccadical_configure(self.handle, config_name.as_ptr()) };
-            if ret {
+            if ret != 0 {
                 Ok(())
             } else {
                 Err(InvalidApiReturn {
@@ -242,7 +242,7 @@ impl CaDiCaL<'_, '_> {
     /// to a wrongly specified `name` or an invalid `value`.
     pub fn set_option(&mut self, name: &str, value: c_int) -> anyhow::Result<()> {
         let c_name = CString::new(name)?;
-        if unsafe { ffi::ccadical_set_option_ret(self.handle, c_name.as_ptr(), value) } {
+        if unsafe { ffi::ccadical_set_option_ret(self.handle, c_name.as_ptr(), value) } != 0 {
             Ok(())
         } else {
             Err(InvalidApiReturn {
@@ -293,7 +293,7 @@ impl CaDiCaL<'_, '_> {
     /// considered a bug in either the CaDiCaL library or this crate.
     pub fn set_limit(&mut self, limit: Limit) -> anyhow::Result<()> {
         let (name, val) = limit.into();
-        if unsafe { ffi::ccadical_limit_ret(self.handle, name.as_ptr(), val) } {
+        if unsafe { ffi::ccadical_limit_ret(self.handle, name.as_ptr(), val) } != 0 {
             Ok(())
         } else {
             Err(InvalidApiReturn {
@@ -631,7 +631,11 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
         let cb_ptr =
             std::ptr::from_mut(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe {
-            ffi::ccadical_set_terminate(self.handle, cb_ptr, Some(ffi::ccadical_terminate_cb));
+            ffi::ccadical_set_terminate(
+                self.handle,
+                cb_ptr,
+                Some(ffi::rustsat_ccadical_terminate_cb),
+            );
         }
     }
 
@@ -679,7 +683,7 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
                 self.handle,
                 cb_ptr,
                 max_len.try_into().unwrap(),
-                Some(ffi::ccadical_learn_cb),
+                Some(ffi::rustsat_ccadical_learn_cb),
             );
         }
     }
@@ -760,7 +764,7 @@ impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
             }
             .into());
         }
-        Ok(unsafe { ffi::ccadical_flip(self.handle, lit.to_ipasir()) })
+        Ok(unsafe { ffi::ccadical_flip(self.handle, lit.to_ipasir()) } != 0)
     }
 
     fn is_flippable(&mut self, lit: Lit) -> anyhow::Result<bool> {
@@ -771,7 +775,7 @@ impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
             }
             .into());
         }
-        Ok(unsafe { ffi::ccadical_flippable(self.handle, lit.to_ipasir()) })
+        Ok(unsafe { ffi::ccadical_flippable(self.handle, lit.to_ipasir()) } != 0)
     }
 }
 
@@ -812,6 +816,48 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
         unsafe { ffi::ccadical_conflicts(self.handle) }
             .try_into()
             .unwrap()
+    }
+}
+
+impl Propagate for CaDiCaL<'_, '_> {
+    fn propagate(
+        &mut self,
+        assumps: &[Lit],
+        phase_saving: bool,
+    ) -> anyhow::Result<PropagateResult> {
+        let start = ProcessTime::now();
+        self.state = InternalSolverState::Input;
+        // Propagate with cadical backend
+        let assumps: Vec<_> = assumps.iter().map(|l| l.to_ipasir()).collect();
+        let assump_ptr: *const c_int = &assumps[0];
+        let mut props = Vec::new();
+        let prop_ptr: *mut Vec<Lit> = &mut props;
+        let res = handle_oom!(unsafe {
+            ffi::ccadical_propcheck(
+                self.handle,
+                assump_ptr,
+                assumps.len(),
+                c_int::from(phase_saving),
+                Some(ffi::rustsat_cadical_collect_lits),
+                prop_ptr.cast::<std::os::raw::c_void>(),
+            )
+        });
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
+            10 => Ok(PropagateResult {
+                propagated: props,
+                conflict: false,
+            }),
+            20 => Ok(PropagateResult {
+                propagated: props,
+                conflict: true,
+            }),
+            value => Err(InvalidApiReturn {
+                api_call: "ccadical_propcheck",
+                value,
+            }
+            .into()),
+        }
     }
 }
 
@@ -953,6 +999,7 @@ mod test {
     rustsat_solvertests::termination_unittests!(CaDiCaL);
     rustsat_solvertests::learner_unittests!(CaDiCaL);
     rustsat_solvertests::freezing_unittests!(CaDiCaL);
+    rustsat_solvertests::propagating_unittests!(CaDiCaL);
 
     #[test]
     fn configure() {
@@ -1020,7 +1067,7 @@ mod ffi {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
     // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn ccadical_terminate_cb(ptr: *mut c_void) -> c_int {
+    pub extern "C" fn rustsat_ccadical_terminate_cb(ptr: *mut c_void) -> c_int {
         let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr<'_>>() };
         match cb() {
             ControlSignal::Continue => 0,
@@ -1028,7 +1075,7 @@ mod ffi {
         }
     }
 
-    pub extern "C" fn ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
+    pub extern "C" fn rustsat_ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
         let cb = unsafe { &mut *ptr.cast::<LearnCallbackPtr<'_>>() };
 
         let mut cnt = 0;
@@ -1045,5 +1092,11 @@ mod ffi {
             })
             .collect();
         cb(clause);
+    }
+
+    pub extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_int) {
+        let vec = vec.cast::<Vec<Lit>>();
+        let lit = Lit::from_ipasir(lit).expect("got invalid IPASIR lit from CaDiCaL");
+        unsafe { (*vec).push(lit) };
     }
 }

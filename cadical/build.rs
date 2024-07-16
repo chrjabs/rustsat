@@ -138,6 +138,18 @@ impl Version {
     fn has_flip(self) -> bool {
         self >= Version::V154
     }
+
+    fn has_ilb(self) -> bool {
+        self >= Version::V190
+    }
+
+    fn has_reimply(self) -> bool {
+        self >= Version::V190 && self < Version::V194
+    }
+
+    fn has_ipasir_up(self) -> bool {
+        self >= Version::V160
+    }
 }
 
 fn main() {
@@ -216,76 +228,81 @@ fn build(repo: &str, branch: &str, version: Version) {
         tmp
     };
     let cadical_dir = { Path::new(&cadical_dir_str) };
-    if update_repo(
+    update_repo(
         cadical_dir,
         repo,
         branch,
         version.reference(),
         Path::new("patches").join(version.patch()),
-    ) || !Path::new(&out_dir).join("libcadical.a").exists()
-    {
-        // Repo changed, rebuild
-        // We specify the build manually here instead of calling make for better portability
-        let src_files = glob(&format!("{cadical_dir_str}/src/*.cpp"))
-            .unwrap()
-            .filter_map(|res| {
-                if let Ok(p) = res {
-                    if let Some(name) = p.file_name() {
-                        if name == "cadical.cpp" || name == "mobical.cpp" || name == "ipasir.cpp" {
-                            return None; // Filter out application files and IPASIR interface
-                        }
-                    };
-                    Some(p)
-                } else {
-                    None
-                }
-            });
-        // Setup build configuration
-        let mut cadical_build = cc::Build::new();
-        cadical_build.cpp(true).std("c++11");
-        if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
-            cadical_build
-                .opt_level(0)
-                .define("DEBUG", None)
-                .warnings(true)
-                .debug(true)
-                .define("NCONTRACTS", None) // --no-contracts
-                .define("NTRACING", None); // --no-tracing
-        } else {
-            cadical_build
-                .opt_level(3)
-                .define("NDEBUG", None)
-                .warnings(false);
-        }
-        #[cfg(feature = "quiet")]
-        cadical_build.define("QUIET", None); // --quiet
-        #[cfg(feature = "logging")]
-        cadical_build.define("LOGGING", None); // --log
-        if version.has_flip() {
-            cadical_build.define("FLIP", None);
-        }
+    );
+    // We specify the build manually here instead of calling make for better portability
+    let src_files = glob(&format!("{cadical_dir_str}/src/*.cpp"))
+        .unwrap()
+        .filter_map(|res| {
+            if let Ok(p) = res {
+                if let Some(name) = p.file_name() {
+                    if name == "cadical.cpp" || name == "mobical.cpp" || name == "ipasir.cpp" {
+                        return None; // Filter out application files and IPASIR interface
+                    }
+                };
+                Some(p)
+            } else {
+                None
+            }
+        });
+    // Setup build configuration
+    let mut cadical_build = cc::Build::new();
+    cadical_build.cpp(true).std("c++11");
+    if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
+        cadical_build
+            .opt_level(0)
+            .define("DEBUG", None)
+            .warnings(true)
+            .debug(true)
+            .define("NCONTRACTS", None) // --no-contracts
+            .define("NTRACING", None); // --no-tracing
+    } else {
+        cadical_build
+            .opt_level(3)
+            .define("NDEBUG", None)
+            .warnings(false);
+    }
+    #[cfg(feature = "quiet")]
+    cadical_build.define("QUIET", None); // --quiet
+    #[cfg(feature = "logging")]
+    cadical_build.define("LOGGING", None); // --log
+    if version.has_flip() {
+        cadical_build.define("FLIP", None);
+    }
+    if version.has_ilb() {
+        cadical_build.define("ILB", None);
+    }
+    if version.has_reimply() {
+        cadical_build.define("REIMPLY", None);
+    }
+    if version.has_ipasir_up() {
+        cadical_build.define("IPASIRUP", None);
+    }
 
-        // Generate build header
-        let mut build_header = File::create(cadical_dir.join("src").join("build.hpp"))
-            .expect("Could not create kissat CaDiCaL header");
-        let mut cadical_version =
-            fs::read_to_string(cadical_dir.join("VERSION")).expect("Cannot read CaDiCaL version");
-        cadical_version.retain(|c| c != '\n');
-        let (compiler_desc, compiler_flags) =
-            get_compiler_description(&cadical_build.get_compiler());
-        write!(
+    // Generate build header
+    let mut build_header = File::create(cadical_dir.join("src").join("build.hpp"))
+        .expect("Could not create kissat CaDiCaL header");
+    let mut cadical_version =
+        fs::read_to_string(cadical_dir.join("VERSION")).expect("Cannot read CaDiCaL version");
+    cadical_version.retain(|c| c != '\n');
+    let (compiler_desc, compiler_flags) = get_compiler_description(&cadical_build.get_compiler());
+    write!(
                 build_header,
                 "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
                 cadical_version, version.reference(), compiler_desc, compiler_flags, chrono::Utc::now()
             ).expect("Failed to write CaDiCaL build.hpp");
-        // Build CaDiCaL
-        cadical_build
-            .include(cadical_dir.join("src"))
-            .include("cppsrc")
-            .warnings(false)
-            .files(src_files)
-            .compile("cadical");
-    };
+    // Build CaDiCaL
+    cadical_build
+        .include(cadical_dir.join("src"))
+        .include("cppsrc")
+        .warnings(false)
+        .files(src_files)
+        .compile("cadical");
 }
 
 /// Returns true if there were changes, false if not

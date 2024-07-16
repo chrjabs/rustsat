@@ -38,7 +38,7 @@ int ccadical_solve_mem(CCaDiCaL *wrapper) {
   }
 }
 
-bool ccadical_configure(CCaDiCaL *ptr, const char *name) {
+int ccadical_configure(CCaDiCaL *ptr, const char *name) {
   return ((Wrapper *)ptr)->solver->configure(name);
 }
 
@@ -52,11 +52,11 @@ void ccadical_unphase(CCaDiCaL *ptr, int lit) {
 
 int ccadical_vars(CCaDiCaL *ptr) { return ((Wrapper *)ptr)->solver->vars(); }
 
-bool ccadical_set_option_ret(CCaDiCaL *wrapper, const char *name, int val) {
+int ccadical_set_option_ret(CCaDiCaL *wrapper, const char *name, int val) {
   return ((Wrapper *)wrapper)->solver->set(name, val);
 }
 
-bool ccadical_limit_ret(CCaDiCaL *wrapper, const char *name, int val) {
+int ccadical_limit_ret(CCaDiCaL *wrapper, const char *name, int val) {
   return ((Wrapper *)wrapper)->solver->limit(name, val);
 }
 
@@ -90,12 +90,27 @@ int64_t ccadical_conflicts(CCaDiCaL *wrapper) {
 }
 
 #ifdef FLIP
-bool ccadical_flip(CCaDiCaL *wrapper, int lit) {
+int ccadical_flip(CCaDiCaL *wrapper, int lit) {
   return ((Wrapper *)wrapper)->solver->flip(lit);
 }
 
-bool ccadical_flippable(CCaDiCaL *wrapper, int lit) {
+int ccadical_flippable(CCaDiCaL *wrapper, int lit) {
   return ((Wrapper *)wrapper)->solver->flippable(lit);
 }
 #endif
+
+int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
+                       size_t assumps_len, int psaving,
+                       void (*prop_cb)(void *, int), void *cb_data) {
+  try {
+    if (((Wrapper *)wrapper)
+            ->solver->prop_check(assumps, assumps_len, psaving, prop_cb,
+                                 cb_data)) {
+      return 10;
+    }
+    return 20;
+  } catch (std::bad_alloc &) {
+    return OUT_OF_MEM;
+  }
+}
 }

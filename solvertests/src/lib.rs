@@ -95,6 +95,12 @@ pub fn freezing_unittests(tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn propagating_unittests(tokens: TokenStream) -> TokenStream {
+    let slv = parse_macro_input!(tokens as Type);
+    unit::propagate(slv).into()
+}
+
+#[proc_macro]
 pub fn base_tests(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as IntegrationInput);
     integration::base(input).into()

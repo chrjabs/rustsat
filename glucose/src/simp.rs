@@ -9,8 +9,8 @@ use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{
         FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
-        PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats,
-        StateError,
+        PhaseLit, Propagate, PropagateResult, Solve, SolveIncremental, SolveStats, SolverResult,
+        SolverState, SolverStats, StateError,
     },
     types::{Clause, Lit, TernaryVal, Var},
 };
@@ -285,12 +285,12 @@ impl PhaseLit for Glucose {
 
 impl FreezeVar for Glucose {
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, var.to_ipasir(), true) };
+        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, var.to_ipasir(), 1) };
         Ok(())
     }
 
     fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, var.to_ipasir(), false) };
+        unsafe { ffi::cglucosesimp4_set_frozen(self.handle, var.to_ipasir(), 0) };
         Ok(())
     }
 
@@ -341,6 +341,47 @@ impl GetInternalStats for Glucose {
     }
 }
 
+impl Propagate for Glucose {
+    fn propagate(
+        &mut self,
+        assumps: &[Lit],
+        phase_saving: bool,
+    ) -> anyhow::Result<PropagateResult> {
+        let start = ProcessTime::now();
+        self.state = InternalSolverState::Input;
+        // Propagate with glucose backend
+        for a in assumps {
+            unsafe { ffi::cglucosesimp4_assume(self.handle, a.to_ipasir()) }
+        }
+        let mut props = Vec::new();
+        let ptr: *mut Vec<Lit> = &mut props;
+        let res = handle_oom!(unsafe {
+            ffi::cglucosesimp4_propcheck(
+                self.handle,
+                c_int::from(phase_saving),
+                Some(ffi::rustsat_glucose_collect_lits),
+                ptr.cast::<std::os::raw::c_void>(),
+            )
+        });
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
+            10 => Ok(PropagateResult {
+                propagated: props,
+                conflict: false,
+            }),
+            20 => Ok(PropagateResult {
+                propagated: props,
+                conflict: true,
+            }),
+            value => Err(InvalidApiReturn {
+                api_call: "cglucosesimp4_propcheck",
+                value,
+            }
+            .into()),
+        }
+    }
+}
+
 impl SolveStats for Glucose {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
@@ -386,6 +427,7 @@ mod test {
 
     rustsat_solvertests::basic_unittests!(Glucose);
     rustsat_solvertests::freezing_unittests!(Glucose);
+    rustsat_solvertests::propagating_unittests!(Glucose);
 
     #[test]
     fn backend_stats() {

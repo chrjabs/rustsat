@@ -443,6 +443,27 @@ pub trait GetInternalStats {
     fn conflicts(&self) -> usize;
 }
 
+/// Trait for propagating a set of assumptions and getting all propagated literals
+pub trait Propagate {
+    /// Propagates the given assumptions and returns all propagated literals, as well as whether a
+    /// conflict was encoutered
+    ///
+    /// # Errors
+    ///
+    /// A solver may return any error.
+    fn propagate(&mut self, assumps: &[Lit], phase_saving: bool)
+        -> anyhow::Result<PropagateResult>;
+}
+
+/// A result returned from the [`Propagate`] trait
+#[must_use]
+pub struct PropagateResult {
+    /// The list of propagated literals
+    pub propagated: Vec<Lit>,
+    /// Whether a conflict was encountered
+    pub conflict: bool,
+}
+
 #[allow(dead_code)]
 type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
 #[allow(dead_code)]

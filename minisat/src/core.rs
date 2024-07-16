@@ -9,7 +9,8 @@ use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{
         GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations, PhaseLit,
-        Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
+        Propagate, PropagateResult, Solve, SolveIncremental, SolveStats, SolverResult, SolverState,
+        SolverStats, StateError,
     },
     types::{Clause, Lit, TernaryVal, Var},
 };
@@ -313,6 +314,47 @@ impl GetInternalStats for Minisat {
     }
 }
 
+impl Propagate for Minisat {
+    fn propagate(
+        &mut self,
+        assumps: &[Lit],
+        phase_saving: bool,
+    ) -> anyhow::Result<PropagateResult> {
+        let start = ProcessTime::now();
+        self.state = InternalSolverState::Input;
+        // Propagate with minisat backend
+        for a in assumps {
+            unsafe { ffi::cminisat_assume(self.handle, a.to_ipasir()) }
+        }
+        let mut props = Vec::new();
+        let ptr: *mut Vec<Lit> = &mut props;
+        let res = handle_oom!(unsafe {
+            ffi::cminisat_propcheck(
+                self.handle,
+                c_int::from(phase_saving),
+                Some(ffi::rustsat_minisat_collect_lits),
+                ptr.cast::<std::os::raw::c_void>(),
+            )
+        });
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
+            10 => Ok(PropagateResult {
+                propagated: props,
+                conflict: false,
+            }),
+            20 => Ok(PropagateResult {
+                propagated: props,
+                conflict: true,
+            }),
+            value => Err(InvalidApiReturn {
+                api_call: "cminisat_propcheck",
+                value,
+            }
+            .into()),
+        }
+    }
+}
+
 impl SolveStats for Minisat {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
@@ -357,6 +399,7 @@ mod test {
     };
 
     rustsat_solvertests::basic_unittests!(Minisat);
+    rustsat_solvertests::propagating_unittests!(Minisat);
 
     #[test]
     fn backend_stats() {
