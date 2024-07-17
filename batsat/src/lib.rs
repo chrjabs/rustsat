@@ -17,7 +17,7 @@ use batsat::{intmap::AsIndex, lbool, Callbacks, SolverInterface};
 use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{Solve, SolveIncremental, SolveStats, SolverResult, SolverStats},
-    types::{Clause, Lit, TernaryVal, Var},
+    types::{Cl, Clause, Lit, TernaryVal, Var},
 };
 
 /// RustSAT wrapper for [`batsat::BasicSolver`]
@@ -49,7 +49,7 @@ impl<Cb: Callbacks> Solver<Cb> {
 
     #[allow(clippy::cast_precision_loss)]
     #[inline]
-    fn update_avg_clause_len(&mut self, clause: &Clause) {
+    fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses()) as f32)
             + clause.len() as f32)
             / (self.n_clauses() + 1) as f32;
@@ -89,8 +89,12 @@ impl<Cb: Callbacks> Extend<Clause> for Solver<Cb> {
     }
 }
 
-impl<'a, Cb: Callbacks> Extend<&'a Clause> for Solver<Cb> {
-    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+impl<'a, C, Cb> Extend<&'a C> for Solver<Cb>
+where
+    C: AsRef<Cl> + ?Sized,
+    Cb: Callbacks,
+{
+    fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -118,13 +122,17 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
         }
     }
 
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized,
+    {
+        let clause = clause.as_ref();
         self.update_avg_clause_len(clause);
 
-        let mut c: Vec<batsat::Lit> = clause
+        let mut c: Vec<_> = clause
             .iter()
             .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32() + 1), l.is_pos()))
-            .collect::<Vec<batsat::Lit>>();
+            .collect();
 
         self.internal.add_clause_reuse(&mut c);
 

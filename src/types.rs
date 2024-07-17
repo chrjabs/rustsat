@@ -13,7 +13,7 @@ use anyhow::Context;
 use thiserror::Error;
 
 pub mod constraints;
-pub use constraints::Clause;
+pub use constraints::{Cl, Clause};
 
 use crate::instances::fio::{self, SolverOutput};
 

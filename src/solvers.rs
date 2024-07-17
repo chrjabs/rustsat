@@ -109,7 +109,7 @@ use crate::{
     encodings::CollectClauses,
     instances::Cnf,
     lit,
-    types::{Assignment, Clause, Lit, TernaryVal, Var},
+    types::{Assignment, Cl, Clause, Lit, TernaryVal, Var},
 };
 use core::time::Duration;
 use std::fmt;
@@ -121,6 +121,9 @@ pub use external::Solver as ExternalSolver;
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.
+///
+/// **Note**: the [`Extend`] implementations call [`Solve::add_clause`] or
+/// [`Solve::add_clause_ref`] internally but _convert errors to panics_.
 pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     /// Gets a signature of the solver implementation
     #[must_use]
@@ -235,7 +238,11 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// - If the solver is in an invalid state, returns [`StateError`]
     /// - A specific implementation might return other errors
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()>;
+    // TODO: Maybe rename this to `add_clause` in the future and deprecate the version taking by
+    // value
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized;
     /// Like [`Solve::add_clause`] but for unit clauses (clauses with one literal).
     ///
     /// # Errors

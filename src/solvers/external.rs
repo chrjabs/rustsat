@@ -11,7 +11,7 @@ use crate::{
         fio::{self, SolverOutput},
         Cnf,
     },
-    types::{Assignment, Clause},
+    types::{Assignment, Cl, Clause},
 };
 
 use super::Solve;
@@ -245,8 +245,11 @@ impl Solve for Solver {
         }
     }
 
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
-        self.add_clause(clause.clone())
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized,
+    {
+        self.add_clause(clause.as_ref().iter().copied().collect())
     }
 
     fn solution(&self, high_var: crate::types::Var) -> anyhow::Result<Assignment> {

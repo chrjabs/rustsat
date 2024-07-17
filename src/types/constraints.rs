@@ -4,12 +4,14 @@
 //! Rust SAT supports more complex constraints like [`PBConstraint`] or
 //! [`CardConstraint`].
 
+use core::slice;
 use std::{
     collections::TryReserveError,
     fmt,
     ops::{self, Not, RangeBounds},
 };
 
+use itertools::Itertools;
 use thiserror::Error;
 
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
@@ -83,55 +85,6 @@ impl Clause {
         self.lits.try_reserve_exact(additional)
     }
 
-    /// Gets the clause as a slice of literals
-    #[must_use]
-    pub fn lits(&self) -> &[Lit] {
-        &self.lits
-    }
-
-    /// Gets the length of the clause
-    #[inline]
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.lits.len()
-    }
-
-    /// Checks if the clause is empty
-    #[inline]
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.lits.is_empty()
-    }
-
-    /// Evaluates a clause under a given assignment
-    #[must_use]
-    pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
-        self.iter()
-            .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
-                TernaryVal::True => TernaryVal::True,
-                TernaryVal::DontCare => {
-                    if val == TernaryVal::False {
-                        TernaryVal::DontCare
-                    } else {
-                        val
-                    }
-                }
-                TernaryVal::False => val,
-            })
-    }
-
-    /// Gets an iterator over the clause
-    #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
-        self.lits.iter()
-    }
-
-    /// Gets a mutable iterator over the clause
-    #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
-        self.lits.iter_mut()
-    }
-
     /// Like [`Vec::drain`]
     pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<'_, Lit> {
         self.lits.drain(range)
@@ -191,30 +144,6 @@ impl Clause {
         Some(self)
     }
 
-    /// Checks whether the clause is satisfied by the given assignment
-    #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        for &lit in &self.lits {
-            if assign.lit_value(lit) == TernaryVal::True {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Checks if the clause is a unit clause
-    #[inline]
-    #[must_use]
-    pub fn is_unit(&self) -> bool {
-        self.lits.len() == 1
-    }
-
-    /// Checks if the clause is binary
-    #[must_use]
-    pub fn is_binary(&self) -> bool {
-        self.lits.len() == 2
-    }
-
     /// Adds a literal to the clause
     pub fn add(&mut self, lit: Lit) {
         self.lits.push(lit);
@@ -247,6 +176,44 @@ impl Clause {
     }
 }
 
+impl ops::Deref for Clause {
+    type Target = Cl;
+
+    fn deref(&self) -> &Self::Target {
+        Cl::new(self)
+    }
+}
+
+impl std::ops::DerefMut for Clause {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Cl::new_mut(self)
+    }
+}
+
+impl AsRef<[Lit]> for Clause {
+    fn as_ref(&self) -> &[Lit] {
+        &self.lits
+    }
+}
+
+impl AsMut<[Lit]> for Clause {
+    fn as_mut(&mut self) -> &mut [Lit] {
+        &mut self.lits
+    }
+}
+
+impl AsRef<Cl> for Clause {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl AsMut<Cl> for Clause {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
+}
+
 impl<const N: usize> From<[Lit; N]> for Clause {
     fn from(value: [Lit; N]) -> Self {
         Self {
@@ -269,44 +236,6 @@ impl Extend<Lit> for Clause {
     }
 }
 
-impl ops::Index<usize> for Clause {
-    type Output = Lit;
-
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.lits[index]
-    }
-}
-
-impl ops::IndexMut<usize> for Clause {
-    #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.lits[index]
-    }
-}
-
-impl<'a> IntoIterator for &'a Clause {
-    type Item = &'a Lit;
-
-    type IntoIter = std::slice::Iter<'a, Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.lits.iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a mut Clause {
-    type Item = &'a mut Lit;
-
-    type IntoIter = std::slice::IterMut<'a, Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.lits.iter_mut()
-    }
-}
-
 impl IntoIterator for Clause {
     type Item = Lit;
 
@@ -326,31 +255,35 @@ impl FromIterator<Lit> for Clause {
     }
 }
 
-/// Clauses can be printed with the [`Display`](std::fmt::Display) trait
-impl fmt::Display for Clause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (i, lit) in self.iter().enumerate() {
-            if i != 0 {
-                write!(f, "|")?;
-            }
-            write!(f, "{lit}")?;
-        }
-        write!(f, ")")
+impl<'a> IntoIterator for &'a Clause {
+    type Item = &'a Lit;
+
+    type IntoIter = std::slice::Iter<'a, Lit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter()
     }
 }
 
-/// Clauses can be printed with the [`Debug`](std::fmt::Debug) trait
+impl<'a> IntoIterator for &'a mut Clause {
+    type Item = &'a mut Lit;
+
+    type IntoIter = std::slice::IterMut<'a, Lit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter_mut()
+    }
+}
+
+impl fmt::Display for Clause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.iter().format("|"))
+    }
+}
+
 impl fmt::Debug for Clause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (i, lit) in self.iter().enumerate() {
-            if i != 0 {
-                write!(f, "|")?;
-            }
-            write!(f, "{lit}")?;
-        }
-        write!(f, ")")
+        write!(f, "({})", self.iter().format("|"))
     }
 }
 
@@ -366,6 +299,201 @@ macro_rules! clause {
             tmp_clause
         }
     };
+}
+
+/// Dynamically sized clause type to be used with references
+///
+/// [`Clause`] is the owned version: if [`Clause`] is [`String`], this is [`str`].
+#[repr(transparent)]
+pub struct Cl {
+    lits: [Lit],
+}
+
+impl Cl {
+    /// Directly wraps a literal slice as a [`Cl`]
+    ///
+    /// This is a cost-free conversion
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustsat::{types::Cl, lit};
+    ///
+    /// let lits = [lit![0], lit![1]];
+    /// Cl::new(&lits);
+    /// ```
+    pub fn new<S: AsRef<[Lit]> + ?Sized>(s: &S) -> &Cl {
+        unsafe { &*(s.as_ref() as *const [Lit] as *const Cl) }
+    }
+
+    /// Directly wraps a mutable literal slice as a [`Cl`]
+    pub fn new_mut<S: AsMut<[Lit]> + ?Sized>(s: &mut S) -> &mut Cl {
+        unsafe { &mut *(s.as_mut() as *mut [Lit] as *mut Cl) }
+    }
+
+    /// Gets the length of the clause
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.lits.len()
+    }
+
+    /// Checks if the clause is empty
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.lits.is_empty()
+    }
+
+    /// Gets an iterator over the clause
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
+        self.lits.iter()
+    }
+
+    /// Gets a mutable iterator over the clause
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
+        self.lits.iter_mut()
+    }
+
+    /// Evaluates a clause under a given assignment
+    #[must_use]
+    pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
+        self.iter()
+            .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
+                TernaryVal::True => TernaryVal::True,
+                TernaryVal::DontCare => {
+                    if val == TernaryVal::False {
+                        TernaryVal::DontCare
+                    } else {
+                        val
+                    }
+                }
+                TernaryVal::False => val,
+            })
+    }
+
+    /// Checks wheter the clause is satisfied
+    #[must_use]
+    pub fn is_sat(&self, assignment: &Assignment) -> bool {
+        self.evaluate(assignment) == TernaryVal::True
+    }
+
+    /// Checks whether the clause is tautological
+    #[must_use]
+    pub fn is_tautology(&self) -> bool {
+        if self.is_empty() {
+            return false;
+        }
+        for (idx, &l1) in self[0..self.len() - 1].iter().enumerate() {
+            for &l2 in &self[idx + 1..] {
+                if l1 == !l2 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Performs [`slice::sort_unstable`] on the clause
+    pub fn sort(&mut self) {
+        self.lits.sort_unstable();
+    }
+
+    /// Checks if the clause is a unit clause
+    #[inline]
+    #[must_use]
+    pub fn is_unit(&self) -> bool {
+        self.lits.len() == 1
+    }
+
+    /// Checks if the clause is binary
+    #[inline]
+    #[must_use]
+    pub fn is_binary(&self) -> bool {
+        self.lits.len() == 2
+    }
+}
+
+impl AsRef<[Lit]> for Cl {
+    fn as_ref(&self) -> &[Lit] {
+        &self.lits
+    }
+}
+
+impl AsMut<[Lit]> for Cl {
+    fn as_mut(&mut self) -> &mut [Lit] {
+        &mut self.lits
+    }
+}
+
+impl<I> ops::Index<I> for Cl
+where
+    I: slice::SliceIndex<[Lit]>,
+{
+    type Output = <I as slice::SliceIndex<[Lit]>>::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        &self.lits[index]
+    }
+}
+
+impl<I> ops::IndexMut<I> for Cl
+where
+    I: slice::SliceIndex<[Lit]>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        &mut self.lits[index]
+    }
+}
+
+impl<'a> IntoIterator for &'a Cl {
+    type Item = &'a Lit;
+
+    type IntoIter = std::slice::Iter<'a, Lit>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Cl {
+    type Item = &'a mut Lit;
+
+    type IntoIter = std::slice::IterMut<'a, Lit>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter_mut()
+    }
+}
+
+impl fmt::Display for Cl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.iter().format("|"))
+    }
+}
+
+impl fmt::Debug for Cl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.iter().format("|"))
+    }
+}
+
+impl AsRef<Cl> for [Lit] {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl AsMut<Cl> for [Lit] {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
 }
 
 /// Type representing a cardinality constraint.
@@ -1366,7 +1494,7 @@ impl PbEqConstr {
 
 #[cfg(test)]
 mod tests {
-    use super::{CardConstraint, PbConstraint};
+    use super::{CardConstraint, Cl, PbConstraint};
     use crate::{lit, types::Assignment, var};
 
     #[test]
@@ -1432,6 +1560,13 @@ mod tests {
         assert!(cl.is_sat(&assign!(0b101)));
         assert!(cl.is_sat(&assign!(0b110)));
         assert!(cl.is_sat(&assign!(0b111)));
+    }
+
+    #[test]
+    fn clause_is_tautology() {
+        assert!(!Cl::new(&[lit![0], lit![1], lit![2]]).is_tautology());
+        assert!(Cl::new(&[lit![0], !lit![0], lit![2]]).is_tautology());
+        assert!(Cl::new(&[!lit![2], !lit![0], lit![2]]).is_tautology());
     }
 
     #[test]

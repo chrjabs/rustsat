@@ -12,7 +12,7 @@ use rustsat::{
         PhaseLit, Propagate, PropagateResult, Solve, SolveIncremental, SolveStats, SolverResult,
         SolverState, SolverStats, StateError,
     },
-    types::{Clause, Lit, TernaryVal, Var},
+    types::{Cl, Clause, Lit, TernaryVal, Var},
 };
 
 use super::{ffi, handle_oom, AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
@@ -60,7 +60,7 @@ impl Glucose {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    fn update_avg_clause_len(&mut self, clause: &Clause) {
+    fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
             (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
                 / self.stats.n_clauses as f32;
@@ -104,8 +104,11 @@ impl Extend<Clause> for Glucose {
     }
 }
 
-impl<'a> Extend<&'a Clause> for Glucose {
-    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+impl<'a, C> Extend<&'a C> for Glucose
+where
+    C: AsRef<Cl> + ?Sized,
+{
+    fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -181,7 +184,11 @@ impl Solve for Glucose {
         }
     }
 
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized,
+    {
+        let clause = clause.as_ref();
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.update_avg_clause_len(clause);

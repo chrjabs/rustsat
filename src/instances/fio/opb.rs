@@ -12,7 +12,7 @@ use crate::{
     instances::{ManageVars, SatInstance},
     types::{
         constraints::{CardConstraint, PbConstraint},
-        Clause, Lit, Var,
+        Cl, Lit, Var,
     },
 };
 use anyhow::Context;
@@ -509,10 +509,14 @@ where
 /// # Errors
 ///
 /// If writing fails, returns [`io::Error`].
-fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Result<(), io::Error> {
+fn write_clause<W, C>(writer: &mut W, clause: &C, opts: Options) -> Result<(), io::Error>
+where
+    W: Write,
+    C: AsRef<Cl> + ?Sized,
+{
     if opts.no_negated_lits {
         let mut rhs: isize = 1;
-        clause.iter().try_for_each(|l| {
+        clause.as_ref().iter().try_for_each(|l| {
             if l.is_pos() {
                 write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
@@ -522,7 +526,7 @@ fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Res
         })?;
         writeln!(writer, ">= {rhs};")
     } else {
-        clause.iter().try_for_each(|l| {
+        clause.as_ref().iter().try_for_each(|l| {
             if l.is_pos() {
                 write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {

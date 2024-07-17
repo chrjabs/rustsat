@@ -12,7 +12,7 @@
 
 use crate::{
     instances::{Cnf, ManageVars, SatInstance},
-    types::{Clause, Lit},
+    types::{Cl, Clause, Lit},
 };
 use anyhow::Context;
 use nom::{
@@ -695,8 +695,13 @@ pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
     })
 }
 
-fn write_clause<W: Write>(writer: &mut W, clause: &Clause) -> Result<(), io::Error> {
+fn write_clause<W, C>(writer: &mut W, clause: &C) -> Result<(), io::Error>
+where
+    W: Write,
+    C: AsRef<Cl> + ?Sized,
+{
     clause
+        .as_ref()
         .into_iter()
         .try_for_each(|l| write!(writer, "{} ", l.to_ipasir()))?;
     writeln!(writer, "0")
