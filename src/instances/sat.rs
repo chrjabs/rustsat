@@ -8,7 +8,7 @@ use crate::{
     lit,
     types::{
         constraints::{CardConstraint, PbConstraint},
-        Assignment, Clause, Lit, Var,
+        Assignment, Clause, Lit, TernaryVal, Var,
     },
     utils::{unreachable_err, LimitedIter},
     RequiresClausal,
@@ -234,15 +234,28 @@ impl Cnf {
         fio::dimacs::write_cnf_annotated(writer, self, n_vars)
     }
 
-    /// Checks whether the CNF is satisfied by the given assignment
+    /// Checks the value of the CNF under a given assignment
     #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
+    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+        let mut val = TernaryVal::True;
         for clause in &self.clauses {
-            if !clause.is_sat(assign) {
-                return false;
+            match clause.evaluate(assign) {
+                TernaryVal::True => (),
+                TernaryVal::False => return TernaryVal::False,
+                TernaryVal::DontCare => val = TernaryVal::DontCare,
             }
         }
-        true
+        val
+    }
+
+    /// Checks whether the CNF is satisfied by the given assignment
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -965,23 +978,40 @@ impl<VM: ManageVars> Instance<VM> {
         }
     }
 
-    /// Checks whether the instance is satisfied by the given assignment
+    /// Computes the value of the instance under a given assignment
     #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        if !self.cnf.is_sat(assign) {
-            return false;
+    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+        let mut val = TernaryVal::True;
+        match self.cnf.evaluate(assign) {
+            TernaryVal::True => (),
+            TernaryVal::False => return TernaryVal::False,
+            TernaryVal::DontCare => val = TernaryVal::DontCare,
         }
         for card in &self.cards {
-            if !card.is_sat(assign) {
-                return false;
+            match card.evaluate(assign) {
+                TernaryVal::True => (),
+                TernaryVal::False => return TernaryVal::False,
+                TernaryVal::DontCare => val = TernaryVal::DontCare,
             }
         }
         for pb in &self.pbs {
-            if !pb.is_sat(assign) {
-                return false;
+            match pb.evaluate(assign) {
+                TernaryVal::True => (),
+                TernaryVal::False => return TernaryVal::False,
+                TernaryVal::DontCare => val = TernaryVal::DontCare,
             }
         }
-        true
+        val
+    }
+
+    /// Checks whether the instance is satisfied by the given assignment
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        self.evaluate(assign) == TernaryVal::True
     }
 }
 

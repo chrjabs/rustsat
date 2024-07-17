@@ -6,7 +6,7 @@ use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PbConstraint},
-        Assignment, Lit, Var, WClsIter, WLitIter,
+        Assignment, Lit, TernaryVal, Var, WClsIter, WLitIter,
     },
     RequiresClausal, RequiresSoftLits,
 };
@@ -454,7 +454,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Calculates the objective values of an assignment. Returns [`None`] if the
     /// assignment is not a solution.
     pub fn cost(&self, assign: &Assignment) -> Option<Vec<isize>> {
-        if !self.constrs.is_sat(assign) {
+        if self.constrs.evaluate(assign) != TernaryVal::True {
             return None;
         }
         Some(self.objs.iter().map(|o| o.evaluate(assign)).collect())

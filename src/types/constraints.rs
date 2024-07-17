@@ -376,6 +376,10 @@ impl Cl {
 
     /// Checks wheter the clause is satisfied
     #[must_use]
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
     pub fn is_sat(&self, assignment: &Assignment) -> bool {
         self.evaluate(assignment) == TernaryVal::True
     }
@@ -541,6 +545,16 @@ impl CardConstraint {
         }
     }
 
+    /// Gets the bound of the constraint
+    #[must_use]
+    pub fn bound(&self) -> usize {
+        match self {
+            CardConstraint::Ub(CardUbConstr { b, .. })
+            | CardConstraint::Lb(CardLbConstr { b, .. })
+            | CardConstraint::Eq(CardEqConstr { b, .. }) => *b,
+        }
+    }
+
     /// Changes the bound on the constraint
     pub fn change_bound(&mut self, b: usize) {
         match self {
@@ -677,18 +691,33 @@ impl CardConstraint {
 
     /// Checks whether the cardinality constraint is satisfied by the given assignment
     #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        let count = self.iter().fold(0, |cnt, lit| {
-            if assign.lit_value(*lit) == TernaryVal::True {
-                return cnt + 1;
-            }
-            cnt
-        });
-        match self {
-            CardConstraint::Ub(constr) => count <= constr.b,
-            CardConstraint::Lb(constr) => count >= constr.b,
-            CardConstraint::Eq(constr) => count == constr.b,
+    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+        #[allow(clippy::range_plus_one)]
+        let range = self
+            .iter()
+            .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + 1..rng.end + 1,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + 1,
+            });
+        if range.contains(&self.bound()) {
+            return TernaryVal::DontCare;
         }
+        match self {
+            CardConstraint::Ub(CardUbConstr { b, .. }) => (range.start <= *b).into(),
+            CardConstraint::Lb(CardLbConstr { b, .. }) => (range.start >= *b).into(),
+            CardConstraint::Eq(CardEqConstr { b, .. }) => (range.start == *b).into(),
+        }
+    }
+
+    /// Checks whether the cardinality constraint is satisfied by the given assignment
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -958,6 +987,16 @@ impl PbConstraint {
         *b += b_add;
     }
 
+    /// Gets the bound of the constraint
+    #[must_use]
+    pub fn bound(&self) -> isize {
+        match self {
+            PbConstraint::Ub(PbUbConstr { b, .. })
+            | PbConstraint::Lb(PbLbConstr { b, .. })
+            | PbConstraint::Eq(PbEqConstr { b, .. }) => *b,
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1187,36 +1226,53 @@ impl PbConstraint {
 
     /// Checks whether the PB constraint is satisfied by the given assignment
     #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        let sum = self.iter().fold(0, |sum, (lit, coeff)| {
-            if assign.lit_value(*lit) == TernaryVal::True {
-                return sum + coeff;
-            }
-            sum
-        });
-        match self {
-            PbConstraint::Ub(constr) => {
-                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
-                    sum <= constr.b
-                } else {
-                    false
+    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+        #[allow(clippy::range_plus_one)]
+        let range = self
+            .iter()
+            .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + coeff..rng.end + coeff,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + coeff,
+            });
+        match (isize::try_from(range.start), isize::try_from(range.end)) {
+            (Ok(start), Ok(end)) => {
+                if (start..end).contains(&self.bound()) {
+                    return TernaryVal::DontCare;
+                }
+                match self {
+                    PBConstraint::Ub(PbUbConstr { b, .. }) => (start <= *b).into(),
+                    PBConstraint::Lb(PbLbConstr { b, .. }) => (start >= *b).into(),
+                    PBConstraint::Eq(PbEqConstr { b, .. }) => (start == *b).into(),
                 }
             }
-            PbConstraint::Lb(constr) => {
-                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
-                    sum >= constr.b
-                } else {
-                    true
+            (Ok(start), Err(_)) => match self {
+                PbConstraint::Ub(PbUbConstr { b, .. }) => {
+                    if (start..).contains(b) {
+                        return TernaryVal::DontCare;
+                    }
+                    TernaryVal::True
                 }
-            }
-            PbConstraint::Eq(constr) => {
-                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
-                    sum == constr.b
-                } else {
-                    false
+                PbConstraint::Lb(PbLbConstr { b, .. }) | PbConstraint::Eq(PbEqConstr { b, .. }) => {
+                    if (start..).contains(b) {
+                        return TernaryVal::DontCare;
+                    }
+                    TernaryVal::False
                 }
-            }
+            },
+            (Err(_), Err(_)) => matches!(self, PbConstraint::Lb(_)).into(),
+            (Err(_), Ok(_)) => unreachable!(), // since end >= start
         }
+    }
+
+    /// Checks whether the PB constraint is satisfied by the given assignment
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -1495,7 +1551,11 @@ impl PbEqConstr {
 #[cfg(test)]
 mod tests {
     use super::{CardConstraint, Cl, PbConstraint};
-    use crate::{lit, types::Assignment, var};
+    use crate::{
+        lit,
+        types::{Assignment, TernaryVal},
+        var,
+    };
 
     #[test]
     fn clause_remove() {
@@ -1550,16 +1610,20 @@ mod tests {
     }
 
     #[test]
-    fn clause_is_sat() {
+    fn clause_evaluate() {
         let cl = clause![lit![0], lit![1], lit![2]];
-        assert!(!cl.is_sat(&assign!(0b000)));
-        assert!(cl.is_sat(&assign!(0b001)));
-        assert!(cl.is_sat(&assign!(0b010)));
-        assert!(cl.is_sat(&assign!(0b011)));
-        assert!(cl.is_sat(&assign!(0b100)));
-        assert!(cl.is_sat(&assign!(0b101)));
-        assert!(cl.is_sat(&assign!(0b110)));
-        assert!(cl.is_sat(&assign!(0b111)));
+        assert_eq!(cl.evaluate(&assign!(0b000)), TernaryVal::False);
+        assert_eq!(cl.evaluate(&assign!(0b001)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b010)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b011)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b100)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b101)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b110)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b111)), TernaryVal::True);
+        assert_eq!(
+            cl.evaluate(&assign!(0b000).truncate(var![1])),
+            TernaryVal::DontCare
+        );
     }
 
     #[test]

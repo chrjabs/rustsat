@@ -1394,7 +1394,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// Calculates the objective value of an assignment. Returns [`None`] if the
     /// assignment is not a solution.
     pub fn cost(&self, assign: &Assignment) -> Option<isize> {
-        if !self.constrs.is_sat(assign) {
+        if self.constrs.evaluate(assign) != TernaryVal::True {
             return None;
         }
         Some(self.obj.evaluate(assign))
