@@ -22,7 +22,7 @@ pyo3 = { version = "0.21.1", features = [
 ] }
 
 [build-dependencies]
-pyo3-build-config = { version = "0.21.1" }
+pyo3-build-config = { version = "0.22.2" }
 
 [lib]
 crate-type = ["cdylib"]
