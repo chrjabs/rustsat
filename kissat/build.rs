@@ -17,7 +17,9 @@ fn main() {
     }
 
     // Select commit based on features. If conflict, always choose newest release
-    let tag = if cfg!(feature = "v3-1-1") {
+    let tag = if cfg!(feature = "v4-0-0") {
+        "refs/tags/rel-4.0.0"
+    } else if cfg!(feature = "v3-1-1") {
         "refs/tags/rel-3.1.1"
     } else if cfg!(feature = "v3-1-0") {
         "refs/tags/rel-3.1.0"
@@ -31,7 +33,7 @@ fn main() {
         "refs/tags/sc2022-bulky"
     } else {
         // default to newest version
-        "refs/tags/rel-3.1.1"
+        "refs/tags/rel-4.0.0"
     };
 
     // Build C library
