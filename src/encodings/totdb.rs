@@ -35,6 +35,21 @@ macro_rules! get_lit_slice {
     }};
 }
 
+/// Helper to get the output literal with a given index
+#[cfg(feature = "proof-logging")]
+macro_rules! get_olit {
+    ($self:expr, $id:expr, $idx:expr) => {
+        match &$self.nodes[$id.0] {
+            Node::Leaf(lit) => {
+                debug_assert_eq!($idx, 0);
+                *lit
+            }
+            Node::Unit(UnitNode { lits, .. }) => *unreachable_none!(lits[$idx].lit()),
+            Node::General(_) | Node::Dummy => unreachable!(),
+        }
+    };
+}
+
 macro_rules! weighted_pre {
     ($self:expr, $id:expr, $node:expr, $val:expr, $vm:expr) => {{
         // Check if already encoded
@@ -69,103 +84,6 @@ macro_rules! weighted_pre {
 
         WeightedPrecondResult { lcon, rcon, olit }
     }};
-}
-
-/// Helper to get and store semantic definitions for proof logging. This is in a macro to not
-/// borrow all of self as mutable
-#[cfg(feature = "proof-logging")]
-macro_rules! get_semantics {
-    (card, $self:expr, $id:expr, $val:expr, $leafs:expr, $typ:expr, $proof:expr) => {
-        get_semantics!(pb, $self, $id, $val, $leafs.map(|l| (l, 1)), $typ, $proof)
-    };
-    (pb, $self:expr, $id:expr, $val:expr, $leafs:expr, $typ:expr, $proof:expr) => {
-        'semantics: {
-            use crate::types::constraints::PbConstraint;
-
-            #[allow(clippy::int_plus_one)]
-            {
-                debug_assert!($val <= $self[$id].len() + 1);
-            }
-            if let Some(def) = $self.semantic_defs.get(&($id, $val, $typ)) {
-                break 'semantics (*def).into();
-            }
-            if $self[$id].is_leaf() {
-                if $val == 0 {
-                    let olit = *$self[$id].lit(1).unwrap();
-                    break 'semantics olit.into();
-                }
-                break 'semantics SemDefinition::None;
-            }
-            let def = if $val == 0 {
-                match $typ {
-                    SemDefTyp::If => panic!("If semantic with `val=0` is undefined"),
-                    SemDefTyp::OnlyIf => {
-                        let sem = PbConstraint::new_lb(
-                            $leafs.map(|(l, w)| {
-                                (
-                                    l,
-                                    isize::try_from(w)
-                                        .expect("cannot handle weights larger than `isize::MAX`"),
-                                )
-                            }),
-                            isize::try_from($val)
-                                .expect("cannot handle values larger than `isize::MAX`"),
-                        );
-                        $proof.redundant(&sem, &[])?
-                    }
-                }
-            } else if $val > $self[$id].len() {
-                match $typ {
-                    SemDefTyp::If => $proof.redundant(
-                        &PbConstraint::new_lb(
-                            $leafs.map(|(l, w)| {
-                                (
-                                    !l,
-                                    isize::try_from(w)
-                                        .expect("cannot handle values larger than `isize::MAX`"),
-                                )
-                            }),
-                            0,
-                        ),
-                        &[],
-                    )?,
-                    SemDefTyp::OnlyIf => {
-                        panic!("Only if semantic with `val=|X|+1` is undefined")
-                    }
-                }
-            } else {
-                let olit = *$self[$id].lit($val).unwrap();
-                let sem = PbConstraint::new_lb(
-                    $leafs.map(|(l, w)| {
-                        (
-                            l,
-                            isize::try_from(w)
-                                .expect("cannot handle weights larger than `isize::MAX`"),
-                        )
-                    }),
-                    isize::try_from($val).expect("cannot handle values larger than `isize::MAX`"),
-                );
-                match $typ {
-                    SemDefTyp::If => $proof.redundant(
-                        &atomics::pb_impl_lit(&sem, olit),
-                        &[<crate::types::Var as pidgeons::VarLike>::substitute_fixed(
-                            &olit.var(),
-                            true,
-                        )],
-                    )?,
-                    SemDefTyp::OnlyIf => $proof.redundant(
-                        &atomics::lit_impl_pb(olit, &sem),
-                        &[<crate::types::Var as pidgeons::VarLike>::substitute_fixed(
-                            &olit.var(),
-                            false,
-                        )],
-                    )?,
-                }
-            };
-            $self.semantic_defs.insert(($id, $val, $typ), def);
-            def.into()
-        }
-    };
 }
 
 /// A totalizer database
@@ -444,40 +362,34 @@ impl Db {
                         proof,
                         left_leafs,
                     )? {
-                        let left_def = get_semantics!(
-                            pb,
-                            self,
+                        let left_def = self.get_semantics(
                             pre.lcon.id,
                             pre.lcon.rev_map(val),
-                            left_leafs.iter().copied(),
                             SemDefTyp::OnlyIf,
-                            proof
-                        );
-                        let right_def = get_semantics!(
-                            pb,
-                            self,
+                            left_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let right_def = self.get_semantics(
                             pre.rcon.id,
                             0,
-                            right_leafs.iter().copied(),
                             SemDefTyp::OnlyIf,
-                            proof
-                        );
-                        let this_def = get_semantics!(
-                            pb,
-                            self,
+                            right_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let this_def = self.get_semantics(
                             id,
                             val,
+                            SemDefTyp::If,
                             left_leafs
                                 .iter()
                                 .map(|(l, w)| (*l, *w * pre.lcon.multiplier()))
                                 .chain(
                                     right_leafs
                                         .iter()
-                                        .map(|(l, w)| (*l, *w * pre.rcon.multiplier()))
+                                        .map(|(l, w)| (*l, *w * pre.rcon.multiplier())),
                                 ),
-                            SemDefTyp::If,
-                            proof
-                        );
+                            proof,
+                        )?;
                         let id = proof.operations(
                             &(this_def
                                 + (left_def * pre.lcon.multiplier())
@@ -497,40 +409,34 @@ impl Db {
                         proof,
                         right_leafs,
                     )? {
-                        let left_def = get_semantics!(
-                            pb,
-                            self,
+                        let left_def = self.get_semantics(
                             pre.lcon.id,
                             0,
-                            left_leafs.iter().copied(),
                             SemDefTyp::OnlyIf,
-                            proof
-                        );
-                        let right_def = get_semantics!(
-                            pb,
-                            self,
+                            left_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let right_def = self.get_semantics(
                             pre.rcon.id,
                             pre.rcon.rev_map(val),
-                            right_leafs.iter().copied(),
                             SemDefTyp::OnlyIf,
-                            proof
-                        );
-                        let this_def = get_semantics!(
-                            pb,
-                            self,
+                            right_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let this_def = self.get_semantics(
                             id,
                             val,
+                            SemDefTyp::If,
                             left_leafs
                                 .iter()
                                 .map(|(l, w)| (*l, *w * pre.lcon.multiplier()))
                                 .chain(
                                     right_leafs
                                         .iter()
-                                        .map(|(l, w)| (*l, *w * pre.rcon.multiplier()))
+                                        .map(|(l, w)| (*l, *w * pre.rcon.multiplier())),
                                 ),
-                            SemDefTyp::If,
-                            proof
-                        );
+                            proof,
+                        )?;
                         let id = proof.operations(
                             &(this_def
                                 + (left_def * pre.lcon.multiplier())
@@ -570,40 +476,34 @@ impl Db {
                                     proof,
                                     left_leafs
                                 )?);
-                                let left_def = get_semantics!(
-                                    pb,
-                                    self,
+                                let left_def = self.get_semantics(
                                     pre.lcon.id,
                                     lval,
-                                    left_leafs.iter().copied(),
                                     SemDefTyp::OnlyIf,
-                                    proof
-                                );
-                                let right_def = get_semantics!(
-                                    pb,
-                                    self,
+                                    left_leafs.iter().copied(),
+                                    proof,
+                                )?;
+                                let right_def = self.get_semantics(
                                     pre.rcon.id,
                                     rval_rev,
-                                    right_leafs.iter().copied(),
                                     SemDefTyp::OnlyIf,
-                                    proof
-                                );
-                                let this_def = get_semantics!(
-                                    pb,
-                                    self,
+                                    right_leafs.iter().copied(),
+                                    proof,
+                                )?;
+                                let this_def = self.get_semantics(
                                     id,
                                     val,
+                                    SemDefTyp::If,
                                     left_leafs
                                         .iter()
                                         .map(|(l, w)| (*l, *w * pre.lcon.multiplier()))
                                         .chain(
                                             right_leafs
                                                 .iter()
-                                                .map(|(l, w)| (*l, *w * pre.rcon.multiplier()))
+                                                .map(|(l, w)| (*l, *w * pre.rcon.multiplier())),
                                         ),
-                                    SemDefTyp::If,
-                                    proof
-                                );
+                                    proof,
+                                )?;
                                 let id = proof.operations(
                                     &(this_def
                                         + (left_def * pre.lcon.multiplier())
@@ -796,6 +696,100 @@ impl Db {
             self[id].mut_unit().lits[idx] = LitData::new_lit(olit);
             olit
         }
+    }
+
+    #[cfg(feature = "proof-logging")]
+    fn get_semantics<W>(
+        &mut self,
+        id: NodeId,
+        val: usize,
+        typ: SemDefTyp,
+        leafs: impl Iterator<Item = (Lit, usize)>,
+        proof: &mut pidgeons::Proof<W>,
+    ) -> std::io::Result<SemDefinition>
+    where
+        W: std::io::Write,
+    {
+        use crate::types::constraints::PbConstraint;
+
+        debug_assert!(val <= self[id].len() + 1);
+        if let Some(def) = self.semantic_defs.get(&(id, val, typ)) {
+            return Ok((*def).into());
+        }
+        if self[id].is_leaf() {
+            if val == 0 {
+                let olit = *self[id].lit(1).unwrap();
+                return Ok(olit.into());
+            }
+            return Ok(SemDefinition::None);
+        }
+        let def = if val == 0 {
+            match typ {
+                SemDefTyp::If => panic!("If semantic with `val=0` is undefined"),
+                SemDefTyp::OnlyIf => {
+                    let sem = PbConstraint::new_lb(
+                        leafs.map(|(l, w)| {
+                            (
+                                l,
+                                isize::try_from(w)
+                                    .expect("cannot handle weights larger than `isize::MAX`"),
+                            )
+                        }),
+                        isize::try_from(val)
+                            .expect("cannot handle values larger than `isize::MAX`"),
+                    );
+                    proof.redundant(&sem, &[])?
+                }
+            }
+        } else if val > self[id].len() {
+            match typ {
+                SemDefTyp::If => proof.redundant(
+                    &PbConstraint::new_lb(
+                        leafs.map(|(l, w)| {
+                            (
+                                !l,
+                                isize::try_from(w)
+                                    .expect("cannot handle values larger than `isize::MAX`"),
+                            )
+                        }),
+                        0,
+                    ),
+                    &[],
+                )?,
+                SemDefTyp::OnlyIf => {
+                    panic!("Only if semantic with `val=|X|+1` is undefined")
+                }
+            }
+        } else {
+            let olit = *self[id].lit(val).unwrap();
+            let sem = PbConstraint::new_lb(
+                leafs.map(|(l, w)| {
+                    (
+                        l,
+                        isize::try_from(w).expect("cannot handle weights larger than `isize::MAX`"),
+                    )
+                }),
+                isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
+            );
+            match typ {
+                SemDefTyp::If => proof.redundant(
+                    &atomics::pb_impl_lit(&sem, olit),
+                    &[<crate::types::Var as pidgeons::VarLike>::substitute_fixed(
+                        &olit.var(),
+                        true,
+                    )],
+                )?,
+                SemDefTyp::OnlyIf => proof.redundant(
+                    &atomics::lit_impl_pb(olit, &sem),
+                    &[<crate::types::Var as pidgeons::VarLike>::substitute_fixed(
+                        &olit.var(),
+                        false,
+                    )],
+                )?,
+            }
+        };
+        self.semantic_defs.insert((id, val, typ), def);
+        Ok(def.into())
     }
 
     /// Last step of [`Self::define_unweighted`]
@@ -1026,12 +1020,6 @@ impl Db {
         // Mark positive literal as encoded (done first to avoid borrow checker problems)
         self[id].mut_unit().lits[idx].add_semantics(req_semantics);
 
-        // Get lit slices of children
-        let l_tmp_olit;
-        let llits = get_lit_slice!(self, pre.lcon.id, l_tmp_olit);
-        let r_tmp_olit;
-        let rlits = get_lit_slice!(self, pre.rcon.id, r_tmp_olit);
-
         let (left_leafs, right_leafs) = leafs.split_at(self[pre.lcon.id].n_leafs());
 
         // Encode
@@ -1043,40 +1031,34 @@ impl Db {
             let mut lhs = [lit![0], lit![0]]; // avoids allocation
             let mut nlits = 0;
             if lval > 0 {
-                lhs[nlits] = *unreachable_none!(llits[con_idx(lval - 1, pre.lcon)].lit());
+                lhs[nlits] = get_olit!(self, pre.lcon.id, con_idx(lval - 1, pre.lcon));
                 nlits += 1;
             }
             if rval > 0 {
-                lhs[nlits] = *unreachable_none!(rlits[con_idx(rval - 1, pre.rcon)].lit());
+                lhs[nlits] = get_olit!(self, pre.rcon.id, con_idx(rval - 1, pre.rcon));
                 nlits += 1;
             }
-            let left_def = get_semantics!(
-                card,
-                self,
+            let left_def = self.get_semantics(
                 pre.lcon.id,
                 pre.lcon.rev_map(lval),
-                left_leafs.iter().copied(),
                 SemDefTyp::OnlyIf,
-                proof
-            );
-            let right_def = get_semantics!(
-                card,
-                self,
+                left_leafs.iter().map(|l| (*l, 1)),
+                proof,
+            )?;
+            let right_def = self.get_semantics(
                 pre.rcon.id,
                 pre.rcon.rev_map(rval),
-                right_leafs.iter().copied(),
                 SemDefTyp::OnlyIf,
-                proof
-            );
-            let this_def = get_semantics!(
-                card,
-                self,
+                right_leafs.iter().map(|l| (*l, 1)),
+                proof,
+            )?;
+            let this_def = self.get_semantics(
                 id,
                 idx + 1,
-                leafs.iter().copied(),
                 SemDefTyp::If,
-                proof
-            );
+                leafs.iter().map(|l| (*l, 1)),
+                proof,
+            )?;
             let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
             collector.add_cert_clause(atomics::cube_impl_lit(&lhs[..nlits], olit), id)?;
         }
@@ -1088,40 +1070,34 @@ impl Db {
             let mut lhs = [lit![0], lit![0]]; // avoids allocation
             let mut nlits = 0;
             if lval < self.con_len(pre.lcon) {
-                lhs[nlits] = !*unreachable_none!(llits[con_idx(lval, pre.lcon)].lit());
+                lhs[nlits] = !get_olit!(self, pre.lcon.id, con_idx(lval, pre.lcon));
                 nlits += 1;
             }
             if rval < self.con_len(pre.rcon) {
-                lhs[nlits] = !*unreachable_none!(rlits[con_idx(rval, pre.rcon)].lit());
+                lhs[nlits] = !get_olit!(self, pre.rcon.id, con_idx(rval, pre.rcon));
                 nlits += 1;
             }
-            let left_def = get_semantics!(
-                card,
-                self,
+            let left_def = self.get_semantics(
                 pre.lcon.id,
                 pre.lcon.rev_map(lval + 1),
-                left_leafs.iter().copied(),
                 SemDefTyp::If,
-                proof
-            );
-            let right_def = get_semantics!(
-                card,
-                self,
+                left_leafs.iter().map(|l| (*l, 1)),
+                proof,
+            )?;
+            let right_def = self.get_semantics(
                 pre.rcon.id,
                 pre.rcon.rev_map(rval + 1),
-                right_leafs.iter().copied(),
                 SemDefTyp::If,
-                proof
-            );
-            let this_def = get_semantics!(
-                card,
-                self,
+                right_leafs.iter().map(|l| (*l, 1)),
+                proof,
+            )?;
+            let this_def = self.get_semantics(
                 id,
                 idx + 1,
-                leafs.iter().copied(),
                 SemDefTyp::OnlyIf,
-                proof
-            );
+                leafs.iter().map(|l| (*l, 1)),
+                proof,
+            )?;
             let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
             collector.add_cert_clause(atomics::cube_impl_lit(&lhs[..nlits], !olit), id)?;
         }
