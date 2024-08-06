@@ -94,6 +94,12 @@ impl Cnf {
         self.clauses.len()
     }
 
+    /// Clears the CNF formula
+    #[inline]
+    pub fn clear(&mut self) {
+        self.clauses.clear();
+    }
+
     /// Adds a clause from a slice of literals
     pub fn add_nary(&mut self, lits: &[Lit]) {
         self.add_clause(lits.into());
