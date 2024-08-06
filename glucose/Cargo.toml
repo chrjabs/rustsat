@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-glucose"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license = "MIT"
