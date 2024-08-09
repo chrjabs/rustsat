@@ -14,6 +14,8 @@ git_tag_enable = true
 # disable GitHub releases
 git_release_enable = true
 
+git_release_latest = false
+
 # labels for the release PR
 pr_labels = ["release"]
 
@@ -25,6 +27,10 @@ publish_allow_dirty = false
 
 # disable running `cargo-semver-checks`
 semver_check = true
+
+[[package]]
+name = "rustsat"
+git_release_latest = true
 
 [[package]]
 name = "rustsat-solvertests"
