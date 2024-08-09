@@ -45,7 +45,7 @@ fn main() {
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
-    println!("cargo:rustc-link-lib=kissat");
+    println!("cargo:rustc-link-lib=static=kissat");
 
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()

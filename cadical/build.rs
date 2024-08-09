@@ -175,7 +175,7 @@ fn main() {
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
-    println!("cargo:rustc-link-lib=cadical");
+    println!("cargo:rustc-link-lib=static=cadical");
 
     // Link c++ std lib
     // Note: this should be _after_ linking the solver itself so that it is actually pulled in
