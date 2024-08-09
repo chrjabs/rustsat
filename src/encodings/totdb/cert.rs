@@ -13,10 +13,7 @@ use crate::{
     utils::unreachable_none,
 };
 
-use super::{
-    con_idx, LitData, Node, PrecondOutcome, Semantics, UnitNode, UnweightedPrecondResult,
-    WeightedPrecondResult,
-};
+use super::{con_idx, LitData, Node, PrecondOutcome, Semantics, UnitNode, UnweightedPrecondResult};
 
 /// Helper to get the output literal with a given index
 macro_rules! get_olit {
@@ -46,7 +43,7 @@ impl super::Db {
     {
         use crate::types::constraints::PbConstraint;
 
-        debug_assert!(val <= self[id].len() + 1);
+        debug_assert!(val <= self[id].max_val() + 1);
         if let Some(defs) = self.semantic_defs.get(&(id, val)) {
             return Ok(defs.get(typ).into());
         }
@@ -70,7 +67,7 @@ impl super::Db {
                 isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
             );
             SemDefs::new(None, Some(proof.redundant(&sem, &[])?))
-        } else if val > self[id].len() {
+        } else if val > self[id].max_val() {
             let sem = PbConstraint::new_lb(
                 leafs.map(|(l, w)| {
                     (
@@ -169,30 +166,59 @@ impl super::Db {
                 Ok(Some(olit))
             }
             Node::General(node) => {
-                let pre = super::weighted_pre!(self, id, node, val, var_manager);
+                // Check if already encoded
+                if let Some(lit_data) = node.lits.get(&val) {
+                    if let LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = lit_data
+                    {
+                        if semantics.has_if() {
+                            let mut new_leafs: Vec<_> = self.leaf_iter(id).collect();
+                            leafs.swap_with_slice(&mut new_leafs);
+                            return Ok(Some(*lit));
+                        }
+                    }
+                } else {
+                    return Ok(None);
+                }
 
-                let (left_leafs, right_leafs) = leafs.split_at_mut(self[pre.lcon.id].n_leafs());
+                debug_assert!(node.lits.contains_key(&val));
+
+                let lcon = node.left;
+                let rcon = node.right;
+
+                // Reserve variable for this node, if needed
+                let olit = if let Some(&olit) = node.lit(val) {
+                    olit
+                } else {
+                    let olit = var_manager.new_var().pos_lit();
+                    *unreachable_none!(self[id].mut_general().lits.get_mut(&val)) =
+                        LitData::new_lit(olit);
+                    olit
+                };
+
+                let (left_leafs, right_leafs) = leafs.split_at_mut(self[lcon.id].n_leafs());
 
                 // Propagate value
-                if pre.lcon.is_possible(val) && pre.lcon.rev_map(val) <= self[pre.lcon.id].max_val()
-                {
+                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
                     if let Some(llit) = self.define_weighted_cert(
-                        pre.lcon.id,
-                        pre.lcon.rev_map(val),
+                        lcon.id,
+                        lcon.rev_map(val),
                         collector,
                         var_manager,
                         proof,
                         left_leafs,
                     )? {
                         let left_def = self.get_semantics(
-                            pre.lcon.id,
-                            pre.lcon.rev_map(val),
+                            lcon.id,
+                            lcon.rev_map(val),
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
                         )?;
                         let right_def = self.get_semantics(
-                            pre.rcon.id,
+                            rcon.id,
                             0,
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
@@ -204,43 +230,42 @@ impl super::Db {
                             SemDefTyp::If,
                             left_leafs
                                 .iter()
-                                .map(|(l, w)| (*l, *w * pre.lcon.multiplier()))
+                                .map(|(l, w)| (*l, *w * lcon.multiplier()))
                                 .chain(
                                     right_leafs
                                         .iter()
-                                        .map(|(l, w)| (*l, *w * pre.rcon.multiplier())),
+                                        .map(|(l, w)| (*l, *w * rcon.multiplier())),
                                 ),
                             proof,
                         )?;
                         let id = proof.operations(
                             &(this_def
-                                + (left_def * pre.lcon.multiplier())
-                                + (right_def * pre.rcon.multiplier()))
+                                + (left_def * lcon.multiplier())
+                                + (right_def * rcon.multiplier()))
                             .saturate(),
                         )?;
-                        collector.add_cert_clause(atomics::lit_impl_lit(llit, pre.olit), id)?;
+                        collector.add_cert_clause(atomics::lit_impl_lit(llit, olit), id)?;
                     }
                 }
-                if pre.rcon.is_possible(val) && pre.rcon.rev_map(val) <= self[pre.rcon.id].max_val()
-                {
+                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
                     if let Some(rlit) = self.define_weighted_cert(
-                        pre.rcon.id,
-                        pre.rcon.rev_map(val),
+                        rcon.id,
+                        rcon.rev_map(val),
                         collector,
                         var_manager,
                         proof,
                         right_leafs,
                     )? {
                         let left_def = self.get_semantics(
-                            pre.lcon.id,
+                            lcon.id,
                             0,
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
                         )?;
                         let right_def = self.get_semantics(
-                            pre.rcon.id,
-                            pre.rcon.rev_map(val),
+                            rcon.id,
+                            rcon.rev_map(val),
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
                             proof,
@@ -251,36 +276,35 @@ impl super::Db {
                             SemDefTyp::If,
                             left_leafs
                                 .iter()
-                                .map(|(l, w)| (*l, *w * pre.lcon.multiplier()))
+                                .map(|(l, w)| (*l, *w * lcon.multiplier()))
                                 .chain(
                                     right_leafs
                                         .iter()
-                                        .map(|(l, w)| (*l, *w * pre.rcon.multiplier())),
+                                        .map(|(l, w)| (*l, *w * rcon.multiplier())),
                                 ),
                             proof,
                         )?;
                         let id = proof.operations(
                             &(this_def
-                                + (left_def * pre.lcon.multiplier())
-                                + (right_def * pre.rcon.multiplier()))
+                                + (left_def * lcon.multiplier())
+                                + (right_def * rcon.multiplier()))
                             .saturate(),
                         )?;
-                        collector.add_cert_clause(atomics::lit_impl_lit(rlit, pre.olit), id)?;
+                        collector.add_cert_clause(atomics::lit_impl_lit(rlit, olit), id)?;
                     };
                 }
 
                 // Propagate sums
-                if pre.lcon.map(pre.lcon.offset() + 1) < val {
-                    let lvals = self[pre.lcon.id]
-                        .vals(pre.lcon.offset() + 1..pre.lcon.rev_map_round_up(val));
-                    let rmax = self[pre.rcon.id].max_val();
+                if lcon.map(lcon.offset() + 1) < val {
+                    let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
+                    let rmax = self[rcon.id].max_val();
                     for lval in lvals {
-                        let rval = val - pre.lcon.map(lval);
+                        let rval = val - lcon.map(lval);
                         debug_assert!(rval > 0);
-                        let rval_rev = pre.rcon.rev_map(rval);
-                        if pre.rcon.is_possible(rval) && rval_rev <= rmax {
+                        let rval_rev = rcon.rev_map(rval);
+                        if rcon.is_possible(rval) && rval_rev <= rmax {
                             if let Some(rlit) = self.define_weighted_cert(
-                                pre.rcon.id,
+                                rcon.id,
                                 rval_rev,
                                 collector,
                                 var_manager,
@@ -288,10 +312,10 @@ impl super::Db {
                                 right_leafs,
                             )? {
                                 debug_assert!(
-                                    pre.lcon.len_limit.is_none() || pre.lcon.offset() + 1 == lval
+                                    lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
                                 let llit = unreachable_none!(self.define_weighted_cert(
-                                    pre.lcon.id,
+                                    lcon.id,
                                     lval,
                                     collector,
                                     var_manager,
@@ -299,14 +323,14 @@ impl super::Db {
                                     left_leafs
                                 )?);
                                 let left_def = self.get_semantics(
-                                    pre.lcon.id,
+                                    lcon.id,
                                     lval,
                                     SemDefTyp::OnlyIf,
                                     left_leafs.iter().copied(),
                                     proof,
                                 )?;
                                 let right_def = self.get_semantics(
-                                    pre.rcon.id,
+                                    rcon.id,
                                     rval_rev,
                                     SemDefTyp::OnlyIf,
                                     right_leafs.iter().copied(),
@@ -318,22 +342,22 @@ impl super::Db {
                                     SemDefTyp::If,
                                     left_leafs
                                         .iter()
-                                        .map(|(l, w)| (*l, *w * pre.lcon.multiplier()))
+                                        .map(|(l, w)| (*l, *w * lcon.multiplier()))
                                         .chain(
                                             right_leafs
                                                 .iter()
-                                                .map(|(l, w)| (*l, *w * pre.rcon.multiplier())),
+                                                .map(|(l, w)| (*l, *w * rcon.multiplier())),
                                         ),
                                     proof,
                                 )?;
                                 let id = proof.operations(
                                     &(this_def
-                                        + (left_def * pre.lcon.multiplier())
-                                        + (right_def * pre.rcon.multiplier()))
+                                        + (left_def * lcon.multiplier())
+                                        + (right_def * rcon.multiplier()))
                                     .saturate(),
                                 )?;
                                 collector.add_cert_clause(
-                                    atomics::cube_impl_lit(&[llit, rlit], pre.olit),
+                                    atomics::cube_impl_lit(&[llit, rlit], olit),
                                     id,
                                 )?;
                             }
@@ -344,10 +368,10 @@ impl super::Db {
                 // Only now finally multiply the leaf weights since they won't be used at lower
                 // levels any more
                 for (idx, (_, w)) in leafs.iter_mut().enumerate() {
-                    if idx < self[pre.lcon.id].n_leafs() {
-                        *w *= pre.lcon.multiplier();
+                    if idx < self[lcon.id].n_leafs() {
+                        *w *= lcon.multiplier();
                     } else {
-                        *w *= pre.rcon.multiplier();
+                        *w *= rcon.multiplier();
                     }
                 }
 
@@ -355,7 +379,7 @@ impl super::Db {
                 unreachable_none!(self[id].mut_general().lits.get_mut(&val))
                     .add_semantics(Semantics::If);
 
-                Ok(Some(pre.olit))
+                Ok(Some(olit))
             }
             Node::Dummy => Ok(None),
         }

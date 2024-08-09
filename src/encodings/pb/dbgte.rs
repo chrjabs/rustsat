@@ -42,6 +42,9 @@ pub struct DbGte {
     n_clauses: usize,
     /// The node database of the totalizer
     db: totdb::Db,
+    #[cfg(feature = "proof-logging")]
+    /// The number of leafs in the encoding structure
+    n_leafs: usize,
 }
 
 impl DbGte {
@@ -74,6 +77,10 @@ impl DbGte {
                 })
                 .collect();
             if !new_lits.is_empty() {
+                #[cfg(feature = "proof-logging")]
+                {
+                    self.n_leafs += new_lits.len();
+                }
                 // add nodes in sorted fashion to minimize clauses
                 new_lits.sort_by_key(|(_, w)| *w);
                 // Detect sequences of literals of equal weight and merge them
@@ -302,6 +309,74 @@ impl Extend<(Lit, usize)> for DbGte {
                 }
             };
         });
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpper for DbGte {
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pidgeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        use super::cert::BoundUpperIncremental;
+        self.db.reset_encoded(totdb::Semantics::If);
+        self.encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpperIncremental for DbGte {
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pidgeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_ub_range(self, range);
+        if range.is_empty() {
+            return Ok(());
+        }
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        self.extend_tree(range.end - 1);
+        let mut leafs = vec![(crate::lit![0], 0); self.n_leafs];
+        if let Some(con) = self.root {
+            self.db[con.id]
+                .vals(
+                    con.rev_map_round_up(range.start + 1)
+                        ..=con.rev_map(range.end + self.max_leaf_weight),
+                )
+                .try_for_each(|val| {
+                    self.db
+                        .define_weighted_cert(
+                            con.id,
+                            val,
+                            collector,
+                            var_manager,
+                            proof,
+                            &mut leafs,
+                        )?
+                        .unwrap();
+                    Ok::<(), anyhow::Error>(())
+                })?;
+        }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(())
     }
 }
 

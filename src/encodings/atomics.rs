@@ -92,7 +92,7 @@ pub fn cube_impl_cube<'all>(a: &'all [Lit], b: &'all [Lit]) -> impl Iterator<Ite
 pub fn lit_impl_card(lit: Lit, card: &CardConstraint) -> PbConstraint {
     assert!(
         !card.is_unsat(),
-        "the constraint must be satisfiable to reify it"
+        "the constraint must be satisfiable to reify it: {card}"
     );
     match card {
         CardConstraint::Ub(c) => {
@@ -202,7 +202,7 @@ pub fn lit_impl_pb(lit: Lit, pb: &PbConstraint) -> PbConstraint {
 pub fn pb_impl_lit(pb: &PbConstraint, lit: Lit) -> PbConstraint {
     assert!(
         !pb.is_unsat(),
-        "the constraint must be satisfiable to reify it"
+        "the constraint must be satisfiable to reify it: {pb}"
     );
     match pb {
         PbConstraint::Ub(c) => {

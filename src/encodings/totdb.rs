@@ -39,43 +39,6 @@ macro_rules! get_lit_slice {
     }};
 }
 
-macro_rules! weighted_pre {
-    ($self:expr, $id:expr, $node:expr, $val:expr, $vm:expr) => {{
-        // Check if already encoded
-        if let Some(lit_data) = $node.lits.get(&$val) {
-            if let LitData::Lit {
-                lit,
-                semantics: Some(semantics),
-            } = lit_data
-            {
-                if semantics.has_if() {
-                    return Ok(Some(*lit));
-                }
-            }
-        } else {
-            return Ok(None);
-        }
-
-        debug_assert!($node.lits.contains_key(&$val));
-
-        let lcon = $node.left;
-        let rcon = $node.right;
-
-        // Reserve variable for this node, if needed
-        let olit = if let Some(&olit) = $node.lit($val) {
-            olit
-        } else {
-            let olit = $vm.new_var().pos_lit();
-            *unreachable_none!($self[$id].mut_general().lits.get_mut(&$val)) =
-                LitData::new_lit(olit);
-            olit
-        };
-
-        WeightedPrecondResult { lcon, rcon, olit }
-    }};
-}
-use weighted_pre;
-
 /// A totalizer database
 #[derive(Default, Clone)]
 pub struct Db {
@@ -215,56 +178,75 @@ impl Db {
                 )?))
             }
             Node::General(node) => {
-                let pre = weighted_pre!(self, id, node, val, var_manager);
+                // Check if already encoded
+                if let Some(lit_data) = node.lits.get(&val) {
+                    if let LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = lit_data
+                    {
+                        if semantics.has_if() {
+                            return Ok(Some(*lit));
+                        }
+                    }
+                } else {
+                    return Ok(None);
+                }
+
+                debug_assert!(node.lits.contains_key(&val));
+
+                let lcon = node.left;
+                let rcon = node.right;
+
+                // Reserve variable for this node, if needed
+                let olit = if let Some(&olit) = node.lit(val) {
+                    olit
+                } else {
+                    let olit = var_manager.new_var().pos_lit();
+                    *unreachable_none!(self[id].mut_general().lits.get_mut(&val)) =
+                        LitData::new_lit(olit);
+                    olit
+                };
 
                 // Propagate value
-                if pre.lcon.is_possible(val) && pre.lcon.rev_map(val) <= self[pre.lcon.id].max_val()
-                {
-                    if let Some(llit) = self.define_weighted(
-                        pre.lcon.id,
-                        pre.lcon.rev_map(val),
-                        collector,
-                        var_manager,
-                    )? {
-                        collector.add_clause(atomics::lit_impl_lit(llit, pre.olit))?;
+                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
+                    if let Some(llit) =
+                        self.define_weighted(lcon.id, lcon.rev_map(val), collector, var_manager)?
+                    {
+                        collector.add_clause(atomics::lit_impl_lit(llit, olit))?;
                     }
                 }
-                if pre.rcon.is_possible(val) && pre.rcon.rev_map(val) <= self[pre.rcon.id].max_val()
-                {
-                    if let Some(rlit) = self.define_weighted(
-                        pre.rcon.id,
-                        pre.rcon.rev_map(val),
-                        collector,
-                        var_manager,
-                    )? {
-                        collector.add_clause(atomics::lit_impl_lit(rlit, pre.olit))?;
+                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
+                    if let Some(rlit) =
+                        self.define_weighted(rcon.id, rcon.rev_map(val), collector, var_manager)?
+                    {
+                        collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
                     };
                 }
 
                 // Propagate sums
-                if pre.lcon.map(pre.lcon.offset() + 1) < val {
-                    let lvals = self[pre.lcon.id]
-                        .vals(pre.lcon.offset() + 1..pre.lcon.rev_map_round_up(val));
-                    let rmax = self[pre.rcon.id].max_val();
+                if lcon.map(lcon.offset() + 1) < val {
+                    let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
+                    let rmax = self[rcon.id].max_val();
                     for lval in lvals {
-                        let rval = val - pre.lcon.map(lval);
+                        let rval = val - lcon.map(lval);
                         debug_assert!(rval > 0);
-                        let rval_rev = pre.rcon.rev_map(rval);
-                        if pre.rcon.is_possible(rval) && rval_rev <= rmax {
+                        let rval_rev = rcon.rev_map(rval);
+                        if rcon.is_possible(rval) && rval_rev <= rmax {
                             if let Some(rlit) =
-                                self.define_weighted(pre.rcon.id, rval_rev, collector, var_manager)?
+                                self.define_weighted(rcon.id, rval_rev, collector, var_manager)?
                             {
                                 debug_assert!(
-                                    pre.lcon.len_limit.is_none() || pre.lcon.offset() + 1 == lval
+                                    lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
                                 let llit = unreachable_none!(self.define_weighted(
-                                    pre.lcon.id,
+                                    lcon.id,
                                     lval,
                                     collector,
                                     var_manager
                                 )?);
                                 collector
-                                    .add_clause(atomics::cube_impl_lit(&[llit, rlit], pre.olit))?;
+                                    .add_clause(atomics::cube_impl_lit(&[llit, rlit], olit))?;
                             }
                         }
                     }
@@ -274,7 +256,7 @@ impl Db {
                 unreachable_none!(self[id].mut_general().lits.get_mut(&val))
                     .add_semantics(Semantics::If);
 
-                Ok(Some(pre.olit))
+                Ok(Some(olit))
             }
             Node::Dummy => Ok(None),
         }
@@ -719,13 +701,6 @@ struct UnweightedPrecondResult {
     right_if: ops::RangeInclusive<usize>,
     left_only_if: ops::RangeInclusive<usize>,
     right_only_if: ops::RangeInclusive<usize>,
-}
-
-#[derive(Copy, Clone, Debug)]
-struct WeightedPrecondResult {
-    lcon: NodeCon,
-    rcon: NodeCon,
-    olit: Lit,
 }
 
 /// A totalizer adder node
