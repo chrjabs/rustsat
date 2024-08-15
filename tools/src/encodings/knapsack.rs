@@ -1,26 +1,26 @@
-//! # (Multi-Criteria) Knapsack Encoding
+//! # Shared Knapsack Encoding Tooling
+//!
+//! - Data types
+//! - Input parser
+//! - Random generator
 
-use std::ops::Range;
+use std::{io, ops::Range};
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use rustsat::{
-    clause,
-    encodings::pb,
-    instances::{fio::dimacs, BasicVarManager, Cnf, ManageVars},
-    types::{constraints::PBConstraint, Lit},
-};
 
 /// An instance of the (multi-criteria 0-1) knapsack problem
+#[derive(Clone, PartialEq, Eq)]
 pub struct Knapsack {
-    items: Vec<ItemData>,
-    capacity: usize,
+    pub(crate) items: Vec<ItemData>,
+    pub(crate) capacity: usize,
 }
 
 /// Data associated with one knapsack item
-struct ItemData {
-    weight: usize,
-    values: Vec<usize>,
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct ItemData {
+    pub weight: usize,
+    pub values: Vec<usize>,
 }
 
 pub enum Capacity {
@@ -57,75 +57,195 @@ impl Knapsack {
         };
         Self { items, capacity }
     }
-}
 
-enum Clause {
-    /// Clause of the capacity encoding
-    Capacity(<Cnf as IntoIterator>::IntoIter),
-    /// Soft clause for item and objective
-    Soft(usize, usize),
-}
-
-pub struct Encoding {
-    data: Knapsack,
-    next_clause: Clause,
-}
-
-impl Encoding {
-    pub fn new<PBE>(data: Knapsack) -> Self
-    where
-        PBE: pb::BoundUpper + FromIterator<(Lit, usize)>,
-    {
-        let mut vm = BasicVarManager::default();
-        let cap_constr = match PBConstraint::new_ub(
-            data.items
-                .iter()
-                .map(|item| (vm.new_var().pos_lit(), item.weight as isize)),
-            data.capacity as isize,
-        ) {
-            PBConstraint::Ub(constr) => constr,
-            _ => panic!(),
-        };
-        let mut cap_cnf = Cnf::new();
-        PBE::encode_ub_constr(cap_constr, &mut cap_cnf, &mut vm).unwrap();
-        Self {
-            data,
-            next_clause: Clause::Capacity(cap_cnf.into_iter()),
+    pub fn from_file(reader: impl io::BufRead, format: FileFormat) -> anyhow::Result<Self> {
+        match format {
+            FileFormat::MooLibrary => parsing::parse_moolib(reader),
+            FileFormat::VOptLib => parsing::parse_voptlib(reader),
         }
     }
 }
 
-impl Iterator for Encoding {
-    type Item = dimacs::McnfLine;
+/// Possible Knapsack input file formats
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum FileFormat {
+    /// Input files as provided by [MOO-Library](http://home.ku.edu.tr/~moolibrary/)
+    MooLibrary,
+    /// Input files as provided by [vOptLib](https://github.com/vOptSolver/vOptLib/tree/master/UKP)
+    VOptLib,
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match &mut self.next_clause {
-                Clause::Capacity(iter) => {
-                    let next = iter.next();
-                    if next.is_some() {
-                        return next.map(dimacs::McnfLine::Hard);
+mod parsing {
+    use std::io;
+
+    use anyhow::Context;
+    use nom::{
+        bytes::complete::tag,
+        character::complete::{space0, u32},
+        error::Error as NomErr,
+        sequence::tuple,
+    };
+
+    use crate::parsing::{callback_list, single_value};
+
+    macro_rules! next_non_comment_line {
+        ($reader:expr) => {
+            'block: {
+                let mut buf = String::new();
+                while $reader.read_line(&mut buf)? > 0 {
+                    if !buf.trim_start().starts_with('#') && !buf.trim().is_empty() {
+                        break 'block Some(buf);
                     }
-                    self.next_clause = Clause::Soft(0, 0);
+                    buf.clear();
                 }
-                Clause::Soft(iidx, oidx) => {
-                    let iidx = *iidx;
-                    let oidx = *oidx;
-                    if iidx >= self.data.items.len() {
-                        return None;
-                    }
-                    if oidx >= self.data.items[iidx].values.len() {
-                        self.next_clause = Clause::Soft(iidx + 1, 0);
-                        continue;
-                    }
-                    self.next_clause = Clause::Soft(iidx, oidx + 1);
-                    return Some(dimacs::McnfLine::Soft(
-                        clause![Lit::positive(iidx as u32)],
-                        self.data.items[iidx].values[oidx],
-                        oidx,
-                    ));
+                None
+            }
+        };
+    }
+
+    pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
+        let line = next_non_comment_line!(reader)
+            .context("file ended before number of objectives line")?;
+        let (_, n_obj) = single_value(u32, "#")(&line)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
+        let line =
+            next_non_comment_line!(reader).context("file ended before number of items line")?;
+        let (_, n_items) = single_value(u32, "#")(&line)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse number of items line '{line}'"))?;
+        let line = next_non_comment_line!(reader).context("file ended before capacity line")?;
+        let (_, capacity) = single_value(u32, "#")(&line)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse capacity line '{line}'"))?;
+        let mut inst = super::Knapsack {
+            items: vec![
+                super::ItemData {
+                    weight: 0,
+                    values: vec![]
+                };
+                n_items as usize
+            ],
+            capacity: capacity as usize,
+        };
+        let mut buf = String::new();
+        let mut started = false;
+        let mut ended = false;
+        while reader.read_line(&mut buf)? > 0 {
+            let remain = buf.trim_start();
+            if remain.starts_with('#') || buf.trim().is_empty() {
+                buf.clear();
+                continue;
+            }
+            let remain = if started {
+                remain
+            } else {
+                anyhow::ensure!(remain.starts_with('['), "expected list to start");
+                started = true;
+                &remain[1..]
+            };
+            let mut item_idx = 0;
+            let remain = callback_list(remain, u32, |value| {
+                anyhow::ensure!(item_idx < inst.items.len(), "too many values in value list");
+                inst.items[item_idx].values.push(value as usize);
+                item_idx += 1;
+                Ok(())
+            })?;
+            match tuple::<_, _, NomErr<_>, _>((space0, tag(","), space0))(remain) {
+                Ok(_) => (),
+                Err(_) => {
+                    tuple::<_, _, NomErr<_>, _>((space0, tag("]")))(remain)
+                        .map_err(|e| e.to_owned())
+                        .context("failed to find closing delimiter for value list")?;
+                    ended = true;
+                    break;
                 }
             }
+            buf.clear();
+        }
+        anyhow::ensure!(ended, "file ended before value list ended");
+        let line = next_non_comment_line!(reader).context("file ended before weight line")?;
+        let mut item_idx = 0;
+        callback_list(line.trim_start(), u32, |weight| {
+            anyhow::ensure!(
+                item_idx < inst.items.len(),
+                "too many values in weight list"
+            );
+            inst.items[item_idx].weight = weight as usize;
+            item_idx += 1;
+            Ok(())
+        })?;
+        for item in &inst.items {
+            anyhow::ensure!(
+                item.values.len() == n_obj as usize,
+                "number of values for item does not match number of objectives"
+            );
+        }
+        Ok(inst)
+    }
+
+    pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
+        let line =
+            next_non_comment_line!(reader).context("file ended before number of items line")?;
+        let (_, n_items) = single_value(u32, "#")(&line)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse number of items line '{line}'"))?;
+        let line = next_non_comment_line!(reader)
+            .context("file ended before number of objectives line")?;
+        let (_, n_obj) = single_value(u32, "#")(&line)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
+        let _ = single_value(u32, "#")(&line)
+            .map_err(|e| e.to_owned())
+            .with_context(|| format!("failed to parse number of constraints line '{line}'"))?;
+        let mut inst = super::Knapsack {
+            items: vec![
+                super::ItemData {
+                    weight: 0,
+                    values: vec![]
+                };
+                n_items as usize
+            ],
+            capacity: 0,
+        };
+        for obj_idx in 0..n_obj {
+            for item_idx in 0..n_items {
+                let line = next_non_comment_line!(reader).with_context(|| {
+                    format!("file ended before {item_idx} value of objective {obj_idx}")
+                })?;
+                let (_, value) = single_value(u32, "#")(&line)
+                    .map_err(|e| e.to_owned())
+                    .with_context(|| {
+                        format!("failed to parse {item_idx} value of objective {obj_idx} '{line}'")
+                    })?;
+                inst.items[item_idx as usize].values.push(value as usize);
+            }
+        }
+        for item_idx in 0..n_items {
+            let line = next_non_comment_line!(reader)
+                .with_context(|| format!("file ended before weight of item {item_idx}"))?;
+            let (_, weight) = single_value(u32, "#")(&line)
+                .map_err(|e| e.to_owned())
+                .with_context(|| format!("failed to parse weight of item {item_idx} '{line}'"))?;
+            inst.items[item_idx as usize].weight = weight as usize;
+        }
+        Ok(inst)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::{fs::File, io::BufReader};
+
+        #[test]
+        fn moolib() {
+            let reader = BufReader::new(File::open("./data/KP_p-3_n-10_ins-1.dat").unwrap());
+            super::parse_moolib(reader).unwrap();
+        }
+
+        #[test]
+        fn voptlib() {
+            let reader = BufReader::new(File::open("./data/F5050W01.dat").unwrap());
+            super::parse_voptlib(reader).unwrap();
         }
     }
 }

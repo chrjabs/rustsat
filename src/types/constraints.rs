@@ -1,7 +1,7 @@
 //! # Constraint Types
 //!
 //! Different types of constraints. The most important one is [`Clause`] but
-//! Rust SAT supports more complex constraints like [`PBConstraint`] or
+//! Rust SAT supports more complex constraints like [`PbConstraint`] or
 //! [`CardConstraint`].
 
 use core::slice;
@@ -17,6 +17,27 @@ use thiserror::Error;
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
 use crate::RequiresClausal;
+
+/// A reference to any type of constraint throughout RustSAT
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConstraintRef<'constr> {
+    /// A clausal constraint
+    Clause(&'constr Clause),
+    /// A cardinality constraint
+    Card(&'constr CardConstraint),
+    /// A pseudo-Boolean constraint
+    Pb(&'constr PbConstraint),
+}
+
+impl fmt::Display for ConstraintRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConstraintRef::Clause(cl) => write!(f, "{cl}"),
+            ConstraintRef::Card(card) => write!(f, "{card}"),
+            ConstraintRef::Pb(pb) => write!(f, "{pb}"),
+        }
+    }
+}
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -511,6 +532,28 @@ pub enum CardConstraint {
     Eq(CardEqConstr),
 }
 
+impl fmt::Display for CardConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CardConstraint::Ub(c) => write!(f, "{c}"),
+            CardConstraint::Lb(c) => write!(f, "{c}"),
+            CardConstraint::Eq(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+macro_rules! write_lit_sum {
+    ($f:expr, $vec:expr) => {{
+        for i in 0..$vec.len() {
+            if i < $vec.len() - 1 {
+                write!($f, "{} + ", $vec[i])?;
+            } else {
+                write!($f, "{}", $vec[i])?;
+            }
+        }
+    }};
+}
+
 impl CardConstraint {
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
     pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
@@ -553,6 +596,25 @@ impl CardConstraint {
             | CardConstraint::Lb(CardLbConstr { b, .. })
             | CardConstraint::Eq(CardEqConstr { b, .. }) => *b,
         }
+    }
+
+    /// Gets the number of literals in the constraint
+    pub fn len(&self) -> usize {
+        match self {
+            CardConstraint::Ub(constr) => constr.lits.len(),
+            CardConstraint::Lb(constr) => constr.lits.len(),
+            CardConstraint::Eq(constr) => constr.lits.len(),
+        }
+    }
+
+    /// Checks whether the constraint is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Gets the number of literals in the constraint
+    pub fn n_lits(&self) -> usize {
+        self.len()
     }
 
     /// Changes the bound on the constraint
@@ -741,6 +803,12 @@ impl<'slf> IntoIterator for &'slf mut CardConstraint {
     }
 }
 
+impl From<Clause> for CardConstraint {
+    fn from(value: Clause) -> Self {
+        CardConstraint::new_lb(value, 1)
+    }
+}
+
 /// An upper bound cardinality constraint (`sum of lits <= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub struct CardUbConstr {
@@ -753,6 +821,13 @@ pub struct CardUbConstr {
     note = "CardUBConstr has been renamed to CardUbConstr and will be removed in a future release"
 )]
 pub use CardUbConstr as CardUBConstr;
+
+impl fmt::Display for CardUbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " <= {}", self.b)
+    }
+}
 
 impl CardUbConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
@@ -797,6 +872,13 @@ pub struct CardLbConstr {
     note = "CardLBConstr has been renamed to CardLbConstr and will be removed in a future release"
 )]
 pub use CardLbConstr as CardLBConstr;
+
+impl fmt::Display for CardLbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " >= {}", self.b)
+    }
+}
 
 impl CardLbConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
@@ -847,6 +929,13 @@ pub struct CardEqConstr {
     note = "CardEQConstr has been renamed to CardEqConstr and will be removed in a future release"
 )]
 pub use CardEqConstr as CardEQConstr;
+
+impl fmt::Display for CardEqConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " = {}", self.b)
+    }
+}
 
 impl CardEqConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
@@ -917,6 +1006,28 @@ pub enum PbConstraint {
     note = "PBConstraint has been renamed to PbConstraint and will be removed in a future release"
 )]
 pub use PbConstraint as PBConstraint;
+
+impl fmt::Display for PbConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PbConstraint::Ub(c) => write!(f, "{c}"),
+            PbConstraint::Lb(c) => write!(f, "{c}"),
+            PbConstraint::Eq(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+macro_rules! write_wlit_sum {
+    ($f:expr, $vec:expr) => {{
+        for i in 0..$vec.len() {
+            if i < $vec.len() - 1 {
+                write!($f, "{} {} + ", $vec[i].1, $vec[i].0)?;
+            } else {
+                write!($f, "{} {}", $vec[i].1, $vec[i].0)?;
+            }
+        }
+    }};
+}
 
 impl PbConstraint {
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
@@ -995,6 +1106,25 @@ impl PbConstraint {
             | PbConstraint::Lb(PbLbConstr { b, .. })
             | PbConstraint::Eq(PbEqConstr { b, .. }) => *b,
         }
+    }
+
+    /// Gets the number of literals in the constraint
+    pub fn len(&self) -> usize {
+        match self {
+            PbConstraint::Ub(constr) => constr.lits.len(),
+            PbConstraint::Lb(constr) => constr.lits.len(),
+            PbConstraint::Eq(constr) => constr.lits.len(),
+        }
+    }
+
+    /// Checks whether the constraint is empty
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Gets the number of literals in the constraint
+    pub fn n_lits(&self) -> usize {
+        self.len()
     }
 
     /// Checks if the constraint is always satisfied
@@ -1113,7 +1243,7 @@ impl PbConstraint {
     /// # Errors
     ///
     /// If the constraint is not a cardinality constraint, including when it is a tautology or
-    /// unsat, returns [`PBToCardError`]
+    /// unsat, returns [`PbToCardError`]
     pub fn into_card_constr(self) -> Result<CardConstraint, PbToCardError> {
         if self.is_tautology() {
             return Err(PbToCardError::Tautology);
@@ -1241,9 +1371,9 @@ impl PbConstraint {
                     return TernaryVal::DontCare;
                 }
                 match self {
-                    PBConstraint::Ub(PbUbConstr { b, .. }) => (start <= *b).into(),
-                    PBConstraint::Lb(PbLbConstr { b, .. }) => (start >= *b).into(),
-                    PBConstraint::Eq(PbEqConstr { b, .. }) => (start == *b).into(),
+                    PbConstraint::Ub(PbUbConstr { b, .. }) => (start <= *b).into(),
+                    PbConstraint::Lb(PbLbConstr { b, .. }) => (start >= *b).into(),
+                    PbConstraint::Eq(PbEqConstr { b, .. }) => (start == *b).into(),
                 }
             }
             (Ok(start), Err(_)) => match self {
@@ -1296,6 +1426,31 @@ impl<'slf> IntoIterator for &'slf mut PbConstraint {
     }
 }
 
+impl From<Clause> for PbConstraint {
+    fn from(value: Clause) -> Self {
+        PbConstraint::new_lb(value.into_iter().map(|l| (l, 1)), 1)
+    }
+}
+
+impl From<CardConstraint> for PbConstraint {
+    fn from(value: CardConstraint) -> Self {
+        match value {
+            CardConstraint::Ub(constr) => PbConstraint::new_ub(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+            CardConstraint::Lb(constr) => PbConstraint::new_lb(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+            CardConstraint::Eq(constr) => PbConstraint::new_eq(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+        }
+    }
+}
+
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PbUbConstr {
@@ -1309,6 +1464,13 @@ pub struct PbUbConstr {
     note = "PBUBConstr has been renamed to PbUbConstr and will be removed in a future release"
 )]
 pub use PbUbConstr as PBUBConstr;
+
+impl fmt::Display for PbUbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " <= {}", self.b)
+    }
+}
 
 impl PbUbConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
@@ -1400,6 +1562,13 @@ pub struct PbLbConstr {
 )]
 pub use PbLbConstr as PBLBConstr;
 
+impl fmt::Display for PbLbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " >= {}", self.b)
+    }
+}
+
 impl PbLbConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
     #[must_use]
@@ -1488,6 +1657,13 @@ pub struct PbEqConstr {
     note = "PBEQConstr has been renamed to PbEqConstr and will be removed in a future release"
 )]
 pub use PbEqConstr as PBEQConstr;
+
+impl fmt::Display for PbEqConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " = {}", self.b)
+    }
+}
 
 impl PbEqConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound

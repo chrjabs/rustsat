@@ -1,13 +1,19 @@
 //! # Satsifiability Instance Representations
 
-use std::{cmp, collections::TryReserveError, io, ops::Index, path::Path};
+use std::{
+    cmp,
+    collections::{BTreeSet, TryReserveError},
+    io,
+    ops::Index,
+    path::Path,
+};
 
 use crate::{
     clause,
     encodings::{atomics, card, pb, CollectClauses},
     lit,
     types::{
-        constraints::{CardConstraint, PbConstraint},
+        constraints::{CardConstraint, ConstraintRef, PbConstraint},
         Assignment, Clause, Lit, TernaryVal, Var,
     },
     utils::{unreachable_err, LimitedIter},
@@ -386,6 +392,18 @@ impl<VM: ManageVars> Instance<VM> {
         self.pbs.len()
     }
 
+    /// Returns the total number of constraints
+    ///
+    /// This will always be equal to the sum of clauses, cardinality constraints, and PB
+    /// constraints.
+    /// ```
+    /// let inst: rustsat::instances::SatInstance = Default::default();
+    /// assert_eq!(inst.n_constraints(), inst.n_clauses() + inst.n_cards() + inst.n_pbs());
+    /// ```
+    pub fn n_constraints(&self) -> usize {
+        self.n_clauses() + self.n_cards() + self.n_pbs()
+    }
+
     /// Adds a clause to the instance
     pub fn add_clause(&mut self, cl: Clause) {
         cl.iter().for_each(|l| {
@@ -698,6 +716,15 @@ impl<VM: ManageVars> Instance<VM> {
             .for_each(|constr| pb_encoder(constr, &mut self.cnf, &mut self.var_manager));
     }
 
+    /// Converts the instance to a set of [`PbConstraint`]s
+    pub fn into_pbs(mut self) -> (Vec<PbConstraint>, VM) {
+        self.pbs
+            .extend(self.cards.into_iter().map(PbConstraint::from));
+        self.pbs
+            .extend(self.cnf.into_iter().map(PbConstraint::from));
+        (self.pbs, self.var_manager)
+    }
+
     /// Extends the instance by another instance
     pub fn extend(&mut self, other: Instance<VM>) {
         self.cnf.extend(other.cnf);
@@ -705,6 +732,7 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
+    #[must_use]
     pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> Instance<R> {
         self.cnf
             .iter_mut()
@@ -722,6 +750,42 @@ impl<VM: ManageVars> Instance<VM> {
             pbs: self.pbs,
             var_manager: reindexer,
         }
+    }
+
+    pub(crate) fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+        varset.extend(self.cnf.iter().flat_map(|cl| cl.iter().map(|l| l.var())));
+        varset.extend(
+            self.cards
+                .iter()
+                .flat_map(|card| card.iter().map(|l| l.var())),
+        );
+        varset.extend(
+            self.pbs
+                .iter()
+                .flat_map(|pbs| pbs.iter().map(|(l, _)| l.var())),
+        );
+    }
+
+    /// Gets the set of variables in the instance
+    pub fn var_set(&self) -> BTreeSet<Var> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        varset
+    }
+
+    /// Reindex all variables in the instance in order
+    ///
+    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// the variable _order_ being preserved with gaps in the variable space being closed
+    #[must_use]
+    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        // reindex variables in order to ensure ordered reindexing
+        for var in varset {
+            reindexer.reindex(var);
+        }
+        self.reindex(reindexer)
     }
 
     #[cfg(feature = "rand")]
@@ -1013,6 +1077,26 @@ impl<VM: ManageVars> Instance<VM> {
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         self.evaluate(assign) == TernaryVal::True
     }
+
+    /// Returns an unsatisfied constraint, if one exists
+    pub fn unsat_constraint(&self, assign: &Assignment) -> Option<ConstraintRef> {
+        for clause in self.cnf.iter() {
+            if clause.evaluate(assign) != TernaryVal::True {
+                return Some(ConstraintRef::Clause(clause));
+            }
+        }
+        for card in &self.cards {
+            if card.evaluate(assign) != TernaryVal::True {
+                return Some(ConstraintRef::Card(card));
+            }
+        }
+        for pb in &self.pbs {
+            if pb.evaluate(assign) != TernaryVal::True {
+                return Some(ConstraintRef::Pb(pb));
+            }
+        }
+        None
+    }
 }
 
 impl<VM: ManageVars + Default> Instance<VM> {
@@ -1135,5 +1219,23 @@ impl CollectClauses for Instance {
         T: IntoIterator<Item = Clause>,
     {
         self.cnf.extend_clauses(cl_iter)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{clause, instances::Cnf, lit};
+
+    #[test]
+    fn reindex_ordered() {
+        let mut inst: super::Instance = super::Instance::default();
+        inst.add_nary(&[lit![4], lit![1]]);
+        inst.add_nary(&[lit![0], lit![2]]);
+        let inst = inst.reindex_ordered(super::super::ReindexingVarManager::default());
+        let (cnf, _) = inst.into_cnf();
+        assert_eq!(
+            cnf,
+            Cnf::from_iter([clause![lit![3], lit![1]], clause![lit![0], lit![2]]])
+        );
     }
 }

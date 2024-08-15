@@ -12,7 +12,7 @@ use crate::{
     instances::{ManageVars, SatInstance},
     types::{
         constraints::{CardConstraint, PbConstraint},
-        Cl, Lit, Var,
+        Cl, Clause, Lit, Var,
     },
 };
 use anyhow::Context;
@@ -35,8 +35,6 @@ use std::{
 use crate::instances::MultiOptInstance;
 #[cfg(feature = "optimization")]
 use crate::instances::{Objective, OptInstance};
-#[cfg(feature = "optimization")]
-use crate::types::WLitIter;
 
 /// Options for reading and writing OPB files
 /// Possible relational operators
@@ -219,8 +217,8 @@ fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
 /// Parses a literal. The spec for linear OPB instances only allows for
 /// variables but we allow negated literals with '~' as in non-linear OPB
 /// instances.
-fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
-    match tag::<_, _, NomError<_>>("~")(input) {
+pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
+    match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
         Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),
         Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit()))(input),
     }
@@ -358,6 +356,80 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
     ))(input)
 }
 
+/// Possible lines that can be written to OPB
+#[cfg(not(feature = "optimization"))]
+pub enum OpbLine {
+    /// A comment line
+    Comment(String),
+    /// A clausal constraint line
+    Clause(Clause),
+    /// A cardinality constraint line
+    Card(CardConstraint),
+    /// A PB constraint line
+    Pb(PbConstraint),
+}
+
+/// Possible lines that can be written to OPB
+#[cfg(feature = "optimization")]
+pub enum OpbLine<LI: crate::types::WLitIter> {
+    /// A comment line
+    Comment(String),
+    /// A clausal constraint line
+    Clause(Clause),
+    /// A cardinality constraint line
+    Card(CardConstraint),
+    /// A PB constraint line
+    Pb(PbConstraint),
+    /// An objective line
+    Objective(LI),
+}
+
+/// Writes an OPB file from an interator over [`OpbLine`]s
+#[cfg(not(feature = "optimization"))]
+pub fn write_opb_lines<W, LI, Iter>(
+    writer: &mut W,
+    data: Iter,
+    opts: Options,
+) -> Result<(), io::Error>
+where
+    W: Write,
+    Iter: Iterator<Item = OpbLine>,
+{
+    for dat in data {
+        match dat {
+            OpbLine::Comment(c) => writeln!(writer, "* {c}")?,
+            OpbLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            OpbLine::Card(card) => write_card(writer, &card, opts)?,
+            OpbLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+        }
+    }
+    Ok(())
+}
+
+/// Writes an OPB file from an interator over [`OpbLine`]s
+#[cfg(feature = "optimization")]
+pub fn write_opb_lines<W, LI, Iter>(
+    writer: &mut W,
+    data: Iter,
+    opts: Options,
+) -> Result<(), io::Error>
+where
+    W: Write,
+    LI: crate::types::WLitIter,
+    Iter: Iterator<Item = OpbLine<LI>>,
+{
+    for dat in data {
+        match dat {
+            OpbLine::Comment(c) => writeln!(writer, "* {c}")?,
+            OpbLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            OpbLine::Card(card) => write_card(writer, &card, opts)?,
+            OpbLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+            OpbLine::Objective(obj) => write_objective(writer, (obj, 0), opts)?,
+        }
+    }
+    Ok(())
+}
+
 /// Writes a [`SatInstance`] to an OPB file
 ///
 /// # Errors
@@ -423,7 +495,7 @@ pub fn write_opt<W, VM, LI>(
 ) -> Result<(), io::Error>
 where
     W: Write,
-    LI: WLitIter,
+    LI: crate::types::WLitIter,
     VM: ManageVars,
 {
     let cnf = &constrs.cnf;
@@ -474,7 +546,7 @@ where
     W: Write,
     VM: ManageVars,
     Iter: Iterator<Item = (LI, isize)>,
-    LI: WLitIter,
+    LI: crate::types::WLitIter,
 {
     let cnf = &constrs.cnf;
     let cards = &constrs.cards;
@@ -733,7 +805,7 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PbConstraint, opts: Options) -> Resul
 /// # Errors
 ///
 /// If writing fails, returns [`io::Error`].
-fn write_objective<W: Write, LI: WLitIter>(
+fn write_objective<W: Write, LI: crate::types::WLitIter>(
     writer: &mut W,
     softs: (LI, isize),
     opts: Options,
