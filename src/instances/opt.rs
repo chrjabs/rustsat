@@ -402,28 +402,23 @@ impl Objective {
                         return Some(unreachable_none!(*unit_weight));
                     }
                     None
-                } else {
-                    match unit_weight {
-                        Some(unit_weight) => {
-                            if w == *unit_weight {
-                                if soft_lits.iter().any(|l2| l2 == &l) {
-                                    return Some(*unit_weight);
-                                }
-                                soft_lits.push(l);
-                                None
-                            } else {
-                                // Type changes from unweighted to weighted
-                                self.unweighted_2_weighted();
-                                // Add literal to new weighted objective
-                                self.add_soft_lit(w, l)
-                            }
+                } else if let Some(unit_weight) = unit_weight {
+                    if w == *unit_weight {
+                        if soft_lits.iter().any(|l2| l2 == &l) {
+                            return Some(*unit_weight);
                         }
-                        None => {
-                            soft_lits.push(l);
-                            *unit_weight = Some(w);
-                            None
-                        }
+                        soft_lits.push(l);
+                        None
+                    } else {
+                        // Type changes from unweighted to weighted
+                        self.unweighted_2_weighted();
+                        // Add literal to new weighted objective
+                        self.add_soft_lit(w, l)
                     }
+                } else {
+                    soft_lits.push(l);
+                    *unit_weight = Some(w);
+                    None
                 }
             }
         }
@@ -491,28 +486,23 @@ impl Objective {
                         return Some(unreachable_none!(*unit_weight));
                     }
                     None
-                } else {
-                    match unit_weight {
-                        Some(unit_weight) => {
-                            if w == *unit_weight {
-                                if soft_clauses.iter().any(|cl2| cl2 == &cl) {
-                                    return Some(*unit_weight);
-                                }
-                                soft_clauses.push(cl);
-                                None
-                            } else {
-                                // Type changes from unweighted to weighted
-                                self.unweighted_2_weighted();
-                                // Add literal to new weighted objective
-                                self.add_soft_clause(w, cl)
-                            }
+                } else if let Some(unit_weight) = unit_weight {
+                    if w == *unit_weight {
+                        if soft_clauses.iter().any(|cl2| cl2 == &cl) {
+                            return Some(*unit_weight);
                         }
-                        None => {
-                            soft_clauses.push(cl);
-                            *unit_weight = Some(w);
-                            None
-                        }
+                        soft_clauses.push(cl);
+                        None
+                    } else {
+                        // Type changes from unweighted to weighted
+                        self.unweighted_2_weighted();
+                        // Add literal to new weighted objective
+                        self.add_soft_clause(w, cl)
                     }
+                } else {
+                    soft_clauses.push(cl);
+                    *unit_weight = Some(w);
+                    None
                 }
             }
         }
