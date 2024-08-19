@@ -10,7 +10,7 @@
 
 #ifdef __cplusplus
 namespace RustSAT {
-#endif // __cplusplus
+#endif  // __cplusplus
 
 typedef enum MaybeError {
   /**
@@ -329,11 +329,11 @@ enum MaybeError tot_enforce_ub(struct DbTotalizer *tot, size_t ub, int *assump);
 struct DbTotalizer *tot_new(void);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
 #ifdef __cplusplus
-} // namespace RustSAT
-#endif // __cplusplus
+}  // namespace RustSAT
+#endif  // __cplusplus
 
-#endif /* rustsat_h */
+#endif  /* rustsat_h */
