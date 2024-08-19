@@ -358,7 +358,7 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
 
 /// Possible lines that can be written to OPB
 #[cfg(not(feature = "optimization"))]
-pub enum OpbLine {
+pub enum FileLine {
     /// A comment line
     Comment(String),
     /// A clausal constraint line
@@ -371,7 +371,7 @@ pub enum OpbLine {
 
 /// Possible lines that can be written to OPB
 #[cfg(feature = "optimization")]
-pub enum OpbLine<LI: crate::types::WLitIter> {
+pub enum FileLine<LI: crate::types::WLitIter> {
     /// A comment line
     Comment(String),
     /// A clausal constraint line
@@ -384,47 +384,47 @@ pub enum OpbLine<LI: crate::types::WLitIter> {
     Objective(LI),
 }
 
-/// Writes an OPB file from an interator over [`OpbLine`]s
+/// Writes an OPB file from an interator over [`FileLine`]s
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`]
 #[cfg(not(feature = "optimization"))]
-pub fn write_opb_lines<W, LI, Iter>(
-    writer: &mut W,
-    data: Iter,
-    opts: Options,
-) -> Result<(), io::Error>
+pub fn write_opb_lines<W, Iter>(writer: &mut W, data: Iter, opts: Options) -> io::Result<()>
 where
     W: Write,
-    Iter: Iterator<Item = OpbLine>,
+    Iter: Iterator<Item = FileLine>,
 {
     for dat in data {
         match dat {
-            OpbLine::Comment(c) => writeln!(writer, "* {c}")?,
-            OpbLine::Clause(cl) => write_clause(writer, &cl, opts)?,
-            OpbLine::Card(card) => write_card(writer, &card, opts)?,
-            OpbLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+            FileLine::Comment(c) => writeln!(writer, "* {c}")?,
+            FileLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            FileLine::Card(card) => write_card(writer, &card, opts)?,
+            FileLine::Pb(pb) => write_pb(writer, &pb, opts)?,
         }
     }
     Ok(())
 }
 
-/// Writes an OPB file from an interator over [`OpbLine`]s
+/// Writes an OPB file from an interator over [`FileLine`]s
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`]
 #[cfg(feature = "optimization")]
-pub fn write_opb_lines<W, LI, Iter>(
-    writer: &mut W,
-    data: Iter,
-    opts: Options,
-) -> Result<(), io::Error>
+pub fn write_opb_lines<W, LI, Iter>(writer: &mut W, data: Iter, opts: Options) -> io::Result<()>
 where
     W: Write,
     LI: crate::types::WLitIter,
-    Iter: Iterator<Item = OpbLine<LI>>,
+    Iter: Iterator<Item = FileLine<LI>>,
 {
     for dat in data {
         match dat {
-            OpbLine::Comment(c) => writeln!(writer, "* {c}")?,
-            OpbLine::Clause(cl) => write_clause(writer, &cl, opts)?,
-            OpbLine::Card(card) => write_card(writer, &card, opts)?,
-            OpbLine::Pb(pb) => write_pb(writer, &pb, opts)?,
-            OpbLine::Objective(obj) => write_objective(writer, (obj, 0), opts)?,
+            FileLine::Comment(c) => writeln!(writer, "* {c}")?,
+            FileLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            FileLine::Card(card) => write_card(writer, &card, opts)?,
+            FileLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+            FileLine::Objective(obj) => write_objective(writer, (obj, 0), opts)?,
         }
     }
     Ok(())

@@ -1080,7 +1080,7 @@ impl<VM: ManageVars> Instance<VM> {
 
     /// Returns an unsatisfied constraint, if one exists
     pub fn unsat_constraint(&self, assign: &Assignment) -> Option<ConstraintRef> {
-        for clause in self.cnf.iter() {
+        for clause in &self.cnf {
             if clause.evaluate(assign) != TernaryVal::True {
                 return Some(ConstraintRef::Clause(clause));
             }

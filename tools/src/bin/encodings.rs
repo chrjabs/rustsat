@@ -259,7 +259,7 @@ fn cnf_knapsack(inst: knapsack::Knapsack) -> impl Iterator<Item = dimacs::McnfLi
 
 fn pb_knapsack(
     inst: knapsack::Knapsack,
-) -> impl Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+) -> impl Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
     pb::knapsack::Encoding::new(inst)
 }
 
@@ -274,7 +274,7 @@ fn input_assignment(args: &AssignmentArgs) -> anyhow::Result<assignment::Assignm
 
 fn pb_assignment(
     inst: assignment::Assignment,
-) -> impl Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+) -> impl Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
     pb::assignment::Encoding::new(inst)
 }
 
@@ -291,7 +291,7 @@ fn input_facility_location(
 
 fn pb_facility_location(
     inst: facilitylocation::FacilityLocation,
-) -> impl Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+) -> impl Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
     pb::facilitylocation::Encoding::new(inst)
 }
 
@@ -322,7 +322,7 @@ fn write_cnf(
 }
 
 fn write_pb<LI: WLitIter>(
-    encoding: impl Iterator<Item = opb::OpbLine<LI>>,
+    encoding: impl Iterator<Item = opb::FileLine<LI>>,
     path: Option<PathBuf>,
     opts: opb::Options,
 ) -> anyhow::Result<()> {
@@ -337,7 +337,7 @@ fn write_pb<LI: WLitIter>(
 
 type BoxedDimacsIter = Box<dyn Iterator<Item = dimacs::McnfLine>>;
 type BoxedOpbIter =
-    Box<dyn Iterator<Item = opb::OpbLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>>>;
+    Box<dyn Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>>>;
 
 fn main() -> anyhow::Result<()> {
     let args = CliArgs::parse();

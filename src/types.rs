@@ -859,6 +859,10 @@ impl Assignment {
     /// - [SAT Competition](https://satcompetition.github.io/2024/output.html): `v 1 -2 -3 4 0`
     /// - [MaxSAT Evaluation](https://maxsat-evaluations.github.io/2024/rules.html): `v 1001`
     /// - [PB Competition](https://www.cril.univ-artois.fr/PB24/competitionRequirements.pdf): `v x1 -x2 -x3 x4`
+    ///
+    /// # Errors
+    ///
+    /// Can return various parsing errors
     pub fn extend_from_vline(&mut self, lines: &str) -> anyhow::Result<()> {
         anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
         // determine line format
@@ -894,7 +898,7 @@ impl Assignment {
                 VLineFormat::SatComp => self.extend_sat_comp_vline(line),
                 VLineFormat::MaxSatEval => self.extend_maxsat_eval_vline(line),
                 VLineFormat::PbComp => self.extend_pb_comp_vline(line),
-            }?
+            }?;
         }
         Ok(())
     }
@@ -942,8 +946,8 @@ impl Assignment {
         let line = &line[1..];
         for number in line.split_whitespace() {
             let (_, lit) = fio::opb::literal(number, fio::opb::Options::default())
-                .map_err(|e| e.to_owned())
-                .with_context(|| format!("failed to parse pb literal '{}'", number))?;
+                .map_err(nom::Err::<nom::error::Error<&str>>::to_owned)
+                .with_context(|| format!("failed to parse pb literal '{number}'"))?;
             let val = self.lit_value(lit);
             if val == TernaryVal::True && lit.is_neg() || val == TernaryVal::False && lit.is_pos() {
                 // Catch conflicting assignments

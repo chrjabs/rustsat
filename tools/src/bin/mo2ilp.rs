@@ -41,6 +41,7 @@ enum InputFormat {
     /// Infer the file format from the file extension according to the following rules:
     /// - `.mcnf`: Multi-objective MaxSAT file
     /// - `.opb`, `.pbmo`, `.mopb`: OPB file
+    ///
     /// All file extensions can also be appended with `.bz2`, `.xz`, or `.gz` if compression is used.
     Infer,
     /// A DIMACS MCNF file

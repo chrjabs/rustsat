@@ -218,6 +218,7 @@ enum InputFormat {
     /// Infer the input file format from the file extension according to the following rules:
     /// - `.wcnf`: Weighted DIMACS CNF (MaxSAT) file
     /// - `.opb`: OPB file (without an objective)
+    ///
     /// All file extensions can also be appended with `.bz2`, `.xz`, or `.gz` if compression is used.
     #[default]
     Infer,

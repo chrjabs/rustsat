@@ -21,6 +21,7 @@ pub enum FileFormat {
     /// - `.mcnf`: Multi-objective MaxSAT file
     /// - `.opb`: OPB file (without an objective)
     /// - `.mopb` / `.pbmo`: Multi-objective OPB file
+    ///
     /// All file extensions can also be appended with `.bz2`, `.xz`, or `.gz` if compression is used.
     Infer,
     /// A DIMACS CNF file

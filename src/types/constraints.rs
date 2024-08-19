@@ -599,6 +599,7 @@ impl CardConstraint {
     }
 
     /// Gets the number of literals in the constraint
+    #[must_use]
     pub fn len(&self) -> usize {
         match self {
             CardConstraint::Ub(constr) => constr.lits.len(),
@@ -608,11 +609,13 @@ impl CardConstraint {
     }
 
     /// Checks whether the constraint is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Gets the number of literals in the constraint
+    #[must_use]
     pub fn n_lits(&self) -> usize {
         self.len()
     }
@@ -1109,6 +1112,7 @@ impl PbConstraint {
     }
 
     /// Gets the number of literals in the constraint
+    #[must_use]
     pub fn len(&self) -> usize {
         match self {
             PbConstraint::Ub(constr) => constr.lits.len(),
@@ -1118,11 +1122,13 @@ impl PbConstraint {
     }
 
     /// Checks whether the constraint is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Gets the number of literals in the constraint
+    #[must_use]
     pub fn n_lits(&self) -> usize {
         self.len()
     }
