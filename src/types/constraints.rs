@@ -1,9 +1,10 @@
 //! # Constraint Types
 //!
 //! Different types of constraints. The most important one is [`Clause`] but
-//! Rust SAT supports more complex constraints like [`PBConstraint`] or
+//! Rust SAT supports more complex constraints like [`PbConstraint`] or
 //! [`CardConstraint`].
 
+use core::slice;
 use std::{
     collections::TryReserveError,
     fmt,
@@ -16,6 +17,27 @@ use thiserror::Error;
 use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
 
 use crate::RequiresClausal;
+
+/// A reference to any type of constraint throughout RustSAT
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConstraintRef<'constr> {
+    /// A clausal constraint
+    Clause(&'constr Clause),
+    /// A cardinality constraint
+    Card(&'constr CardConstraint),
+    /// A pseudo-Boolean constraint
+    Pb(&'constr PbConstraint),
+}
+
+impl fmt::Display for ConstraintRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConstraintRef::Clause(cl) => write!(f, "{cl}"),
+            ConstraintRef::Card(card) => write!(f, "{card}"),
+            ConstraintRef::Pb(pb) => write!(f, "{pb}"),
+        }
+    }
+}
 
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
@@ -84,55 +106,6 @@ impl Clause {
         self.lits.try_reserve_exact(additional)
     }
 
-    /// Gets the clause as a slice of literals
-    #[must_use]
-    pub fn lits(&self) -> &[Lit] {
-        &self.lits
-    }
-
-    /// Gets the length of the clause
-    #[inline]
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.lits.len()
-    }
-
-    /// Checks if the clause is empty
-    #[inline]
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.lits.is_empty()
-    }
-
-    /// Evaluates a clause under a given assignment
-    #[must_use]
-    pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
-        self.iter()
-            .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
-                TernaryVal::True => TernaryVal::True,
-                TernaryVal::DontCare => {
-                    if val == TernaryVal::False {
-                        TernaryVal::DontCare
-                    } else {
-                        val
-                    }
-                }
-                TernaryVal::False => val,
-            })
-    }
-
-    /// Gets an iterator over the clause
-    #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
-        self.lits.iter()
-    }
-
-    /// Gets a mutable iterator over the clause
-    #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
-        self.lits.iter_mut()
-    }
-
     /// Like [`Vec::drain`]
     pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<'_, Lit> {
         self.lits.drain(range)
@@ -192,30 +165,6 @@ impl Clause {
         Some(self)
     }
 
-    /// Checks whether the clause is satisfied by the given assignment
-    #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        for &lit in &self.lits {
-            if assign.lit_value(lit) == TernaryVal::True {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Checks if the clause is a unit clause
-    #[inline]
-    #[must_use]
-    pub fn is_unit(&self) -> bool {
-        self.lits.len() == 1
-    }
-
-    /// Checks if the clause is binary
-    #[must_use]
-    pub fn is_binary(&self) -> bool {
-        self.lits.len() == 2
-    }
-
     /// Adds a literal to the clause
     pub fn add(&mut self, lit: Lit) {
         self.lits.push(lit);
@@ -248,6 +197,44 @@ impl Clause {
     }
 }
 
+impl ops::Deref for Clause {
+    type Target = Cl;
+
+    fn deref(&self) -> &Self::Target {
+        Cl::new(self)
+    }
+}
+
+impl std::ops::DerefMut for Clause {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Cl::new_mut(self)
+    }
+}
+
+impl AsRef<[Lit]> for Clause {
+    fn as_ref(&self) -> &[Lit] {
+        &self.lits
+    }
+}
+
+impl AsMut<[Lit]> for Clause {
+    fn as_mut(&mut self) -> &mut [Lit] {
+        &mut self.lits
+    }
+}
+
+impl AsRef<Cl> for Clause {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl AsMut<Cl> for Clause {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
+}
+
 impl<const N: usize> From<[Lit; N]> for Clause {
     fn from(value: [Lit; N]) -> Self {
         Self {
@@ -270,44 +257,6 @@ impl Extend<Lit> for Clause {
     }
 }
 
-impl ops::Index<usize> for Clause {
-    type Output = Lit;
-
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.lits[index]
-    }
-}
-
-impl ops::IndexMut<usize> for Clause {
-    #[inline]
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.lits[index]
-    }
-}
-
-impl<'a> IntoIterator for &'a Clause {
-    type Item = &'a Lit;
-
-    type IntoIter = std::slice::Iter<'a, Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.lits.iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a mut Clause {
-    type Item = &'a mut Lit;
-
-    type IntoIter = std::slice::IterMut<'a, Lit>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.lits.iter_mut()
-    }
-}
-
 impl IntoIterator for Clause {
     type Item = Lit;
 
@@ -327,31 +276,35 @@ impl FromIterator<Lit> for Clause {
     }
 }
 
-/// Clauses can be printed with the [`Display`](std::fmt::Display) trait
-impl fmt::Display for Clause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (i, lit) in self.iter().enumerate() {
-            if i != 0 {
-                write!(f, "|")?;
-            }
-            write!(f, "{lit}")?;
-        }
-        write!(f, ")")
+impl<'a> IntoIterator for &'a Clause {
+    type Item = &'a Lit;
+
+    type IntoIter = std::slice::Iter<'a, Lit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter()
     }
 }
 
-/// Clauses can be printed with the [`Debug`](std::fmt::Debug) trait
+impl<'a> IntoIterator for &'a mut Clause {
+    type Item = &'a mut Lit;
+
+    type IntoIter = std::slice::IterMut<'a, Lit>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter_mut()
+    }
+}
+
+impl fmt::Display for Clause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.iter().format("|"))
+    }
+}
+
 impl fmt::Debug for Clause {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(")?;
-        for (i, lit) in self.iter().enumerate() {
-            if i != 0 {
-                write!(f, "|")?;
-            }
-            write!(f, "{lit}")?;
-        }
-        write!(f, ")")
+        write!(f, "({})", self.iter().format("|"))
     }
 }
 
@@ -389,6 +342,205 @@ macro_rules! clause {
     };
 }
 
+/// Dynamically sized clause type to be used with references
+///
+/// [`Clause`] is the owned version: if [`Clause`] is [`String`], this is [`str`].
+#[repr(transparent)]
+pub struct Cl {
+    lits: [Lit],
+}
+
+impl Cl {
+    /// Directly wraps a literal slice as a [`Cl`]
+    ///
+    /// This is a cost-free conversion
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustsat::{types::Cl, lit};
+    ///
+    /// let lits = [lit![0], lit![1]];
+    /// Cl::new(&lits);
+    /// ```
+    pub fn new<S: AsRef<[Lit]> + ?Sized>(s: &S) -> &Cl {
+        unsafe { &*(s.as_ref() as *const [Lit] as *const Cl) }
+    }
+
+    /// Directly wraps a mutable literal slice as a [`Cl`]
+    pub fn new_mut<S: AsMut<[Lit]> + ?Sized>(s: &mut S) -> &mut Cl {
+        unsafe { &mut *(s.as_mut() as *mut [Lit] as *mut Cl) }
+    }
+
+    /// Gets the length of the clause
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.lits.len()
+    }
+
+    /// Checks if the clause is empty
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.lits.is_empty()
+    }
+
+    /// Gets an iterator over the clause
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &Lit> {
+        self.lits.iter()
+    }
+
+    /// Gets a mutable iterator over the clause
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Lit> {
+        self.lits.iter_mut()
+    }
+
+    /// Evaluates a clause under a given assignment
+    #[must_use]
+    pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
+        self.iter()
+            .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
+                TernaryVal::True => TernaryVal::True,
+                TernaryVal::DontCare => {
+                    if val == TernaryVal::False {
+                        TernaryVal::DontCare
+                    } else {
+                        val
+                    }
+                }
+                TernaryVal::False => val,
+            })
+    }
+
+    /// Checks wheter the clause is satisfied
+    #[must_use]
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    pub fn is_sat(&self, assignment: &Assignment) -> bool {
+        self.evaluate(assignment) == TernaryVal::True
+    }
+
+    /// Checks whether the clause is tautological
+    #[must_use]
+    pub fn is_tautology(&self) -> bool {
+        if self.is_empty() {
+            return false;
+        }
+        for (idx, &l1) in self[0..self.len() - 1].iter().enumerate() {
+            for &l2 in &self[idx + 1..] {
+                if l1 == !l2 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Performs [`slice::sort_unstable`] on the clause
+    pub fn sort(&mut self) {
+        self.lits.sort_unstable();
+    }
+
+    /// Checks if the clause is a unit clause
+    #[inline]
+    #[must_use]
+    pub fn is_unit(&self) -> bool {
+        self.lits.len() == 1
+    }
+
+    /// Checks if the clause is binary
+    #[inline]
+    #[must_use]
+    pub fn is_binary(&self) -> bool {
+        self.lits.len() == 2
+    }
+}
+
+impl AsRef<[Lit]> for Cl {
+    fn as_ref(&self) -> &[Lit] {
+        &self.lits
+    }
+}
+
+impl AsMut<[Lit]> for Cl {
+    fn as_mut(&mut self) -> &mut [Lit] {
+        &mut self.lits
+    }
+}
+
+impl<I> ops::Index<I> for Cl
+where
+    I: slice::SliceIndex<[Lit]>,
+{
+    type Output = <I as slice::SliceIndex<[Lit]>>::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        &self.lits[index]
+    }
+}
+
+impl<I> ops::IndexMut<I> for Cl
+where
+    I: slice::SliceIndex<[Lit]>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        &mut self.lits[index]
+    }
+}
+
+impl<'a> IntoIterator for &'a Cl {
+    type Item = &'a Lit;
+
+    type IntoIter = std::slice::Iter<'a, Lit>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Cl {
+    type Item = &'a mut Lit;
+
+    type IntoIter = std::slice::IterMut<'a, Lit>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.lits.iter_mut()
+    }
+}
+
+impl fmt::Display for Cl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.iter().format("|"))
+    }
+}
+
+impl fmt::Debug for Cl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.iter().format("|"))
+    }
+}
+
+impl AsRef<Cl> for [Lit] {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl AsMut<Cl> for [Lit] {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
+}
+
 /// Type representing a cardinality constraint.
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum CardConstraint {
@@ -398,6 +550,28 @@ pub enum CardConstraint {
     Lb(CardLbConstr),
     /// An equality cardinality constraint
     Eq(CardEqConstr),
+}
+
+impl fmt::Display for CardConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CardConstraint::Ub(c) => write!(f, "{c}"),
+            CardConstraint::Lb(c) => write!(f, "{c}"),
+            CardConstraint::Eq(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+macro_rules! write_lit_sum {
+    ($f:expr, $vec:expr) => {{
+        for i in 0..$vec.len() {
+            if i < $vec.len() - 1 {
+                write!($f, "{} + ", $vec[i])?;
+            } else {
+                write!($f, "{}", $vec[i])?;
+            }
+        }
+    }};
 }
 
 impl CardConstraint {
@@ -443,33 +617,36 @@ impl CardConstraint {
         }
     }
 
-    /// Changes the bound on the constraint
-    pub fn change_bound(&mut self, b: usize) {
-        match self {
-            CardConstraint::Ub(constr) => constr.b = b,
-            CardConstraint::Lb(constr) => constr.b = b,
-            CardConstraint::Eq(constr) => constr.b = b,
-        }
-    }
-
     /// Gets the bound of the constraint
     #[must_use]
     pub fn bound(&self) -> usize {
         match self {
-            CardConstraint::Ub(c) => c.b,
-            CardConstraint::Lb(c) => c.b,
-            CardConstraint::Eq(c) => c.b,
+            CardConstraint::Ub(CardUbConstr { b, .. })
+            | CardConstraint::Lb(CardLbConstr { b, .. })
+            | CardConstraint::Eq(CardEqConstr { b, .. }) => *b,
         }
     }
 
     /// Gets the number of literals in the constraint
     #[must_use]
-    pub fn n_lits(&self) -> usize {
+    pub fn len(&self) -> usize {
         match self {
-            CardConstraint::Ub(c) => c.lits.len(),
-            CardConstraint::Lb(c) => c.lits.len(),
-            CardConstraint::Eq(c) => c.lits.len(),
+            CardConstraint::Ub(constr) => constr.lits.len(),
+            CardConstraint::Lb(constr) => constr.lits.len(),
+            CardConstraint::Eq(constr) => constr.lits.len(),
         }
+    }
+
+    /// Checks whether the constraint is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Gets the number of literals in the constraint
+    #[must_use]
+    pub fn n_lits(&self) -> usize {
+        self.len()
     }
 
     /// Sets the bound of the constraint
@@ -608,18 +785,33 @@ impl CardConstraint {
 
     /// Checks whether the cardinality constraint is satisfied by the given assignment
     #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        let count = self.iter().fold(0, |cnt, lit| {
-            if assign.lit_value(*lit) == TernaryVal::True {
-                return cnt + 1;
-            }
-            cnt
-        });
-        match self {
-            CardConstraint::Ub(constr) => count <= constr.b,
-            CardConstraint::Lb(constr) => count >= constr.b,
-            CardConstraint::Eq(constr) => count == constr.b,
+    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+        #[allow(clippy::range_plus_one)]
+        let range = self
+            .iter()
+            .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + 1..rng.end + 1,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + 1,
+            });
+        if range.contains(&self.bound()) {
+            return TernaryVal::DontCare;
         }
+        match self {
+            CardConstraint::Ub(CardUbConstr { b, .. }) => (range.start <= *b).into(),
+            CardConstraint::Lb(CardLbConstr { b, .. }) => (range.start >= *b).into(),
+            CardConstraint::Eq(CardEqConstr { b, .. }) => (range.start == *b).into(),
+        }
+    }
+
+    /// Checks whether the cardinality constraint is satisfied by the given assignment
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -643,19 +835,9 @@ impl<'slf> IntoIterator for &'slf mut CardConstraint {
     }
 }
 
-impl fmt::Display for CardConstraint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CardConstraint::Ub(CardUbConstr { lits, b }) => {
-                write!(f, "{} <= {b}", lits.iter().format(" + "))
-            }
-            CardConstraint::Lb(CardLbConstr { lits, b }) => {
-                write!(f, "{} >= {b}", lits.iter().format(" + "))
-            }
-            CardConstraint::Eq(CardEqConstr { lits, b }) => {
-                write!(f, "{} = {b}", lits.iter().format(" + "))
-            }
-        }
+impl From<Clause> for CardConstraint {
+    fn from(value: Clause) -> Self {
+        CardConstraint::new_lb(value, 1)
     }
 }
 
@@ -724,6 +906,13 @@ pub struct CardUbConstr {
 )]
 pub use CardUbConstr as CardUBConstr;
 
+impl fmt::Display for CardUbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " <= {}", self.b)
+    }
+}
+
 impl CardUbConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
     #[must_use]
@@ -767,6 +956,13 @@ pub struct CardLbConstr {
     note = "CardLBConstr has been renamed to CardLbConstr and will be removed in a future release"
 )]
 pub use CardLbConstr as CardLBConstr;
+
+impl fmt::Display for CardLbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " >= {}", self.b)
+    }
+}
 
 impl CardLbConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
@@ -817,6 +1013,13 @@ pub struct CardEqConstr {
     note = "CardEQConstr has been renamed to CardEqConstr and will be removed in a future release"
 )]
 pub use CardEqConstr as CardEQConstr;
+
+impl fmt::Display for CardEqConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_lit_sum!(f, self.lits);
+        write!(f, " = {}", self.b)
+    }
+}
 
 impl CardEqConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
@@ -887,6 +1090,28 @@ pub enum PbConstraint {
     note = "PBConstraint has been renamed to PbConstraint and will be removed in a future release"
 )]
 pub use PbConstraint as PBConstraint;
+
+impl fmt::Display for PbConstraint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PbConstraint::Ub(c) => write!(f, "{c}"),
+            PbConstraint::Lb(c) => write!(f, "{c}"),
+            PbConstraint::Eq(c) => write!(f, "{c}"),
+        }
+    }
+}
+
+macro_rules! write_wlit_sum {
+    ($f:expr, $vec:expr) => {{
+        for i in 0..$vec.len() {
+            if i < $vec.len() - 1 {
+                write!($f, "{} {} + ", $vec[i].1, $vec[i].0)?;
+            } else {
+                write!($f, "{} {}", $vec[i].1, $vec[i].0)?;
+            }
+        }
+    }};
+}
 
 impl PbConstraint {
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
@@ -982,16 +1207,6 @@ impl PbConstraint {
         })
     }
 
-    /// Gets the bound of the constraint
-    #[must_use]
-    pub fn bound(&self) -> isize {
-        match self {
-            PbConstraint::Ub(c) => c.b,
-            PbConstraint::Lb(c) => c.b,
-            PbConstraint::Eq(c) => c.b,
-        }
-    }
-
     /// Gets the sum of weights of the constraint
     #[must_use]
     pub fn weight_sum(&self) -> usize {
@@ -999,16 +1214,6 @@ impl PbConstraint {
             PbConstraint::Ub(c) => c.weight_sum,
             PbConstraint::Lb(c) => c.weight_sum,
             PbConstraint::Eq(c) => c.weight_sum,
-        }
-    }
-
-    /// Gets the number of literals in the constraint
-    #[must_use]
-    pub fn n_lits(&self) -> usize {
-        match self {
-            PbConstraint::Ub(c) => c.lits.len(),
-            PbConstraint::Lb(c) => c.lits.len(),
-            PbConstraint::Eq(c) => c.lits.len(),
         }
     }
 
@@ -1037,6 +1242,38 @@ impl PbConstraint {
         data_lits.extend(lits);
         *weight_sum += add_weight_sum;
         *b += b_add;
+    }
+
+    /// Gets the bound of the constraint
+    #[must_use]
+    pub fn bound(&self) -> isize {
+        match self {
+            PbConstraint::Ub(PbUbConstr { b, .. })
+            | PbConstraint::Lb(PbLbConstr { b, .. })
+            | PbConstraint::Eq(PbEqConstr { b, .. }) => *b,
+        }
+    }
+
+    /// Gets the number of literals in the constraint
+    #[must_use]
+    pub fn len(&self) -> usize {
+        match self {
+            PbConstraint::Ub(constr) => constr.lits.len(),
+            PbConstraint::Lb(constr) => constr.lits.len(),
+            PbConstraint::Eq(constr) => constr.lits.len(),
+        }
+    }
+
+    /// Checks whether the constraint is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Gets the number of literals in the constraint
+    #[must_use]
+    pub fn n_lits(&self) -> usize {
+        self.len()
     }
 
     /// Checks if the constraint is always satisfied
@@ -1155,7 +1392,7 @@ impl PbConstraint {
     /// # Errors
     ///
     /// If the constraint is not a cardinality constraint, including when it is a tautology or
-    /// unsat, returns [`PBToCardError`]
+    /// unsat, returns [`PbToCardError`]
     pub fn into_card_constr(self) -> Result<CardConstraint, PbToCardError> {
         if self.is_tautology() {
             return Err(PbToCardError::Tautology);
@@ -1268,67 +1505,53 @@ impl PbConstraint {
 
     /// Checks whether the PB constraint is satisfied by the given assignment
     #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        let sum = self.iter().fold(0, |sum, (lit, coeff)| {
-            if assign.lit_value(*lit) == TernaryVal::True {
-                return sum + coeff;
-            }
-            sum
-        });
-        match self {
-            PbConstraint::Ub(constr) => {
-                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
-                    sum <= constr.b
-                } else {
-                    false
+    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+        #[allow(clippy::range_plus_one)]
+        let range = self
+            .iter()
+            .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + coeff..rng.end + coeff,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + coeff,
+            });
+        match (isize::try_from(range.start), isize::try_from(range.end)) {
+            (Ok(start), Ok(end)) => {
+                if (start..end).contains(&self.bound()) {
+                    return TernaryVal::DontCare;
+                }
+                match self {
+                    PbConstraint::Ub(PbUbConstr { b, .. }) => (start <= *b).into(),
+                    PbConstraint::Lb(PbLbConstr { b, .. }) => (start >= *b).into(),
+                    PbConstraint::Eq(PbEqConstr { b, .. }) => (start == *b).into(),
                 }
             }
-            PbConstraint::Lb(constr) => {
-                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
-                    sum >= constr.b
-                } else {
-                    true
+            (Ok(start), Err(_)) => match self {
+                PbConstraint::Ub(PbUbConstr { b, .. }) => {
+                    if (start..).contains(b) {
+                        return TernaryVal::DontCare;
+                    }
+                    TernaryVal::True
                 }
-            }
-            PbConstraint::Eq(constr) => {
-                if let Ok(sum) = <usize as TryInto<isize>>::try_into(sum) {
-                    sum == constr.b
-                } else {
-                    false
+                PbConstraint::Lb(PbLbConstr { b, .. }) | PbConstraint::Eq(PbEqConstr { b, .. }) => {
+                    if (start..).contains(b) {
+                        return TernaryVal::DontCare;
+                    }
+                    TernaryVal::False
                 }
-            }
+            },
+            (Err(_), Err(_)) => matches!(self, PbConstraint::Lb(_)).into(),
+            (Err(_), Ok(_)) => unreachable!(), // since end >= start
         }
     }
-}
 
-impl fmt::Display for PbConstraint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PbConstraint::Ub(PbUbConstr { lits, b, .. }) => {
-                write!(
-                    f,
-                    "{} <= {b}",
-                    lits.iter()
-                        .format_with(" + ", |(l, w), f| f(&format_args!("{w} * {l}")))
-                )
-            }
-            PbConstraint::Lb(PbLbConstr { lits, b, .. }) => {
-                write!(
-                    f,
-                    "{} >= {b}",
-                    lits.iter()
-                        .format_with(" + ", |(l, w), f| f(&format_args!("{w} * {l}")))
-                )
-            }
-            PbConstraint::Eq(PbEqConstr { lits, b, .. }) => {
-                write!(
-                    f,
-                    "{} = {b}",
-                    lits.iter()
-                        .format_with(" + ", |(l, w), f| f(&format_args!("{w} * {l}")))
-                )
-            }
-        }
+    /// Checks whether the PB constraint is satisfied by the given assignment
+    #[deprecated(
+        since = "0.6.0",
+        note = "use `evaluate` instead and check against `TernaryVal::True`"
+    )]
+    #[must_use]
+    pub fn is_sat(&self, assign: &Assignment) -> bool {
+        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -1408,6 +1631,31 @@ impl<'slf> IntoIterator for &'slf mut PbConstraint {
     }
 }
 
+impl From<Clause> for PbConstraint {
+    fn from(value: Clause) -> Self {
+        PbConstraint::new_lb(value.into_iter().map(|l| (l, 1)), 1)
+    }
+}
+
+impl From<CardConstraint> for PbConstraint {
+    fn from(value: CardConstraint) -> Self {
+        match value {
+            CardConstraint::Ub(constr) => PbConstraint::new_ub(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+            CardConstraint::Lb(constr) => PbConstraint::new_lb(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+            CardConstraint::Eq(constr) => PbConstraint::new_eq(
+                constr.lits.into_iter().map(|l| (l, 1)),
+                isize::try_from(constr.b).expect("cannot handle bounds higher than `isize::MAX`"),
+            ),
+        }
+    }
+}
+
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct PbUbConstr {
@@ -1421,6 +1669,13 @@ pub struct PbUbConstr {
     note = "PBUBConstr has been renamed to PbUbConstr and will be removed in a future release"
 )]
 pub use PbUbConstr as PBUBConstr;
+
+impl fmt::Display for PbUbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " <= {}", self.b)
+    }
+}
 
 impl PbUbConstr {
     /// Decomposes the constraint to a set of input literals and an upper bound
@@ -1512,6 +1767,13 @@ pub struct PbLbConstr {
 )]
 pub use PbLbConstr as PBLBConstr;
 
+impl fmt::Display for PbLbConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " >= {}", self.b)
+    }
+}
+
 impl PbLbConstr {
     /// Decomposes the constraint to a set of input literals and a lower bound
     #[must_use]
@@ -1601,6 +1863,13 @@ pub struct PbEqConstr {
 )]
 pub use PbEqConstr as PBEQConstr;
 
+impl fmt::Display for PbEqConstr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_wlit_sum!(f, self.lits);
+        write!(f, " = {}", self.b)
+    }
+}
+
 impl PbEqConstr {
     /// Decomposes the constraint to a set of input literals and an equality bound
     #[must_use]
@@ -1662,8 +1931,12 @@ impl PbEqConstr {
 
 #[cfg(test)]
 mod tests {
-    use super::{CardConstraint, PbConstraint};
-    use crate::{lit, types::Assignment, var};
+    use super::{CardConstraint, Cl, PbConstraint};
+    use crate::{
+        lit,
+        types::{Assignment, TernaryVal},
+        var,
+    };
 
     #[test]
     fn clause_remove() {
@@ -1728,16 +2001,27 @@ mod tests {
     }
 
     #[test]
-    fn clause_is_sat() {
+    fn clause_evaluate() {
         let cl = clause![lit![0], lit![1], lit![2]];
-        assert!(!cl.is_sat(&assign!(0b000)));
-        assert!(cl.is_sat(&assign!(0b001)));
-        assert!(cl.is_sat(&assign!(0b010)));
-        assert!(cl.is_sat(&assign!(0b011)));
-        assert!(cl.is_sat(&assign!(0b100)));
-        assert!(cl.is_sat(&assign!(0b101)));
-        assert!(cl.is_sat(&assign!(0b110)));
-        assert!(cl.is_sat(&assign!(0b111)));
+        assert_eq!(cl.evaluate(&assign!(0b000)), TernaryVal::False);
+        assert_eq!(cl.evaluate(&assign!(0b001)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b010)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b011)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b100)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b101)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b110)), TernaryVal::True);
+        assert_eq!(cl.evaluate(&assign!(0b111)), TernaryVal::True);
+        assert_eq!(
+            cl.evaluate(&assign!(0b000).truncate(var![1])),
+            TernaryVal::DontCare
+        );
+    }
+
+    #[test]
+    fn clause_is_tautology() {
+        assert!(!Cl::new(&[lit![0], lit![1], lit![2]]).is_tautology());
+        assert!(Cl::new(&[lit![0], !lit![0], lit![2]]).is_tautology());
+        assert!(Cl::new(&[!lit![2], !lit![0], lit![2]]).is_tautology());
     }
 
     #[test]

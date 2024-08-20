@@ -277,7 +277,7 @@ mod tests {
         .unwrap();
         let res = parse_sat_solver_output(&mut reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
-            assert!(instance.is_sat(&sol));
+            assert_eq!(instance.evaluate(&sol), TernaryVal::True);
         } else {
             panic!()
         }
@@ -288,7 +288,7 @@ mod tests {
         .unwrap();
         let res = parse_sat_solver_output(&mut reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
-            assert!(instance.is_sat(&sol));
+            assert_eq!(instance.evaluate(&sol), TernaryVal::True);
         } else {
             panic!()
         }
@@ -299,7 +299,7 @@ mod tests {
         .unwrap();
         let res = parse_sat_solver_output(&mut reader).unwrap();
         if let SolverOutput::Sat(sol) = res {
-            assert!(instance.is_sat(&sol));
+            assert_eq!(instance.evaluate(&sol), TernaryVal::True);
         } else {
             panic!()
         }

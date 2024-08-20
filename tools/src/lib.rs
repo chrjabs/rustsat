@@ -2,13 +2,30 @@
 //!
 //! This crate contains tools for and built on the RustSAT library.
 
+mod parsing;
 pub mod utils;
 
 pub mod encodings {
     //! # Encodings for Encoding Generators
 
-    pub mod clustering;
+    pub mod assignment;
+    pub mod facilitylocation;
     pub mod knapsack;
+
+    pub mod cnf {
+        //! # CNF Encodings
+
+        pub mod clustering;
+        pub mod knapsack;
+    }
+
+    pub mod pb {
+        //! PB Encodings
+
+        pub mod assignment;
+        pub mod facilitylocation;
+        pub mod knapsack;
+    }
 }
 
 #[cfg(feature = "cadical")]

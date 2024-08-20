@@ -12,7 +12,7 @@ use crate::{
     instances::{ManageVars, SatInstance},
     types::{
         constraints::{CardConstraint, PbConstraint},
-        Clause, Lit, Var,
+        Cl, Clause, Lit, Var,
     },
 };
 use anyhow::Context;
@@ -35,8 +35,6 @@ use std::{
 use crate::instances::MultiOptInstance;
 #[cfg(feature = "optimization")]
 use crate::instances::{Objective, OptInstance};
-#[cfg(feature = "optimization")]
-use crate::types::WLitIter;
 
 /// Options for reading and writing OPB files
 /// Possible relational operators
@@ -219,8 +217,8 @@ fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
 /// Parses a literal. The spec for linear OPB instances only allows for
 /// variables but we allow negated literals with '~' as in non-linear OPB
 /// instances.
-fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
-    match tag::<_, _, NomError<_>>("~")(input) {
+pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
+    match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
         Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),
         Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit()))(input),
     }
@@ -358,6 +356,80 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
     ))(input)
 }
 
+/// Possible lines that can be written to OPB
+#[cfg(not(feature = "optimization"))]
+pub enum FileLine {
+    /// A comment line
+    Comment(String),
+    /// A clausal constraint line
+    Clause(Clause),
+    /// A cardinality constraint line
+    Card(CardConstraint),
+    /// A PB constraint line
+    Pb(PbConstraint),
+}
+
+/// Possible lines that can be written to OPB
+#[cfg(feature = "optimization")]
+pub enum FileLine<LI: crate::types::WLitIter> {
+    /// A comment line
+    Comment(String),
+    /// A clausal constraint line
+    Clause(Clause),
+    /// A cardinality constraint line
+    Card(CardConstraint),
+    /// A PB constraint line
+    Pb(PbConstraint),
+    /// An objective line
+    Objective(LI),
+}
+
+/// Writes an OPB file from an interator over [`FileLine`]s
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`]
+#[cfg(not(feature = "optimization"))]
+pub fn write_opb_lines<W, Iter>(writer: &mut W, data: Iter, opts: Options) -> io::Result<()>
+where
+    W: Write,
+    Iter: Iterator<Item = FileLine>,
+{
+    for dat in data {
+        match dat {
+            FileLine::Comment(c) => writeln!(writer, "* {c}")?,
+            FileLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            FileLine::Card(card) => write_card(writer, &card, opts)?,
+            FileLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+        }
+    }
+    Ok(())
+}
+
+/// Writes an OPB file from an interator over [`FileLine`]s
+///
+/// # Errors
+///
+/// If writing fails, returns [`io::Error`]
+#[cfg(feature = "optimization")]
+pub fn write_opb_lines<W, LI, Iter>(writer: &mut W, data: Iter, opts: Options) -> io::Result<()>
+where
+    W: Write,
+    LI: crate::types::WLitIter,
+    Iter: Iterator<Item = FileLine<LI>>,
+{
+    for dat in data {
+        match dat {
+            FileLine::Comment(c) => writeln!(writer, "* {c}")?,
+            FileLine::Clause(cl) => write_clause(writer, &cl, opts)?,
+            FileLine::Card(card) => write_card(writer, &card, opts)?,
+            FileLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+            FileLine::Objective(obj) => write_objective(writer, (obj, 0), opts)?,
+        }
+    }
+    Ok(())
+}
+
 /// Writes a [`SatInstance`] to an OPB file
 ///
 /// # Errors
@@ -423,7 +495,7 @@ pub fn write_opt<W, VM, LI>(
 ) -> Result<(), io::Error>
 where
     W: Write,
-    LI: WLitIter,
+    LI: crate::types::WLitIter,
     VM: ManageVars,
 {
     let cnf = &constrs.cnf;
@@ -474,7 +546,7 @@ where
     W: Write,
     VM: ManageVars,
     Iter: Iterator<Item = (LI, isize)>,
-    LI: WLitIter,
+    LI: crate::types::WLitIter,
 {
     let cnf = &constrs.cnf;
     let cards = &constrs.cards;
@@ -509,10 +581,14 @@ where
 /// # Errors
 ///
 /// If writing fails, returns [`io::Error`].
-fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Result<(), io::Error> {
+fn write_clause<W, C>(writer: &mut W, clause: &C, opts: Options) -> Result<(), io::Error>
+where
+    W: Write,
+    C: AsRef<Cl> + ?Sized,
+{
     if opts.no_negated_lits {
         let mut rhs: isize = 1;
-        clause.iter().try_for_each(|l| {
+        clause.as_ref().iter().try_for_each(|l| {
             if l.is_pos() {
                 write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
@@ -522,7 +598,7 @@ fn write_clause<W: Write>(writer: &mut W, clause: &Clause, opts: Options) -> Res
         })?;
         writeln!(writer, ">= {rhs};")
     } else {
-        clause.iter().try_for_each(|l| {
+        clause.as_ref().iter().try_for_each(|l| {
             if l.is_pos() {
                 write!(writer, "1 x{} ", l.vidx32() + opts.first_var_idx)
             } else {
@@ -729,7 +805,7 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PbConstraint, opts: Options) -> Resul
 /// # Errors
 ///
 /// If writing fails, returns [`io::Error`].
-fn write_objective<W: Write, LI: WLitIter>(
+fn write_objective<W: Write, LI: crate::types::WLitIter>(
     writer: &mut W,
     softs: (LI, isize),
     opts: Options,

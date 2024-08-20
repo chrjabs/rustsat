@@ -14,6 +14,7 @@
 //!
 //! Kissat versions can be selected via cargo crate features.
 //! The following Kissat versions are available:
+//! - `v4-0-0`: [Version 4.0.0](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.0)
 //! - `v3-1-0`: [Version 3.1.0](https://github.com/arminbiere/kissat/releases/tag/rel-3.1.0)
 //! - `v3-0-0`: [Version 3.0.0](https://github.com/arminbiere/kissat/releases/tag/rel-3.0.0)
 //! - `sc2022-light`: [SAT Competition 2022 Light](https://github.com/arminbiere/kissat/releases/tag/sc2022-light)
@@ -35,7 +36,7 @@ use rustsat::{
         ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
         SolverStats, StateError, Terminate,
     },
-    types::{Clause, Lit, TernaryVal, Var},
+    types::{Cl, Clause, Lit, TernaryVal, Var},
 };
 use thiserror::Error;
 
@@ -98,7 +99,7 @@ impl Default for Kissat<'_> {
 impl Kissat<'_> {
     #[allow(clippy::cast_precision_loss)]
     #[inline]
-    fn update_avg_clause_len(&mut self, clause: &Clause) {
+    fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
             (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
                 / self.stats.n_clauses as f32;
@@ -224,8 +225,11 @@ impl Extend<Clause> for Kissat<'_> {
     }
 }
 
-impl<'a> Extend<&'a Clause> for Kissat<'_> {
-    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+impl<'a, C> Extend<&'a C> for Kissat<'_>
+where
+    C: AsRef<Cl> + ?Sized,
+{
+    fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -305,7 +309,10 @@ impl Solve for Kissat<'_> {
         }
     }
 
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized,
+    {
         // Kissat is non-incremental, so only add if in input or configuring state
         if !matches!(
             self.state,
@@ -317,6 +324,7 @@ impl Solve for Kissat<'_> {
             }
             .into());
         }
+        let clause = clause.as_ref();
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.update_avg_clause_len(clause);

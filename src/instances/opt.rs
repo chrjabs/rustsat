@@ -1,6 +1,12 @@
 //! # Optimization Instance Representations
 
-use std::{cmp, collections::hash_map, io, path::Path, slice};
+use std::{
+    cmp,
+    collections::{hash_map, BTreeSet},
+    io,
+    path::Path,
+    slice,
+};
 
 use crate::{
     clause,
@@ -885,6 +891,35 @@ impl Objective {
         }
     }
 
+    pub(crate) fn var_set(&self, varset: &mut BTreeSet<Var>) {
+        match &self.0 {
+            IntObj::Weighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                varset.extend(soft_lits.iter().map(|(l, _)| l.var()));
+                varset.extend(
+                    soft_clauses
+                        .iter()
+                        .flat_map(|(cl, _)| cl.iter().map(|l| l.var())),
+                );
+            }
+            IntObj::Unweighted {
+                soft_lits,
+                soft_clauses,
+                ..
+            } => {
+                varset.extend(soft_lits.iter().map(|l| l.var()));
+                varset.extend(
+                    soft_clauses
+                        .iter()
+                        .flat_map(|cl| cl.iter().map(|l| l.var())),
+                );
+            }
+        }
+    }
+
     /// Normalizes the objective to a unified representation. This sorts internal data structures.
     #[must_use]
     pub fn normalize(mut self) -> Self {
@@ -1206,10 +1241,38 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Reindexes all variables in the instance with a reindexing variable manager
+    #[must_use]
     pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
         let obj = self.obj.reindex(&mut reindexer);
         let constrs = self.constrs.reindex(reindexer);
         Instance { constrs, obj }
+    }
+
+    fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+        self.constrs.extend_var_set(varset);
+        self.obj.var_set(varset);
+    }
+
+    /// Gets the set of variables in the instance
+    pub fn var_set(&self) -> BTreeSet<Var> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        varset
+    }
+
+    /// Reindex all variables in the instance in order
+    ///
+    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// the variable _order_ being preserved with gaps in the variable space being closed
+    #[must_use]
+    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        // reindex variables in order to ensure ordered reindexing
+        for var in varset {
+            reindexer.reindex(var);
+        }
+        self.reindex(reindexer)
     }
 
     #[cfg(feature = "rand")]
@@ -1409,7 +1472,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// Calculates the objective value of an assignment. Returns [`None`] if the
     /// assignment is not a solution.
     pub fn cost(&self, assign: &Assignment) -> Option<isize> {
-        if !self.constrs.is_sat(assign) {
+        if self.constrs.evaluate(assign) != TernaryVal::True {
             return None;
         }
         Some(self.obj.evaluate(assign))

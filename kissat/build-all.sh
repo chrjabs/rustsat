@@ -35,6 +35,11 @@ if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
 cargo build --features=v3-1-1 &> v311-build.log
 echo "v3.1.1 build returned: $?"
 
+echo "Building v4.0.0"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
+cargo build --features=v4-0-0 &> v400-build.log
+echo "v4.0.0 build returned: $?"
+
 echo "Building quiet"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
 cargo build --features=quiet &> quiet-build.log

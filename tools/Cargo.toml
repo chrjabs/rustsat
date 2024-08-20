@@ -16,6 +16,7 @@ anyhow.workspace = true
 atty.workspace = true
 clap.workspace = true
 concolor-clap.workspace = true
+itertools.workspace = true
 nom.workspace = true
 termcolor.workspace = true
 rand.workspace = true

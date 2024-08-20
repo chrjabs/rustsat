@@ -220,3 +220,26 @@ pub fn freezing(slv: Type) -> TokenStream {
         }
     }
 }
+
+pub fn propagate(slv: Type) -> TokenStream {
+    quote! {
+        #[test]
+        fn propagate() {
+            use rustsat::{lit, solvers::{Solve, Propagate}};
+            let mut solver = #slv::default();
+            solver.add_binary(!lit![0], lit![1]).unwrap();
+            solver.add_binary(!lit![1], lit![2]).unwrap();
+            solver.add_binary(!lit![2], lit![3]).unwrap();
+
+            let res = solver.propagate(&[lit![0]], false).unwrap();
+
+            assert!(!res.conflict);
+            assert_eq!(res.propagated.len(), 4);
+
+            solver.add_unit(!lit![3]).unwrap();
+
+            let res = solver.propagate(&[lit![0]], false).unwrap();
+            assert!(res.conflict);
+        }
+    }
+}

@@ -38,7 +38,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
                 if $res == rustsat::solvers::SolverResult::Sat {
                     let sol = rustsat::solvers::Solve::solution(&solver, inst.max_var().expect("no variables in instance"))
                         .expect("failed to get solution from solver");
-                    assert!(inst.is_sat(&sol));
+                    assert_eq!(inst.evaluate(&sol), rustsat::types::TernaryVal::True);
                 }
             }};
         }

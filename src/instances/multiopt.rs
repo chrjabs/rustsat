@@ -1,12 +1,12 @@
 //! # Multi-Objective Optimization Instance Representations
 
-use std::{io, path::Path};
+use std::{collections::BTreeSet, io, path::Path};
 
 use crate::{
     encodings::{card, pb},
     types::{
         constraints::{CardConstraint, PbConstraint},
-        Assignment, Lit, Var, WClsIter, WLitIter,
+        Assignment, Lit, TernaryVal, Var, WClsIter, WLitIter,
     },
     RequiresClausal, RequiresSoftLits,
 };
@@ -243,6 +243,35 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         MultiOptInstance { constrs, objs }
     }
 
+    fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+        self.constrs.extend_var_set(varset);
+        for o in &self.objs {
+            o.var_set(varset);
+        }
+    }
+
+    /// Gets the set of variables in the instance
+    pub fn var_set(&self) -> BTreeSet<Var> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        varset
+    }
+
+    /// Reindex all variables in the instance in order
+    ///
+    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// the variable _order_ being preserved with gaps in the variable space being closed
+    #[must_use]
+    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
+        let mut varset = BTreeSet::new();
+        self.extend_var_set(&mut varset);
+        // reindex variables in order to ensure ordered reindexing
+        for var in varset {
+            reindexer.reindex(var);
+        }
+        self.reindex(reindexer)
+    }
+
     #[cfg(feature = "rand")]
     /// Randomly shuffles the order of constraints and the objective
     #[must_use]
@@ -454,7 +483,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// Calculates the objective values of an assignment. Returns [`None`] if the
     /// assignment is not a solution.
     pub fn cost(&self, assign: &Assignment) -> Option<Vec<isize>> {
-        if !self.constrs.is_sat(assign) {
+        if self.constrs.evaluate(assign) != TernaryVal::True {
             return None;
         }
         Some(self.objs.iter().map(|o| o.evaluate(assign)).collect())

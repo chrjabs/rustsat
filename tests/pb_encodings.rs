@@ -611,13 +611,7 @@ mod cert {
 
     use rustsat::{
         clause,
-        encodings::{
-            card::Totalizer,
-            pb::{
-                cert::{BoundUpper, BoundUpperIncremental},
-                DbGte,
-            },
-        },
+        encodings::pb::{cert::BoundUpperIncremental, DbGte},
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         solvers::{

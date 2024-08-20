@@ -9,10 +9,10 @@ use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{
         FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
-        PhaseLit, Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats,
-        StateError,
+        PhaseLit, Propagate, PropagateResult, Solve, SolveIncremental, SolveStats, SolverResult,
+        SolverState, SolverStats, StateError,
     },
-    types::{Clause, Lit, TernaryVal, Var},
+    types::{Cl, Clause, Lit, TernaryVal, Var},
 };
 
 use super::{ffi, handle_oom, AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
@@ -61,7 +61,7 @@ impl Minisat {
 
     #[allow(clippy::cast_precision_loss)]
     #[inline]
-    fn update_avg_clause_len(&mut self, clause: &Clause) {
+    fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
             (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
                 / self.stats.n_clauses as f32;
@@ -105,8 +105,11 @@ impl Extend<Clause> for Minisat {
     }
 }
 
-impl<'a> Extend<&'a Clause> for Minisat {
-    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+impl<'a, C> Extend<&'a C> for Minisat
+where
+    C: AsRef<Cl> + ?Sized,
+{
+    fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -182,7 +185,11 @@ impl Solve for Minisat {
         }
     }
 
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized,
+    {
+        let clause = clause.as_ref();
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.update_avg_clause_len(clause);
@@ -286,12 +293,12 @@ impl PhaseLit for Minisat {
 
 impl FreezeVar for Minisat {
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::cminisatsimp_set_frozen(self.handle, var.to_ipasir(), true) };
+        unsafe { ffi::cminisatsimp_set_frozen(self.handle, var.to_ipasir(), 1) };
         Ok(())
     }
 
     fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::cminisatsimp_set_frozen(self.handle, var.to_ipasir(), false) };
+        unsafe { ffi::cminisatsimp_set_frozen(self.handle, var.to_ipasir(), 0) };
         Ok(())
     }
 
@@ -342,6 +349,47 @@ impl GetInternalStats for Minisat {
     }
 }
 
+impl Propagate for Minisat {
+    fn propagate(
+        &mut self,
+        assumps: &[Lit],
+        phase_saving: bool,
+    ) -> anyhow::Result<PropagateResult> {
+        let start = ProcessTime::now();
+        self.state = InternalSolverState::Input;
+        // Propagate with minisat backend
+        for a in assumps {
+            unsafe { ffi::cminisatsimp_assume(self.handle, a.to_ipasir()) }
+        }
+        let mut props = Vec::new();
+        let ptr: *mut Vec<Lit> = &mut props;
+        let res = handle_oom!(unsafe {
+            ffi::cminisatsimp_propcheck(
+                self.handle,
+                c_int::from(phase_saving),
+                Some(ffi::rustsat_minisat_collect_lits),
+                ptr.cast::<std::os::raw::c_void>(),
+            )
+        });
+        self.stats.cpu_solve_time += start.elapsed();
+        match res {
+            10 => Ok(PropagateResult {
+                propagated: props,
+                conflict: false,
+            }),
+            20 => Ok(PropagateResult {
+                propagated: props,
+                conflict: true,
+            }),
+            value => Err(InvalidApiReturn {
+                api_call: "cminisatsimp_propcheck",
+                value,
+            }
+            .into()),
+        }
+    }
+}
+
 impl SolveStats for Minisat {
     fn stats(&self) -> SolverStats {
         let mut stats = self.stats.clone();
@@ -378,7 +426,6 @@ impl Drop for Minisat {
 
 #[cfg(test)]
 mod test {
-
     use super::Minisat;
     use rustsat::{
         lit,
@@ -388,6 +435,7 @@ mod test {
 
     rustsat_solvertests::basic_unittests!(Minisat);
     rustsat_solvertests::freezing_unittests!(Minisat);
+    rustsat_solvertests::propagating_unittests!(Minisat);
 
     #[test]
     fn backend_stats() {

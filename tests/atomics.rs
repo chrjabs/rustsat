@@ -23,9 +23,9 @@ fn test_lit_impl_card(constr: &CardConstraint) {
         }
         println!("assignment: {assign}");
         if assign.lit_value(lit![4]) == TernaryVal::False {
-            assert!(reif.is_sat(&assign));
+            assert_eq!(reif.evaluate(&assign), TernaryVal::True);
         } else {
-            assert_eq!(constr.is_sat(&assign), reif.is_sat(&assign));
+            assert_eq!(constr.evaluate(&assign), reif.evaluate(&assign));
         }
     }
 }
@@ -61,9 +61,9 @@ fn test_card_impl_lit(constr: &CardConstraint) {
         }
         println!("assignment: {assign}");
         if assign.lit_value(lit![4]) == TernaryVal::True {
-            assert!(reif.is_sat(&assign));
+            assert_eq!(reif.evaluate(&assign), TernaryVal::True);
         } else {
-            assert_ne!(constr.is_sat(&assign), reif.is_sat(&assign));
+            assert_ne!(constr.evaluate(&assign), reif.evaluate(&assign));
         }
     }
 }
@@ -99,9 +99,9 @@ fn test_lit_impl_pb(constr: &PbConstraint) {
         }
         println!("assignment: {assign}");
         if assign.lit_value(lit![4]) == TernaryVal::False {
-            assert!(reif.is_sat(&assign));
+            assert_eq!(reif.evaluate(&assign), TernaryVal::True);
         } else {
-            assert_eq!(constr.is_sat(&assign), reif.is_sat(&assign));
+            assert_eq!(constr.evaluate(&assign), reif.evaluate(&assign));
         }
     }
 }
@@ -137,9 +137,9 @@ fn test_pb_impl_lit(constr: &PbConstraint) {
         }
         println!("assignment: {assign}");
         if assign.lit_value(lit![4]) == TernaryVal::True {
-            assert!(reif.is_sat(&assign));
+            assert_eq!(reif.evaluate(&assign), TernaryVal::True);
         } else {
-            assert_ne!(constr.is_sat(&assign), reif.is_sat(&assign));
+            assert_ne!(constr.evaluate(&assign), reif.evaluate(&assign));
         }
     }
 }
