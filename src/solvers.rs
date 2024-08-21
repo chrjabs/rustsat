@@ -666,3 +666,23 @@ impl<S: Solve + SolveStats> CollectClauses for S {
         Ok(pass_oom_or_panic!(self.add_clause(cl)))
     }
 }
+
+/// Trait for types that allow for initializing a solver or other types
+///
+/// This is very similar to the [`Default`] trait, but allows for implementing multiple
+/// initializers for the same solver. Having this as a trait rather than simply a function allows
+/// for more flexibility with generics.
+pub trait Initialize<T> {
+    /// Generates a new instance
+    fn init() -> T;
+}
+
+/// An initializer that simply calls the [`Default`] method of another type
+pub struct DefaultInitializer;
+
+impl<T: Default> Initialize<T> for DefaultInitializer {
+    #[inline]
+    fn init() -> T {
+        T::default()
+    }
+}
