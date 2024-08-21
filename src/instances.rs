@@ -151,17 +151,19 @@ impl Default for BasicVarManager {
 pub struct ReindexingVarManager {
     next_var: Var,
     in_map: RsHashMap<Var, Var>,
-    out_map: RsHashMap<Var, Var>,
+    out_map: Vec<Var>,
 }
 
 impl ReindexingVarManager {
     /// Creates a new variable manager from a next free variable
+    ///
+    /// Will map all variables below `next_var` with the identity function
     #[must_use]
     pub fn from_next_free(next_var: Var) -> Self {
         Self {
             next_var,
             in_map: RsHashMap::default(),
-            out_map: RsHashMap::default(),
+            out_map: (0..next_var.idx32()).map(Var::new).collect(),
         }
     }
 }
@@ -173,13 +175,16 @@ impl ReindexVars for ReindexingVarManager {
         } else {
             let v = self.new_var();
             self.in_map.insert(in_var, v);
-            self.out_map.insert(v, in_var);
+            self.out_map.push(in_var);
             v
         }
     }
 
     fn reverse(&self, out_var: Var) -> Option<Var> {
-        self.out_map.get(&out_var).copied()
+        if out_var.idx() >= self.out_map.len() {
+            return None;
+        }
+        Some(self.out_map[out_var.idx()])
     }
 }
 
@@ -188,7 +193,7 @@ impl Default for ReindexingVarManager {
         Self {
             next_var: Var::new(0),
             in_map: RsHashMap::default(),
-            out_map: RsHashMap::default(),
+            out_map: Vec::default(),
         }
     }
 }
@@ -229,7 +234,7 @@ impl ManageVars for ReindexingVarManager {
 
     fn forget_from(&mut self, min_var: Var) {
         self.in_map.retain(|_, v| *v < min_var);
-        self.out_map.retain(|v, _| *v < min_var);
+        self.out_map.truncate(min_var.idx() + 1);
         self.next_var = std::cmp::min(self.next_var, min_var);
     }
 }
