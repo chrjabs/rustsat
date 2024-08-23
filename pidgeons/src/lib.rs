@@ -18,7 +18,7 @@
 //! - [x] `core`: [`Proof::move_ids_to_core`], [`Proof::move_range_to_core`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
 //! - [x] `conclusion`: [`Proof::conclusion`], [`Proof::conclude`]
-//! - [ ] Subproofs
+//! - [x] Subproofs
 //! - [x] `e`: [`Proof::equals`]
 //! - [x] `ea`: [`Proof::equals_add`]
 //! - [x] `eobj`: [`Proof::obj_equals`]
@@ -27,8 +27,8 @@
 //! - [x] `#`: [`Proof::set_level`]
 //! - [x] `w`: [`Proof::wipe_level`]
 //! - [ ] `strengthening_to_core`
-//! - [ ] `def_order`
-//! - [ ] `load_order`
+//! - [x] `def_order`
+//! - [x] `load_order`
 #![warn(missing_docs)]
 #![warn(clippy::pedantic)]
 
@@ -41,8 +41,8 @@ use itertools::Itertools;
 
 mod types;
 pub use types::{
-    AbsConstraintId, Axiom, Conclusion, ConstraintId, ObjectiveUpdate, OutputGuarantee, OutputType,
-    ProblemType, ProofGoal, ProofGoalId, SubProof, Substitution,
+    AbsConstraintId, Axiom, Conclusion, ConstraintId, ObjectiveUpdate, Order, OutputGuarantee,
+    OutputType, ProblemType, ProofGoal, ProofGoalId, SubProof, Substitution,
 };
 
 mod ops;
@@ -334,13 +334,21 @@ where
         &mut self,
         constr: &C,
         subs: &[Substitution],
+        proof: Option<SubProof>,
     ) -> io::Result<AbsConstraintId> {
-        writeln!(
+        write!(
             self.writer,
             "red {} ; {}",
             constr.constr_str(),
             subs.iter().format(" ")
         )?;
+        if let Some(proof) = proof {
+            writeln!(self.writer, " ; begin")?;
+            proof.write_indented(&mut self.writer, 2)?;
+            writeln!(self.writer, "end")?;
+        } else {
+            writeln!(self.writer)?;
+        }
         Ok(self.new_id())
     }
 
@@ -357,13 +365,21 @@ where
         &mut self,
         constr: &C,
         subs: &[Substitution],
+        proof: Option<SubProof>,
     ) -> io::Result<AbsConstraintId> {
-        writeln!(
+        write!(
             self.writer,
             "dom {} ; {}",
             constr.constr_str(),
             subs.iter().format(" ")
         )?;
+        if let Some(proof) = proof {
+            writeln!(self.writer, " ; begin")?;
+            proof.write_indented(&mut self.writer, 2)?;
+            writeln!(self.writer, "end")?;
+        } else {
+            writeln!(self.writer)?;
+        }
         Ok(self.new_id())
     }
 
@@ -609,6 +625,32 @@ where
     /// If writing the proof fails.
     pub fn wipe_level(&mut self, level: usize) -> io::Result<()> {
         writeln!(self.writer, "w {level}")
+    }
+
+    /// Defines a new order with a given name and a transitivity and optional reflexivity proof
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `def_order` block
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn define_order(&mut self, order: &Order) -> io::Result<()> {
+        writeln!(self.writer, "{order}")
+    }
+
+    /// Loads an order that needs to be previously defined
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `load_order` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn load_order(&mut self, name: &str) -> io::Result<()> {
+        writeln!(self.writer, "load_order {name}")
     }
 }
 

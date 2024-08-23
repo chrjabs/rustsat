@@ -66,7 +66,7 @@ impl super::Db {
                 }),
                 isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
             );
-            SemDefs::new(None, Some(proof.redundant(&sem, &[])?))
+            SemDefs::new(None, Some(proof.redundant(&sem, &[], None)?))
         } else if val > self[id].max_val() {
             let sem = PbConstraint::new_lb(
                 leafs.map(|(l, w)| {
@@ -77,7 +77,7 @@ impl super::Db {
                 }),
                 0,
             );
-            SemDefs::new(Some(proof.redundant(&sem, &[])?), None)
+            SemDefs::new(Some(proof.redundant(&sem, &[], None)?), None)
         } else {
             let olit = *self[id].lit(val).unwrap();
             let sem = PbConstraint::new_lb(
@@ -96,6 +96,7 @@ impl super::Db {
                         &olit.var(),
                         true,
                     )],
+                    None,
                 )?),
                 Some(proof.redundant(
                     &atomics::lit_impl_pb(olit, &sem),
@@ -103,6 +104,7 @@ impl super::Db {
                         &olit.var(),
                         false,
                     )],
+                    None,
                 )?),
             )
         };

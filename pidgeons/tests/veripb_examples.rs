@@ -88,42 +88,44 @@ fn g3_g5() {
     let a = proof.redundant(
         &"-1 x0_0 -1 x1_0 -1 x2_0 -1 x3_0 -1 x4_0 -1 x5_0 -1 x6_0 -1 x7_0 -1 x8_0 -1 x9_0 >= -1",
         &[],
+        None
     ).unwrap();
     let b = proof
         .redundant(
             &"1 ~x0_0 1 x9_1 1 x9_2 1 x9_3 1 x9_4 1 x9_5 1 x9_6 1 x9_7 1 x9_8 1 x9_9 1 x9_10 >= 1",
             &[],
+            None,
         )
         .unwrap();
     let c = proof
-        .redundant(&"1 ~x9_1 1 x1_0 1 x1_2 1 x1_10 >= 1", &[])
+        .redundant(&"1 ~x9_1 1 x1_0 1 x1_2 1 x1_10 >= 1", &[], None)
         .unwrap();
     let d = proof
-        .redundant(&"1 ~x9_2 1 x1_0 1 x1_1 1 x1_3 >= 1", &[])
+        .redundant(&"1 ~x9_2 1 x1_0 1 x1_1 1 x1_3 >= 1", &[], None)
         .unwrap();
     let e = proof
-        .redundant(&"1 ~x9_3 1 x1_0 1 x1_2 1 x1_4 >= 1", &[])
+        .redundant(&"1 ~x9_3 1 x1_0 1 x1_2 1 x1_4 >= 1", &[], None)
         .unwrap();
     let f = proof
-        .redundant(&"1 ~x9_4 1 x1_0 1 x1_3 1 x1_5 >= 1", &[])
+        .redundant(&"1 ~x9_4 1 x1_0 1 x1_3 1 x1_5 >= 1", &[], None)
         .unwrap();
     let g = proof
-        .redundant(&"1 ~x9_5 1 x1_0 1 x1_4 1 x1_6 >= 1", &[])
+        .redundant(&"1 ~x9_5 1 x1_0 1 x1_4 1 x1_6 >= 1", &[], None)
         .unwrap();
     let h = proof
-        .redundant(&"1 ~x9_6 1 x1_0 1 x1_5 1 x1_7 >= 1", &[])
+        .redundant(&"1 ~x9_6 1 x1_0 1 x1_5 1 x1_7 >= 1", &[], None)
         .unwrap();
     let i = proof
-        .redundant(&"1 ~x9_7 1 x1_0 1 x1_6 1 x1_8 >= 1", &[])
+        .redundant(&"1 ~x9_7 1 x1_0 1 x1_6 1 x1_8 >= 1", &[], None)
         .unwrap();
     let j = proof
-        .redundant(&"1 ~x9_8 1 x1_0 1 x1_7 1 x1_9 >= 1", &[])
+        .redundant(&"1 ~x9_8 1 x1_0 1 x1_7 1 x1_9 >= 1", &[], None)
         .unwrap();
     let k = proof
-        .redundant(&"1 ~x9_9 1 x1_0 1 x1_8 1 x1_10 >= 1", &[])
+        .redundant(&"1 ~x9_9 1 x1_0 1 x1_8 1 x1_10 >= 1", &[], None)
         .unwrap();
     let l = proof
-        .redundant(&"1 ~x9_10 1 x1_0 1 x1_1 1 x1_9 >= 1", &[])
+        .redundant(&"1 ~x9_10 1 x1_0 1 x1_1 1 x1_9 >= 1", &[], None)
         .unwrap();
     proof.set_level(1).unwrap();
     let sum = proof

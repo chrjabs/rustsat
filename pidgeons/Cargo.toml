@@ -11,6 +11,7 @@ readme = "README.md"
 
 [dependencies]
 itertools.workspace = true
+rustc-hash.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

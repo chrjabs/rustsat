@@ -1,8 +1,10 @@
 //! # Most Types of the Library
 
-use std::{fmt, num::NonZeroUsize, ops::Range};
+use std::{fmt, io, num::NonZeroUsize, ops::Range};
 
 use itertools::Itertools;
+
+use crate::{OperationSequence, VarLike};
 
 use super::{unreachable_err, ConstraintLike, ObjectiveLike};
 
@@ -229,19 +231,163 @@ impl fmt::Display for SubstituteWith {
     }
 }
 
+/// Helper type to build an [`Order`]
+pub struct Order {
+    name: String,
+    used_vars: rustc_hash::FxHashSet<String>,
+    definition: Vec<String>,
+    trans_proof: SubProof,
+    refl_proof: Option<SubProof>,
+}
+
+impl Order {
+    /// Creates a new builder structure
+    #[must_use]
+    pub fn new(name: String) -> Self {
+        Order {
+            name,
+            used_vars: rustc_hash::FxHashSet::default(),
+            definition: vec![],
+            trans_proof: SubProof { goals: vec![] },
+            refl_proof: None,
+        }
+    }
+
+    /// Marks a variable as used in the order and gets its left and right variants to be used in
+    /// the definitions
+    pub fn use_var<V: VarLike>(&mut self, v: &V) -> (String, String) {
+        let v = v.var_str();
+        self.used_vars.insert(v.clone());
+        (format!("u_{v}"), format!("v_{v}"))
+    }
+
+    /// Adds a constraint to the order definition
+    ///
+    /// The constraint must only use left and right variables that have been marked as used
+    pub fn add_definition_constraint<C: ConstraintLike>(
+        &mut self,
+        constr: &C,
+        trans_proof: Vec<OperationSequence>,
+        refl_proof: Option<Vec<OperationSequence>>,
+    ) {
+        self.definition.push(constr.constr_str());
+        self.trans_proof.goals.push(ProofGoal {
+            id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
+            derivations: trans_proof,
+        });
+        if let Some(new_goal) = refl_proof {
+            if let Some(proof) = &mut self.refl_proof {
+                proof.goals.push(ProofGoal {
+                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
+                    derivations: new_goal,
+                });
+            } else {
+                self.refl_proof = Some(SubProof {
+                    goals: vec![ProofGoal {
+                        id: ProofGoalId::Specific(
+                            NonZeroUsize::new(self.definition.len()).unwrap(),
+                        ),
+                        derivations: new_goal,
+                    }],
+                });
+            }
+        }
+    }
+}
+
+impl fmt::Display for Order {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "def_order {}", self.name)?;
+        // Variables
+        writeln!(f, "  vars")?;
+        writeln!(
+            f,
+            "    left {}",
+            self.used_vars
+                .iter()
+                .format_with(" ", |v, f| f(&format_args!("u_{v}")))
+        )?;
+        writeln!(
+            f,
+            "    right {}",
+            self.used_vars
+                .iter()
+                .format_with(" ", |v, f| f(&format_args!("v_{v}")))
+        )?;
+        writeln!(f, "    aux")?;
+        // Order definition
+        writeln!(f, "  def")?;
+        for def in &self.definition {
+            writeln!(f, "    {def} ;")?;
+        }
+        writeln!(f, "  end")?;
+        // Proofs
+        writeln!(f, "  transitivity")?;
+        writeln!(f, "    vars")?;
+        writeln!(
+            f,
+            "      fresh_right {}",
+            self.used_vars
+                .iter()
+                .format_with(" ", |v, f| f(&format_args!("w_{v}")))
+        )?;
+        writeln!(f, "    end")?;
+        self.trans_proof.format_indented(f, 4)?;
+        writeln!(f, "  end")?;
+        if let Some(proof) = &self.refl_proof {
+            writeln!(f, "  reflexivity")?;
+            proof.format_indented(f, 4)?;
+            writeln!(f, "  end")?;
+        }
+        writeln!(f, "end")
+    }
+}
+
 /// A subproof
 pub struct SubProof {
     /// The sequence of [`ProofGoal`] in the subproof
     goals: Vec<ProofGoal>,
 }
 
+impl FromIterator<ProofGoal> for SubProof {
+    fn from_iter<T: IntoIterator<Item = ProofGoal>>(iter: T) -> Self {
+        SubProof {
+            goals: iter.into_iter().collect(),
+        }
+    }
+}
+
+impl SubProof {
+    /// Writes the subproof to a writer, indented by a number of spaces
+    ///
+    /// # Errors
+    ///
+    /// If writing fails, returns an error
+    pub fn write_indented<W: io::Write>(&self, writer: &mut W, indent: usize) -> io::Result<()> {
+        writeln!(writer, "{:indent$}begin", "", indent = indent)?;
+        for goal in &self.goals {
+            goal.write_indented(writer, indent + 2)?;
+        }
+        write!(writer, "end")
+    }
+
+    /// Formats the subproof, indented by a number of spaces
+    ///
+    /// # Errors
+    ///
+    /// If formatting fails, returns an error
+    pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
+        writeln!(writer, "{:indent$}begin", "", indent = indent)?;
+        for goal in &self.goals {
+            goal.format_indented(writer, indent + 2)?;
+        }
+        write!(writer, "end")
+    }
+}
+
 impl fmt::Display for SubProof {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "begin")?;
-        for goal in &self.goals {
-            writeln!(f, "{goal}")?;
-        }
-        write!(f, "end")
+        self.format_indented(f, 0)
     }
 }
 
@@ -249,13 +395,68 @@ impl fmt::Display for SubProof {
 pub struct ProofGoal {
     /// The goal id
     id: ProofGoalId,
+    /// For now only operation derivations are supported
+    derivations: Vec<OperationSequence>,
+}
+
+impl Extend<OperationSequence> for ProofGoal {
+    fn extend<T: IntoIterator<Item = OperationSequence>>(&mut self, iter: T) {
+        self.derivations.extend(iter);
+    }
+}
+
+impl ProofGoal {
+    /// Creates a new proof goal
+    #[must_use]
+    pub fn new(id: ProofGoalId) -> Self {
+        ProofGoal {
+            id,
+            derivations: vec![],
+        }
+    }
+
+    /// Writes the proof goal to a writer, indented by a number of spaces
+    ///
+    /// # Errors
+    ///
+    /// If writing fails, returns an error
+    pub fn write_indented<W: io::Write>(&self, writer: &mut W, indent: usize) -> io::Result<()> {
+        writeln!(
+            writer,
+            "{:indent$}proofgoal {}",
+            "",
+            self.id,
+            indent = indent
+        )?;
+        for der in &self.derivations {
+            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
+        }
+        write!(writer, "{:indent$}qed -1", "", indent = indent)
+    }
+
+    /// Formats the proof goal, indented by a number of spaces
+    ///
+    /// # Errors
+    ///
+    /// If formatting fails, returns an error
+    pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
+        writeln!(
+            writer,
+            "{:indent$}proofgoal {}",
+            "",
+            self.id,
+            indent = indent
+        )?;
+        for der in &self.derivations {
+            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
+        }
+        write!(writer, "{:indent$}qed -1", "", indent = indent)
+    }
 }
 
 impl fmt::Display for ProofGoal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  proofgoal {}", self.id)?;
-        todo!();
-        write!(f, "  qed -1")
+        self.format_indented(f, 0)
     }
 }
 
@@ -302,7 +503,7 @@ impl fmt::Display for ObjectiveUpdate {
             ObjectiveUpdate::New(obj, subproof) => {
                 write!(f, "new {obj} ;")?;
                 if let Some(subproof) = subproof {
-                    write!(f, " {subproof}")?;
+                    subproof.format_indented(f, 2)?;
                 }
                 Ok(())
             }
