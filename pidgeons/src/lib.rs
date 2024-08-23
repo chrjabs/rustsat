@@ -345,6 +345,7 @@ where
         if let Some(proof) = proof {
             writeln!(self.writer, " ; begin")?;
             proof.write_indented(&mut self.writer, 2)?;
+            writeln!(self.writer)?;
             writeln!(self.writer, "end")?;
         } else {
             writeln!(self.writer)?;
@@ -376,6 +377,7 @@ where
         if let Some(proof) = proof {
             writeln!(self.writer, " ; begin")?;
             proof.write_indented(&mut self.writer, 2)?;
+            writeln!(self.writer)?;
             writeln!(self.writer, "end")?;
         } else {
             writeln!(self.writer)?;
@@ -649,8 +651,16 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn load_order(&mut self, name: &str) -> io::Result<()> {
-        writeln!(self.writer, "load_order {name}")
+    pub fn load_order<V: VarLike, I: IntoIterator<Item = V>>(
+        &mut self,
+        name: &str,
+        vars: I,
+    ) -> io::Result<()> {
+        writeln!(
+            self.writer,
+            "load_order {name} {}",
+            vars.into_iter().map(|v| v.var_str()).format(" ")
+        )
     }
 }
 
@@ -705,6 +715,12 @@ impl VarLike for String {
 impl VarLike for &str {
     fn var_str(&self) -> String {
         String::from(*self)
+    }
+}
+
+impl VarLike for &String {
+    fn var_str(&self) -> String {
+        (*self).clone()
     }
 }
 

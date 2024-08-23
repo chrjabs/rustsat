@@ -231,7 +231,7 @@ impl fmt::Display for SubstituteWith {
     }
 }
 
-/// Helper type to build an [`Order`]
+/// An order in the proof
 pub struct Order {
     name: String,
     used_vars: rustc_hash::FxHashSet<String>,
@@ -251,6 +251,18 @@ impl Order {
             trans_proof: SubProof { goals: vec![] },
             refl_proof: None,
         }
+    }
+
+    /// Gets the name of the order
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Gets an iterator over the used variables
+    #[must_use]
+    pub fn used_vars(&self) -> impl Iterator<Item = &String> {
+        self.used_vars.iter()
     }
 
     /// Marks a variable as used in the order and gets its left and right variants to be used in
@@ -315,6 +327,7 @@ impl fmt::Display for Order {
                 .format_with(" ", |v, f| f(&format_args!("v_{v}")))
         )?;
         writeln!(f, "    aux")?;
+        writeln!(f, "  end")?;
         // Order definition
         writeln!(f, "  def")?;
         for def in &self.definition {
@@ -333,13 +346,15 @@ impl fmt::Display for Order {
         )?;
         writeln!(f, "    end")?;
         self.trans_proof.format_indented(f, 4)?;
+        writeln!(f)?;
         writeln!(f, "  end")?;
         if let Some(proof) = &self.refl_proof {
             writeln!(f, "  reflexivity")?;
             proof.format_indented(f, 4)?;
+            writeln!(f)?;
             writeln!(f, "  end")?;
         }
-        writeln!(f, "end")
+        write!(f, "end")
     }
 }
 
@@ -364,11 +379,12 @@ impl SubProof {
     ///
     /// If writing fails, returns an error
     pub fn write_indented<W: io::Write>(&self, writer: &mut W, indent: usize) -> io::Result<()> {
-        writeln!(writer, "{:indent$}begin", "", indent = indent)?;
+        writeln!(writer, "{:indent$}proof", "", indent = indent)?;
         for goal in &self.goals {
             goal.write_indented(writer, indent + 2)?;
+            writeln!(writer)?;
         }
-        write!(writer, "end")
+        write!(writer, "{:indent$}qed", "", indent = indent)
     }
 
     /// Formats the subproof, indented by a number of spaces
@@ -377,11 +393,12 @@ impl SubProof {
     ///
     /// If formatting fails, returns an error
     pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
-        writeln!(writer, "{:indent$}begin", "", indent = indent)?;
+        writeln!(writer, "{:indent$}proof", "", indent = indent)?;
         for goal in &self.goals {
             goal.format_indented(writer, indent + 2)?;
+            writeln!(writer)?;
         }
-        write!(writer, "end")
+        write!(writer, "{:indent$}qed", "", indent = indent)
     }
 }
 
@@ -429,7 +446,7 @@ impl ProofGoal {
             indent = indent
         )?;
         for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
+            writeln!(writer, "{:indent$}  pol {der}", "", indent = indent)?;
         }
         write!(writer, "{:indent$}qed -1", "", indent = indent)
     }
@@ -448,7 +465,7 @@ impl ProofGoal {
             indent = indent
         )?;
         for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
+            writeln!(writer, "{:indent$}  pol {der}", "", indent = indent)?;
         }
         write!(writer, "{:indent$}qed -1", "", indent = indent)
     }
@@ -471,8 +488,8 @@ pub enum ProofGoalId {
 impl fmt::Display for ProofGoalId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ProofGoalId::Constraint(id) => writeln!(f, "{id}"),
-            ProofGoalId::Specific(id) => writeln!(f, "#{id}"),
+            ProofGoalId::Constraint(id) => write!(f, "{id}"),
+            ProofGoalId::Specific(id) => write!(f, "#{id}"),
         }
     }
 }

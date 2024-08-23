@@ -25,7 +25,7 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `core`: [`Proof::move_ids_to_core`], [`Proof::move_range_to_core`]
 - [x] `output`: [`Proof::output`], [`Proof::conclude`]
 - [x] `conclusion`: [`Proof::conclusion`], [`Proof::conclude`]
-- [ ] Subproofs
+- [x] Subproofs
 - [x] `e`: [`Proof::equals`]
 - [x] `ea`: [`Proof::equals_add`]
 - [x] `eobj`: [`Proof::obj_equals`]
@@ -34,7 +34,7 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `#`: [`Proof::set_level`]
 - [x] `w`: [`Proof::wipe_level`]
 - [ ] `strengthening_to_core`
-- [ ] `def_order`
-- [ ] `load_order`
+- [x] `def_order`
+- [x] `load_order`
 
 <!-- cargo-rdme end -->
