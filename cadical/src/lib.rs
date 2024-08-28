@@ -60,9 +60,8 @@ mod ffi;
     not(feature = "v1-9-3"),
     not(feature = "v1-9-4"),
     not(feature = "v1-9-5"),
-    not(feature = "v2-0-0"),
 ))]
-mod tracer;
+pub mod tracer;
 // >= 2.0.0
 #[cfg(all(
     not(feature = "v1-5-0"),
@@ -86,9 +85,8 @@ mod tracer;
     not(feature = "v1-9-3"),
     not(feature = "v1-9-4"),
     not(feature = "v1-9-5"),
-    not(feature = "v2-0-0"),
 ))]
-pub use tracer::{ClauseId, Conclusion, TraceProof};
+pub use tracer::{ClauseId, Conclusion, ProofTracerHandle, TraceProof};
 
 macro_rules! handle_oom {
     ($val:expr) => {{

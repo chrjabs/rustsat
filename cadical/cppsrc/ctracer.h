@@ -130,9 +130,6 @@ CCaDiCaLTracer *ccadical_connect_proof_tracer(CCaDiCaL *, void *,
 // Returns false if the tracer was not found to be connected
 bool ccadical_disconnect_proof_tracer(CCaDiCaL *, CCaDiCaLTracer *);
 
-// Gets the data pointer that a tracer was initialized with
-void *ccadical_get_tracer_data(CCaDiCaLTracer *);
-
 #ifdef __cplusplus
 }
 #endif

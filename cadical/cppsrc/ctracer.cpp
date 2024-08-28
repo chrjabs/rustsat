@@ -117,8 +117,4 @@ bool ccadical_disconnect_proof_tracer(CCaDiCaL *wrapper,
   return ((Wrapper *)wrapper)
       ->solver->disconnect_proof_tracer((Tracer *)tracer);
 }
-
-void *ccadical_get_tracer_data(CCaDiCaLTracer *tracer) {
-  return tracer.get_data();
-}
 }

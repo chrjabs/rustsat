@@ -1,6 +1,6 @@
 //! # CaDiCaL Proof Tracing Functionality
 
-use std::{ffi::c_void, marker::PhantomData};
+use std::ffi::c_void;
 
 use rustsat::{
     solvers::SolverResult,
@@ -12,7 +12,7 @@ use crate::ffi;
 /// The ID of a clause internal to CaDiCaL
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ClauseId(pub(crate) u64);
+pub struct ClauseId(pub u64);
 
 /// A conclusion for an incremental proof
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,12 +109,19 @@ pub trait TraceProof {
 }
 
 /// A handle to an attached proof tracer in order to be able to detach it again
-#[derive(Clone, Copy, Debug)]
-pub struct ProofTracerHandle<PT>(*mut ffi::CCaDiCaLTracer, PhantomData<PT>);
+///
+/// This is intentionally not [`Clone`] or [`Copy`] so that it cannot be used after the tracer has
+/// been disconnected from the solver
+#[derive(Debug)]
+pub struct ProofTracerHandle<PT> {
+    c_class: *mut ffi::CCaDiCaLTracer,
+    tracer: *mut PT,
+}
 
+/// Error stating that a provided proof tracer was not connected to the solver
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the provided proof tracer handle is not connected to the solver")]
-pub struct NotConnected<PT>(ProofTracerHandle<PT>);
+pub struct NotConnected;
 
 impl super::CaDiCaL<'_, '_> {
     /// Connects a proof tracer to the solver
@@ -126,7 +133,7 @@ impl super::CaDiCaL<'_, '_> {
     where
         PT: TraceProof,
     {
-        let tracer: Box<dyn TraceProof> = Box::new(tracer);
+        let tracer = Box::new(tracer);
         let tracer = Box::into_raw(tracer);
         let ptr = unsafe {
             ffi::ccadical_connect_proof_tracer(
@@ -136,7 +143,10 @@ impl super::CaDiCaL<'_, '_> {
                 antecedents,
             )
         };
-        ProofTracerHandle(ptr, PhantomData)
+        ProofTracerHandle {
+            c_class: ptr,
+            tracer,
+        }
     }
 
     /// Disconnects a proof tracer from the solver
@@ -144,21 +154,34 @@ impl super::CaDiCaL<'_, '_> {
     /// # Errors
     ///
     /// If the handle is not connected to the given solver, returns [`NotConnected`]
-    #[allow(clippy::missing_panics_doc)]
+    // We intentionally pass the handle by value here so that it cannot be used afterwards, since
+    // it is not Clone of Copy
+    #[allow(clippy::needless_pass_by_value)]
     pub fn disconnect_proof_tracer<PT>(
         &mut self,
         handle: ProofTracerHandle<PT>,
-    ) -> Result<PT, NotConnected<PT>>
+    ) -> Result<PT, NotConnected>
     where
         PT: TraceProof + 'static,
     {
-        if !unsafe { ffi::ccadical_disconnect_proof_tracer(self.handle, handle.0) } {
-            return Err(NotConnected(handle));
+        if !unsafe { ffi::ccadical_disconnect_proof_tracer(self.handle, handle.c_class) } {
+            return Err(NotConnected);
         }
-        let tracer = unsafe { ffi::ccadical_get_tracer_data(handle.0) };
-        let tracer = unsafe { Box::from_raw(tracer.cast::<Box<dyn std::any::Any>>()) };
-        Ok(*tracer
-            .downcast::<PT>()
-            .expect("could not downcast tracer to type stored in handle"))
+        let tracer = unsafe { Box::from_raw(handle.tracer) };
+        Ok(*tracer)
+    }
+
+    /// Gets a mutable reference to a connected proof tracer
+    // We are intentionally taking self, since the solver "owns" the tracer, even though the
+    // compiler doesn't know this
+    #[allow(clippy::unused_self)]
+    // The handle can only have originated from connect_proof_tracer, the pointer can therefore
+    // never be null
+    #[allow(clippy::missing_panics_doc)]
+    pub fn proof_tracer_mut<PT>(&mut self, handle: &ProofTracerHandle<PT>) -> &mut PT
+    where
+        PT: TraceProof + 'static,
+    {
+        unsafe { handle.tracer.as_mut() }.expect("unexpected null ptr")
     }
 }

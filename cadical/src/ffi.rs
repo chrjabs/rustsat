@@ -68,7 +68,6 @@ pub extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_int) {
     not(feature = "v1-9-3"),
     not(feature = "v1-9-4"),
     not(feature = "v1-9-5"),
-    not(feature = "v2-0-0"),
 ))]
 pub mod tracer {
     use std::os::raw::{c_int, c_void};
