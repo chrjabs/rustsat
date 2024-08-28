@@ -16,6 +16,9 @@
 //! - [x] `red`: [`Proof::redundant`]
 //! - [x] `dom`: [`Proof::dominated`]
 //! - [x] `core`: [`Proof::move_ids_to_core`], [`Proof::move_range_to_core`]
+//! - [x] `sol`: [`Proof::solution`]
+//! - [x] `solx`: [`Proof::exclude_solution`]
+//! - [x] `soli`: [`Proof::improve_solution`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
 //! - [x] `conclusion`: [`Proof::conclusion`], [`Proof::conclude`]
 //! - [x] Subproofs
@@ -33,7 +36,7 @@
 #![warn(clippy::pedantic)]
 
 use std::{
-    io,
+    fmt, io,
     ops::{Bound, RangeBounds},
 };
 
@@ -42,7 +45,7 @@ use itertools::Itertools;
 mod types;
 pub use types::{
     AbsConstraintId, Axiom, Conclusion, ConstraintId, ObjectiveUpdate, Order, OutputGuarantee,
-    OutputType, ProblemType, ProofGoal, ProofGoalId, SubProof, Substitution,
+    OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar, SubProof, Substitution,
 };
 
 mod ops;
@@ -67,6 +70,8 @@ pub struct Proof<Writer> {
     writer: Writer,
     /// The next free constraint ID
     next_id: AbsConstraintId,
+    /// The next free proof-only variable
+    next_pv: ProofOnlyVar,
     /// The proofs problem type
     problem_type: ProblemType,
 }
@@ -93,6 +98,7 @@ where
         let mut this = Self {
             writer,
             next_id: AbsConstraintId(unreachable_err!((num_constraints + 1).try_into())),
+            next_pv: ProofOnlyVar(0),
             problem_type: ProblemType::default(),
         };
         if optimization {
@@ -102,7 +108,7 @@ where
         Ok(this)
     }
 
-    /// Gets a new [`ConstraintId`] and increments the counter
+    /// Gets a new [`AbsConstraintId`] and increments the counter
     #[must_use]
     fn new_id(&mut self) -> AbsConstraintId {
         let id = self.next_id;
@@ -110,6 +116,14 @@ where
             (usize::from(self.next_id.0) + 1).try_into()
         ));
         id
+    }
+
+    /// Gets a new [`ProofOnlyVar`] and increments the counter
+    #[must_use]
+    pub fn new_proof_var(&mut self) -> ProofOnlyVar {
+        let pv = self.next_pv;
+        self.next_pv += 1;
+        pv
     }
 
     /// Adds a line to verify the number of constraints in the proof
@@ -153,7 +167,10 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn operations(&mut self, operations: &OperationSequence) -> io::Result<AbsConstraintId> {
+    pub fn operations<V: VarLike>(
+        &mut self,
+        operations: &OperationSequence<V>,
+    ) -> io::Result<AbsConstraintId> {
         writeln!(self.writer, "pol {operations}")?;
         Ok(self.new_id())
     }
@@ -312,13 +329,12 @@ where
     /// # Errors
     ///
     /// If writing the proof fails
-    ///
-    /// # Panics
-    ///
-    /// If `subs` is empty.
-    pub fn substitute(&mut self, subs: &[Substitution]) -> io::Result<()> {
-        assert!(!subs.is_empty());
-        writeln!(self.writer, "{}", subs.iter().format(" "))
+    pub fn substitute<V, I>(&mut self, subs: I) -> io::Result<()>
+    where
+        V: VarLike,
+        I: IntoIterator<Item = Substitution<V>>,
+    {
+        writeln!(self.writer, "{}", subs.into_iter().format(" "))
     }
 
     /// Adds a constraint that is redundant, checked via redundance based strengthening
@@ -330,17 +346,22 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn redundant<C: ConstraintLike>(
+    pub fn redundant<C, V, I>(
         &mut self,
         constr: &C,
-        subs: &[Substitution],
+        subs: I,
         proof: Option<SubProof>,
-    ) -> io::Result<AbsConstraintId> {
+    ) -> io::Result<AbsConstraintId>
+    where
+        C: ConstraintLike,
+        V: VarLike,
+        I: IntoIterator<Item = Substitution<V>>,
+    {
         write!(
             self.writer,
             "red {} ; {}",
             constr.constr_str(),
-            subs.iter().format(" ")
+            subs.into_iter().format(" ")
         )?;
         if let Some(proof) = proof {
             writeln!(self.writer, " ; begin")?;
@@ -362,17 +383,22 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn dominated<C: ConstraintLike>(
+    pub fn dominated<C, V, I>(
         &mut self,
         constr: &C,
-        subs: &[Substitution],
+        subs: I,
         proof: Option<SubProof>,
-    ) -> io::Result<AbsConstraintId> {
+    ) -> io::Result<AbsConstraintId>
+    where
+        C: ConstraintLike,
+        V: VarLike,
+        I: IntoIterator<Item = Substitution<V>>,
+    {
         write!(
             self.writer,
             "dom {} ; {}",
             constr.constr_str(),
-            subs.iter().format(" ")
+            subs.into_iter().format(" ")
         )?;
         if let Some(proof) = proof {
             writeln!(self.writer, " ; begin")?;
@@ -431,6 +457,59 @@ where
         writeln!(self.writer, "core range {range_start} {range_end}")
     }
 
+    /// Logs a solution in the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Adds a `sol` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn solution<V, I>(&mut self, solution: I) -> io::Result<()>
+    where
+        V: VarLike,
+        I: IntoIterator<Item = V>,
+    {
+        writeln!(self.writer, "sol {}", solution.into_iter().format(" "))
+    }
+
+    /// Logs a solution with a solution-excluding constraint in the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Adds a `solx` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn exclude_solution<V, I>(&mut self, solution: I) -> io::Result<AbsConstraintId>
+    where
+        V: VarLike,
+        I: IntoIterator<Item = V>,
+    {
+        writeln!(self.writer, "solx {}", solution.into_iter().format(" "))?;
+        Ok(self.new_id())
+    }
+
+    /// Logs a solution with a solution-improving constraint in the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Adds a `soli` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn improve_solution<V, I>(&mut self, solution: I) -> io::Result<AbsConstraintId>
+    where
+        V: VarLike,
+        I: IntoIterator<Item = V>,
+    {
+        writeln!(self.writer, "soli {}", solution.into_iter().format(" "))?;
+        Ok(self.new_id())
+    }
+
     /// Adds an output section to the proof
     ///
     /// # Proof Log
@@ -453,7 +532,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn conclusion(&mut self, conclusion: &Conclusion) -> io::Result<()> {
+    pub fn conclusion<V: VarLike>(&mut self, conclusion: &Conclusion<V>) -> io::Result<()> {
         writeln!(self.writer, "conclusion {conclusion}")
     }
 
@@ -480,10 +559,10 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn conclude(
+    pub fn conclude<V: VarLike>(
         mut self,
         guarantee: OutputGuarantee,
-        conclusion: &Conclusion,
+        conclusion: &Conclusion<V>,
     ) -> io::Result<Writer> {
         self.output(guarantee)?;
         self.conclusion(conclusion)?;
@@ -638,7 +717,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn define_order(&mut self, order: &Order) -> io::Result<()> {
+    pub fn define_order<V: VarLike>(&mut self, order: &Order<V>) -> io::Result<()> {
         writeln!(self.writer, "{order}")
     }
 
@@ -651,78 +730,57 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn load_order<V: VarLike, I: IntoIterator<Item = V>>(
-        &mut self,
-        name: &str,
-        vars: I,
-    ) -> io::Result<()> {
+    pub fn load_order<V, I>(&mut self, name: &str, vars: I) -> io::Result<()>
+    where
+        V: VarLike,
+        I: IntoIterator<Item = V>,
+    {
         writeln!(
             self.writer,
             "load_order {name} {}",
-            vars.into_iter().map(|v| v.var_str()).format(" ")
+            vars.into_iter().format(" ")
         )
     }
 }
 
 /// Trait that needs to be implemented for types used as variables
-pub trait VarLike {
-    /// Gets a string representation of the variable
-    ///
-    /// # Contract
-    ///
-    /// A valid VeriPB variable identifier must be returned
-    fn var_str(&self) -> String;
-
+///
+/// A call to [`fmt::Display`] on this type must produce a valid VeriPB variable
+pub trait VarLike: Copy + Eq + fmt::Display + std::hash::Hash {
     /// Gets a positive axiom of the variable for an operation sequence
-    fn pos_axiom(&self) -> Axiom {
+    fn pos_axiom(self) -> Axiom<Self> {
         Axiom {
             neg: false,
-            var: self.var_str(),
+            var: self,
         }
     }
 
     /// Gets a negative axiom of the variable for an operation sequence
-    fn neg_axiom(&self) -> Axiom {
+    fn neg_axiom(self) -> Axiom<Self> {
         Axiom {
             neg: true,
-            var: self.var_str(),
+            var: self,
         }
     }
 
     /// Substitutes the variables with a fixed value
-    fn substitute_fixed(&self, value: bool) -> Substitution {
+    fn substitute_fixed(self, value: bool) -> Substitution<Self> {
         Substitution {
-            var: self.var_str(),
+            var: self,
             sub: value.into(),
         }
     }
 
     /// Substitutes the variable with a literal
-    fn substitute_literal(&self, literal: Axiom) -> Substitution {
+    fn substitute_literal(self, literal: Axiom<Self>) -> Substitution<Self> {
         Substitution {
-            var: self.var_str(),
+            var: self,
             sub: types::SubstituteWith::Lit(literal),
         }
     }
 }
 
-impl VarLike for String {
-    fn var_str(&self) -> String {
-        self.clone()
-    }
-}
-
-impl VarLike for &str {
-    fn var_str(&self) -> String {
-        String::from(*self)
-    }
-}
-
-impl VarLike for &String {
-    fn var_str(&self) -> String {
-        (*self).clone()
-    }
-}
+impl VarLike for &str {}
 
 /// Trait that needs to be implemented for types used as constraints
 pub trait ConstraintLike {
@@ -766,7 +824,7 @@ where
             "{}",
             self.clone()
                 .into_iter()
-                .map(|(cf, v)| format!("{cf} {}", v.var_str()))
+                .map(|(cf, v)| format!("{cf} {v}"))
                 .format(" ")
         )
     }

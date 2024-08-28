@@ -1004,7 +1004,7 @@ impl Objective {
 impl pidgeons::ObjectiveLike for Objective {
     fn obj_str(&self) -> String {
         use itertools::Itertools;
-        use pidgeons::VarLike;
+        use pidgeons::Axiom;
 
         format!(
             "{} {}",
@@ -1014,11 +1014,7 @@ impl pidgeons::ObjectiveLike for Objective {
                 .format_with(" ", |wlit, f| f(&format_args!(
                     "{} {}",
                     wlit.1,
-                    if wlit.0.is_pos() {
-                        wlit.0.var().pos_axiom()
-                    } else {
-                        wlit.0.var().neg_axiom()
-                    }
+                    Axiom::from(wlit.0)
                 ))),
             self.offset()
         )

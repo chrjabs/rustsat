@@ -23,6 +23,9 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `red`: [`Proof::redundant`]
 - [x] `dom`: [`Proof::dominated`]
 - [x] `core`: [`Proof::move_ids_to_core`], [`Proof::move_range_to_core`]
+- [x] `sol`: [`Proof::solution`]
+- [x] `solx`: [`Proof::exclude_solution`]
+- [x] `soli`: [`Proof::improve_solution`]
 - [x] `output`: [`Proof::output`], [`Proof::conclude`]
 - [x] `conclusion`: [`Proof::conclusion`], [`Proof::conclude`]
 - [x] Subproofs

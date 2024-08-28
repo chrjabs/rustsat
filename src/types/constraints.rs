@@ -312,18 +312,12 @@ impl fmt::Debug for Clause {
 impl pidgeons::ConstraintLike for Clause {
     fn constr_str(&self) -> String {
         use itertools::Itertools;
-        use pidgeons::VarLike;
+        use pidgeons::Axiom;
 
         format!(
             "{} >= 1",
-            self.iter().format_with(" ", |lit, f| f(&format_args!(
-                "1 {}",
-                if lit.is_pos() {
-                    lit.var().pos_axiom()
-                } else {
-                    lit.var().neg_axiom()
-                }
-            )))
+            self.iter()
+                .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit))))
         )
     }
 }
@@ -844,7 +838,7 @@ impl From<Clause> for CardConstraint {
 #[cfg(feature = "proof-logging")]
 impl pidgeons::ConstraintLike for CardConstraint {
     fn constr_str(&self) -> String {
-        use pidgeons::VarLike;
+        use pidgeons::Axiom;
 
         match self {
             CardConstraint::Ub(c) => {
@@ -854,39 +848,24 @@ impl pidgeons::ConstraintLike for CardConstraint {
                         .expect("cannot handle bound higher than `isize::MAX` in proof logging");
                 format!(
                     "{} >= {}",
-                    c.lits.iter().format_with(" ", |lit, f| f(&format_args!(
-                        "1 {}",
-                        if lit.is_neg() {
-                            lit.var().pos_axiom()
-                        } else {
-                            lit.var().neg_axiom()
-                        }
-                    ))),
+                    c.lits
+                        .iter()
+                        .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit)))),
                     b
                 )
             }
             CardConstraint::Lb(c) => format!(
                 "{} >= {}",
-                c.lits.iter().format_with(" ", |lit, f| f(&format_args!(
-                    "1 {}",
-                    if lit.is_pos() {
-                        lit.var().pos_axiom()
-                    } else {
-                        lit.var().neg_axiom()
-                    }
-                ))),
+                c.lits
+                    .iter()
+                    .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit)))),
                 c.b
             ),
             CardConstraint::Eq(c) => format!(
                 "{} = {}",
-                c.lits.iter().format_with(" ", |lit, f| f(&format_args!(
-                    "1 {}",
-                    if lit.is_pos() {
-                        lit.var().pos_axiom()
-                    } else {
-                        lit.var().neg_axiom()
-                    }
-                ))),
+                c.lits
+                    .iter()
+                    .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit)))),
                 c.b
             ),
         }
@@ -1559,7 +1538,7 @@ impl PbConstraint {
 impl pidgeons::ConstraintLike for PbConstraint {
     fn constr_str(&self) -> String {
         use itertools::Itertools;
-        use pidgeons::VarLike;
+        use pidgeons::Axiom;
 
         match self {
             PbConstraint::Ub(c) => {
@@ -1572,11 +1551,7 @@ impl pidgeons::ConstraintLike for PbConstraint {
                     c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
                         "{} {}",
                         wlit.1,
-                        if wlit.0.is_neg() {
-                            wlit.0.var().pos_axiom()
-                        } else {
-                            wlit.0.var().neg_axiom()
-                        }
+                        Axiom::from(wlit.0)
                     ))),
                     b
                 )
@@ -1586,11 +1561,7 @@ impl pidgeons::ConstraintLike for PbConstraint {
                 c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
                     "{} {}",
                     wlit.1,
-                    if wlit.0.is_pos() {
-                        wlit.0.var().pos_axiom()
-                    } else {
-                        wlit.0.var().neg_axiom()
-                    }
+                    Axiom::from(wlit.0)
                 ))),
                 c.b
             ),
@@ -1599,11 +1570,7 @@ impl pidgeons::ConstraintLike for PbConstraint {
                 c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
                     "{} {}",
                     wlit.1,
-                    if wlit.0.is_pos() {
-                        wlit.0.var().pos_axiom()
-                    } else {
-                        wlit.0.var().neg_axiom()
-                    }
+                    Axiom::from(wlit.0)
                 ))),
                 c.b
             ),

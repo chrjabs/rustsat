@@ -259,13 +259,6 @@ impl fmt::Debug for Var {
     }
 }
 
-#[cfg(feature = "proof-logging")]
-impl pidgeons::VarLike for Var {
-    fn var_str(&self) -> String {
-        format!("x{}", self.to_ipasir())
-    }
-}
-
 #[cfg(kani)]
 impl kani::Arbitrary for Var {
     fn any() -> Self {
@@ -586,19 +579,6 @@ impl fmt::Debug for Lit {
             write!(f, "~x{}", self.vidx())
         } else {
             write!(f, "x{}", self.vidx())
-        }
-    }
-}
-
-#[cfg(feature = "proof-logging")]
-impl From<Lit> for pidgeons::Axiom {
-    fn from(value: Lit) -> Self {
-        use pidgeons::VarLike;
-
-        if value.is_pos() {
-            value.var().pos_axiom()
-        } else {
-            value.var().neg_axiom()
         }
     }
 }
@@ -1101,6 +1081,45 @@ impl<I: IntoIterator<Item = (Clause, usize)>> WClsIter for I {}
 /// An iterator over integer-weighted literals
 pub trait IWLitIter: IntoIterator<Item = (Lit, isize)> {}
 impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
+
+#[cfg(feature = "proof-logging")]
+mod proofs {
+    use std::fmt;
+
+    /// A wrapper around [`super::Var`] for use with the [`pidgeons`] library
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[repr(transparent)]
+    pub struct PidgeonVar(super::Var);
+
+    impl From<super::Var> for PidgeonVar {
+        fn from(value: super::Var) -> Self {
+            PidgeonVar(value)
+        }
+    }
+
+    impl fmt::Display for PidgeonVar {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "x{}", self.0.idx() + 1)
+        }
+    }
+
+    impl pidgeons::VarLike for PidgeonVar {}
+
+    impl From<super::Lit> for pidgeons::Axiom<PidgeonVar> {
+        fn from(value: super::Lit) -> Self {
+            use pidgeons::VarLike;
+
+            if value.is_pos() {
+                PidgeonVar::from(value.var()).pos_axiom()
+            } else {
+                PidgeonVar::from(value.var()).neg_axiom()
+            }
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+pub use proofs::PidgeonVar;
 
 #[cfg(test)]
 mod tests {

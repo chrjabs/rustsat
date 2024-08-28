@@ -1,6 +1,10 @@
 //! # Most Types of the Library
 
-use std::{fmt, io, num::NonZeroUsize, ops::Range};
+use std::{
+    fmt, io,
+    num::NonZeroUsize,
+    ops::{self, Range},
+};
 
 use itertools::Itertools;
 
@@ -132,6 +136,7 @@ impl AbsConstraintId {
     /// # Panics
     ///
     /// If `id` is zero
+    #[must_use]
     pub fn new(id: usize) -> Self {
         AbsConstraintId(NonZeroUsize::new(id).expect("ID needs to be non-zero"))
     }
@@ -174,62 +179,89 @@ impl fmt::Display for RelConstraintId {
     }
 }
 
+/// A variable that is only present in the proof
+///
+/// These variables format to `pv<idx>`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProofOnlyVar(pub(crate) u32);
+
+impl fmt::Display for ProofOnlyVar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "pv{}", self.0)
+    }
+}
+
+impl VarLike for ProofOnlyVar {}
+
+impl ops::Add<u32> for ProofOnlyVar {
+    type Output = ProofOnlyVar;
+
+    fn add(self, rhs: u32) -> Self::Output {
+        ProofOnlyVar(self.0 + rhs)
+    }
+}
+
+impl ops::AddAssign<u32> for ProofOnlyVar {
+    fn add_assign(&mut self, rhs: u32) {
+        self.0 += rhs;
+    }
+}
+
 /// An axiom or literal
-#[derive(Clone, Debug)]
-pub struct Axiom {
+#[derive(Debug, Clone, Copy)]
+pub struct Axiom<V: VarLike> {
     /// Whether the axiom/literal is negated
     pub(crate) neg: bool,
     /// The variable, represented as a string
-    pub(crate) var: String,
+    pub(crate) var: V,
 }
 
-impl fmt::Display for Axiom {
+impl<V: VarLike> fmt::Display for Axiom<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", if self.neg { "~" } else { "" }, self.var)
     }
 }
 
-impl ConstraintLike for Axiom {
+impl<V: VarLike> ConstraintLike for Axiom<V> {
     fn constr_str(&self) -> String {
         format!("{self} >= 1")
     }
 }
 
 /// A substitution of a variable to a value or a literal
-pub struct Substitution {
+#[derive(Debug, Clone, Copy)]
+pub struct Substitution<V: VarLike> {
     /// The variable to substitute
-    pub(crate) var: String,
+    pub(crate) var: V,
     /// What to substitute with
-    pub(crate) sub: SubstituteWith,
+    pub(crate) sub: SubstituteWith<V>,
 }
 
-impl Substitution {
+impl<V: VarLike> Substitution<V> {
     /// Crates a new substitution
-    pub fn new<V: VarLike>(v: &V, with: SubstituteWith) -> Self {
-        Substitution {
-            var: v.var_str(),
-            sub: with,
-        }
+    pub fn new(v: V, with: SubstituteWith<V>) -> Self {
+        Substitution { var: v, sub: with }
     }
 }
 
-impl fmt::Display for Substitution {
+impl<V: VarLike> fmt::Display for Substitution<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -> {}", self.var, self.sub)
     }
 }
 
 /// What to substitute a variable with
-pub enum SubstituteWith {
+#[derive(Debug, Clone, Copy)]
+pub enum SubstituteWith<V: VarLike> {
     /// Fix true value
     True,
     /// Fix false value
     False,
     /// Substitute variable with literal
-    Lit(Axiom),
+    Lit(Axiom<V>),
 }
 
-impl From<bool> for SubstituteWith {
+impl<V: VarLike> From<bool> for SubstituteWith<V> {
     fn from(value: bool) -> Self {
         if value {
             SubstituteWith::True
@@ -239,7 +271,7 @@ impl From<bool> for SubstituteWith {
     }
 }
 
-impl fmt::Display for SubstituteWith {
+impl<V: VarLike> fmt::Display for SubstituteWith<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SubstituteWith::True => write!(f, "1"),
@@ -250,15 +282,15 @@ impl fmt::Display for SubstituteWith {
 }
 
 /// An order in the proof
-pub struct Order {
+pub struct Order<V> {
     name: String,
-    used_vars: rustc_hash::FxHashSet<String>,
+    used_vars: rustc_hash::FxHashSet<V>,
     definition: Vec<String>,
     trans_proof: SubProof,
     refl_proof: Option<SubProof>,
 }
 
-impl Order {
+impl<V: VarLike> Order<V> {
     /// Creates a new builder structure
     #[must_use]
     pub fn new(name: String) -> Self {
@@ -278,22 +310,22 @@ impl Order {
     }
 
     /// Gets an iterator over the used variables
-    #[must_use]
-    pub fn used_vars(&self) -> impl Iterator<Item = &String> {
-        self.used_vars.iter()
+    pub fn used_vars(&self) -> impl Iterator<Item = V> + '_ {
+        self.used_vars.iter().copied()
     }
 
     /// Marks a variable as used in the order and gets its left and right variants to be used in
     /// the definitions
-    pub fn use_var<V: VarLike>(&mut self, v: &V) -> (String, String) {
-        let v = v.var_str();
-        self.used_vars.insert(v.clone());
+    pub fn use_var(&mut self, v: V) -> (String, String) {
+        self.used_vars.insert(v);
         (format!("u_{v}"), format!("v_{v}"))
     }
 
     /// Adds a constraint to the order definition
     ///
     /// The constraint must only use left and right variables that have been marked as used
+    // Since we push `constr` into the definitions, `self.definition.len()` is never zero
+    #[allow(clippy::missing_panics_doc)]
     pub fn add_definition_constraint<C: ConstraintLike>(
         &mut self,
         constr: &C,
@@ -325,7 +357,7 @@ impl Order {
     }
 }
 
-impl fmt::Display for Order {
+impl<V: VarLike> fmt::Display for Order<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "def_order {}", self.name)?;
         // Variables
@@ -590,18 +622,18 @@ impl fmt::Display for OutputType {
 }
 
 /// Possible conclusions
-pub enum Conclusion {
+pub enum Conclusion<V: VarLike> {
     /// No conclusion
     None,
     /// Satisfiability
-    Sat(Option<Vec<Axiom>>),
+    Sat(Option<Vec<Axiom<V>>>),
     /// Unsatisfiability
     Unsat(Option<ConstraintId>),
     /// Bounds
-    Bounds(BoundsConclusion),
+    Bounds(BoundsConclusion<V>),
 }
 
-impl fmt::Display for Conclusion {
+impl<V: VarLike> fmt::Display for Conclusion<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Conclusion::None => write!(f, "NONE"),
@@ -634,8 +666,8 @@ impl fmt::Display for Conclusion {
     }
 }
 
-pub struct BoundsConclusion {
+pub struct BoundsConclusion<V: VarLike> {
     pub(crate) range: Range<usize>,
     pub(crate) lb_id: Option<ConstraintId>,
-    pub(crate) ub_sol: Option<Vec<Axiom>>,
+    pub(crate) ub_sol: Option<Vec<Axiom<V>>>,
 }
