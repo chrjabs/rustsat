@@ -16,7 +16,66 @@ use super::{Axiom, ConstraintId};
 
 /// A sequence of operations to be added to the proof in reverse polish notation
 #[derive(Clone, Debug)]
-pub struct OperationSequence(Vec<Operation>);
+pub struct OperationSequence(IntOpSeq);
+
+/// Internal representation of operation sequence handling special empty and singleton cases to
+/// avoid unnecessary allocations
+#[derive(Clone, Debug, Default)]
+enum IntOpSeq {
+    #[default]
+    Empty,
+    Singleton(Operation),
+    Sequence(Vec<Operation>),
+}
+
+impl Extend<Operation> for IntOpSeq {
+    fn extend<T: IntoIterator<Item = Operation>>(&mut self, iter: T) {
+        let iter = iter.into_iter();
+        if iter.size_hint().0 > 1 {
+            let seq: Vec<_> = match std::mem::take(self) {
+                IntOpSeq::Empty => iter.collect(),
+                IntOpSeq::Singleton(op) => [op].into_iter().chain(iter).collect(),
+                IntOpSeq::Sequence(mut seq) => {
+                    seq.extend(iter);
+                    seq
+                }
+            };
+            *self = IntOpSeq::Sequence(seq);
+        } else {
+            todo!()
+        }
+    }
+}
+
+impl IntoIterator for IntOpSeq {
+    type Item = Operation;
+
+    type IntoIter = OpSeqIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            IntOpSeq::Empty => OpSeqIter::One(None),
+            IntOpSeq::Singleton(op) => OpSeqIter::One(Some(op)),
+            IntOpSeq::Sequence(seq) => OpSeqIter::More(seq.into_iter()),
+        }
+    }
+}
+
+enum OpSeqIter {
+    One(Option<Operation>),
+    More(std::vec::IntoIter<Operation>),
+}
+
+impl Iterator for OpSeqIter {
+    type Item = Operation;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            OpSeqIter::One(opt) => opt.take(),
+            OpSeqIter::More(seq) => seq.next(),
+        }
+    }
+}
 
 impl OperationSequence {
     /// Crates an empty operation sequence
@@ -24,13 +83,24 @@ impl OperationSequence {
     /// **Note**: Trying to write an empty operation sequence will panic
     #[must_use]
     pub fn empty() -> OperationSequence {
-        OperationSequence(vec![])
+        OperationSequence(IntOpSeq::Empty)
     }
 
     /// Checks whether the operation sequence is empty
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        matches!(self.0, IntOpSeq::Empty)
+    }
+
+    fn push(&mut self, op: Operation) {
+        self.0 = match std::mem::take(&mut self.0) {
+            IntOpSeq::Empty => IntOpSeq::Singleton(op),
+            IntOpSeq::Singleton(op1) => IntOpSeq::Sequence(vec![op1, op]),
+            IntOpSeq::Sequence(mut seq) => {
+                seq.push(op);
+                IntOpSeq::Sequence(seq)
+            }
+        }
     }
 }
 
@@ -38,7 +108,7 @@ impl OperationLike for OperationSequence {
     #[must_use]
     fn saturate(mut self) -> OperationSequence {
         if !self.is_empty() {
-            self.0.push(Operation::Sat);
+            self.push(Operation::Sat);
         }
         self
     }
@@ -46,7 +116,7 @@ impl OperationLike for OperationSequence {
     #[must_use]
     fn weaken(mut self) -> OperationSequence {
         if !self.is_empty() {
-            self.0.push(Operation::Weak);
+            self.push(Operation::Weak);
         }
         self
     }
@@ -54,14 +124,17 @@ impl OperationLike for OperationSequence {
 
 impl From<Operation> for OperationSequence {
     fn from(value: Operation) -> Self {
-        OperationSequence(vec![value])
+        OperationSequence(IntOpSeq::Singleton(value))
     }
 }
 
 impl fmt::Display for OperationSequence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        assert!(!self.is_empty(), "cannot write empty operation sequence");
-        write!(f, "{}", self.0.iter().format(" "))
+        match &self.0 {
+            IntOpSeq::Empty => panic!("cannot write empty operation sequence"),
+            IntOpSeq::Singleton(op) => write!(f, "{op}"),
+            IntOpSeq::Sequence(seq) => write!(f, "{}", seq.iter().format(" ")),
+        }
     }
 }
 
@@ -70,7 +143,7 @@ impl Mul<usize> for OperationSequence {
 
     fn mul(mut self, rhs: usize) -> Self::Output {
         if !self.is_empty() {
-            self.0.push(Operation::Mult(
+            self.push(Operation::Mult(
                 rhs.try_into().expect("cannot multiply by zero"),
             ));
         }
@@ -91,7 +164,7 @@ impl Div<usize> for OperationSequence {
 
     fn div(mut self, rhs: usize) -> Self::Output {
         if !self.is_empty() {
-            self.0.push(Operation::Div(
+            self.push(Operation::Div(
                 rhs.try_into().expect("cannot divide by zero"),
             ));
         }
@@ -172,11 +245,9 @@ impl<O: OperationLike> Add<O> for OperationSequence {
 
     fn add(mut self, rhs: O) -> Self::Output {
         let rhs = Into::<OperationSequence>::into(rhs);
-        if !rhs.is_empty() {
+        if !self.is_empty() && !rhs.is_empty() {
             self.0.extend(rhs.0);
-            if self.0.len() > 1 {
-                self.0.push(Operation::Add);
-            }
+            self.push(Operation::Add);
         }
         self
     }

@@ -44,10 +44,7 @@ impl ConstraintId {
     /// If `x` is zero.
     #[must_use]
     pub fn abs(x: usize) -> ConstraintId {
-        ConstrIdInternal::Abs(AbsConstraintId(
-            x.try_into().expect("constraint ID cannot be zero"),
-        ))
-        .into()
+        AbsConstraintId::new(x).into()
     }
 
     /// Gets a relative constraint ID to the x-last constraint
@@ -129,6 +126,17 @@ impl From<RelConstraintId> for ConstraintId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct AbsConstraintId(pub(crate) NonZeroUsize);
 
+impl AbsConstraintId {
+    /// Creates a new absolute constraint ID
+    ///
+    /// # Panics
+    ///
+    /// If `id` is zero
+    pub fn new(id: usize) -> Self {
+        AbsConstraintId(NonZeroUsize::new(id).expect("ID needs to be non-zero"))
+    }
+}
+
 impl Default for AbsConstraintId {
     fn default() -> Self {
         Self(unreachable_err!(1.try_into()))
@@ -193,6 +201,16 @@ pub struct Substitution {
     pub(crate) var: String,
     /// What to substitute with
     pub(crate) sub: SubstituteWith,
+}
+
+impl Substitution {
+    /// Crates a new substitution
+    pub fn new<V: VarLike>(v: &V, with: SubstituteWith) -> Self {
+        Substitution {
+            var: v.var_str(),
+            sub: with,
+        }
+    }
 }
 
 impl fmt::Display for Substitution {
