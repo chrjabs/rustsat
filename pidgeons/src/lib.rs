@@ -67,8 +67,11 @@ use crate::types::{ConstrFormatter, ObjFormatter};
 /// A type representing a VeriPB proof.
 ///
 /// This type represents the main API of this library.
+///
+/// **Note**: if the proof is dropped without calling [`Proof::end`], the proof is ended with
+/// output guarantee [`OutputGuarantee::None`] and [`Conclusion::None`].
 #[derive(Clone, Debug)]
-pub struct Proof<Writer> {
+pub struct Proof<Writer: io::Write> {
     /// Where the proof is written to
     writer: Writer,
     /// The next free constraint ID
@@ -77,6 +80,16 @@ pub struct Proof<Writer> {
     next_pv: ProofOnlyVar,
     /// The proofs problem type
     problem_type: ProblemType,
+    /// Set to true to avoid writing conclusion in [`Drop`]
+    concluded: bool,
+}
+
+impl<Writer: io::Write> Drop for Proof<Writer> {
+    fn drop(&mut self) {
+        writeln!(self.writer, "output NONE").expect("could not finish writing proof");
+        writeln!(self.writer, "conclusion NONE").expect("could not finish writing proof");
+        writeln!(self.writer, "end pseudo-Boolean proof").expect("could not finish writing proof");
+    }
 }
 
 impl<Writer> Proof<Writer>
@@ -103,6 +116,7 @@ where
             next_id: AbsConstraintId(unreachable_err!((num_constraints + 1).try_into())),
             next_pv: ProofOnlyVar(0),
             problem_type: ProblemType::default(),
+            concluded: false,
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
@@ -564,7 +578,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn conclusion<V: VarLike>(&mut self, conclusion: &Conclusion<V>) -> io::Result<()> {
+    fn conclusion<V: VarLike>(&mut self, conclusion: &Conclusion<V>) -> io::Result<()> {
         writeln!(self.writer, "conclusion {conclusion}")
     }
 
@@ -577,9 +591,13 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn end(mut self) -> io::Result<Writer> {
+    fn end(mut self) -> io::Result<Writer> {
         writeln!(self.writer, "end pseudo-Boolean proof")?;
-        Ok(self.writer)
+        // wrap self in ManuallyDrop to avoid calling Drop on it
+        let nodrop = std::mem::ManuallyDrop::new(self);
+        // unsafely move writer out, after this never use writer in nodrop anymore
+        let writer = unsafe { std::ptr::read(&nodrop.writer) };
+        Ok(writer)
     }
 
     /// Concludes the proof by adding the output and conclusions sections and ending the proof.

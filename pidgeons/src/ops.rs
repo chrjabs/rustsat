@@ -30,8 +30,9 @@ enum IntOpSeq<V: VarLike> {
 
 impl<V: VarLike> Extend<Operation<V>> for IntOpSeq<V> {
     fn extend<T: IntoIterator<Item = Operation<V>>>(&mut self, iter: T) {
-        let iter = iter.into_iter();
-        if iter.size_hint().0 > 1 {
+        let mut iter = iter.into_iter();
+        let hint = iter.size_hint();
+        if hint.0 > 1 {
             let seq: Vec<_> = match std::mem::take(self) {
                 IntOpSeq::Empty => iter.collect(),
                 IntOpSeq::Singleton(op) => [op].into_iter().chain(iter).collect(),
@@ -41,9 +42,36 @@ impl<V: VarLike> Extend<Operation<V>> for IntOpSeq<V> {
                 }
             };
             *self = IntOpSeq::Sequence(seq);
-        } else {
-            todo!()
+            return;
         }
+        if matches!(hint.1, Some(1)) {
+            let Some(next) = iter.next() else {
+                return;
+            };
+            debug_assert!(iter.next().is_none());
+            *self = match std::mem::take(self) {
+                IntOpSeq::Empty => IntOpSeq::Singleton(next),
+                IntOpSeq::Singleton(other) => IntOpSeq::Sequence(vec![other, next]),
+                IntOpSeq::Sequence(mut seq) => {
+                    seq.push(next);
+                    IntOpSeq::Sequence(seq)
+                }
+            };
+            return;
+        }
+        let seq: Vec<_> = match std::mem::take(self) {
+            IntOpSeq::Empty => iter.collect(),
+            IntOpSeq::Singleton(op) => [op].into_iter().chain(iter).collect(),
+            IntOpSeq::Sequence(mut seq) => {
+                seq.extend(iter);
+                seq
+            }
+        };
+        *self = match seq.len() {
+            0 => IntOpSeq::Empty,
+            1 => IntOpSeq::Singleton(seq[0]),
+            _ => IntOpSeq::Sequence(seq),
+        };
     }
 }
 
@@ -173,7 +201,7 @@ impl<V: VarLike> Div<usize> for OperationSequence<V> {
 }
 
 /// A sequence of operations to be added to the proof in reverse polish notation
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) enum Operation<V: VarLike> {
     /// A trivial identity operation to get a constraint from its [`ConstraintId`]
     Id(ConstraintId),
