@@ -1,11 +1,6 @@
 // CaDiCaL C API Extension (Christoph Jabs)
 // To be included at the bottom of `ccadical.cpp`
 
-#ifdef TRACER
-#include "tracer.hpp"
-
-#endif
-
 extern "C" {
 
 int ccadical_add_mem(CCaDiCaL *wrapper, int lit) {
@@ -119,3 +114,7 @@ int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
   }
 }
 }
+
+#ifdef TRACER
+#include "ctracer.cpp"
+#endif

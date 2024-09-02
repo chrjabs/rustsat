@@ -1,5 +1,7 @@
 // CaDiCaL C API Extension For Proof Tracing (Christoph Jabs)
 
+#include <cassert>
+
 #include "ctracer.h"
 #include "tracer.hpp"
 
@@ -28,7 +30,7 @@ public:
     assert(callbacks.conclude_unsat);
     assert(callbacks.conclude_sat);
   }
-  ~CTracer();
+  ~CTracer() {};
 
   void add_original_clause(uint64_t id, bool redundant,
                            const std::vector<int> &clause,
@@ -88,7 +90,19 @@ public:
 
   void conclude_unsat(ConclusionType conclusion_type,
                       const std::vector<uint64_t> &clause_ids) override {
-    callbacks.conclude_unsat(data, conclusion_type, clause_ids.size(),
+    CCaDiCaLConclusionType conclusion_out;
+    switch (conclusion_type) {
+    case ConclusionType::CONFLICT:
+      conclusion_out = CCaDiCaLConclusionType::CONFLICT;
+      break;
+    case ConclusionType::ASSUMPTIONS:
+      conclusion_out = CCaDiCaLConclusionType::ASSUMPTIONS;
+      break;
+    case ConclusionType::CONSTRAINT:
+      conclusion_out = CCaDiCaLConclusionType::CONSTRAINT;
+      break;
+    }
+    callbacks.conclude_unsat(data, conclusion_out, clause_ids.size(),
                              clause_ids.data());
   }
 
@@ -106,7 +120,7 @@ extern "C" {
 CCaDiCaLTracer *ccadical_connect_proof_tracer(CCaDiCaL *wrapper, void *data,
                                               CCaDiCaLTraceCallbacks callbacks,
                                               bool antecedents) {
-  CTracer *tracer = new CTracer(data, callbacks);
+  CaDiCaL::CTracer *tracer = new CaDiCaL::CTracer(data, callbacks);
   ((Wrapper *)wrapper)
       ->solver->connect_proof_tracer((Tracer *)tracer, antecedents);
   return (CCaDiCaLTracer *)tracer;
@@ -114,7 +128,9 @@ CCaDiCaLTracer *ccadical_connect_proof_tracer(CCaDiCaL *wrapper, void *data,
 
 bool ccadical_disconnect_proof_tracer(CCaDiCaL *wrapper,
                                       CCaDiCaLTracer *tracer) {
-  return ((Wrapper *)wrapper)
-      ->solver->disconnect_proof_tracer((Tracer *)tracer);
+  bool ret =
+      ((Wrapper *)wrapper)->solver->disconnect_proof_tracer((Tracer *)tracer);
+  delete (CaDiCaL::CTracer *)tracer;
+  return ret;
 }
 }
