@@ -1098,40 +1098,40 @@ impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 mod proofs {
     use std::fmt;
 
-    /// A wrapper around [`super::Var`] for use with the [`pidgeons`] library
+    /// A formatter for [`super::Var`] for use with the [`pidgeons`] library to ensure same
+    /// variable formatting as in VeriPB
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[repr(transparent)]
-    pub struct PidgeonVar(super::Var);
+    pub struct PidgeonVarFormatter(super::Var);
 
-    impl From<super::Var> for PidgeonVar {
+    impl From<super::Var> for PidgeonVarFormatter {
         fn from(value: super::Var) -> Self {
-            PidgeonVar(value)
+            PidgeonVarFormatter(value)
         }
     }
 
-    impl fmt::Display for PidgeonVar {
+    impl fmt::Display for PidgeonVarFormatter {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "x{}", self.0.idx() + 1)
         }
     }
 
-    impl pidgeons::VarLike for PidgeonVar {}
+    impl pidgeons::VarLike for super::Var {
+        type Formatter = PidgeonVarFormatter;
+    }
 
-    impl From<super::Lit> for pidgeons::Axiom<PidgeonVar> {
+    impl From<super::Lit> for pidgeons::Axiom<super::Var> {
         fn from(value: super::Lit) -> Self {
             use pidgeons::VarLike;
 
             if value.is_pos() {
-                PidgeonVar::from(value.var()).pos_axiom()
+                value.var().pos_axiom()
             } else {
-                PidgeonVar::from(value.var()).neg_axiom()
+                value.var().neg_axiom()
             }
         }
     }
 }
-
-#[cfg(feature = "proof-logging")]
-pub use proofs::PidgeonVar;
 
 #[cfg(test)]
 mod tests {

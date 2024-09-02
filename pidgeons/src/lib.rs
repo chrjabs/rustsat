@@ -44,8 +44,9 @@ use itertools::Itertools;
 
 mod types;
 pub use types::{
-    AbsConstraintId, Axiom, Conclusion, ConstraintId, ObjectiveUpdate, Order, OutputGuarantee,
-    OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar, SubProof, Substitution,
+    AbsConstraintId, Axiom, Conclusion, ConstraintId, ObjectiveUpdate, Order, OrderVar,
+    OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar, SubProof,
+    Substitution,
 };
 
 mod ops;
@@ -60,6 +61,8 @@ macro_rules! unreachable_err {
     }};
 }
 pub(crate) use unreachable_err;
+
+use crate::types::{ConstrFormatter, ObjFormatter};
 
 /// A type representing a VeriPB proof.
 ///
@@ -141,7 +144,24 @@ where
         writeln!(self.writer, "f {num_constraints}")
     }
 
-    /// Adds an arbitraty comment to the proof
+    /// Adds an arbitraty single-line comment to the proof
+    ///
+    /// **Note**: if the object displays as more than one line, an invalid VeriPB line will be
+    /// produced
+    ///
+    /// # Proof Log
+    ///
+    /// Adds a `*` lines
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn comment<C: fmt::Display>(&mut self, comment: &C) -> io::Result<()> {
+        writeln!(self.writer, "* {comment}")?;
+        Ok(())
+    }
+
+    /// Adds an arbitraty multi-line comment to the proof
     ///
     /// # Proof Log
     ///
@@ -150,7 +170,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn comment(&mut self, comment: &str) -> io::Result<()> {
+    pub fn multiline_comment(&mut self, comment: &str) -> io::Result<()> {
         for line in comment.lines() {
             writeln!(self.writer, "* {line}")?;
         }
@@ -188,26 +208,32 @@ where
     /// # Panics
     ///
     /// If `hint` is not [`None`] but empty.
-    pub fn reverse_unit_prop<C: ConstraintLike>(
+    pub fn reverse_unit_prop<V, C, I>(
         &mut self,
         constr: &C,
-        hint: Option<&[ConstraintId]>,
-    ) -> io::Result<AbsConstraintId> {
+        hint: Option<I>,
+    ) -> io::Result<AbsConstraintId>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+        I: IntoIterator<Item = ConstraintId>,
+    {
         if let Some(hint) = hint {
-            assert!(!hint.is_empty());
             writeln!(
                 self.writer,
                 "rup {} ; {}",
-                constr.constr_str(),
-                hint.iter().format(" ")
+                ConstrFormatter::from(constr),
+                hint.into_iter().format(" ")
             )?;
         } else {
-            writeln!(self.writer, "rup {} ;", constr.constr_str())?;
+            writeln!(self.writer, "rup {} ;", ConstrFormatter::from(constr))?;
         }
         Ok(self.new_id())
     }
 
     /// Deletes a set of constraint by their [`ConstraintId`]s
+    ///
+    /// **Note**: `ids` must be non-empty, otherwise an invalid line is produced
     ///
     /// # Proof Log
     ///
@@ -216,13 +242,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    ///
-    /// # Panics
-    ///
-    /// If `ids` is empty.
-    pub fn delete_ids(&mut self, ids: &[ConstraintId]) -> io::Result<()> {
-        assert!(!ids.is_empty());
-        writeln!(self.writer, "del id {}", ids.iter().format(" "))
+    pub fn delete_ids<I>(&mut self, ids: I) -> io::Result<()>
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        writeln!(self.writer, "del id {}", ids.into_iter().format(" "))
     }
 
     /// Deletes an explicitly specified constraint
@@ -234,8 +258,12 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_constr<C: ConstraintLike>(&mut self, constr: &C) -> io::Result<()> {
-        writeln!(self.writer, "del spec {} ;", constr.constr_str())
+    pub fn delete_constr<V, C>(&mut self, constr: &C) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+    {
+        writeln!(self.writer, "del spec {} ;", ConstrFormatter::from(constr))
     }
 
     /// Deletes a a [`ConstraintId`] range
@@ -268,6 +296,8 @@ where
 
     /// Deletes a set of core constraint by their [`ConstraintId`]s
     ///
+    /// **Note**: `ids` must be non-empty, otherwise an invalid line is produced
+    ///
     /// # Proof Log
     ///
     /// Adds a `delc`-rule line.
@@ -275,17 +305,17 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    ///
-    /// # Panics
-    ///
-    /// If `ids` is empty.
-    pub fn delete_core_ids(&mut self, ids: &[ConstraintId]) -> io::Result<()> {
-        assert!(!ids.is_empty());
-        writeln!(self.writer, "delc {}", ids.iter().format(" "))
+    pub fn delete_core_ids<I>(&mut self, ids: I) -> io::Result<()>
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        writeln!(self.writer, "delc {}", ids.into_iter().format(" "))
     }
 
     /// Deletes a set of derived constraint by their [`ConstraintId`]s
     ///
+    /// **Note**: `ids` must be non-empty, otherwise an invalid line is produced
+    ///
     /// # Proof Log
     ///
     /// Adds a `delc`-rule line.
@@ -293,13 +323,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    ///
-    /// # Panics
-    ///
-    /// If `ids` is empty.
-    pub fn delete_derived_ids(&mut self, ids: &[ConstraintId]) -> io::Result<()> {
-        assert!(!ids.is_empty());
-        writeln!(self.writer, "deld {}", ids.iter().format(" "))
+    pub fn delete_derived_ids<I>(&mut self, ids: I) -> io::Result<()>
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        writeln!(self.writer, "deld {}", ids.into_iter().format(" "))
     }
 
     /// Updates the objective in the proof
@@ -315,7 +343,11 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn update_objective(&mut self, update: &ObjectiveUpdate) -> io::Result<()> {
+    pub fn update_objective<V, O>(&mut self, update: &ObjectiveUpdate<V, O>) -> io::Result<()>
+    where
+        V: VarLike,
+        O: ObjectiveLike<V>,
+    {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
         writeln!(self.writer, "obju {update}")
     }
@@ -346,21 +378,21 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn redundant<C, V, I>(
+    pub fn redundant<V, C, I>(
         &mut self,
         constr: &C,
         subs: I,
-        proof: Option<SubProof>,
+        proof: Option<SubProof<V>>,
     ) -> io::Result<AbsConstraintId>
     where
-        C: ConstraintLike,
         V: VarLike,
+        C: ConstraintLike<V>,
         I: IntoIterator<Item = Substitution<V>>,
     {
         write!(
             self.writer,
             "red {} ; {}",
-            constr.constr_str(),
+            ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
         if let Some(proof) = proof {
@@ -383,21 +415,21 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn dominated<C, V, I>(
+    pub fn dominated<V, C, I>(
         &mut self,
         constr: &C,
         subs: I,
-        proof: Option<SubProof>,
+        proof: Option<SubProof<V>>,
     ) -> io::Result<AbsConstraintId>
     where
-        C: ConstraintLike,
         V: VarLike,
+        C: ConstraintLike<V>,
         I: IntoIterator<Item = Substitution<V>>,
     {
         write!(
             self.writer,
             "dom {} ; {}",
-            constr.constr_str(),
+            ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
         if let Some(proof) = proof {
@@ -413,6 +445,8 @@ where
 
     /// Moves constraints to the core set by [`ConstraintId`]
     ///
+    /// **Note**: `ids` must be non-empty, otherwise an invalid line is produced
+    ///
     /// # Proof Log
     ///
     /// Adds a `core id` line.
@@ -420,13 +454,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    ///
-    /// # Panics
-    ///
-    /// If `ids` is empty.
-    pub fn move_ids_to_core(&mut self, ids: &[ConstraintId]) -> io::Result<()> {
-        assert!(!ids.is_empty());
-        writeln!(self.writer, "core id {}", ids.iter().format(" "))
+    pub fn move_ids_to_core<I>(&mut self, ids: I) -> io::Result<()>
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        writeln!(self.writer, "core id {}", ids.into_iter().format(" "))
     }
 
     /// Moves a range of constraints to the core set
@@ -469,7 +501,7 @@ where
     pub fn solution<V, I>(&mut self, solution: I) -> io::Result<()>
     where
         V: VarLike,
-        I: IntoIterator<Item = V>,
+        I: IntoIterator<Item = Axiom<V>>,
     {
         writeln!(self.writer, "sol {}", solution.into_iter().format(" "))
     }
@@ -486,7 +518,7 @@ where
     pub fn exclude_solution<V, I>(&mut self, solution: I) -> io::Result<AbsConstraintId>
     where
         V: VarLike,
-        I: IntoIterator<Item = V>,
+        I: IntoIterator<Item = Axiom<V>>,
     {
         writeln!(self.writer, "solx {}", solution.into_iter().format(" "))?;
         Ok(self.new_id())
@@ -504,7 +536,7 @@ where
     pub fn improve_solution<V, I>(&mut self, solution: I) -> io::Result<AbsConstraintId>
     where
         V: VarLike,
-        I: IntoIterator<Item = V>,
+        I: IntoIterator<Item = Axiom<V>>,
     {
         writeln!(self.writer, "soli {}", solution.into_iter().format(" "))?;
         Ok(self.new_id())
@@ -578,15 +610,19 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn equals<C: ConstraintLike>(
-        &mut self,
-        constraint: &C,
-        equals: Option<ConstraintId>,
-    ) -> io::Result<()> {
+    pub fn equals<V, C>(&mut self, constraint: &C, equals: Option<ConstraintId>) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+    {
         if let Some(id) = equals {
-            writeln!(self.writer, "e {} ; {id}", constraint.constr_str())
+            writeln!(
+                self.writer,
+                "e {} ; {id}",
+                ConstrFormatter::from(constraint)
+            )
         } else {
-            writeln!(self.writer, "e {} ;", constraint.constr_str())
+            writeln!(self.writer, "e {} ;", ConstrFormatter::from(constraint))
         }
     }
 
@@ -600,15 +636,23 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn equals_add<C: ConstraintLike>(
+    pub fn equals_add<V, C>(
         &mut self,
         constraint: &C,
         equals: Option<ConstraintId>,
-    ) -> io::Result<AbsConstraintId> {
+    ) -> io::Result<AbsConstraintId>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+    {
         if let Some(id) = equals {
-            writeln!(self.writer, "ea {} ; {id}", constraint.constr_str())?;
+            writeln!(
+                self.writer,
+                "ea {} ; {id}",
+                ConstrFormatter::from(constraint)
+            )?;
         } else {
-            writeln!(self.writer, "ea {} ;", constraint.constr_str())?;
+            writeln!(self.writer, "ea {} ;", ConstrFormatter::from(constraint))?;
         }
         Ok(self.new_id())
     }
@@ -626,9 +670,13 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn obj_equals<O: ObjectiveLike>(&mut self, objective: &O) -> io::Result<()> {
+    pub fn obj_equals<V, O>(&mut self, objective: &O) -> io::Result<()>
+    where
+        V: VarLike,
+        O: ObjectiveLike<V>,
+    {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
-        writeln!(self.writer, "eobj {} ;", objective.obj_str())
+        writeln!(self.writer, "eobj {} ;", ObjFormatter::from(objective))
     }
 
     /// Checks whether the given constraint is implied
@@ -640,15 +688,23 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn implied<C: ConstraintLike>(
+    pub fn implied<V, C>(
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
-    ) -> io::Result<()> {
+    ) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+    {
         if let Some(id) = implicant {
-            writeln!(self.writer, "i {} ; {id}", constraint.constr_str())
+            writeln!(
+                self.writer,
+                "i {} ; {id}",
+                ConstrFormatter::from(constraint)
+            )
         } else {
-            writeln!(self.writer, "i {} ;", constraint.constr_str())
+            writeln!(self.writer, "i {} ;", ConstrFormatter::from(constraint))
         }
     }
 
@@ -661,15 +717,23 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn implied_add<C: ConstraintLike>(
+    pub fn implied_add<V, C>(
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
-    ) -> io::Result<AbsConstraintId> {
+    ) -> io::Result<AbsConstraintId>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+    {
         if let Some(id) = implicant {
-            writeln!(self.writer, "ia {} ; {id}", constraint.constr_str())?;
+            writeln!(
+                self.writer,
+                "ia {} ; {id}",
+                ConstrFormatter::from(constraint)
+            )?;
         } else {
-            writeln!(self.writer, "ia {} ;", constraint.constr_str())?;
+            writeln!(self.writer, "ia {} ;", ConstrFormatter::from(constraint))?;
         }
         Ok(self.new_id())
     }
@@ -717,7 +781,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn define_order<V: VarLike>(&mut self, order: &Order<V>) -> io::Result<()> {
+    pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<OrderVar<V>>,
+    {
         writeln!(self.writer, "{order}")
     }
 
@@ -738,7 +806,8 @@ where
         writeln!(
             self.writer,
             "load_order {name} {}",
-            vars.into_iter().format(" ")
+            vars.into_iter()
+                .format_with(" ", |v, f| f(&V::Formatter::from(v)))
         )
     }
 }
@@ -746,7 +815,10 @@ where
 /// Trait that needs to be implemented for types used as variables
 ///
 /// A call to [`fmt::Display`] on this type must produce a valid VeriPB variable
-pub trait VarLike: Copy + Eq + fmt::Display + std::hash::Hash {
+pub trait VarLike: Copy + Eq + std::hash::Hash {
+    /// Formatter type that if constructed from a variable must display a valid VeriPB variable
+    type Formatter: fmt::Display + From<Self>;
+
     /// Gets a positive axiom of the variable for an operation sequence
     fn pos_axiom(self) -> Axiom<Self> {
         Axiom {
@@ -780,52 +852,31 @@ pub trait VarLike: Copy + Eq + fmt::Display + std::hash::Hash {
     }
 }
 
-impl VarLike for &str {}
+impl VarLike for &str {
+    type Formatter = Self;
+}
 
 /// Trait that needs to be implemented for types used as constraints
-pub trait ConstraintLike {
-    /// Gets a string representation of the constraint
-    ///
-    /// # Contract
-    ///
-    /// Must return a valid OPB-style constraint.
-    fn constr_str(&self) -> String;
-}
+pub trait ConstraintLike<V: VarLike> {
+    /// Gets the operator and right hand side of the constraint
+    fn rhs(&self) -> isize;
 
-impl ConstraintLike for String {
-    fn constr_str(&self) -> String {
-        self.clone()
-    }
-}
-
-impl ConstraintLike for &str {
-    fn constr_str(&self) -> String {
-        String::from(*self)
-    }
+    /// Gets an iterator over the coefficient literal pairs in the constraint
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
 }
 
 /// Trait that needs to be implemented for types used as objectives
-pub trait ObjectiveLike {
-    /// Gets a string representation of the objective
-    ///
-    /// # Contract
-    ///
-    /// Must return a valid OPB-style objetive.
-    fn obj_str(&self) -> String;
+pub trait ObjectiveLike<V: VarLike> {
+    /// Gets an iterator over the coefficient literal pairs in the constraint
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
 }
 
-impl<V, Iter> ObjectiveLike for Iter
+impl<V, Iter> ObjectiveLike<V> for Iter
 where
     V: VarLike,
     Iter: IntoIterator<Item = (isize, V)> + Clone,
 {
-    fn obj_str(&self) -> String {
-        format!(
-            "{}",
-            self.clone()
-                .into_iter()
-                .map(|(cf, v)| format!("{cf} {v}"))
-                .format(" ")
-        )
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)> {
+        self.clone().into_iter().map(|(cf, v)| (cf, v.pos_axiom()))
     }
 }

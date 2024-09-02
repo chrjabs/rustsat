@@ -309,16 +309,13 @@ impl fmt::Debug for Clause {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike for Clause {
-    fn constr_str(&self) -> String {
-        use itertools::Itertools;
-        use pidgeons::Axiom;
+impl pidgeons::ConstraintLike<crate::types::Var> for Clause {
+    fn rhs(&self) -> isize {
+        1
+    }
 
-        format!(
-            "{} >= 1",
-            self.iter()
-                .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit))))
-        )
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+        self.lits.iter().map(|l| (1, pidgeons::Axiom::from(*l)))
     }
 }
 
@@ -836,39 +833,59 @@ impl From<Clause> for CardConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike for CardConstraint {
-    fn constr_str(&self) -> String {
-        use pidgeons::Axiom;
-
+impl pidgeons::ConstraintLike<crate::types::Var> for CardConstraint {
+    fn rhs(&self) -> isize {
         match self {
             CardConstraint::Ub(c) => {
-                let b = isize::try_from(c.lits.len())
-                    .expect("cannot handle more than `isize::MAX` literals in proof logging")
-                    - isize::try_from(c.b)
-                        .expect("cannot handle bound higher than `isize::MAX` in proof logging");
-                format!(
-                    "{} >= {}",
-                    c.lits
-                        .iter()
-                        .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit)))),
-                    b
-                )
+                isize::try_from(c.lits.len())
+                    .expect("cannot handle more than `isize::MAX` literals")
+                    - isize::try_from(c.b).expect("cannot handle bounds larger than `isize::MAX`")
             }
-            CardConstraint::Lb(c) => format!(
-                "{} >= {}",
-                c.lits
-                    .iter()
-                    .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit)))),
-                c.b
-            ),
-            CardConstraint::Eq(c) => format!(
-                "{} = {}",
-                c.lits
-                    .iter()
-                    .format_with(" ", |lit, f| f(&format_args!("1 {}", Axiom::from(*lit)))),
-                c.b
-            ),
+            CardConstraint::Lb(c) => {
+                isize::try_from(c.b).expect("cannot handle bounds larger than `isize::MAX`")
+            }
+            CardConstraint::Eq(_) => {
+                panic!("VeriPB does not support equality constraints in the proof")
+            }
         }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+        match self {
+            CardConstraint::Ub(CardUbConstr { lits, .. }) => PidgeonLitIter {
+                lits: lits.iter(),
+                negate: true,
+            },
+            CardConstraint::Lb(CardLbConstr { lits, .. })
+            | CardConstraint::Eq(CardEqConstr { lits, .. }) => PidgeonLitIter {
+                lits: lits.iter(),
+                negate: false,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+struct PidgeonLitIter<'a> {
+    lits: std::slice::Iter<'a, Lit>,
+    negate: bool,
+}
+
+#[cfg(feature = "proof-logging")]
+impl Iterator for PidgeonLitIter<'_> {
+    type Item = (isize, pidgeons::Axiom<crate::types::Var>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lits.next().map(|l| {
+            (
+                1,
+                if self.negate {
+                    pidgeons::Axiom::from(!*l)
+                } else {
+                    pidgeons::Axiom::from(*l)
+                },
+            )
+        })
     }
 }
 
@@ -1535,46 +1552,56 @@ impl PbConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike for PbConstraint {
-    fn constr_str(&self) -> String {
-        use itertools::Itertools;
-        use pidgeons::Axiom;
-
+impl pidgeons::ConstraintLike<crate::types::Var> for PbConstraint {
+    fn rhs(&self) -> isize {
         match self {
             PbConstraint::Ub(c) => {
-                let weight_sum = c.lits.iter().fold(0, |sum, (_, w)| sum + w);
-                let b = isize::try_from(weight_sum)
-                    .expect("cannot handle weight sum larger than `isize::MAX` in proof logging")
-                    - c.b;
-                format!(
-                    "{} >= {}",
-                    c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
-                        "{} {}",
-                        wlit.1,
-                        Axiom::from(wlit.0)
-                    ))),
-                    b
-                )
+                isize::try_from(c.weight_sum).expect("can handle at most `isize::MAX` weight sum")
+                    - c.b
             }
-            PbConstraint::Lb(c) => format!(
-                "{} >= {}",
-                c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
-                    "{} {}",
-                    wlit.1,
-                    Axiom::from(wlit.0)
-                ))),
-                c.b
-            ),
-            PbConstraint::Eq(c) => format!(
-                "{} = {}",
-                c.lits.iter().format_with(" ", |wlit, f| f(&format_args!(
-                    "{} {}",
-                    wlit.1,
-                    Axiom::from(wlit.0)
-                ))),
-                c.b
-            ),
+            PbConstraint::Lb(c) => c.b,
+            PbConstraint::Eq(_) => {
+                panic!("VeriPB does not support equality constraints in the proof")
+            }
         }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+        match self {
+            PbConstraint::Ub(PbUbConstr { lits, .. }) => PidgeonWLitIter {
+                lits: lits.iter(),
+                negate: true,
+            },
+            PbConstraint::Lb(PbLbConstr { lits, .. })
+            | PbConstraint::Eq(PbEqConstr { lits, .. }) => PidgeonWLitIter {
+                lits: lits.iter(),
+                negate: false,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+struct PidgeonWLitIter<'a> {
+    lits: std::slice::Iter<'a, (Lit, usize)>,
+    negate: bool,
+}
+
+#[cfg(feature = "proof-logging")]
+impl Iterator for PidgeonWLitIter<'_> {
+    type Item = (isize, pidgeons::Axiom<crate::types::Var>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lits.next().map(|(l, w)| {
+            (
+                isize::try_from(*w).expect("can only handle coefficients up to `isize::MAX`"),
+                if self.negate {
+                    pidgeons::Axiom::from(!*l)
+                } else {
+                    pidgeons::Axiom::from(*l)
+                },
+            )
+        })
     }
 }
 

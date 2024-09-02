@@ -9,7 +9,7 @@ use crate::{
     },
     instances::ManageVars,
     lit,
-    types::{Lit, PidgeonVar},
+    types::{Lit, Var},
     utils::unreachable_none,
 };
 
@@ -68,10 +68,7 @@ impl super::Db {
                 }),
                 isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
             );
-            SemDefs::new(
-                None,
-                Some(proof.redundant::<_, PidgeonVar, _>(&sem, [], None)?),
-            )
+            SemDefs::new(None, Some(proof.redundant::<Var, _, _>(&sem, [], None)?))
         } else if val > self[id].max_val() {
             let sem = PbConstraint::new_lb(
                 leafs.map(|(l, w)| {
@@ -82,10 +79,7 @@ impl super::Db {
                 }),
                 0,
             );
-            SemDefs::new(
-                Some(proof.redundant::<_, PidgeonVar, _>(&sem, [], None)?),
-                None,
-            )
+            SemDefs::new(Some(proof.redundant::<Var, _, _>(&sem, [], None)?), None)
         } else {
             let olit = *self[id].lit(val).unwrap();
             let sem = PbConstraint::new_lb(
@@ -100,12 +94,12 @@ impl super::Db {
             SemDefs::new(
                 Some(proof.redundant(
                     &atomics::pb_impl_lit(&sem, olit),
-                    [PidgeonVar::from(olit.var()).substitute_fixed(true)],
+                    [olit.var().substitute_fixed(true)],
                     None,
                 )?),
                 Some(proof.redundant(
                     &atomics::lit_impl_pb(olit, &sem),
-                    [PidgeonVar::from(olit.var()).substitute_fixed(false)],
+                    [olit.var().substitute_fixed(false)],
                     None,
                 )?),
             )
@@ -683,7 +677,7 @@ impl From<Lit> for SemDefinition {
 }
 
 impl ops::Add<SemDefinition> for SemDefinition {
-    type Output = pidgeons::OperationSequence<PidgeonVar>;
+    type Output = pidgeons::OperationSequence<Var>;
 
     fn add(self, rhs: SemDefinition) -> Self::Output {
         match self {
@@ -708,8 +702,8 @@ impl ops::Add<SemDefinition> for SemDefinition {
     }
 }
 
-impl ops::Add<SemDefinition> for pidgeons::OperationSequence<PidgeonVar> {
-    type Output = pidgeons::OperationSequence<PidgeonVar>;
+impl ops::Add<SemDefinition> for pidgeons::OperationSequence<Var> {
+    type Output = pidgeons::OperationSequence<Var>;
 
     fn add(self, rhs: SemDefinition) -> Self::Output {
         match rhs {
@@ -720,10 +714,10 @@ impl ops::Add<SemDefinition> for pidgeons::OperationSequence<PidgeonVar> {
     }
 }
 
-impl ops::Add<pidgeons::OperationSequence<PidgeonVar>> for SemDefinition {
-    type Output = pidgeons::OperationSequence<PidgeonVar>;
+impl ops::Add<pidgeons::OperationSequence<Var>> for SemDefinition {
+    type Output = pidgeons::OperationSequence<Var>;
 
-    fn add(self, rhs: pidgeons::OperationSequence<PidgeonVar>) -> Self::Output {
+    fn add(self, rhs: pidgeons::OperationSequence<Var>) -> Self::Output {
         match self {
             SemDefinition::None => rhs,
             SemDefinition::Id(id) => id + rhs,
@@ -733,7 +727,7 @@ impl ops::Add<pidgeons::OperationSequence<PidgeonVar>> for SemDefinition {
 }
 
 impl ops::Mul<usize> for SemDefinition {
-    type Output = pidgeons::OperationSequence<PidgeonVar>;
+    type Output = pidgeons::OperationSequence<Var>;
 
     fn mul(self, rhs: usize) -> Self::Output {
         match self {

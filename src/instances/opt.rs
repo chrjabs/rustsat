@@ -1001,23 +1001,17 @@ impl Objective {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ObjectiveLike for Objective {
-    fn obj_str(&self) -> String {
-        use itertools::Itertools;
-        use pidgeons::Axiom;
-
-        format!(
-            "{} {}",
-            self.iter_soft_lits()
-                .expect("objective for proof logging cannot have soft clauses")
-                .into_iter()
-                .format_with(" ", |wlit, f| f(&format_args!(
-                    "{} {}",
-                    wlit.1,
-                    Axiom::from(wlit.0)
-                ))),
-            self.offset()
-        )
+impl pidgeons::ObjectiveLike<crate::types::Var> for Objective {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+        self.iter_soft_lits()
+            .expect("objective for proof logging cannot have soft clauses")
+            .into_iter()
+            .map(|(l, w)| {
+                (
+                    isize::try_from(w).expect("can only handle coefficients up to `isize::MAX`"),
+                    pidgeons::Axiom::from(l),
+                )
+            })
     }
 }
 

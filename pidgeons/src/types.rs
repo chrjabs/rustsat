@@ -2,6 +2,7 @@
 
 use std::{
     fmt, io,
+    marker::PhantomData,
     num::NonZeroUsize,
     ops::{self, Range},
 };
@@ -191,7 +192,9 @@ impl fmt::Display for ProofOnlyVar {
     }
 }
 
-impl VarLike for ProofOnlyVar {}
+impl VarLike for ProofOnlyVar {
+    type Formatter = Self;
+}
 
 impl ops::Add<u32> for ProofOnlyVar {
     type Output = ProofOnlyVar;
@@ -218,13 +221,22 @@ pub struct Axiom<V: VarLike> {
 
 impl<V: VarLike> fmt::Display for Axiom<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", if self.neg { "~" } else { "" }, self.var)
+        write!(
+            f,
+            "{}{}",
+            if self.neg { "~" } else { "" },
+            V::Formatter::from(self.var)
+        )
     }
 }
 
-impl<V: VarLike> ConstraintLike for Axiom<V> {
-    fn constr_str(&self) -> String {
-        format!("{self} >= 1")
+impl<V: VarLike> ConstraintLike<V> for Axiom<V> {
+    fn rhs(&self) -> isize {
+        1
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)> {
+        [(1, *self)].into_iter()
     }
 }
 
@@ -246,7 +258,7 @@ impl<V: VarLike> Substitution<V> {
 
 impl<V: VarLike> fmt::Display for Substitution<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} -> {}", self.var, self.sub)
+        write!(f, "{} -> {}", V::Formatter::from(self.var), self.sub)
     }
 }
 
@@ -282,15 +294,40 @@ impl<V: VarLike> fmt::Display for SubstituteWith<V> {
 }
 
 /// An order in the proof
-pub struct Order<V> {
+pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
     name: String,
     used_vars: rustc_hash::FxHashSet<V>,
-    definition: Vec<String>,
-    trans_proof: SubProof,
-    refl_proof: Option<SubProof>,
+    definition: Vec<C>,
+    trans_proof: SubProof<OrderVar<V>>,
+    refl_proof: Option<SubProof<OrderVar<V>>>,
 }
 
-impl<V: VarLike> Order<V> {
+/// A variable to be used in an order definition
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OrderVar<V: VarLike> {
+    /// A variable of the left side of the order definition
+    Left(V),
+    /// A variable of the right side of the order definition
+    Right(V),
+    /// A fresh right variable used in a transitivity proof
+    FreshRight(V),
+}
+
+impl<V: VarLike> VarLike for OrderVar<V> {
+    type Formatter = Self;
+}
+
+impl<V: VarLike> fmt::Display for OrderVar<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(*v)),
+            OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
+            OrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(*v)),
+        }
+    }
+}
+
+impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     /// Creates a new builder structure
     #[must_use]
     pub fn new(name: String) -> Self {
@@ -316,9 +353,9 @@ impl<V: VarLike> Order<V> {
 
     /// Marks a variable as used in the order and gets its left and right variants to be used in
     /// the definitions
-    pub fn use_var(&mut self, v: V) -> (String, String) {
+    pub fn use_var(&mut self, v: V) -> (OrderVar<V>, OrderVar<V>) {
         self.used_vars.insert(v);
-        (format!("u_{v}"), format!("v_{v}"))
+        (OrderVar::Left(v), OrderVar::Right(v))
     }
 
     /// Adds a constraint to the order definition
@@ -326,13 +363,13 @@ impl<V: VarLike> Order<V> {
     /// The constraint must only use left and right variables that have been marked as used
     // Since we push `constr` into the definitions, `self.definition.len()` is never zero
     #[allow(clippy::missing_panics_doc)]
-    pub fn add_definition_constraint<C: ConstraintLike>(
+    pub fn add_definition_constraint(
         &mut self,
-        constr: &C,
-        trans_proof: Vec<OperationSequence>,
-        refl_proof: Option<Vec<OperationSequence>>,
+        constr: C,
+        trans_proof: Vec<OperationSequence<OrderVar<V>>>,
+        refl_proof: Option<Vec<OperationSequence<OrderVar<V>>>>,
     ) {
-        self.definition.push(constr.constr_str());
+        self.definition.push(constr);
         self.trans_proof.goals.push(ProofGoal {
             id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
             derivations: trans_proof,
@@ -357,7 +394,7 @@ impl<V: VarLike> Order<V> {
     }
 }
 
-impl<V: VarLike> fmt::Display for Order<V> {
+impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "def_order {}", self.name)?;
         // Variables
@@ -367,21 +404,21 @@ impl<V: VarLike> fmt::Display for Order<V> {
             "    left {}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("u_{v}")))
+                .format_with(" ", |v, f| f(&format_args!("u_{}", V::Formatter::from(*v))))
         )?;
         writeln!(
             f,
             "    right {}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("v_{v}")))
+                .format_with(" ", |v, f| f(&format_args!("v_{}", V::Formatter::from(*v))))
         )?;
         writeln!(f, "    aux")?;
         writeln!(f, "  end")?;
         // Order definition
         writeln!(f, "  def")?;
         for def in &self.definition {
-            writeln!(f, "    {def} ;")?;
+            writeln!(f, "    {} ;", ConstrFormatter::from(def))?;
         }
         writeln!(f, "  end")?;
         // Proofs
@@ -392,7 +429,7 @@ impl<V: VarLike> fmt::Display for Order<V> {
             "      fresh_right {}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("w_{v}")))
+                .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
         )?;
         writeln!(f, "    end")?;
         self.trans_proof.format_indented(f, 4)?;
@@ -409,20 +446,20 @@ impl<V: VarLike> fmt::Display for Order<V> {
 }
 
 /// A subproof
-pub struct SubProof {
+pub struct SubProof<V: VarLike> {
     /// The sequence of [`ProofGoal`] in the subproof
-    goals: Vec<ProofGoal>,
+    goals: Vec<ProofGoal<V>>,
 }
 
-impl FromIterator<ProofGoal> for SubProof {
-    fn from_iter<T: IntoIterator<Item = ProofGoal>>(iter: T) -> Self {
+impl<V: VarLike> FromIterator<ProofGoal<V>> for SubProof<V> {
+    fn from_iter<T: IntoIterator<Item = ProofGoal<V>>>(iter: T) -> Self {
         SubProof {
             goals: iter.into_iter().collect(),
         }
     }
 }
 
-impl SubProof {
+impl<V: VarLike> SubProof<V> {
     /// Writes the subproof to a writer, indented by a number of spaces
     ///
     /// # Errors
@@ -452,27 +489,27 @@ impl SubProof {
     }
 }
 
-impl fmt::Display for SubProof {
+impl<V: VarLike> fmt::Display for SubProof<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.format_indented(f, 0)
     }
 }
 
 /// A proof target of a [`SubProof`]
-pub struct ProofGoal {
+pub struct ProofGoal<V: VarLike> {
     /// The goal id
     id: ProofGoalId,
     /// For now only operation derivations are supported
-    derivations: Vec<OperationSequence>,
+    derivations: Vec<OperationSequence<V>>,
 }
 
-impl Extend<OperationSequence> for ProofGoal {
-    fn extend<T: IntoIterator<Item = OperationSequence>>(&mut self, iter: T) {
+impl<V: VarLike> Extend<OperationSequence<V>> for ProofGoal<V> {
+    fn extend<T: IntoIterator<Item = OperationSequence<V>>>(&mut self, iter: T) {
         self.derivations.extend(iter);
     }
 }
 
-impl ProofGoal {
+impl<V: VarLike> ProofGoal<V> {
     /// Creates a new proof goal
     #[must_use]
     pub fn new(id: ProofGoalId) -> Self {
@@ -521,7 +558,7 @@ impl ProofGoal {
     }
 }
 
-impl fmt::Display for ProofGoal {
+impl<V: VarLike> fmt::Display for ProofGoal<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.format_indented(f, 0)
     }
@@ -545,36 +582,52 @@ impl fmt::Display for ProofGoalId {
 }
 
 /// An objective update step (`obju`)
-pub enum ObjectiveUpdate {
+pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>> {
     /// `new`
-    New(String, Option<SubProof>),
+    New(O, Option<SubProof<V>>, PhantomData<V>),
     /// `diff`
-    Diff(String),
+    Diff(O, PhantomData<V>),
 }
 
-impl ObjectiveUpdate {
+impl<V, O> ObjectiveUpdate<V, O>
+where
+    V: VarLike,
+    O: ObjectiveLike<V>,
+{
     /// Creates an explicit objective update by specifying the entire new objective
-    pub fn new<O: ObjectiveLike>(objective: &O, subproof: Option<SubProof>) -> ObjectiveUpdate {
-        ObjectiveUpdate::New(objective.obj_str(), subproof)
+    pub fn new(objective: O, subproof: Option<SubProof<V>>) -> ObjectiveUpdate<V, O>
+    where
+        V: VarLike,
+        O: ObjectiveLike<V>,
+    {
+        ObjectiveUpdate::New(objective, subproof, PhantomData)
     }
 
     /// Creates an objective update by specifying the difference to the old objective
-    pub fn diff<O: ObjectiveLike>(diff: &O) -> ObjectiveUpdate {
-        ObjectiveUpdate::Diff(diff.obj_str())
+    pub fn diff(diff: O) -> ObjectiveUpdate<V, O>
+    where
+        V: VarLike,
+        O: ObjectiveLike<V>,
+    {
+        ObjectiveUpdate::Diff(diff, PhantomData)
     }
 }
 
-impl fmt::Display for ObjectiveUpdate {
+impl<V, O> fmt::Display for ObjectiveUpdate<V, O>
+where
+    V: VarLike,
+    O: ObjectiveLike<V>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ObjectiveUpdate::New(obj, subproof) => {
-                write!(f, "new {obj} ;")?;
+            ObjectiveUpdate::New(obj, subproof, _) => {
+                write!(f, "new {} ;", ObjFormatter::from(obj))?;
                 if let Some(subproof) = subproof {
                     subproof.format_indented(f, 2)?;
                 }
                 Ok(())
             }
-            ObjectiveUpdate::Diff(obj) => write!(f, "diff {obj} ;"),
+            ObjectiveUpdate::Diff(obj, _) => write!(f, "diff {} ;", ObjFormatter::from(obj)),
         }
     }
 }
@@ -670,4 +723,57 @@ pub struct BoundsConclusion<V: VarLike> {
     pub(crate) range: Range<usize>,
     pub(crate) lb_id: Option<ConstraintId>,
     pub(crate) ub_sol: Option<Vec<Axiom<V>>>,
+}
+
+pub struct ObjFormatter<'o, V: VarLike, O: ObjectiveLike<V>> {
+    obj: &'o O,
+    var: PhantomData<V>,
+}
+
+impl<'o, V: VarLike, O: ObjectiveLike<V>> From<&'o O> for ObjFormatter<'o, V, O> {
+    fn from(value: &'o O) -> Self {
+        Self {
+            obj: value,
+            var: PhantomData,
+        }
+    }
+}
+
+impl<'o, V: VarLike, O: ObjectiveLike<V>> fmt::Display for ObjFormatter<'o, V, O> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.obj
+                .sum_iter()
+                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}")))
+        )
+    }
+}
+
+pub struct ConstrFormatter<'c, V: VarLike, C: ConstraintLike<V>> {
+    constr: &'c C,
+    var: PhantomData<V>,
+}
+
+impl<'c, V: VarLike, C: ConstraintLike<V>> From<&'c C> for ConstrFormatter<'c, V, C> {
+    fn from(value: &'c C) -> Self {
+        Self {
+            constr: value,
+            var: PhantomData,
+        }
+    }
+}
+
+impl<'c, V: VarLike, C: ConstraintLike<V>> fmt::Display for ConstrFormatter<'c, V, C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} >= {}",
+            self.constr
+                .sum_iter()
+                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}"))),
+            self.constr.rhs(),
+        )
+    }
 }
