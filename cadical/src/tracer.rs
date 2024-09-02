@@ -116,6 +116,16 @@ pub trait TraceProof {
 pub struct ProofTracerHandle<PT> {
     c_class: *mut ffi::CCaDiCaLTracer,
     tracer: *mut PT,
+    trait_ptr: *mut *mut dyn TraceProof,
+}
+
+impl<PT> Drop for ProofTracerHandle<PT> {
+    fn drop(&mut self) {
+        let trait_ptr = unsafe { Box::from_raw(self.trait_ptr) };
+        drop(trait_ptr);
+        let tracer = unsafe { Box::from_raw(self.tracer) };
+        drop(tracer);
+    }
 }
 
 /// Error stating that a provided proof tracer was not connected to the solver
@@ -125,20 +135,27 @@ pub struct NotConnected;
 
 impl super::CaDiCaL<'_, '_> {
     /// Connects a proof tracer to the solver
+    ///
+    /// **Note**: in order to not leak memory, dropping the [`ProofTracerHandle`] will drop the
+    /// proof tracer. Ensure therefore that the handle is not dropped before the solver is not used
+    /// anymore, or call [`Self::disconnect_proof_tracer`], if you do not need the proof tracer
+    /// anymore.
     pub fn connect_proof_tracer<PT>(
         &mut self,
         tracer: PT,
         antecedents: bool,
     ) -> ProofTracerHandle<PT>
     where
-        PT: TraceProof,
+        PT: TraceProof + 'static,
     {
         let tracer = Box::new(tracer);
         let tracer = Box::into_raw(tracer);
+        let trait_ptr = Box::new(tracer as *mut dyn TraceProof);
+        let trait_ptr = Box::into_raw(trait_ptr);
         let ptr = unsafe {
             ffi::ccadical_connect_proof_tracer(
                 self.handle,
-                tracer.cast::<c_void>(),
+                trait_ptr.cast::<c_void>(),
                 ffi::tracer::DISPATCH_CALLBACKS,
                 antecedents,
             )
@@ -146,6 +163,7 @@ impl super::CaDiCaL<'_, '_> {
         ProofTracerHandle {
             c_class: ptr,
             tracer,
+            trait_ptr,
         }
     }
 
@@ -167,7 +185,11 @@ impl super::CaDiCaL<'_, '_> {
         if !unsafe { ffi::ccadical_disconnect_proof_tracer(self.handle, handle.c_class) } {
             return Err(NotConnected);
         }
+        let trait_ptr = unsafe { Box::from_raw(handle.trait_ptr) };
+        drop(trait_ptr);
         let tracer = unsafe { Box::from_raw(handle.tracer) };
+        // avoid dropping tracer in drop implementation
+        let _ = std::mem::ManuallyDrop::new(handle);
         Ok(*tracer)
     }
 

@@ -74,7 +74,7 @@ pub mod tracer {
 
     use rustsat::types::{Clause, Lit};
 
-    use super::super::ClauseId;
+    use super::super::{ClauseId, Conclusion, TraceProof};
 
     pub const DISPATCH_CALLBACKS: super::CCaDiCaLTraceCallbacks = super::CCaDiCaLTraceCallbacks {
         add_original_clause: Some(rustsat_ccadical_add_original_clause),
@@ -112,9 +112,9 @@ pub mod tracer {
         cl_data: *const c_int,
         restored: bool,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
-        tracer.add_original_clause(ClauseId(id), redundant, &clause, restored);
+        (*tracer).add_original_clause(ClauseId(id), redundant, &clause, restored);
     }
 
     extern "C" fn rustsat_ccadical_add_derived_clause(
@@ -126,7 +126,7 @@ pub mod tracer {
         an_len: usize,
         an_data: *const u64,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
         let antecedents = unsafe { std::slice::from_raw_parts(an_data.cast::<ClauseId>(), an_len) };
         tracer.add_derived_clause(ClauseId(id), redundant, &clause, antecedents);
@@ -139,7 +139,7 @@ pub mod tracer {
         cl_len: usize,
         cl_data: *const c_int,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
         tracer.delete_clause(ClauseId(id), redundant, &clause);
     }
@@ -150,18 +150,18 @@ pub mod tracer {
         cl_len: usize,
         cl_data: *const c_int,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
         tracer.weaken_minus(ClauseId(id), &clause);
     }
 
     extern "C" fn rustsat_ccadical_strengthen(tracer: *mut c_void, id: u64) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         tracer.strengthen(ClauseId(id));
     }
 
     extern "C" fn rustsat_ccadical_report_status(tracer: *mut c_void, status: c_int, id: u64) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let status = match status {
             0 => rustsat::solvers::SolverResult::Interrupted,
             10 => rustsat::solvers::SolverResult::Sat,
@@ -179,23 +179,23 @@ pub mod tracer {
         cl_len: usize,
         cl_data: *const c_int,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
         tracer.finalize_clause(ClauseId(id), &clause);
     }
 
     extern "C" fn rustsat_ccadical_begin_proof(tracer: *mut c_void, id: u64) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         tracer.begin_proof(ClauseId(id));
     }
 
     extern "C" fn rustsat_ccadical_solve_query(tracer: *mut c_void) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         tracer.solve_query();
     }
 
     extern "C" fn rustsat_ccadical_add_assumption(tracer: *mut c_void, assump: c_int) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         tracer.add_assumption(
             Lit::from_ipasir(assump).expect("proof tracer got invalid literal from CaDiCaL"),
         );
@@ -206,13 +206,13 @@ pub mod tracer {
         cl_len: usize,
         cl_data: *const c_int,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
         tracer.add_constraint(&clause);
     }
 
     extern "C" fn rustsat_ccadical_reset_assumptions(tracer: *mut c_void) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         tracer.reset_assumptions();
     }
 
@@ -224,7 +224,7 @@ pub mod tracer {
         an_len: usize,
         an_data: *const u64,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let clause = construct_clause(cl_len, cl_data);
         let antecedents = unsafe { std::slice::from_raw_parts(an_data.cast::<ClauseId>(), an_len) };
         tracer.add_assumption_clause(ClauseId(id), &clause, antecedents);
@@ -236,12 +236,12 @@ pub mod tracer {
         fail_len: usize,
         fail_data: *const u64,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let failing = unsafe { std::slice::from_raw_parts(fail_data.cast::<ClauseId>(), fail_len) };
         let concl = match concl {
-            super::CCaDiCaLConclusionType_CONFLICT => super::super::Conclusion::Conflict,
-            super::CCaDiCaLConclusionType_ASSUMPTIONS => super::super::Conclusion::Assumptions,
-            super::CCaDiCaLConclusionType_CONSTRAINT => super::super::Conclusion::Constraint,
+            super::CCaDiCaLConclusionType_CONFLICT => Conclusion::Conflict,
+            super::CCaDiCaLConclusionType_ASSUMPTIONS => Conclusion::Assumptions,
+            super::CCaDiCaLConclusionType_CONSTRAINT => Conclusion::Constraint,
             _ => panic!("proof tracer (`conclude_unsat`) received unexpected conclusion type from CaDiCaL: {concl}")
         };
         tracer.conclude_unsat(concl, failing);
@@ -252,7 +252,7 @@ pub mod tracer {
         sol_len: usize,
         sol_data: *const c_int,
     ) {
-        let tracer = unsafe { &mut *tracer.cast::<Box<dyn super::super::TraceProof>>() };
+        let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
         let slice = unsafe { std::slice::from_raw_parts(sol_data, sol_len) };
         let solution: rustsat::types::Assignment = slice
             .iter()
