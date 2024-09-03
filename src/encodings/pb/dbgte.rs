@@ -668,6 +668,22 @@ mod tests {
     }
 
     #[test]
+    fn from_capi() {
+        let mut gte1 = DbGte::default();
+        let mut lits = RsHashMap::default();
+        lits.insert(lit![0], 1);
+        lits.insert(lit![1], 2);
+        lits.insert(lit![2], 3);
+        lits.insert(lit![3], 4);
+        gte1.extend(lits);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        let mut cnf = Cnf::new();
+        gte1.encode_ub(0..=6, &mut cnf, &mut var_manager).unwrap();
+        debug_assert_eq!(var_manager.n_used(), 24);
+        debug_assert_eq!(cnf.len(), 25);
+    }
+
+    #[test]
     fn ub_gte_multiplication() {
         let mut gte1 = DbGte::default();
         let mut lits = RsHashMap::default();
