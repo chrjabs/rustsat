@@ -154,4 +154,5 @@ impl<'a> ManageVars for VarManager<'a> {
 }
 
 pub mod dpw;
+pub mod gte;
 pub mod totalizer;
