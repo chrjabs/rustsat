@@ -88,25 +88,22 @@ extern "C" {
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
- * - If a literal is added _after_ the encoding is build, [`MaybeError::InvalidState`] is
- *   returned
+ *     [`MaybeError::InvalidLiteral`] is returned
+ * - If a literal is added _after_ the encoding is build, [`MaybeError::InvalidState`] is returned
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 enum MaybeError dpw_add(struct DynamicPolyWatchdog *dpw, int lit, size_t weight);
 
 /**
- * Gets the next smaller upper bound value that can be encoded without
- * setting tares. This is used for coarse convergence.
+ * Gets the next smaller upper bound value that can be encoded without setting tares. This is used
+ * for coarse convergence.
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 size_t dpw_coarse_ub(struct DynamicPolyWatchdog *dpw, size_t ub);
 
@@ -115,33 +112,28 @@ size_t dpw_coarse_ub(struct DynamicPolyWatchdog *dpw, size_t ub);
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] and cannot be used
- * afterwards again.
+ * `dpw` must be a return value of [`dpw_new`] and cannot be used afterwards again.
  */
 void dpw_drop(struct DynamicPolyWatchdog *dpw);
 
 /**
- * Lazily builds the _change in_ pseudo-boolean encoding to enable
- * upper bounds from within the range. A change might only be a change
- * in bounds, the [`DynamicPolyWatchdog`] does not support adding
- * literals at the moment.
+ * Lazily builds the _change in_ pseudo-boolean encoding to enable upper bounds from within the
+ * range. A change might only be a change in bounds, the [`DynamicPolyWatchdog`] does not support
+ * adding literals at the moment.
  *
- * The min and max bounds are inclusive. After a call to
- * [`dpw_encode_ub`] with `min_bound=2` and `max_bound=4`, bounds
- * satisfying `2 <= bound <= 4` can be enforced.
+ * The min and max bounds are inclusive. After a call to [`dpw_encode_ub`] with `min_bound=2` and
+ * `max_bound=4`, bounds satisfying `2 <= bound <= 4` can be enforced.
  *
- * Clauses are returned via the `collector`. The `collector` function should expect
- * clauses to be passed similarly to `ipasir_add`, as a 0-terminated sequence of literals
- * where the literals are passed as the first argument and the `collector_data` as a
- * second.
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
  *
- * `n_vars_used` must be the number of variables already used and will be incremented by
- * the number of variables used up in the encoding.
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 void dpw_encode_ub(struct DynamicPolyWatchdog *dpw,
                    size_t min_bound,
@@ -151,19 +143,16 @@ void dpw_encode_ub(struct DynamicPolyWatchdog *dpw,
                    void *collector_data);
 
 /**
- * Returns assumptions/units for enforcing an upper bound (`sum of lits
- * <= ub`). Make sure that [`dpw_encode_ub`] has been called adequately
- * and nothing has been called afterwards, otherwise
+ * Returns assumptions/units for enforcing an upper bound (`sum of lits <= ub`). Make sure that
+ * [`dpw_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
  * [`MaybeError::NotEncoded`] will be returned.
  *
- * Assumptions are returned via the collector callback. There is _no_
- * terminating zero, all assumptions are passed when [`dpw_enforce_ub`]
- * returns.
+ * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
+ * assumptions are passed when [`dpw_enforce_ub`] returns.
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 enum MaybeError dpw_enforce_ub(struct DynamicPolyWatchdog *dpw,
                                size_t ub,
@@ -175,8 +164,7 @@ enum MaybeError dpw_enforce_ub(struct DynamicPolyWatchdog *dpw,
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 bool dpw_is_max_precision(struct DynamicPolyWatchdog *dpw);
 
@@ -184,27 +172,24 @@ bool dpw_is_max_precision(struct DynamicPolyWatchdog *dpw);
  * Given a range of output values to limit the encoding to, returns additional clauses that
  * "shrink" the encoding through hardening
  *
- * The output value range must be a range considering _all_ input literals, not only the
- * encoded ones.
+ * The output value range must be a range considering _all_ input literals, not only the encoded
+ * ones.
  *
- * This is intended for, e.g., a MaxSAT solving application where a global lower bound is
- * derived and parts of the encoding can be hardened.
+ * This is intended for, e.g., a MaxSAT solving application where a global lower bound is derived
+ * and parts of the encoding can be hardened.
  *
- * The min and max bounds are inclusive. After a call to [`dpw_limit_range`] with
- * `min_value=2` and `max_value=4`, the encoding is valid for the value range `2 <= range
- * <= 4`.
+ * The min and max bounds are inclusive. After a call to [`dpw_limit_range`] with `min_value=2`
+ * and `max_value=4`, the encoding is valid for the value range `2 <= range <= 4`.
  *
  * To not specify a bound, pass `0` for the lower bound or `SIZE_MAX` for the upper bound.
  *
- * Clauses are returned via the `collector`. The `collector` function should expect
- * clauses to be passed similarly to `ipasir_add`, as a 0-terminated sequence of literals
- * where the literals are passed as the first argument and the `collector_data` as a
- * second.
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 void dpw_limit_range(struct DynamicPolyWatchdog *dpw,
                      size_t min_value,
@@ -220,35 +205,33 @@ struct DynamicPolyWatchdog *dpw_new(void);
 /**
  * Gets the next possible precision divisor value
  *
- * Note that this is not the next possible precision value from the last _set_ precision but
- * from the last _encoded_ precision. The divisor value will always be a power of two so that
- * calling `set_precision` and then encoding will produce the smalles non-empty next segment
- * of the encoding.
+ * Note that this is not the next possible precision value from the last _set_ precision but from
+ * the last _encoded_ precision. The divisor value will always be a power of two so that calling
+ * `set_precision` and then encoding will produce the smalles non-empty next segment of the
+ * encoding.
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 size_t dpw_next_precision(struct DynamicPolyWatchdog *dpw);
 
 /**
  * Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
  * effectively be built such that the weight of every input literal is divided by `divisor`
- * (interger division, rounding down). Divisor values must be powers of 2. After building
- * the encoding, the precision can only be increased, i.e., only call this function with
- * _decreasing_ divisor values.
+ * (interger division, rounding down). Divisor values must be powers of 2. After building the
+ * encoding, the precision can only be increased, i.e., only call this function with _decreasing_
+ * divisor values.
  *
  * # Errors
  *
  * - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
- * - If `divisor` is larger than the last divisor, i.e., precision is attemted to be
- *   decreased, [`MaybeError::PrecisionDecreased`] is returned
+ * - If `divisor` is larger than the last divisor, i.e., precision is attemted to be decreased,
+ *     [`MaybeError::PrecisionDecreased`] is returned
  *
  * # Safety
  *
- * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has
- * not yet been called on.
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 enum MaybeError dpw_set_precision(struct DynamicPolyWatchdog *dpw, size_t divisor);
 
@@ -258,12 +241,11 @@ enum MaybeError dpw_set_precision(struct DynamicPolyWatchdog *dpw, size_t diviso
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *     [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
- * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
- * not yet been called on.
+ * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  *
  * # Panics
  *
@@ -276,28 +258,23 @@ enum MaybeError tot_add(struct DbTotalizer *tot, int lit);
  *
  * # Safety
  *
- * `tot` must be a return value of [`tot_new`] and cannot be used
- * afterwards again.
+ * `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
  */
 void tot_drop(struct DbTotalizer *tot);
 
 /**
- * Lazily builds the _change in_ cardinality encoding to enable upper
- * bounds in a given range. A change might be added literals or changed
- * bounds.
+ * Lazily builds the _change in_ cardinality encoding to enable upper bounds in a given range. A
+ * change might be added literals or changed bounds.
  *
- * The min and max bounds are inclusive. After a call to
- * [`tot_encode_ub`] with `min_bound=2` and `max_bound=4` bound
- * including `<= 2` and `<= 4` can be enforced.
+ * The min and max bounds are inclusive. After a call to [`tot_encode_ub`] with `min_bound=2` and
+ * `max_bound=4` bound including `<= 2` and `<= 4` can be enforced.
  *
- * A call to `var_manager` must yield a new variable. The
- * encoding will be returned via the given callback function as
- * 0-terminated clauses (in the same way as IPASIR's `add`).
+ * A call to `var_manager` must yield a new variable. The encoding will be returned via the given
+ * callback function as 0-terminated clauses (in the same way as IPASIR's `add`).
  *
  * # Safety
  *
- * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
- * not yet been called on.
+ * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  *
  * # Panics
  *
@@ -311,15 +288,13 @@ void tot_encode_ub(struct DbTotalizer *tot,
                    void *collector_data);
 
 /**
- * Returns an assumption/unit for enforcing an upper bound (`sum of
- * lits <= ub`). Make sure that [`tot_encode_ub`] has been called
- * adequately and nothing has been called afterwards, otherwise
+ * Returns an assumption/unit for enforcing an upper bound (`sum of lits <= ub`). Make sure that
+ * [`tot_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
  * [`MaybeError::NotEncoded`] will be returned.
  *
  * # Safety
  *
- * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has
- * not yet been called on.
+ * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  */
 enum MaybeError tot_enforce_ub(struct DbTotalizer *tot, size_t ub, int *assump);
 
