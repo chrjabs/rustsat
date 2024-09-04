@@ -44,6 +44,21 @@ typedef enum MaybeError {
 } MaybeError;
 
 /**
+ * Implementation of the binary adder tree generalized totalizer encoding
+ * \[1\]. The implementation is incremental. The implementation is recursive.
+ * This encoding only support upper bounding. Lower bounding can be achieved by
+ * negating the input literals. This is implemented in
+ * [`super::simulators::Inverted`].
+ * The implementation is based on a node database.
+ *
+ * # References
+ *
+ * - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
+ *     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+ */
+typedef struct DbGte DbGte;
+
+/**
  * Implementation of the binary adder tree totalizer encoding \[1\].
  * The implementation is incremental as extended in \[2\].
  * The implementation is based on a node database.
@@ -234,6 +249,77 @@ size_t dpw_next_precision(struct DynamicPolyWatchdog *dpw);
  * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
  */
 enum MaybeError dpw_set_precision(struct DynamicPolyWatchdog *dpw, size_t divisor);
+
+/**
+ * Adds a new input literal to a [`DbGte`].
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ */
+enum MaybeError gte_add(struct DbGte *gte, int lit, size_t weight);
+
+/**
+ * Frees the memory associated with a [`DbGte`]
+ *
+ * # Safety
+ *
+ * `gte` must be a return value of [`gte_new`] and cannot be used
+ * afterwards again.
+ */
+void gte_drop(struct DbGte *gte);
+
+/**
+ * Lazily builds the _change in_ pseudo-boolean encoding to enable upper bounds from within the
+ * range.
+ *
+ * The min and max bounds are inclusive. After a call to [`gte_encode_ub`] with `min_bound=2` and
+ * `max_bound=4`, bounds satisfying `2 <= bound <= 4` can be enforced.
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ */
+void gte_encode_ub(struct DbGte *gte,
+                   size_t min_bound,
+                   size_t max_bound,
+                   uint32_t *n_vars_used,
+                   CClauseCollector collector,
+                   void *collector_data);
+
+/**
+ * Returns assumptions/units for enforcing an upper bound (`sum of lits <= ub`). Make sure that
+ * [`gte_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
+ * [`MaybeError::NotEncoded`] will be returned.
+ *
+ * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
+ * assumptions are passed when [`gte_enforce_ub`] returns.
+ *
+ * # Safety
+ *
+ * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ */
+enum MaybeError gte_enforce_ub(struct DbGte *gte,
+                               size_t ub,
+                               CAssumpCollector collector,
+                               void *collector_data);
+
+/**
+ * Creates a new [`DbGte`] cardinality encoding
+ */
+struct DbGte *gte_new(void);
 
 /**
  * Adds a new input literal to a [`DbTotalizer`]
