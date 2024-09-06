@@ -74,10 +74,40 @@ impl DbTotalizer {
     /// Gets the maximum depth of the tree
     #[must_use]
     pub fn depth(&self) -> usize {
-        match &self.root {
-            None => 0,
-            Some(root) => self.db[*root].depth(),
+        self.root.map_or(0, |root| self.db[root].depth())
+    }
+
+    /// Gets the details of a totalizer output related to proof logging
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NotEncoded`] if the requested output is not encoded
+    #[cfg(feature = "proof-logging")]
+    pub fn output_proof_details(&self, value: usize) -> Result<(Lit, totdb::cert::SemDefs), Error> {
+        match self.root {
+            None => Err(Error::NotEncoded),
+            Some(root) => self
+                .db
+                .get_semantics(root, value)
+                .map(|sem| (self.db[root][value], sem))
+                .ok_or(Error::NotEncoded),
         }
+    }
+
+    /// From an assignment to the input literals, generates an assignment over the totalizer
+    /// variables following strict semantics, i.e., `sum >= k <-> olit`
+    ///
+    /// # Panics
+    ///
+    /// If `assign` does not assign all input literals
+    pub fn strictly_extend_assignment<'slf>(
+        &'slf self,
+        assign: &'slf crate::types::Assignment,
+    ) -> std::iter::Flatten<std::option::IntoIter<totdb::AssignIter<'slf>>> {
+        self.root
+            .map(|root| self.db.strictly_extend_assignment(root, assign))
+            .into_iter()
+            .flatten()
     }
 }
 

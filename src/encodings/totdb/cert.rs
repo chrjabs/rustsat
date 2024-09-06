@@ -13,7 +13,7 @@ use crate::{
     utils::unreachable_none,
 };
 
-use pidgeons::VarLike;
+use pidgeons::{AbsConstraintId, VarLike};
 
 use super::{con_idx, LitData, Node, PrecondOutcome, Semantics, UnitNode, UnweightedPrecondResult};
 
@@ -32,7 +32,7 @@ macro_rules! get_olit {
 }
 
 impl super::Db {
-    fn get_semantics<W>(
+    fn define_semantics<W>(
         &mut self,
         id: NodeId,
         val: usize,
@@ -68,7 +68,7 @@ impl super::Db {
                 }),
                 isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
             );
-            SemDefs::new(None, Some(proof.redundant::<Var, _, _>(&sem, [], None)?))
+            SemDefs::new(None, Some(proof.redundant::<Var, _, _, _>(&sem, [], [])?))
         } else if val > self[id].max_val() {
             let sem = PbConstraint::new_lb(
                 leafs.map(|(l, w)| {
@@ -79,7 +79,7 @@ impl super::Db {
                 }),
                 0,
             );
-            SemDefs::new(Some(proof.redundant::<Var, _, _>(&sem, [], None)?), None)
+            SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sem, [], [])?), None)
         } else {
             let olit = *self[id].lit(val).unwrap();
             let sem = PbConstraint::new_lb(
@@ -106,6 +106,12 @@ impl super::Db {
         };
         self.semantic_defs.insert((id, val), defs);
         Ok(defs.get(typ).into())
+    }
+
+    /// Gets the semantic definitions for an output value, if they exist
+    #[must_use]
+    pub fn get_semantics(&self, id: NodeId, value: usize) -> Option<SemDefs> {
+        self.semantic_defs.get(&(id, value)).copied()
     }
 
     /// Generates the encoding to define the positive output literal with value `val`, if it is not
@@ -208,21 +214,21 @@ impl super::Db {
                         proof,
                         left_leafs,
                     )? {
-                        let left_def = self.get_semantics(
+                        let left_def = self.define_semantics(
                             lcon.id,
                             lcon.rev_map(val),
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
                         )?;
-                        let right_def = self.get_semantics(
+                        let right_def = self.define_semantics(
                             rcon.id,
                             0,
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
                             proof,
                         )?;
-                        let this_def = self.get_semantics(
+                        let this_def = self.define_semantics(
                             id,
                             val,
                             SemDefTyp::If,
@@ -254,21 +260,21 @@ impl super::Db {
                         proof,
                         right_leafs,
                     )? {
-                        let left_def = self.get_semantics(
+                        let left_def = self.define_semantics(
                             lcon.id,
                             0,
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
                         )?;
-                        let right_def = self.get_semantics(
+                        let right_def = self.define_semantics(
                             rcon.id,
                             rcon.rev_map(val),
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
                             proof,
                         )?;
-                        let this_def = self.get_semantics(
+                        let this_def = self.define_semantics(
                             id,
                             val,
                             SemDefTyp::If,
@@ -320,21 +326,21 @@ impl super::Db {
                                     proof,
                                     left_leafs
                                 )?);
-                                let left_def = self.get_semantics(
+                                let left_def = self.define_semantics(
                                     lcon.id,
                                     lval,
                                     SemDefTyp::OnlyIf,
                                     left_leafs.iter().copied(),
                                     proof,
                                 )?;
-                                let right_def = self.get_semantics(
+                                let right_def = self.define_semantics(
                                     rcon.id,
                                     rval_rev,
                                     SemDefTyp::OnlyIf,
                                     right_leafs.iter().copied(),
                                     proof,
                                 )?;
-                                let this_def = self.get_semantics(
+                                let this_def = self.define_semantics(
                                     id,
                                     val,
                                     SemDefTyp::If,
@@ -505,21 +511,21 @@ impl super::Db {
                 lhs[nlits] = get_olit!(self, pre.rcon.id, con_idx(rval - 1, pre.rcon));
                 nlits += 1;
             }
-            let left_def = self.get_semantics(
+            let left_def = self.define_semantics(
                 pre.lcon.id,
                 pre.lcon.rev_map(lval),
                 SemDefTyp::OnlyIf,
                 left_leafs.iter().map(|l| (*l, 1)),
                 proof,
             )?;
-            let right_def = self.get_semantics(
+            let right_def = self.define_semantics(
                 pre.rcon.id,
                 pre.rcon.rev_map(rval),
                 SemDefTyp::OnlyIf,
                 right_leafs.iter().map(|l| (*l, 1)),
                 proof,
             )?;
-            let this_def = self.get_semantics(
+            let this_def = self.define_semantics(
                 id,
                 idx + 1,
                 SemDefTyp::If,
@@ -544,21 +550,21 @@ impl super::Db {
                 lhs[nlits] = !get_olit!(self, pre.rcon.id, con_idx(rval, pre.rcon));
                 nlits += 1;
             }
-            let left_def = self.get_semantics(
+            let left_def = self.define_semantics(
                 pre.lcon.id,
                 pre.lcon.rev_map(lval + 1),
                 SemDefTyp::If,
                 left_leafs.iter().map(|l| (*l, 1)),
                 proof,
             )?;
-            let right_def = self.get_semantics(
+            let right_def = self.define_semantics(
                 pre.rcon.id,
                 pre.rcon.rev_map(rval + 1),
                 SemDefTyp::If,
                 right_leafs.iter().map(|l| (*l, 1)),
                 proof,
             )?;
-            let this_def = self.get_semantics(
+            let this_def = self.define_semantics(
                 id,
                 idx + 1,
                 SemDefTyp::OnlyIf,
@@ -632,24 +638,24 @@ impl super::Db {
     }
 }
 
+/// The semantic definitions related to a totalizer output
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
-pub(super) struct SemDefs {
-    if_def: Option<pidgeons::AbsConstraintId>,
-    only_if_def: Option<pidgeons::AbsConstraintId>,
+pub struct SemDefs {
+    /// The if implication direction, i.e., `sum >= k -> olit`
+    pub if_def: Option<AbsConstraintId>,
+    /// The only if implication direction, i.e., `olit -> sum >= k`
+    pub only_if_def: Option<AbsConstraintId>,
 }
 
 impl SemDefs {
-    fn new(
-        if_def: Option<pidgeons::AbsConstraintId>,
-        only_if_def: Option<pidgeons::AbsConstraintId>,
-    ) -> Self {
+    fn new(if_def: Option<AbsConstraintId>, only_if_def: Option<AbsConstraintId>) -> Self {
         Self {
             if_def,
             only_if_def,
         }
     }
 
-    fn get(&self, typ: SemDefTyp) -> pidgeons::AbsConstraintId {
+    fn get(&self, typ: SemDefTyp) -> AbsConstraintId {
         match typ {
             SemDefTyp::If => self.if_def.unwrap(),
             SemDefTyp::OnlyIf => self.only_if_def.unwrap(),
@@ -660,12 +666,12 @@ impl SemDefs {
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
 enum SemDefinition {
     None,
-    Id(pidgeons::AbsConstraintId),
+    Id(AbsConstraintId),
     Axiom(Lit),
 }
 
-impl From<pidgeons::AbsConstraintId> for SemDefinition {
-    fn from(value: pidgeons::AbsConstraintId) -> Self {
+impl From<AbsConstraintId> for SemDefinition {
+    fn from(value: AbsConstraintId) -> Self {
         Self::Id(value)
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     encodings::atomics,
     instances::ManageVars,
     lit,
-    types::{Lit, RsHashMap},
+    types::{Assignment, Lit, RsHashMap},
     utils::unreachable_none,
 };
 
@@ -611,6 +611,17 @@ impl Db {
             }
         }
     }
+
+    /// Extends an assignment to the input literals to an assignment over the totalizer variables,
+    /// following strict semantics, i.e., `sum >= k <-> olit`
+    #[must_use]
+    pub fn strictly_extend_assignment<'db>(
+        &'db self,
+        root: NodeId,
+        assign: &'db Assignment,
+    ) -> AssignIter<'db> {
+        AssignIter::new(self, root, assign)
+    }
 }
 
 /// Defines the semantics with which a totalizer output can be encoded
@@ -947,6 +958,10 @@ impl Node {
             }
         }
     }
+
+    fn iter_olits(&self) -> OLitIter<'_> {
+        OLitIter::new(self)
+    }
 }
 
 /// Access to output literals. Panics if the literal has not been reserved yet.
@@ -1169,6 +1184,176 @@ impl LitData {
                 ..
             } => semantics.missing(required),
             _ => Some(required),
+        }
+    }
+}
+
+/// A depth first search iterator over the nodes in the tree, computing the sum of input value at
+/// each node
+pub struct ValueIter<'a> {
+    /// The database that the tree is in
+    db: &'a Db,
+    /// The trace of the iterator. Everything left of the last node in the trace has already been
+    /// explored.
+    ///
+    /// (Connection how we got here, Left value if explored)
+    trace: Vec<(NodeCon, Option<usize>)>,
+    /// The assignment to the input literals
+    assign: &'a Assignment,
+}
+
+impl<'a> ValueIter<'a> {
+    /// Creates a new DFS iterator
+    pub fn new(db: &'a Db, root: NodeId, assign: &'a Assignment) -> Self {
+        // build trace extending to left-most leaf
+        let mut trace = vec![(NodeCon::full(root), None)];
+        let mut current = root;
+        while let Some(con) = db[current].left() {
+            trace.push((con, None));
+            current = con.id;
+        }
+        // store leaf value
+        let last = unreachable_none!(trace.last_mut());
+        match db[last.0.id] {
+            Node::Leaf(lit) => {
+                last.1 = Some(match assign.lit_value(lit) {
+                    crate::types::TernaryVal::True => 1,
+                    crate::types::TernaryVal::False => 0,
+                    crate::types::TernaryVal::DontCare => {
+                        panic!("assignment must assign all input literals")
+                    }
+                });
+            }
+            _ => panic!("expected last in trace to be a leaf"),
+        }
+        Self { db, trace, assign }
+    }
+}
+
+impl Iterator for ValueIter<'_> {
+    type Item = (NodeId, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // get item to yield and cut last element off of trace
+        let popped = self.trace.pop()?;
+        let (popped_con, Some(popped_val)) = popped else {
+            panic!("expected last entry in trace to have a value")
+        };
+        // if right of new last element has already been explored, only add value
+        let last = match self.trace.last_mut() {
+            Some((_, Some(val))) => {
+                // right branch has been explored, add value
+                *val += popped_con.map(popped_val);
+                return Some((popped_con.id, popped_val));
+            }
+            Some(last) => last,
+            _ => return Some((popped_con.id, popped_val)),
+        };
+        debug_assert!(last.1.is_none());
+        // mark left branch as explored and storing left value
+        last.1 = Some(popped_con.map(popped_val));
+        // if the node does not have a right child, do nothing
+        let Some(right) = self.db[last.0.id].right() else {
+            return Some((popped.0.id, popped.1.unwrap()));
+        };
+        self.trace.push((right, None));
+        let mut current = right.id;
+        while let Some(con) = self.db[current].left() {
+            self.trace.push((con, None));
+            current = con.id;
+        }
+        // store leaf value
+        let last = unreachable_none!(self.trace.last_mut());
+        match self.db[last.0.id] {
+            Node::Leaf(lit) => {
+                last.1 = Some(match self.assign.lit_value(lit) {
+                    crate::types::TernaryVal::True => 1,
+                    crate::types::TernaryVal::False => 0,
+                    crate::types::TernaryVal::DontCare => {
+                        panic!("assignment must assign all input literals")
+                    }
+                });
+            }
+            _ => panic!("expected last in trace to be a leaf"),
+        }
+        // return popped node
+        Some((popped_con.id, popped_val))
+    }
+}
+
+/// An iterator over a nodes encoded output literals
+enum OLitIter<'node> {
+    Unit(std::iter::Enumerate<std::slice::Iter<'node, LitData>>),
+    General(std::collections::btree_map::Iter<'node, usize, LitData>),
+    None,
+}
+
+impl<'node> OLitIter<'node> {
+    fn new(node: &'node Node) -> Self {
+        match node {
+            Node::Unit(UnitNode { lits, .. }) => Self::Unit(lits.iter().enumerate()),
+            Node::General(GeneralNode { lits, .. }) => Self::General(lits.iter()),
+            Node::Leaf(_) | Node::Dummy => Self::None,
+        }
+    }
+}
+
+impl Iterator for OLitIter<'_> {
+    type Item = (Lit, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (val, lit_data) = match self {
+            OLitIter::Unit(iter) => match iter.next() {
+                Some(val) => (val.0 + 1, *val.1),
+                None => return None,
+            },
+            OLitIter::General(iter) => match iter.next() {
+                Some(val) => (*val.0, *val.1),
+                None => return None,
+            },
+            OLitIter::None => return None,
+        };
+        match lit_data {
+            LitData::None => self.next(),
+            LitData::Lit { lit, .. } => Some((lit, val)),
+        }
+    }
+}
+
+/// An iterator over assigned totalizer variables
+pub struct AssignIter<'db> {
+    db: &'db Db,
+    val_iter: ValueIter<'db>,
+    lit_iter: OLitIter<'db>,
+    current_val: usize,
+}
+
+impl<'db> AssignIter<'db> {
+    fn new(db: &'db Db, root: NodeId, assign: &'db Assignment) -> Self {
+        let mut val_iter = ValueIter::new(db, root, assign);
+        let Some((id, value)) = val_iter.next() else {
+            unreachable!()
+        };
+        Self {
+            db,
+            val_iter,
+            lit_iter: db[id].iter_olits(),
+            current_val: value,
+        }
+    }
+}
+
+impl Iterator for AssignIter<'_> {
+    type Item = Lit;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((lit, val)) = self.lit_iter.next() {
+            Some(if self.current_val >= val { lit } else { !lit })
+        } else {
+            let (id, value) = self.val_iter.next()?;
+            self.lit_iter = self.db[id].iter_olits();
+            self.current_val = value;
+            self.next()
         }
     }
 }

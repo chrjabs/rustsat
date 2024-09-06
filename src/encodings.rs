@@ -115,7 +115,7 @@ mod totdb {
     //! # Totalizer Database
 
     pub(crate) use super::totdbimpl::LitData;
-    pub use super::totdbimpl::{Db, GeneralNode, Node, Semantics, UnitNode};
+    pub use super::totdbimpl::{cert, AssignIter, Db, GeneralNode, Node, Semantics, UnitNode};
 }
 
 /// Iterate over encoding inputs
