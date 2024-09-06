@@ -113,9 +113,11 @@ mod totdbimpl;
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
 mod totdb {
     //! # Totalizer Database
-
     pub(crate) use super::totdbimpl::LitData;
-    pub use super::totdbimpl::{cert, AssignIter, Db, GeneralNode, Node, Semantics, UnitNode};
+    pub use super::totdbimpl::{AssignIter, Db, GeneralNode, Node, Semantics, UnitNode};
+
+    #[cfg(feature = "proof-logging")]
+    pub use super::totdbimpl::cert;
 }
 
 /// Iterate over encoding inputs

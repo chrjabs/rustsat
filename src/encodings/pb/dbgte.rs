@@ -42,9 +42,6 @@ pub struct DbGte {
     n_clauses: usize,
     /// The node database of the totalizer
     db: totdb::Db,
-    #[cfg(feature = "proof-logging")]
-    /// The number of leafs in the encoding structure
-    n_leafs: usize,
 }
 
 impl DbGte {
@@ -77,10 +74,6 @@ impl DbGte {
                 })
                 .collect();
             if !new_lits.is_empty() {
-                #[cfg(feature = "proof-logging")]
-                {
-                    self.n_leafs += new_lits.len();
-                }
                 // add nodes in sorted fashion to minimize clauses
                 new_lits.sort_by_key(|(_, w)| *w);
                 // Detect sequences of literals of equal weight and merge them
@@ -390,8 +383,8 @@ impl super::cert::BoundUpperIncremental for DbGte {
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
         self.extend_tree(range.end - 1);
-        let mut leafs = vec![(crate::lit![0], 0); self.n_leafs];
         if let Some(con) = self.root {
+            let mut leafs = vec![(crate::lit![0], 0); self.db[con.id].n_leafs()];
             self.db[con.id]
                 .vals(
                     con.rev_map_round_up(range.start + 1)

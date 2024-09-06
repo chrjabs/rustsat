@@ -618,7 +618,7 @@ mod cert {
             Solve, SolveIncremental,
             SolverResult::{self, Sat, Unsat},
         },
-        types::{Lit, RsHashMap},
+        types::{Lit, RsHashMap, Var},
         var,
     };
 
@@ -660,7 +660,7 @@ mod cert {
 
         enc.encode_ub_cert(0..3, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("first block done").unwrap();
+        proof.comment(&"first block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(2).unwrap();
@@ -669,7 +669,7 @@ mod cert {
 
         enc.encode_ub_change_cert(0..5, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("second block done").unwrap();
+        proof.comment(&"second block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(4).unwrap();
@@ -678,7 +678,7 @@ mod cert {
 
         enc.encode_ub_change_cert(0..6, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("third block done").unwrap();
+        proof.comment(&"third block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(5).unwrap();
@@ -691,7 +691,7 @@ mod cert {
 
         enc.encode_ub_change_cert(0..6, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("fourth block done").unwrap();
+        proof.comment(&"fourth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(5).unwrap();
@@ -700,7 +700,7 @@ mod cert {
 
         enc.encode_ub_change_cert(0..10, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("fifth block done").unwrap();
+        proof.comment(&"fifth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(9).unwrap();
@@ -717,7 +717,7 @@ mod cert {
 
         enc.encode_ub_change_cert(0..10, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("sixth block done").unwrap();
+        proof.comment(&"sixth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(9).unwrap();
@@ -726,7 +726,7 @@ mod cert {
 
         enc.encode_ub_change_cert(0..15, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("seventh block done").unwrap();
+        proof.comment(&"seventh block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(14).unwrap();
@@ -734,7 +734,7 @@ mod cert {
         assert_eq!(res, SolverResult::Sat);
 
         let proof_file = proof
-            .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -803,7 +803,7 @@ mod cert {
         }
 
         let proof_file = proof
-            .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());

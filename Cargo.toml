@@ -95,7 +95,15 @@ rand = ["dep:rand"]
 bench = []
 ipasir-display = []
 proof-logging = ["dep:pidgeons"]
-all = ["multiopt", "compression", "rand", "fxhash", "proof-logging"]
+verbose-proofs = ["proof-logging"]
+all = [
+  "multiopt",
+  "compression",
+  "rand",
+  "fxhash",
+  "proof-logging",
+  "verbose-proofs",
+]
 
 [package.metadata.docs.rs]
 features = ["all", "internals"]

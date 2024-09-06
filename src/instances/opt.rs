@@ -1013,6 +1013,10 @@ impl pidgeons::ObjectiveLike<crate::types::Var> for Objective {
                 )
             })
     }
+
+    fn offset(&self) -> isize {
+        self.offset()
+    }
 }
 
 /// A wrapper type for iterators over soft literals in an objective
@@ -1625,6 +1629,7 @@ mod tests {
     #[cfg(feature = "proof-logging")]
     #[test]
     fn proof_log_obj() {
+        use itertools::Itertools;
         use pidgeons::ObjectiveLike;
 
         use crate::lit;
@@ -1634,6 +1639,14 @@ mod tests {
         obj.increase_soft_lit_int(-5, lit![42]);
         let truth = "5 x4 5 ~x43 -5";
 
-        assert_eq!(&obj.obj_str(), truth);
+        assert_eq!(
+            &format!(
+                "{} {}",
+                obj.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                <super::Objective as ObjectiveLike<super::Var>>::offset(&obj)
+            ),
+            truth
+        );
     }
 }

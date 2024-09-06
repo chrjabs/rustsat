@@ -368,8 +368,8 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
             return Ok(());
         }
         self.extend_tree();
-        let mut leafs = vec![crate::lit![0]; self.n_lits()];
         if let Some(id) = self.root {
+            let mut leafs = vec![crate::lit![0]; self.db[id].n_leafs()];
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {

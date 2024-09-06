@@ -595,7 +595,7 @@ mod cert {
             Solve, SolveIncremental,
             SolverResult::{self, Sat, Unsat},
         },
-        types::Lit,
+        types::{Lit, Var},
         var,
     };
 
@@ -631,7 +631,7 @@ mod cert {
 
         enc.encode_both_cert(2..3, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("first block done").unwrap();
+        proof.comment(&"first block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_lb(2).unwrap();
@@ -644,7 +644,7 @@ mod cert {
 
         enc.encode_both_change_cert(0..4, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("second block done").unwrap();
+        proof.comment(&"second block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(3).unwrap();
@@ -655,7 +655,7 @@ mod cert {
 
         enc.encode_both_change_cert(0..4, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("third block done").unwrap();
+        proof.comment(&"third block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(3).unwrap();
@@ -664,7 +664,7 @@ mod cert {
 
         enc.encode_both_change_cert(0..5, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("fourth block done").unwrap();
+        proof.comment(&"fourth block done").unwrap();
         let assumps = enc.enforce_ub(4).unwrap();
         let res = solver.solve_assumps(&assumps).unwrap();
         assert_eq!(res, SolverResult::Sat);
@@ -673,7 +673,7 @@ mod cert {
 
         enc.encode_both_change_cert(0..5, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("fifth block done").unwrap();
+        proof.comment(&"fifth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(4).unwrap();
@@ -682,7 +682,7 @@ mod cert {
 
         enc.encode_both_change_cert(0..8, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("sixth block done").unwrap();
+        proof.comment(&"sixth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_ub(7).unwrap();
@@ -690,7 +690,7 @@ mod cert {
         assert_eq!(res, SolverResult::Sat);
 
         let proof_file = proof
-            .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -707,7 +707,7 @@ mod cert {
 
         enc.encode_both_cert(0..1, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("first block done").unwrap();
+        proof.comment(&"first block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_eq(0).unwrap();
@@ -734,7 +734,7 @@ mod cert {
 
         enc.encode_both_change_cert(1..2, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("second block done").unwrap();
+        proof.comment(&"second block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_eq(1).unwrap();
@@ -761,7 +761,7 @@ mod cert {
 
         enc.encode_both_change_cert(2..3, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("third block done").unwrap();
+        proof.comment(&"third block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_eq(2).unwrap();
@@ -788,7 +788,7 @@ mod cert {
 
         enc.encode_both_change_cert(3..4, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("fourth block done").unwrap();
+        proof.comment(&"fourth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_eq(3).unwrap();
@@ -815,7 +815,7 @@ mod cert {
 
         enc.encode_both_change_cert(4..5, &mut cnf, &mut var_manager, &mut proof)
             .unwrap();
-        proof.comment("fifth block done").unwrap();
+        proof.comment(&"fifth block done").unwrap();
         solver.add_cnf_ref(&cnf).unwrap();
         cnf.clear();
         let assumps = enc.enforce_eq(4).unwrap();

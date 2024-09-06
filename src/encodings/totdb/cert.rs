@@ -50,9 +50,13 @@ impl super::Db {
             return Ok(defs.get(typ).into());
         }
         if self[id].is_leaf() {
-            if val == 0 {
+            if val == 0 && typ == SemDefTyp::OnlyIf {
                 let olit = *self[id].lit(1).unwrap();
                 return Ok(olit.into());
+            }
+            if val == 2 && typ == SemDefTyp::If {
+                let olit = *self[id].lit(1).unwrap();
+                return Ok((!olit).into());
             }
             return Ok(SemDefinition::None);
         }
@@ -178,8 +182,9 @@ impl super::Db {
                     } = lit_data
                     {
                         if semantics.has_if() {
-                            let mut new_leafs: Vec<_> = self.leaf_iter(id).collect();
-                            leafs.swap_with_slice(&mut new_leafs);
+                            for (idx, leaf) in self.leaf_iter(id).enumerate() {
+                                leafs[idx] = leaf;
+                            }
                             return Ok(Some(*lit));
                         }
                     }
@@ -204,101 +209,11 @@ impl super::Db {
 
                 let (left_leafs, right_leafs) = leafs.split_at_mut(self[lcon.id].n_leafs());
 
-                // Propagate value
-                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
-                    if let Some(llit) = self.define_weighted_cert(
-                        lcon.id,
-                        lcon.rev_map(val),
-                        collector,
-                        var_manager,
-                        proof,
-                        left_leafs,
-                    )? {
-                        let left_def = self.define_semantics(
-                            lcon.id,
-                            lcon.rev_map(val),
-                            SemDefTyp::OnlyIf,
-                            left_leafs.iter().copied(),
-                            proof,
-                        )?;
-                        let right_def = self.define_semantics(
-                            rcon.id,
-                            0,
-                            SemDefTyp::OnlyIf,
-                            right_leafs.iter().copied(),
-                            proof,
-                        )?;
-                        let this_def = self.define_semantics(
-                            id,
-                            val,
-                            SemDefTyp::If,
-                            left_leafs
-                                .iter()
-                                .map(|(l, w)| (*l, *w * lcon.multiplier()))
-                                .chain(
-                                    right_leafs
-                                        .iter()
-                                        .map(|(l, w)| (*l, *w * rcon.multiplier())),
-                                ),
-                            proof,
-                        )?;
-                        let id = proof.operations(
-                            &(this_def
-                                + (left_def * lcon.multiplier())
-                                + (right_def * rcon.multiplier()))
-                            .saturate(),
-                        )?;
-                        collector.add_cert_clause(atomics::lit_impl_lit(llit, olit), id)?;
-                    }
-                }
-                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
-                    if let Some(rlit) = self.define_weighted_cert(
-                        rcon.id,
-                        rcon.rev_map(val),
-                        collector,
-                        var_manager,
-                        proof,
-                        right_leafs,
-                    )? {
-                        let left_def = self.define_semantics(
-                            lcon.id,
-                            0,
-                            SemDefTyp::OnlyIf,
-                            left_leafs.iter().copied(),
-                            proof,
-                        )?;
-                        let right_def = self.define_semantics(
-                            rcon.id,
-                            rcon.rev_map(val),
-                            SemDefTyp::OnlyIf,
-                            right_leafs.iter().copied(),
-                            proof,
-                        )?;
-                        let this_def = self.define_semantics(
-                            id,
-                            val,
-                            SemDefTyp::If,
-                            left_leafs
-                                .iter()
-                                .map(|(l, w)| (*l, *w * lcon.multiplier()))
-                                .chain(
-                                    right_leafs
-                                        .iter()
-                                        .map(|(l, w)| (*l, *w * rcon.multiplier())),
-                                ),
-                            proof,
-                        )?;
-                        let id = proof.operations(
-                            &(this_def
-                                + (left_def * lcon.multiplier())
-                                + (right_def * rcon.multiplier()))
-                            .saturate(),
-                        )?;
-                        collector.add_cert_clause(atomics::lit_impl_lit(rlit, olit), id)?;
-                    };
-                }
-
                 // Propagate sums
+                // We do this first to have a higher chance of populating the leaf vector during
+                // recursion
+                let mut left_lits_populated = false;
+                let mut right_lits_populated = false;
                 if lcon.map(lcon.offset() + 1) < val {
                     let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
                     let rmax = self[rcon.id].max_val();
@@ -315,6 +230,8 @@ impl super::Db {
                                 proof,
                                 right_leafs,
                             )? {
+                                left_lits_populated = true;
+                                right_lits_populated = true;
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
@@ -360,13 +277,128 @@ impl super::Db {
                                         + (right_def * rcon.multiplier()))
                                     .saturate(),
                                 )?;
-                                collector.add_cert_clause(
-                                    atomics::cube_impl_lit(&[llit, rlit], olit),
-                                    id,
-                                )?;
+                                let clause = atomics::cube_impl_lit(&[llit, rlit], olit);
+                                #[cfg(feature = "verbose-proofs")]
+                                proof.equals(&clause, Some(id.into()))?;
+                                collector.add_cert_clause(clause, id)?;
                             }
                         }
                     }
+                }
+
+                // Propagate value
+                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
+                    if let Some(llit) = self.define_weighted_cert(
+                        lcon.id,
+                        lcon.rev_map(val),
+                        collector,
+                        var_manager,
+                        proof,
+                        left_leafs,
+                    )? {
+                        left_lits_populated = true;
+                        if !right_lits_populated {
+                            // We have not recursed down the right branch yet and therefore need to
+                            // manually populate the right half of the leaf vector
+                            for (idx, leaf) in self.leaf_iter(rcon.id).enumerate() {
+                                right_leafs[idx] = leaf;
+                            }
+                        }
+                        let left_def = self.define_semantics(
+                            lcon.id,
+                            lcon.rev_map(val),
+                            SemDefTyp::OnlyIf,
+                            left_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let right_def = self.define_semantics(
+                            rcon.id,
+                            0,
+                            SemDefTyp::OnlyIf,
+                            right_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let this_def = self.define_semantics(
+                            id,
+                            val,
+                            SemDefTyp::If,
+                            left_leafs
+                                .iter()
+                                .map(|(l, w)| (*l, *w * lcon.multiplier()))
+                                .chain(
+                                    right_leafs
+                                        .iter()
+                                        .map(|(l, w)| (*l, *w * rcon.multiplier())),
+                                ),
+                            proof,
+                        )?;
+                        let id = proof.operations(
+                            &(this_def
+                                + (left_def * lcon.multiplier())
+                                + (right_def * rcon.multiplier()))
+                            .saturate(),
+                        )?;
+                        let clause = atomics::lit_impl_lit(llit, olit);
+                        #[cfg(feature = "verbose-proofs")]
+                        proof.equals(&clause, Some(id.into()))?;
+                        collector.add_cert_clause(clause, id)?;
+                    }
+                }
+                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
+                    if let Some(rlit) = self.define_weighted_cert(
+                        rcon.id,
+                        rcon.rev_map(val),
+                        collector,
+                        var_manager,
+                        proof,
+                        right_leafs,
+                    )? {
+                        if !left_lits_populated {
+                            // We have not recursed down the left branch yet and therefore need to
+                            // manually populate the left half of the leaf vector
+                            for (idx, leaf) in self.leaf_iter(lcon.id).enumerate() {
+                                left_leafs[idx] = leaf;
+                            }
+                        }
+                        let left_def = self.define_semantics(
+                            lcon.id,
+                            0,
+                            SemDefTyp::OnlyIf,
+                            left_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let right_def = self.define_semantics(
+                            rcon.id,
+                            rcon.rev_map(val),
+                            SemDefTyp::OnlyIf,
+                            right_leafs.iter().copied(),
+                            proof,
+                        )?;
+                        let this_def = self.define_semantics(
+                            id,
+                            val,
+                            SemDefTyp::If,
+                            left_leafs
+                                .iter()
+                                .map(|(l, w)| (*l, *w * lcon.multiplier()))
+                                .chain(
+                                    right_leafs
+                                        .iter()
+                                        .map(|(l, w)| (*l, *w * rcon.multiplier())),
+                                ),
+                            proof,
+                        )?;
+                        let id = proof.operations(
+                            &(this_def
+                                + (left_def * lcon.multiplier())
+                                + (right_def * rcon.multiplier()))
+                            .saturate(),
+                        )?;
+                        let clause = atomics::lit_impl_lit(rlit, olit);
+                        #[cfg(feature = "verbose-proofs")]
+                        proof.equals(&clause, Some(id.into()))?;
+                        collector.add_cert_clause(clause, id)?;
+                    };
                 }
 
                 // Only now finally multiply the leaf weights since they won't be used at lower
@@ -533,7 +565,10 @@ impl super::Db {
                 proof,
             )?;
             let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
-            collector.add_cert_clause(atomics::cube_impl_lit(&lhs[..nlits], olit), id)?;
+            let clause = atomics::cube_impl_lit(&lhs[..nlits], olit);
+            #[cfg(feature = "verbose-proofs")]
+            proof.equals(&clause, Some(id.into()))?;
+            collector.add_cert_clause(clause, id)?;
         }
         // Only if semantics
         for lval in pre.left_only_if.clone() {
@@ -572,7 +607,10 @@ impl super::Db {
                 proof,
             )?;
             let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
-            collector.add_cert_clause(atomics::cube_impl_lit(&lhs[..nlits], !olit), id)?;
+            let clause = atomics::cube_impl_lit(&lhs[..nlits], !olit);
+            #[cfg(feature = "verbose-proofs")]
+            proof.equals(&clause, Some(id.into()))?;
+            collector.add_cert_clause(clause, id)?;
         }
 
         Ok(())
@@ -765,7 +803,9 @@ mod tests {
             totdb::{Db, Semantics},
         },
         instances::{BasicVarManager, Cnf, ManageVars},
-        lit, var,
+        lit,
+        types::Var,
+        var,
     };
 
     fn print_file<P: AsRef<Path>>(path: P) {
@@ -803,8 +843,7 @@ mod tests {
         let mut db = Db::default();
         let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
         debug_assert_eq!(db[root].depth(), 3);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![4]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
         let mut proof = new_proof(0, false);
 
@@ -852,7 +891,7 @@ mod tests {
         .unwrap();
 
         let proof_file = proof
-            .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -863,8 +902,7 @@ mod tests {
         let mut db = Db::default();
         let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
         debug_assert_eq!(db[root].depth(), 3);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![4]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
         let mut proof = new_proof(0, false);
 
@@ -912,7 +950,7 @@ mod tests {
         .unwrap();
 
         let proof_file = proof
-            .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -925,8 +963,7 @@ mod tests {
         assert_eq!(root.offset(), 0);
         assert_eq!(root.multiplier(), 1);
         let root = root.id;
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![4]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
         let mut proof = new_proof(0, false);
 
@@ -954,7 +991,54 @@ mod tests {
             .unwrap();
 
         let proof_file = proof
-            .conclude(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+    }
+
+    #[test]
+    fn gte_db2() {
+        let mut db = Db::default();
+        let root = db.weighted_lit_tree(&[
+            (lit![0], 1),
+            (lit![1], 2),
+            (lit![2], 3),
+            (lit![3], 4),
+            (lit![4], 5),
+        ]);
+        assert_eq!(root.offset(), 0);
+        assert_eq!(root.multiplier(), 1);
+        let root = root.id;
+        let mut var_manager = BasicVarManager::from_next_free(var![5]);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut lits = [(lit![0], 0); 5];
+        db.define_weighted_cert(root, 1, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 2, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 3, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 4, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 5, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 6, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 7, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 8, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 9, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+        db.define_weighted_cert(root, 10, &mut cnf, &mut var_manager, &mut proof, &mut lits)
+            .unwrap();
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());

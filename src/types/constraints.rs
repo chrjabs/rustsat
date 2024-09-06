@@ -1977,11 +1977,20 @@ mod tests {
     #[cfg(feature = "proof-logging")]
     #[test]
     fn proof_log_clause() {
+        use itertools::Itertools;
         use pidgeons::ConstraintLike;
 
         let cl = clause![lit![0], lit![1], lit![2], !lit![3]];
         let truth = "1 x1 1 x2 1 x3 1 ~x4 >= 1";
-        assert_eq!(&cl.constr_str(), truth);
+        assert_eq!(
+            &format!(
+                "{} >= {}",
+                cl.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                cl.rhs()
+            ),
+            truth
+        );
     }
 
     macro_rules! assign {
@@ -2070,20 +2079,29 @@ mod tests {
     #[cfg(feature = "proof-logging")]
     #[test]
     fn proof_log_card() {
+        use itertools::Itertools;
         use pidgeons::ConstraintLike;
 
         let lits = vec![lit![0], lit![1], !lit![2]];
+        let ub = CardConstraint::new_ub(lits.clone(), 1);
         assert_eq!(
-            &CardConstraint::new_ub(lits.clone(), 1).constr_str(),
+            &format!(
+                "{} >= {}",
+                ub.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                ub.rhs()
+            ),
             "1 ~x1 1 ~x2 1 x3 >= 2"
         );
+        let lb = CardConstraint::new_lb(lits.clone(), 3);
         assert_eq!(
-            &CardConstraint::new_lb(lits.clone(), 3).constr_str(),
+            &format!(
+                "{} >= {}",
+                lb.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                lb.rhs()
+            ),
             "1 x1 1 x2 1 ~x3 >= 3"
-        );
-        assert_eq!(
-            &CardConstraint::new_eq(lits.clone(), 2).constr_str(),
-            "1 x1 1 x2 1 ~x3 = 2"
         );
     }
 
@@ -2153,20 +2171,29 @@ mod tests {
     #[cfg(feature = "proof-logging")]
     #[test]
     fn proof_log_pb() {
+        use itertools::Itertools;
         use pidgeons::ConstraintLike;
 
         let lits = vec![(lit![0], 2), (lit![1], 3), (!lit![2], 2)];
+        let ub = PbConstraint::new_ub(lits.clone(), 3);
         assert_eq!(
-            &PbConstraint::new_ub(lits.clone(), 3).constr_str(),
+            &format!(
+                "{} >= {}",
+                ub.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                ub.rhs()
+            ),
             "2 ~x1 3 ~x2 2 x3 >= 4"
         );
+        let lb = PbConstraint::new_lb(lits.clone(), 4);
         assert_eq!(
-            &PbConstraint::new_lb(lits.clone(), 4).constr_str(),
+            &format!(
+                "{} >= {}",
+                lb.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                lb.rhs()
+            ),
             "2 x1 3 x2 2 ~x3 >= 4"
-        );
-        assert_eq!(
-            &PbConstraint::new_eq(lits.clone(), 2).constr_str(),
-            "2 x1 3 x2 2 ~x3 = 2"
         );
     }
 }

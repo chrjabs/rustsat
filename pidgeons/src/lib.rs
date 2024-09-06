@@ -903,6 +903,8 @@ pub trait ConstraintLike<V: VarLike> {
 pub trait ObjectiveLike<V: VarLike> {
     /// Gets an iterator over the coefficient literal pairs in the constraint
     fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
+    /// Gets the constant offset of the objective
+    fn offset(&self) -> isize;
 }
 
 impl<V, Iter> ObjectiveLike<V> for Iter
@@ -912,5 +914,9 @@ where
 {
     fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)> {
         self.clone().into_iter().map(|(cf, v)| (cf, v.pos_axiom()))
+    }
+
+    fn offset(&self) -> isize {
+        0
     }
 }

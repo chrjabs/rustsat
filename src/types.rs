@@ -1181,7 +1181,8 @@ mod tests {
     #[test]
     fn proof_log_var() {
         use pidgeons::VarLike;
-        assert_eq!(&Var::new(3).var_str(), "x4");
+        let var = Var::new(3);
+        assert_eq!(&format!("{}", <Var as VarLike>::Formatter::from(var)), "x4");
     }
 
     #[test]
