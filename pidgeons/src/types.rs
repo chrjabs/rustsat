@@ -25,6 +25,7 @@ pub enum ProblemType {
 
 /// A constraint ID referring to a constraint
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct ConstraintId(ConstrIdInternal);
 
 impl From<ConstrIdInternal> for ConstraintId {
@@ -128,7 +129,8 @@ impl From<RelConstraintId> for ConstraintId {
 }
 
 /// A type representing a VeriPB constraint ID
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct AbsConstraintId(pub(crate) NonZeroUsize);
 
 impl AbsConstraintId {
@@ -155,8 +157,25 @@ impl fmt::Display for AbsConstraintId {
     }
 }
 
+impl ops::Add<usize> for AbsConstraintId {
+    type Output = AbsConstraintId;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        AbsConstraintId(unreachable_err!(NonZeroUsize::try_from(
+            usize::from(self.0) + rhs
+        )))
+    }
+}
+
+impl ops::AddAssign<usize> for AbsConstraintId {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 = unreachable_err!(NonZeroUsize::try_from(usize::from(self.0) + rhs));
+    }
+}
+
 /// A constraint ID of the x-last constraint. Equivalent to a negative constraint ID in VeriPB.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 struct RelConstraintId(pub(crate) NonZeroUsize);
 
 impl RelConstraintId {
@@ -298,8 +317,8 @@ pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
     name: String,
     used_vars: rustc_hash::FxHashSet<V>,
     definition: Vec<C>,
-    trans_proof: SubProof<OrderVar<V>>,
-    refl_proof: Option<SubProof<OrderVar<V>>>,
+    trans_proof: Vec<ProofGoal<OrderVar<V>, C>>,
+    refl_proof: Option<Vec<ProofGoal<OrderVar<V>, C>>>,
 }
 
 /// A variable to be used in an order definition
@@ -335,7 +354,7 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
             name,
             used_vars: rustc_hash::FxHashSet::default(),
             definition: vec![],
-            trans_proof: SubProof { goals: vec![] },
+            trans_proof: vec![],
             refl_proof: None,
         }
     }
@@ -366,29 +385,25 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     pub fn add_definition_constraint(
         &mut self,
         constr: C,
-        trans_proof: Vec<OperationSequence<OrderVar<V>>>,
-        refl_proof: Option<Vec<OperationSequence<OrderVar<V>>>>,
+        trans_proof: Vec<Derivation<OrderVar<V>, C>>,
+        refl_proof: Option<Vec<Derivation<OrderVar<V>, C>>>,
     ) {
         self.definition.push(constr);
-        self.trans_proof.goals.push(ProofGoal {
+        self.trans_proof.push(ProofGoal {
             id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
             derivations: trans_proof,
         });
         if let Some(new_goal) = refl_proof {
             if let Some(proof) = &mut self.refl_proof {
-                proof.goals.push(ProofGoal {
+                proof.push(ProofGoal {
                     id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
                     derivations: new_goal,
                 });
             } else {
-                self.refl_proof = Some(SubProof {
-                    goals: vec![ProofGoal {
-                        id: ProofGoalId::Specific(
-                            NonZeroUsize::new(self.definition.len()).unwrap(),
-                        ),
-                        derivations: new_goal,
-                    }],
-                });
+                self.refl_proof = Some(vec![ProofGoal {
+                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
+                    derivations: new_goal,
+                }]);
             }
         }
     }
@@ -432,91 +447,102 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
                 .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
         )?;
         writeln!(f, "    end")?;
-        self.trans_proof.format_indented(f, 4)?;
-        writeln!(f)?;
+        writeln!(f, "    proof")?;
+        for goal in &self.trans_proof {
+            goal.format_indented(f, 6)?;
+            writeln!(f)?;
+        }
+        writeln!(f, "    qed")?;
         writeln!(f, "  end")?;
         if let Some(proof) = &self.refl_proof {
             writeln!(f, "  reflexivity")?;
-            proof.format_indented(f, 4)?;
-            writeln!(f)?;
+            writeln!(f, "    proof")?;
+            for goal in proof {
+                goal.format_indented(f, 6)?;
+                writeln!(f)?;
+            }
+            writeln!(f, "    qed")?;
             writeln!(f, "  end")?;
         }
         write!(f, "end")
     }
 }
 
-/// A subproof
-pub struct SubProof<V: VarLike> {
-    /// The sequence of [`ProofGoal`] in the subproof
-    goals: Vec<ProofGoal<V>>,
+/// A derivation step
+pub enum Derivation<V: VarLike, C> {
+    /// A constraint added by reverse unit propagation, including hints
+    Rup(C, Vec<ConstraintId>),
+    /// A constraint derived by a sequence of operations
+    Operations(OperationSequence<V>),
 }
 
-impl<V: VarLike> FromIterator<ProofGoal<V>> for SubProof<V> {
-    fn from_iter<T: IntoIterator<Item = ProofGoal<V>>>(iter: T) -> Self {
-        SubProof {
-            goals: iter.into_iter().collect(),
-        }
+impl<V, C> From<OperationSequence<V>> for Derivation<V, C>
+where
+    V: VarLike,
+{
+    fn from(value: OperationSequence<V>) -> Self {
+        Derivation::Operations(value)
     }
 }
 
-impl<V: VarLike> SubProof<V> {
-    /// Writes the subproof to a writer, indented by a number of spaces
-    ///
-    /// # Errors
-    ///
-    /// If writing fails, returns an error
-    pub fn write_indented<W: io::Write>(&self, writer: &mut W, indent: usize) -> io::Result<()> {
-        writeln!(writer, "{:indent$}proof", "", indent = indent)?;
-        for goal in &self.goals {
-            goal.write_indented(writer, indent + 2)?;
-            writeln!(writer)?;
-        }
-        write!(writer, "{:indent$}qed", "", indent = indent)
-    }
-
-    /// Formats the subproof, indented by a number of spaces
-    ///
-    /// # Errors
-    ///
-    /// If formatting fails, returns an error
-    pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
-        writeln!(writer, "{:indent$}proof", "", indent = indent)?;
-        for goal in &self.goals {
-            goal.format_indented(writer, indent + 2)?;
-            writeln!(writer)?;
-        }
-        write!(writer, "{:indent$}qed", "", indent = indent)
-    }
-}
-
-impl<V: VarLike> fmt::Display for SubProof<V> {
+impl<V, C> fmt::Display for Derivation<V, C>
+where
+    V: VarLike,
+    C: ConstraintLike<V>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.format_indented(f, 0)
+        match self {
+            Derivation::Rup(constr, hints) => write!(
+                f,
+                "rup {} ; {}",
+                ConstrFormatter::from(constr),
+                hints.iter().format(" ")
+            ),
+            Derivation::Operations(ops) => write!(f, "pol {ops}"),
+        }
     }
 }
 
-/// A proof target of a [`SubProof`]
-pub struct ProofGoal<V: VarLike> {
+/// A proof target of a subproof
+pub struct ProofGoal<V: VarLike, C> {
     /// The goal id
     id: ProofGoalId,
     /// For now only operation derivations are supported
-    derivations: Vec<OperationSequence<V>>,
+    derivations: Vec<Derivation<V, C>>,
 }
 
-impl<V: VarLike> Extend<OperationSequence<V>> for ProofGoal<V> {
-    fn extend<T: IntoIterator<Item = OperationSequence<V>>>(&mut self, iter: T) {
+impl<V: VarLike, C: ConstraintLike<V>> Extend<Derivation<V, C>> for ProofGoal<V, C> {
+    fn extend<T: IntoIterator<Item = Derivation<V, C>>>(&mut self, iter: T) {
         self.derivations.extend(iter);
     }
 }
 
-impl<V: VarLike> ProofGoal<V> {
+impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     /// Creates a new proof goal
     #[must_use]
-    pub fn new(id: ProofGoalId) -> Self {
+    pub fn empty(id: ProofGoalId) -> Self {
         ProofGoal {
             id,
             derivations: vec![],
         }
+    }
+
+    /// Creates a new proof goal
+    #[must_use]
+    pub fn new<I>(id: ProofGoalId, derivations: I) -> Self
+    where
+        I: IntoIterator<Item = Derivation<V, C>>,
+    {
+        ProofGoal {
+            id,
+            derivations: derivations.into_iter().collect(),
+        }
+    }
+
+    /// Gets the number of derivation steps in the proof goal
+    #[must_use]
+    pub fn n_derivations(&self) -> usize {
+        self.derivations.len()
     }
 
     /// Writes the proof goal to a writer, indented by a number of spaces
@@ -533,7 +559,7 @@ impl<V: VarLike> ProofGoal<V> {
             indent = indent
         )?;
         for der in &self.derivations {
-            writeln!(writer, "{:indent$}  pol {der}", "", indent = indent)?;
+            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
         }
         write!(writer, "{:indent$}qed -1", "", indent = indent)
     }
@@ -552,13 +578,13 @@ impl<V: VarLike> ProofGoal<V> {
             indent = indent
         )?;
         for der in &self.derivations {
-            writeln!(writer, "{:indent$}  pol {der}", "", indent = indent)?;
+            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
         }
         write!(writer, "{:indent$}qed -1", "", indent = indent)
     }
 }
 
-impl<V: VarLike> fmt::Display for ProofGoal<V> {
+impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ProofGoal<V, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.format_indented(f, 0)
     }
@@ -572,6 +598,24 @@ pub enum ProofGoalId {
     Specific(NonZeroUsize),
 }
 
+impl ProofGoalId {
+    /// Create a proof goal ID for a specific proof goal, i.e., `#<id>`
+    ///
+    /// # Panics
+    ///
+    /// If `id` is zero
+    #[must_use]
+    pub fn specific(id: usize) -> Self {
+        ProofGoalId::Specific(NonZeroUsize::try_from(id).expect("proof goal ID cannot be zero"))
+    }
+}
+
+impl From<ConstraintId> for ProofGoalId {
+    fn from(value: ConstraintId) -> Self {
+        ProofGoalId::Constraint(value)
+    }
+}
+
 impl fmt::Display for ProofGoalId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -582,48 +626,49 @@ impl fmt::Display for ProofGoalId {
 }
 
 /// An objective update step (`obju`)
-pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>> {
+pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>, C> {
     /// `new`
-    New(O, Option<SubProof<V>>, PhantomData<V>),
+    New(O, Vec<ProofGoal<V, C>>, PhantomData<V>),
     /// `diff`
     Diff(O, PhantomData<V>),
 }
 
-impl<V, O> ObjectiveUpdate<V, O>
+impl<V, O, C> ObjectiveUpdate<V, O, C>
 where
     V: VarLike,
     O: ObjectiveLike<V>,
+    C: ConstraintLike<V>,
 {
     /// Creates an explicit objective update by specifying the entire new objective
-    pub fn new(objective: O, subproof: Option<SubProof<V>>) -> ObjectiveUpdate<V, O>
-    where
-        V: VarLike,
-        O: ObjectiveLike<V>,
-    {
-        ObjectiveUpdate::New(objective, subproof, PhantomData)
+    pub fn new<I: IntoIterator<Item = ProofGoal<V, C>>>(objective: O, subproof: I) -> Self {
+        ObjectiveUpdate::New(objective, subproof.into_iter().collect(), PhantomData)
     }
 
     /// Creates an objective update by specifying the difference to the old objective
-    pub fn diff(diff: O) -> ObjectiveUpdate<V, O>
-    where
-        V: VarLike,
-        O: ObjectiveLike<V>,
-    {
+    pub fn diff(diff: O) -> Self {
         ObjectiveUpdate::Diff(diff, PhantomData)
     }
 }
 
-impl<V, O> fmt::Display for ObjectiveUpdate<V, O>
+impl<V, O, C> fmt::Display for ObjectiveUpdate<V, O, C>
 where
     V: VarLike,
     O: ObjectiveLike<V>,
+    C: ConstraintLike<V>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ObjectiveUpdate::New(obj, subproof, _) => {
                 write!(f, "new {} ;", ObjFormatter::from(obj))?;
-                if let Some(subproof) = subproof {
-                    subproof.format_indented(f, 2)?;
+                if subproof.is_empty() {
+                    writeln!(f)?;
+                } else {
+                    writeln!(f, " begin")?;
+                    for goal in subproof {
+                        goal.format_indented(f, 2)?;
+                        writeln!(f)?;
+                    }
+                    writeln!(f, "end")?;
                 }
                 Ok(())
             }

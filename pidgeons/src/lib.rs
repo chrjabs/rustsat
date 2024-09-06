@@ -44,9 +44,8 @@ use itertools::Itertools;
 
 mod types;
 pub use types::{
-    AbsConstraintId, Axiom, Conclusion, ConstraintId, ObjectiveUpdate, Order, OrderVar,
-    OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar, SubProof,
-    Substitution,
+    AbsConstraintId, Axiom, Conclusion, ConstraintId, Derivation, ObjectiveUpdate, Order, OrderVar,
+    OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar, Substitution,
 };
 
 mod ops;
@@ -80,8 +79,8 @@ pub struct Proof<Writer: io::Write> {
     next_pv: ProofOnlyVar,
     /// The proofs problem type
     problem_type: ProblemType,
-    /// Set to true to avoid writing conclusion in [`Drop`]
-    concluded: bool,
+    /// The first ID of a constraint in the proof and not in the original instance
+    first_proof_id: AbsConstraintId,
 }
 
 impl<Writer: io::Write> Drop for Proof<Writer> {
@@ -111,12 +110,13 @@ where
     /// If writing the proof fails.
     pub fn new(mut writer: Writer, num_constraints: usize, optimization: bool) -> io::Result<Self> {
         writeln!(writer, "pseudo-Boolean proof version 2.0")?;
+        let next_id = AbsConstraintId(unreachable_err!((num_constraints + 1).try_into()));
         let mut this = Self {
             writer,
-            next_id: AbsConstraintId(unreachable_err!((num_constraints + 1).try_into())),
+            next_id,
             next_pv: ProofOnlyVar(0),
             problem_type: ProblemType::default(),
-            concluded: false,
+            first_proof_id: next_id,
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
@@ -129,10 +129,31 @@ where
     #[must_use]
     fn new_id(&mut self) -> AbsConstraintId {
         let id = self.next_id;
-        self.next_id = AbsConstraintId(unreachable_err!(
-            (usize::from(self.next_id.0) + 1).try_into()
-        ));
+        self.next_id += 1;
         id
+    }
+
+    /// Writes a subproof, if the iterator is not empty
+    fn write_subproof<V, C, PI>(&mut self, proof: PI) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+        PI: IntoIterator<Item = ProofGoal<V, C>>,
+    {
+        let mut proof = proof.into_iter().peekable();
+        if proof.peek().is_some() {
+            self.next_id += 1; // negated `constr`
+            writeln!(self.writer, " ; begin")?;
+            for goal in proof {
+                // negated proof goal + 1 for each derivation
+                self.next_id += 1 + goal.n_derivations();
+                goal.write_indented(&mut self.writer, 2)?;
+                writeln!(self.writer)?;
+            }
+            writeln!(self.writer, "end")
+        } else {
+            writeln!(self.writer)
+        }
     }
 
     /// Gets a new [`ProofOnlyVar`] and increments the counter
@@ -141,6 +162,12 @@ where
         let pv = self.next_pv;
         self.next_pv += 1;
         pv
+    }
+
+    /// Gets the first ID that is _not_ from the original instance
+    #[must_use]
+    pub fn first_proof_id(&self) -> AbsConstraintId {
+        self.first_proof_id
     }
 
     /// Adds a line to verify the number of constraints in the proof
@@ -225,23 +252,19 @@ where
     pub fn reverse_unit_prop<V, C, I>(
         &mut self,
         constr: &C,
-        hint: Option<I>,
+        hints: I,
     ) -> io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
         I: IntoIterator<Item = ConstraintId>,
     {
-        if let Some(hint) = hint {
-            writeln!(
-                self.writer,
-                "rup {} ; {}",
-                ConstrFormatter::from(constr),
-                hint.into_iter().format(" ")
-            )?;
-        } else {
-            writeln!(self.writer, "rup {} ;", ConstrFormatter::from(constr))?;
-        }
+        writeln!(
+            self.writer,
+            "rup {} ; {}",
+            ConstrFormatter::from(constr),
+            hints.into_iter().format(" ")
+        )?;
         Ok(self.new_id())
     }
 
@@ -256,11 +279,15 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_ids<I>(&mut self, ids: I) -> io::Result<()>
+    pub fn delete_ids<V, C, II, PI>(&mut self, ids: II, proof: PI) -> io::Result<()>
     where
-        I: IntoIterator<Item = ConstraintId>,
+        V: VarLike,
+        C: ConstraintLike<V>,
+        II: IntoIterator<Item = ConstraintId>,
+        PI: IntoIterator<Item = ProofGoal<V, C>>,
     {
-        writeln!(self.writer, "del id {}", ids.into_iter().format(" "))
+        write!(self.writer, "del id {} ;", ids.into_iter().format(" "))?;
+        self.write_subproof(proof)
     }
 
     /// Deletes an explicitly specified constraint
@@ -357,10 +384,11 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn update_objective<V, O>(&mut self, update: &ObjectiveUpdate<V, O>) -> io::Result<()>
+    pub fn update_objective<V, O, C>(&mut self, update: &ObjectiveUpdate<V, O, C>) -> io::Result<()>
     where
         V: VarLike,
         O: ObjectiveLike<V>,
+        C: ConstraintLike<V>,
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
         writeln!(self.writer, "obju {update}")
@@ -392,16 +420,17 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn redundant<V, C, I>(
+    pub fn redundant<V, C, SI, PI>(
         &mut self,
         constr: &C,
-        subs: I,
-        proof: Option<SubProof<V>>,
+        subs: SI,
+        proof: PI,
     ) -> io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
-        I: IntoIterator<Item = Substitution<V>>,
+        SI: IntoIterator<Item = Substitution<V>>,
+        PI: IntoIterator<Item = ProofGoal<V, C>>,
     {
         write!(
             self.writer,
@@ -409,14 +438,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        if let Some(proof) = proof {
-            writeln!(self.writer, " ; begin")?;
-            proof.write_indented(&mut self.writer, 2)?;
-            writeln!(self.writer)?;
-            writeln!(self.writer, "end")?;
-        } else {
-            writeln!(self.writer)?;
-        }
+        self.write_subproof(proof)?;
         Ok(self.new_id())
     }
 
@@ -429,16 +451,17 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn dominated<V, C, I>(
+    pub fn dominated<V, C, SI, PI>(
         &mut self,
         constr: &C,
-        subs: I,
-        proof: Option<SubProof<V>>,
+        subs: SI,
+        proof: PI,
     ) -> io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
-        I: IntoIterator<Item = Substitution<V>>,
+        SI: IntoIterator<Item = Substitution<V>>,
+        PI: IntoIterator<Item = ProofGoal<V, C>>,
     {
         write!(
             self.writer,
@@ -446,14 +469,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        if let Some(proof) = proof {
-            writeln!(self.writer, " ; begin")?;
-            proof.write_indented(&mut self.writer, 2)?;
-            writeln!(self.writer)?;
-            writeln!(self.writer, "end")?;
-        } else {
-            writeln!(self.writer)?;
-        }
+        self.write_subproof(proof)?;
         Ok(self.new_id())
     }
 
