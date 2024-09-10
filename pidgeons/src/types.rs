@@ -720,6 +720,7 @@ impl fmt::Display for OutputType {
 }
 
 /// Possible conclusions
+#[derive(Debug)]
 pub enum Conclusion<V: VarLike> {
     /// No conclusion
     None,
@@ -764,6 +765,7 @@ impl<V: VarLike> fmt::Display for Conclusion<V> {
     }
 }
 
+#[derive(Debug)]
 pub struct BoundsConclusion<V: VarLike> {
     pub(crate) range: Range<usize>,
     pub(crate) lb_id: Option<ConstraintId>,

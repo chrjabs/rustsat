@@ -69,7 +69,7 @@ use crate::types::{ConstrFormatter, ObjFormatter};
 ///
 /// **Note**: if the proof is dropped without calling [`Proof::end`], the proof is ended with
 /// output guarantee [`OutputGuarantee::None`] and [`Conclusion::None`].
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Proof<Writer: io::Write> {
     /// Where the proof is written to
     writer: Writer,
@@ -81,12 +81,16 @@ pub struct Proof<Writer: io::Write> {
     problem_type: ProblemType,
     /// The first ID of a constraint in the proof and not in the original instance
     first_proof_id: AbsConstraintId,
+    /// The default conclusion that will be written when the proof is dropped
+    default_conclusion: (OutputGuarantee, String),
 }
 
 impl<Writer: io::Write> Drop for Proof<Writer> {
     fn drop(&mut self) {
-        writeln!(self.writer, "output NONE").expect("could not finish writing proof");
-        writeln!(self.writer, "conclusion NONE").expect("could not finish writing proof");
+        writeln!(self.writer, "output {}", self.default_conclusion.0)
+            .expect("could not finish writing proof");
+        writeln!(self.writer, "conclusion {}", self.default_conclusion.1)
+            .expect("could not finish writing proof");
         writeln!(self.writer, "end pseudo-Boolean proof").expect("could not finish writing proof");
     }
 }
@@ -117,6 +121,50 @@ where
             next_pv: ProofOnlyVar(0),
             problem_type: ProblemType::default(),
             first_proof_id: next_id,
+            default_conclusion: (
+                OutputGuarantee::None,
+                format!("{}", Conclusion::<&str>::None),
+            ),
+        };
+        if optimization {
+            this.problem_type = ProblemType::Optimization;
+        }
+        this.verify_num_constraints(num_constraints)?;
+        Ok(this)
+    }
+
+    /// Initializes a proof with a given writer
+    ///
+    /// If the proof is dropped, it will conclude with the specified output guarantee and
+    /// conclusion
+    ///
+    /// # Performance
+    ///
+    /// For performance reasons, consider using a buffered writer (e.g., [`std::io::BufWriter`].
+    ///
+    /// # Proof Log
+    ///
+    /// This writes the proof header and an `f`-rule line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn new_with_conclusion<V: VarLike>(
+        mut writer: Writer,
+        num_constraints: usize,
+        optimization: bool,
+        output_guarantee: OutputGuarantee,
+        conclusion: &Conclusion<V>,
+    ) -> io::Result<Self> {
+        writeln!(writer, "pseudo-Boolean proof version 2.0")?;
+        let next_id = AbsConstraintId(unreachable_err!((num_constraints + 1).try_into()));
+        let mut this = Self {
+            writer,
+            next_id,
+            next_pv: ProofOnlyVar(0),
+            problem_type: ProblemType::default(),
+            first_proof_id: next_id,
+            default_conclusion: (output_guarantee, format!("{conclusion}")),
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
