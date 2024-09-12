@@ -1043,4 +1043,210 @@ mod tests {
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
     }
+
+    #[test]
+    fn totalizer_equal_clause_order() {
+        let mut db = Db::default();
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cert_cnf = Cnf::new();
+        let mut lits = [lit![0]; 4];
+        db.define_unweighted_cert(
+            root,
+            0,
+            Semantics::If,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_unweighted_cert(
+            root,
+            1,
+            Semantics::If,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_unweighted_cert(
+            root,
+            2,
+            Semantics::If,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_unweighted_cert(
+            root,
+            3,
+            Semantics::If,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+
+        let mut db = Db::default();
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        debug_assert_eq!(db[root].depth(), 3);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+
+        let mut norm_cnf = Cnf::new();
+        db.define_unweighted(root, 0, Semantics::If, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_unweighted(root, 1, Semantics::If, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_unweighted(root, 2, Semantics::If, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_unweighted(root, 3, Semantics::If, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+
+        assert_eq!(norm_cnf, cert_cnf);
+    }
+
+    #[test]
+    fn gte_equal_clause_order() {
+        let mut db = Db::default();
+        let root = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)]);
+        assert_eq!(root.offset(), 0);
+        assert_eq!(root.multiplier(), 1);
+        let root = root.id;
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cert_cnf = Cnf::new();
+        let mut lits = [(lit![0], 0); 4];
+        db.define_weighted_cert(
+            root,
+            1,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            2,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            3,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            4,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            5,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            6,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            7,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            8,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            9,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            10,
+            &mut cert_cnf,
+            &mut var_manager,
+            &mut proof,
+            &mut lits,
+        )
+        .unwrap();
+
+        let mut db = Db::default();
+        let root = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)]);
+        assert_eq!(root.offset(), 0);
+        assert_eq!(root.multiplier(), 1);
+        let root = root.id;
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+
+        let mut norm_cnf = Cnf::new();
+        db.define_weighted(root, 1, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 2, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 3, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 4, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 5, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 6, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 7, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 8, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 9, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+        db.define_weighted(root, 10, &mut norm_cnf, &mut var_manager)
+            .unwrap();
+
+        assert_eq!(norm_cnf, cert_cnf);
+    }
 }

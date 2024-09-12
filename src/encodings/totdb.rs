@@ -208,22 +208,6 @@ impl Db {
                     olit
                 };
 
-                // Propagate value
-                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
-                    if let Some(llit) =
-                        self.define_weighted(lcon.id, lcon.rev_map(val), collector, var_manager)?
-                    {
-                        collector.add_clause(atomics::lit_impl_lit(llit, olit))?;
-                    }
-                }
-                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
-                    if let Some(rlit) =
-                        self.define_weighted(rcon.id, rcon.rev_map(val), collector, var_manager)?
-                    {
-                        collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
-                    };
-                }
-
                 // Propagate sums
                 if lcon.map(lcon.offset() + 1) < val {
                     let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
@@ -250,6 +234,22 @@ impl Db {
                             }
                         }
                     }
+                }
+
+                // Propagate value
+                if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
+                    if let Some(llit) =
+                        self.define_weighted(lcon.id, lcon.rev_map(val), collector, var_manager)?
+                    {
+                        collector.add_clause(atomics::lit_impl_lit(llit, olit))?;
+                    }
+                }
+                if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
+                    if let Some(rlit) =
+                        self.define_weighted(rcon.id, rcon.rev_map(val), collector, var_manager)?
+                    {
+                        collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
+                    };
                 }
 
                 // Mark "if" semantics as encoded
