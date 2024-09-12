@@ -133,7 +133,7 @@ impl super::Db {
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
-        leafs: &mut [(Lit, usize)],
+        (leafs, leafs_init): (&mut [(Lit, usize)], bool),
     ) -> anyhow::Result<Option<Lit>>
     where
         Col: crate::encodings::CollectCertClauses,
@@ -147,7 +147,9 @@ impl super::Db {
         match &self[id] {
             Node::Leaf(lit) => {
                 debug_assert_eq!(val, 1);
-                leafs[0] = (*lit, 1);
+                if !leafs_init {
+                    leafs[0] = (*lit, 1);
+                }
                 if val != 1 {
                     return Ok(None);
                 }
@@ -166,10 +168,12 @@ impl super::Db {
                     collector,
                     var_manager,
                     proof,
-                    &mut unweighted_leafs,
+                    (&mut unweighted_leafs, leafs_init),
                 )?;
-                for (idx, &lit) in unweighted_leafs.iter().enumerate() {
-                    leafs[idx] = (lit, 1);
+                if !leafs_init {
+                    for (idx, &lit) in unweighted_leafs.iter().enumerate() {
+                        leafs[idx] = (lit, 1);
+                    }
                 }
                 Ok(Some(olit))
             }
@@ -182,8 +186,10 @@ impl super::Db {
                     } = lit_data
                     {
                         if semantics.has_if() {
-                            for (idx, leaf) in self.leaf_iter(id).enumerate() {
-                                leafs[idx] = leaf;
+                            if !leafs_init {
+                                for (idx, leaf) in self.leaf_iter(id).enumerate() {
+                                    leafs[idx] = leaf;
+                                }
                             }
                             return Ok(Some(*lit));
                         }
@@ -207,13 +213,25 @@ impl super::Db {
                     olit
                 };
 
+                let mut left_leafs_populated = leafs_init;
+                let mut right_leafs_populated = leafs_init;
+                if leafs_init {
+                    // to have the correct weights at the child nodes, need to reverse map the
+                    // populated leaf weights down
+                    for (idx, (_, w)) in leafs.iter_mut().enumerate() {
+                        if idx < self[lcon.id].n_leafs() {
+                            *w = lcon.rev_map(*w);
+                        } else {
+                            *w = rcon.rev_map(*w);
+                        }
+                    }
+                }
+
                 let (left_leafs, right_leafs) = leafs.split_at_mut(self[lcon.id].n_leafs());
 
                 // Propagate sums
                 // We do this first to have a higher chance of populating the leaf vector during
                 // recursion
-                let mut left_lits_populated = false;
-                let mut right_lits_populated = false;
                 if lcon.map(lcon.offset() + 1) < val {
                     let lvals = self[lcon.id].vals(lcon.offset() + 1..lcon.rev_map_round_up(val));
                     let rmax = self[rcon.id].max_val();
@@ -228,10 +246,9 @@ impl super::Db {
                                 collector,
                                 var_manager,
                                 proof,
-                                right_leafs,
+                                (right_leafs, right_leafs_populated),
                             )? {
-                                left_lits_populated = true;
-                                right_lits_populated = true;
+                                right_leafs_populated = true;
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
@@ -241,8 +258,9 @@ impl super::Db {
                                     collector,
                                     var_manager,
                                     proof,
-                                    left_leafs
+                                    (left_leafs, left_leafs_populated)
                                 )?);
+                                left_leafs_populated = true;
                                 let left_def = self.define_semantics(
                                     lcon.id,
                                     lval,
@@ -294,10 +312,10 @@ impl super::Db {
                         collector,
                         var_manager,
                         proof,
-                        left_leafs,
+                        (left_leafs, left_leafs_populated),
                     )? {
-                        left_lits_populated = true;
-                        if !right_lits_populated {
+                        left_leafs_populated = true;
+                        if !right_leafs_populated {
                             // We have not recursed down the right branch yet and therefore need to
                             // manually populate the right half of the leaf vector
                             for (idx, leaf) in self.leaf_iter(rcon.id).enumerate() {
@@ -351,9 +369,9 @@ impl super::Db {
                         collector,
                         var_manager,
                         proof,
-                        right_leafs,
+                        (right_leafs, right_leafs_populated),
                     )? {
-                        if !left_lits_populated {
+                        if !left_leafs_populated {
                             // We have not recursed down the left branch yet and therefore need to
                             // manually populate the left half of the leaf vector
                             for (idx, leaf) in self.leaf_iter(lcon.id).enumerate() {
@@ -405,9 +423,9 @@ impl super::Db {
                 // levels any more
                 for (idx, (_, w)) in leafs.iter_mut().enumerate() {
                     if idx < self[lcon.id].n_leafs() {
-                        *w *= lcon.multiplier();
+                        *w = lcon.map(*w);
                     } else {
-                        *w *= rcon.multiplier();
+                        *w = rcon.map(*w);
                     }
                 }
 
@@ -428,13 +446,15 @@ impl super::Db {
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
-        leafs: &mut [Lit],
+        (leafs, leafs_init): (&mut [Lit], bool),
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
         let (left_leafs, right_leafs) = leafs.split_at_mut(self[pre.lcon.id].n_leafs());
+        let mut left_leafs_populated = leafs_init;
+        let mut right_leafs_populated = leafs_init;
         for lval in pre.left_if.clone() {
             if lval == 0 {
                 continue;
@@ -446,8 +466,9 @@ impl super::Db {
                 collector,
                 var_manager,
                 proof,
-                left_leafs,
+                (left_leafs, left_leafs_populated),
             )?;
+            left_leafs_populated = true;
         }
         for rval in pre.right_if.clone() {
             if rval == 0 {
@@ -460,8 +481,9 @@ impl super::Db {
                 collector,
                 var_manager,
                 proof,
-                right_leafs,
+                (right_leafs, right_leafs_populated),
             )?;
+            right_leafs_populated = true;
         }
         for lval in pre.left_only_if.clone() {
             if lval == self.con_len(pre.lcon) {
@@ -474,8 +496,9 @@ impl super::Db {
                 collector,
                 var_manager,
                 proof,
-                left_leafs,
+                (left_leafs, left_leafs_populated),
             )?;
+            left_leafs_populated = true;
         }
         for rval in pre.right_only_if.clone() {
             if rval == self.con_len(pre.rcon) {
@@ -488,8 +511,9 @@ impl super::Db {
                 collector,
                 var_manager,
                 proof,
-                right_leafs,
+                (right_leafs, right_leafs_populated),
             )?;
+            right_leafs_populated = true;
         }
         Ok(())
     }
@@ -639,7 +663,7 @@ impl super::Db {
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
-        leafs: &mut [Lit],
+        (leafs, leafs_init): (&mut [Lit], bool),
     ) -> anyhow::Result<Lit>
     where
         Col: crate::encodings::CollectCertClauses,
@@ -649,8 +673,10 @@ impl super::Db {
 
         let pre = match self.precond_unweighted(id, idx, semantics) {
             PrecondOutcome::Return(lit) => {
-                let mut new_leafs: Vec<_> = self.leaf_iter(id).map(|(l, _)| l).collect();
-                leafs.swap_with_slice(&mut new_leafs);
+                if !leafs_init {
+                    let mut new_leafs = collect_leafs_unweighted(self, id);
+                    leafs.swap_with_slice(&mut new_leafs);
+                }
                 return Ok(lit);
             }
             PrecondOutcome::Passthrough(_) => {
@@ -664,7 +690,7 @@ impl super::Db {
         };
 
         // Encode children (recurse)
-        self.recurse_unweighted_cert(&pre, collector, var_manager, proof, leafs)?;
+        self.recurse_unweighted_cert(&pre, collector, var_manager, proof, (leafs, leafs_init))?;
 
         // Reserve variable for this node, if needed
         let olit = self.get_olit(id, idx, var_manager);
@@ -674,6 +700,11 @@ impl super::Db {
 
         Ok(olit)
     }
+}
+
+// This is a separate function to have a name for it while profiling
+fn collect_leafs_unweighted(db: &super::Db, id: NodeId) -> Vec<Lit> {
+    db.leaf_iter(id).map(|(l, _)| l).collect()
 }
 
 /// The semantic definitions related to a totalizer output
@@ -848,7 +879,7 @@ mod tests {
         let mut proof = new_proof(0, false);
 
         let mut cnf = Cnf::new();
-        let mut lits = [lit![0]; 4];
+        let mut leafs = [lit![0]; 4];
         db.define_unweighted_cert(
             root,
             0,
@@ -856,7 +887,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, false),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -866,7 +897,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -876,7 +907,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -886,7 +917,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
 
@@ -907,7 +938,7 @@ mod tests {
         let mut proof = new_proof(0, false);
 
         let mut cnf = Cnf::new();
-        let mut lits = [lit![0]; 4];
+        let mut leafs = [lit![0]; 4];
         db.define_unweighted_cert(
             root,
             0,
@@ -915,7 +946,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, false),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -925,7 +956,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -935,7 +966,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -945,7 +976,7 @@ mod tests {
             &mut cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
 
@@ -968,27 +999,97 @@ mod tests {
         let mut proof = new_proof(0, false);
 
         let mut cnf = Cnf::new();
-        let mut lits = [(lit![0], 0); 4];
-        db.define_weighted_cert(root, 1, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 2, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 3, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 4, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 5, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 6, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 7, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 8, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 9, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 10, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
+        let mut leafs = [(lit![0], 0); 4];
+        db.define_weighted_cert(
+            root,
+            1,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, false),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            2,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            3,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            4,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            5,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            6,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            7,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            8,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            9,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            10,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
 
         let proof_file = proof
             .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
@@ -1015,27 +1116,97 @@ mod tests {
         let mut proof = new_proof(0, false);
 
         let mut cnf = Cnf::new();
-        let mut lits = [(lit![0], 0); 5];
-        db.define_weighted_cert(root, 1, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 2, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 3, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 4, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 5, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 6, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 7, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 8, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 9, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
-        db.define_weighted_cert(root, 10, &mut cnf, &mut var_manager, &mut proof, &mut lits)
-            .unwrap();
+        let mut leafs = [(lit![0], 0); 5];
+        db.define_weighted_cert(
+            root,
+            1,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, false),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            2,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            3,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            4,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            5,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            6,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            7,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            8,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            9,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
+        db.define_weighted_cert(
+            root,
+            10,
+            &mut cnf,
+            &mut var_manager,
+            &mut proof,
+            (&mut leafs, true),
+        )
+        .unwrap();
 
         let proof_file = proof
             .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
@@ -1054,7 +1225,7 @@ mod tests {
         let mut proof = new_proof(0, false);
 
         let mut cert_cnf = Cnf::new();
-        let mut lits = [lit![0]; 4];
+        let mut leafs = [lit![0]; 4];
         db.define_unweighted_cert(
             root,
             0,
@@ -1062,7 +1233,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, false),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -1072,7 +1243,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -1082,7 +1253,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_unweighted_cert(
@@ -1092,7 +1263,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
 
@@ -1126,14 +1297,14 @@ mod tests {
         let mut proof = new_proof(0, false);
 
         let mut cert_cnf = Cnf::new();
-        let mut lits = [(lit![0], 0); 4];
+        let mut leafs = [(lit![0], 0); 4];
         db.define_weighted_cert(
             root,
             1,
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, false),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1142,7 +1313,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1151,7 +1322,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1160,7 +1331,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1169,7 +1340,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1178,7 +1349,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1187,7 +1358,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1196,7 +1367,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1205,7 +1376,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
         db.define_weighted_cert(
@@ -1214,7 +1385,7 @@ mod tests {
             &mut cert_cnf,
             &mut var_manager,
             &mut proof,
-            &mut lits,
+            (&mut leafs, true),
         )
         .unwrap();
 

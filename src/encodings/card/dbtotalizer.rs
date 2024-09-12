@@ -370,6 +370,7 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
         self.extend_tree();
         if let Some(id) = self.root {
             let mut leafs = vec![crate::lit![0]; self.db[id].n_leafs()];
+            let mut leafs_init = false;
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
@@ -380,8 +381,9 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
                     collector,
                     var_manager,
                     proof,
-                    &mut leafs,
+                    (&mut leafs, leafs_init),
                 )?;
+                leafs_init = true;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
@@ -429,8 +431,9 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
             return Ok(());
         }
         self.extend_tree();
-        let mut leafs = vec![crate::lit![0]; self.n_lits()];
         if let Some(id) = self.root {
+            let mut leafs = vec![crate::lit![0]; self.db[id].n_leafs()];
+            let mut leafs_init = false;
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
@@ -441,8 +444,9 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
                     collector,
                     var_manager,
                     proof,
-                    &mut leafs,
+                    (&mut leafs, leafs_init),
                 )?;
+                leafs_init = true;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;

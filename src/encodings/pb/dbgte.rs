@@ -398,7 +398,7 @@ impl super::cert::BoundUpperIncremental for DbGte {
                             collector,
                             var_manager,
                             proof,
-                            &mut leafs,
+                            (&mut leafs, false),
                         )?
                         .unwrap();
                     Ok::<(), anyhow::Error>(())
