@@ -86,7 +86,9 @@ pub mod tracer;
     not(feature = "v1-9-4"),
     not(feature = "v1-9-5"),
 ))]
-pub use tracer::{ClauseId, Conclusion, ProofTracerHandle, TraceProof};
+pub use tracer::{
+    CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ProofTracerHandle, TraceProof,
+};
 
 macro_rules! handle_oom {
     ($val:expr) => {{

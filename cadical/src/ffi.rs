@@ -72,9 +72,11 @@ pub extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_int) {
 pub mod tracer {
     use std::os::raw::{c_int, c_void};
 
-    use rustsat::types::{Clause, Lit};
+    use rustsat::types::Lit;
 
-    use super::super::{ClauseId, Conclusion, TraceProof};
+    use crate::CaDiCaLAssignment;
+
+    use super::super::{CaDiCaLClause, ClauseId, Conclusion, TraceProof};
 
     pub const DISPATCH_CALLBACKS: super::CCaDiCaLTraceCallbacks = super::CCaDiCaLTraceCallbacks {
         add_original_clause: Some(rustsat_ccadical_add_original_clause),
@@ -94,16 +96,6 @@ pub mod tracer {
         conclude_sat: Some(rustsat_ccadical_conclude_sat),
     };
 
-    fn construct_clause(cl_len: usize, cl_data: *const c_int) -> Clause {
-        let slice = unsafe { std::slice::from_raw_parts(cl_data, cl_len) };
-        slice
-            .iter()
-            .map(|&clit| {
-                Lit::from_ipasir(clit).expect("proof tracer got invalid literal from CaDiCaL")
-            })
-            .collect()
-    }
-
     extern "C" fn rustsat_ccadical_add_original_clause(
         tracer: *mut c_void,
         id: u64,
@@ -113,8 +105,8 @@ pub mod tracer {
         restored: bool,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
-        (*tracer).add_original_clause(ClauseId(id), redundant, &clause, restored);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
+        tracer.add_original_clause(ClauseId(id), redundant, &clause, restored);
     }
 
     extern "C" fn rustsat_ccadical_add_derived_clause(
@@ -127,7 +119,7 @@ pub mod tracer {
         an_data: *const u64,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
         let antecedents = unsafe { std::slice::from_raw_parts(an_data.cast::<ClauseId>(), an_len) };
         tracer.add_derived_clause(ClauseId(id), redundant, &clause, antecedents);
     }
@@ -140,7 +132,7 @@ pub mod tracer {
         cl_data: *const c_int,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
         tracer.delete_clause(ClauseId(id), redundant, &clause);
     }
 
@@ -151,7 +143,7 @@ pub mod tracer {
         cl_data: *const c_int,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
         tracer.weaken_minus(ClauseId(id), &clause);
     }
 
@@ -180,7 +172,7 @@ pub mod tracer {
         cl_data: *const c_int,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
         tracer.finalize_clause(ClauseId(id), &clause);
     }
 
@@ -207,7 +199,7 @@ pub mod tracer {
         cl_data: *const c_int,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
         tracer.add_constraint(&clause);
     }
 
@@ -225,7 +217,7 @@ pub mod tracer {
         an_data: *const u64,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let clause = construct_clause(cl_len, cl_data);
+        let clause = CaDiCaLClause::new(cl_len, cl_data);
         let antecedents = unsafe { std::slice::from_raw_parts(an_data.cast::<ClauseId>(), an_len) };
         tracer.add_assumption_clause(ClauseId(id), &clause, antecedents);
     }
@@ -253,13 +245,7 @@ pub mod tracer {
         sol_data: *const c_int,
     ) {
         let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
-        let slice = unsafe { std::slice::from_raw_parts(sol_data, sol_len) };
-        let solution: rustsat::types::Assignment = slice
-            .iter()
-            .map(|&clit| {
-                Lit::from_ipasir(clit).expect("proof tracer got invalid literal from CaDiCaL")
-            })
-            .collect();
-        tracer.conclude_sat(&solution);
+        let assignment = CaDiCaLAssignment::new(sol_len, sol_data);
+        tracer.conclude_sat(&assignment);
     }
 }
