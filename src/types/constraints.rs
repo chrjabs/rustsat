@@ -319,6 +319,17 @@ impl pidgeons::ConstraintLike<crate::types::Var> for Clause {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl pidgeons::ConstraintLike<crate::types::Var> for Cl {
+    fn rhs(&self) -> isize {
+        1
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+        self.lits.iter().map(|l| (1, pidgeons::Axiom::from(*l)))
+    }
+}
+
 /// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
