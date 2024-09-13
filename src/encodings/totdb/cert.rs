@@ -60,6 +60,8 @@ impl super::Db {
             }
             return Ok(SemDefinition::None);
         }
+        #[cfg(feature = "verbose-proofs")]
+        proof.comment(&format_args!("output semantics for node {id}, value {val}",))?;
         // must always add both semantic definitions straight away, later they might not be
         // trivially redundant anymore
         let defs = if val == 0 {
@@ -228,6 +230,11 @@ impl super::Db {
                 }
 
                 let (left_leafs, right_leafs) = leafs.split_at_mut(self[lcon.id].n_leafs());
+
+                #[cfg(feature = "verbose-proofs")]
+                proof.comment(&format_args!(
+                    "derive GTE clauses for node {id}, value {val}",
+                ))?;
 
                 // Propagate sums
                 // We do this first to have a higher chance of populating the leaf vector during
@@ -550,6 +557,12 @@ impl super::Db {
         self[id].mut_unit().lits[idx].add_semantics(req_semantics);
 
         let (left_leafs, right_leafs) = leafs.split_at(self[pre.lcon.id].n_leafs());
+
+        #[cfg(feature = "verbose-proofs")]
+        proof.comment(&format_args!(
+            "derive totalizer clauses for node {id}, value {}",
+            idx + 1
+        ))?;
 
         // Encode
         // If semantics
