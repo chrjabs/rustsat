@@ -305,9 +305,7 @@ fn build(repo: &str, branch: &str, version: Version) {
         .compile("cadical");
 }
 
-/// Returns true if there were changes, false if not
-fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: PathBuf) -> bool {
-    let mut changed = false;
+fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: PathBuf) {
     let repo = if let Ok(repo) = git2::Repository::open(repo_path) {
         if repo.find_reference(reference).is_err() {
             // Fetch repo
@@ -318,7 +316,6 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
                 panic!("Could not fetch \"origin/{branch}\" for git repo {repo_path:?}: {e}")
             });
             drop(remote);
-            changed = true;
         }
         repo
     } else {
@@ -331,7 +328,6 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
                 )
             });
         };
-        changed = true;
         git2::Repository::clone(url, repo_path)
             .unwrap_or_else(|e| panic!("Could not clone repository {url}: {e}"))
     };
@@ -350,11 +346,16 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
 
     apply_patch(&repo, patch);
 
-    changed
+    // Allow for manually applying patches
+    if let Ok(patches) = std::env::var("CADICAL_PATCHES") {
+        for patch in patches.split(':') {
+            apply_patch(&repo, patch);
+        }
+    }
 }
 
 /// Applies a patch to the repo
-fn apply_patch(repo: &Repository, patch: PathBuf) {
+fn apply_patch<P: AsRef<Path>>(repo: &Repository, patch: P) {
     let mut f = File::open(patch).unwrap();
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).unwrap();
