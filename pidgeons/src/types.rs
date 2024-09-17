@@ -259,6 +259,17 @@ impl<V: VarLike> ConstraintLike<V> for Axiom<V> {
     }
 }
 
+impl<V: VarLike> ops::Not for Axiom<V> {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Axiom {
+            neg: !self.neg,
+            var: self.var,
+        }
+    }
+}
+
 /// A substitution of a variable to a value or a literal
 #[derive(Debug, Clone, Copy)]
 pub struct Substitution<V: VarLike> {

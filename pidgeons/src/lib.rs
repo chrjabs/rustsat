@@ -917,6 +917,11 @@ pub trait VarLike: Copy + Eq + std::hash::Hash {
         }
     }
 
+    /// Gets an axiom with specified negation
+    fn axiom(self, neg: bool) -> Axiom<Self> {
+        Axiom { neg, var: self }
+    }
+
     /// Substitutes the variables with a fixed value
     fn substitute_fixed(self, value: bool) -> Substitution<Self> {
         Substitution {
