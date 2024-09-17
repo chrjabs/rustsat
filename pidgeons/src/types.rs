@@ -279,6 +279,19 @@ pub struct Substitution<V: VarLike> {
     pub(crate) sub: SubstituteWith<V>,
 }
 
+impl<V: VarLike> From<Axiom<V>> for Substitution<V> {
+    fn from(value: Axiom<V>) -> Self {
+        Self {
+            var: value.var,
+            sub: if value.neg {
+                SubstituteWith::False
+            } else {
+                SubstituteWith::True
+            },
+        }
+    }
+}
+
 impl<V: VarLike> Substitution<V> {
     /// Crates a new substitution
     pub fn new(v: V, with: SubstituteWith<V>) -> Self {
