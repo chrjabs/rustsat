@@ -133,6 +133,16 @@ impl DbGte {
         }
     }
 
+    /// Checks if the input literal buffer is empty, i.e., all input literals are included in the
+    /// encoding.
+    ///
+    /// Even after encodings, this might not be the case, if an input literal has a heigher weight
+    /// than the bound encoded for
+    #[must_use]
+    pub fn is_buffer_empty(&self) -> bool {
+        self.lit_buffer.is_empty()
+    }
+
     /// From an assignment to the input literals, generates an assignment over the totalizer
     /// variables following strict semantics, i.e., `sum >= k <-> olit`
     ///
