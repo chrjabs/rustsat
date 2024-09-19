@@ -173,6 +173,15 @@ where
         Ok(this)
     }
 
+    /// Updates the conclusion that is automatically written to the proof if it is dropped
+    pub fn update_default_conclusion<V: VarLike>(
+        &mut self,
+        output_guarantee: OutputGuarantee,
+        conclusion: &Conclusion<V>,
+    ) {
+        self.default_conclusion = (output_guarantee, format!("{conclusion}"));
+    }
+
     /// Gets a new [`AbsConstraintId`] and increments the counter
     #[must_use]
     fn new_id(&mut self) -> AbsConstraintId {
