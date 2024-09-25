@@ -906,7 +906,7 @@ where
 /// Trait that needs to be implemented for types used as variables
 ///
 /// A call to [`fmt::Display`] on this type must produce a valid VeriPB variable
-pub trait VarLike: Copy + Eq + std::hash::Hash {
+pub trait VarLike: Copy + Eq + std::hash::Hash + std::fmt::Debug {
     /// Formatter type that if constructed from a variable must display a valid VeriPB variable
     type Formatter: fmt::Display + From<Self>;
 

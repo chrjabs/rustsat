@@ -5,7 +5,7 @@
 use std::{
     fmt,
     num::NonZeroUsize,
-    ops::{Add, Div, Mul},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign},
 };
 
 use itertools::Itertools;
@@ -170,12 +170,29 @@ impl<V: VarLike> Mul<usize> for OperationSequence<V> {
     type Output = OperationSequence<V>;
 
     fn mul(mut self, rhs: usize) -> Self::Output {
-        if !self.is_empty() {
+        if rhs == 0 {
+            return OperationSequence::empty();
+        }
+        if !self.is_empty() && rhs > 1 {
             self.push(Operation::Mult(
                 rhs.try_into().expect("cannot multiply by zero"),
             ));
         }
         self
+    }
+}
+
+impl<V: VarLike> MulAssign<usize> for OperationSequence<V> {
+    fn mul_assign(&mut self, rhs: usize) {
+        if rhs == 0 {
+            *self = OperationSequence::empty();
+            return;
+        }
+        if !self.is_empty() && rhs > 1 {
+            self.push(Operation::Mult(
+                rhs.try_into().expect("cannot multiply by zero"),
+            ));
+        }
     }
 }
 
@@ -197,6 +214,16 @@ impl<V: VarLike> Div<usize> for OperationSequence<V> {
             ));
         }
         self
+    }
+}
+
+impl<V: VarLike> DivAssign<usize> for OperationSequence<V> {
+    fn div_assign(&mut self, rhs: usize) {
+        if !self.is_empty() {
+            self.push(Operation::Div(
+                rhs.try_into().expect("cannot divide by zero"),
+            ));
+        }
     }
 }
 
@@ -273,11 +300,30 @@ impl<V: VarLike, O: Into<OperationSequence<V>>> Add<O> for OperationSequence<V> 
 
     fn add(mut self, rhs: O) -> Self::Output {
         let rhs = Into::<OperationSequence<V>>::into(rhs);
-        if !self.is_empty() && !rhs.is_empty() {
-            self.0.extend(rhs.0);
-            self.push(Operation::Add);
+        if self.is_empty() {
+            return rhs;
         }
+        if rhs.is_empty() {
+            return self;
+        }
+        self.0.extend(rhs.0);
+        self.push(Operation::Add);
         self
+    }
+}
+
+impl<V: VarLike, O: Into<OperationSequence<V>>> AddAssign<O> for OperationSequence<V> {
+    fn add_assign(&mut self, rhs: O) {
+        let rhs = Into::<OperationSequence<V>>::into(rhs);
+        let was_empty = self.is_empty();
+        if rhs.is_empty() {
+            return;
+        }
+        self.0.extend(rhs.0);
+        if was_empty {
+            return;
+        }
+        self.push(Operation::Add);
     }
 }
 
