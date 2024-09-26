@@ -1,19 +1,22 @@
 //! # Certified Totalizer Database
 
-use std::ops;
+use std::{
+    num::{NonZero, NonZeroUsize},
+    ops,
+};
 
 use crate::{
     encodings::{
         atomics,
-        nodedb::{NodeById, NodeId, NodeLike},
+        nodedb::{NodeById, NodeCon, NodeId, NodeLike},
     },
     instances::ManageVars,
     lit,
-    types::{Lit, Var},
+    types::{constraints::PbConstraint, Lit, Var},
     utils::unreachable_none,
 };
 
-use pidgeons::{AbsConstraintId, VarLike};
+use pidgeons::{AbsConstraintId, Axiom, OperationLike, OperationSequence, VarLike};
 
 use super::{con_idx, LitData, Node, PrecondOutcome, Semantics, UnitNode, UnweightedPrecondResult};
 
@@ -32,92 +35,302 @@ macro_rules! get_olit {
 }
 
 impl super::Db {
+    #[expect(clippy::too_many_arguments)]
     fn define_semantics<W>(
         &mut self,
         id: NodeId,
-        val: usize,
+        offset: usize,
+        mut len_limit: Option<NonZeroUsize>,
+        value: usize,
         typ: SemDefTyp,
-        leafs: impl Iterator<Item = (Lit, usize)>,
+        leafs: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pidgeons::Proof<W>,
     ) -> std::io::Result<SemDefinition>
     where
         W: std::io::Write,
     {
-        use crate::types::constraints::PbConstraint;
+        debug_assert!(value <= self[id].max_val() + 1);
+        debug_assert!(offset <= self[id].max_val());
 
-        debug_assert!(val <= self[id].max_val() + 1);
-        if let Some(defs) = self.semantic_defs.get(&(id, val)) {
+        // If the limit is trivial, remove it
+        if let Some(limit) = len_limit {
+            if limit.get() + offset >= self[id].max_val() {
+                len_limit = None;
+            }
+        }
+
+        let def_id = SemDefId {
+            id,
+            value,
+            offset,
+            len_limit,
+        };
+
+        if let Some(defs) = self.semantic_defs.get(&def_id) {
             return Ok(defs.get(typ).into());
         }
-        if self[id].is_leaf() {
-            if val == 0 && typ == SemDefTyp::OnlyIf {
-                let olit = *self[id].lit(1).unwrap();
+
+        if self[id].is_leaf()
+            || offset + 1 >= self[id].max_val()
+            || len_limit.is_some_and(|lim| lim.get() == 1)
+        {
+            // leaf or pseudo-leaf, i.e., only transmitting a single literal
+            if value == 0 && typ == SemDefTyp::OnlyIf {
+                let olit = *self[id].lit(offset + 1).unwrap();
                 return Ok(olit.into());
             }
-            if val == 2 && typ == SemDefTyp::If {
-                let olit = *self[id].lit(1).unwrap();
+            if value == 2 && typ == SemDefTyp::If {
+                let olit = *self[id].lit(offset + 1).unwrap();
                 return Ok((!olit).into());
             }
             return Ok(SemDefinition::None);
         }
+
+        if offset == 0 && len_limit.is_none() {
+            // "normal" case, i.e., semantics need not be rewritten
+            let defs = self.define_real_semantics(id, value, leafs, proof)?;
+            return Ok(defs.get(typ).into());
+        }
+
+        // because of offset or len_limit, semantics need to be rewritten in terms of the outputs
+        // itself. this function define all possibly required pseudo semantics at once to not get issues where
+        // we get proof obligations from the semantics of the nodes above
+        let defs = self.define_pseudo_semantics(id, offset, len_limit, value, leafs, proof)?;
+        Ok(defs.get(typ).into())
+    }
+
+    fn define_real_semantics<W>(
+        &mut self,
+        id: NodeId,
+        value: usize,
+        leafs: impl Iterator<Item = (Lit, usize)> + Clone,
+        proof: &mut pidgeons::Proof<W>,
+    ) -> std::io::Result<SemDefs>
+    where
+        W: std::io::Write,
+    {
+        let def_id = SemDefId {
+            id,
+            value,
+            offset: 0,
+            len_limit: None,
+        };
+
+        let sum = PbConstraint::new_lb_unsigned(
+            leafs.clone(),
+            isize::try_from(value).expect("cannot handle values larger than `isize::MAX`"),
+        );
+
         #[cfg(feature = "verbose-proofs")]
-        proof.comment(&format_args!("output semantics for node {id}, value {val}",))?;
+        proof.comment(&format_args!(
+            "output semantics for node {id}, value {value}",
+        ))?;
         // must always add both semantic definitions straight away, later they might not be
         // trivially redundant anymore
-        let defs = if val == 0 {
-            let sem = PbConstraint::new_lb(
-                leafs.map(|(l, w)| {
-                    (
-                        l,
-                        isize::try_from(w).expect("cannot handle weights larger than `isize::MAX`"),
-                    )
-                }),
-                isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
-            );
-            SemDefs::new(None, Some(proof.redundant::<Var, _, _, _>(&sem, [], [])?))
-        } else if val > self[id].max_val() {
-            let sem = PbConstraint::new_lb(
-                leafs.map(|(l, w)| {
-                    (
-                        !l,
-                        isize::try_from(w).expect("cannot handle values larger than `isize::MAX`"),
-                    )
-                }),
-                0,
-            );
-            SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sem, [], [])?), None)
+        let defs = if value == 0 {
+            SemDefs::new(None, Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?))
+        } else if value > self[id].max_val() {
+            let sum = PbConstraint::new_lb_unsigned(leafs.map(|(l, w)| (!l, w)), 0);
+            SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?), None)
         } else {
-            let olit = *self[id].lit(val).unwrap();
-            let sem = PbConstraint::new_lb(
-                leafs.map(|(l, w)| {
-                    (
-                        l,
-                        isize::try_from(w).expect("cannot handle weights larger than `isize::MAX`"),
-                    )
-                }),
-                isize::try_from(val).expect("cannot handle values larger than `isize::MAX`"),
-            );
+            let olit = *self[id].lit(value).unwrap();
             SemDefs::new(
                 Some(proof.redundant(
-                    &atomics::pb_impl_lit(&sem, olit),
+                    &atomics::pb_impl_lit(&sum, olit),
                     [olit.var().substitute_fixed(true)],
                     None,
                 )?),
                 Some(proof.redundant(
-                    &atomics::lit_impl_pb(olit, &sem),
+                    &atomics::lit_impl_pb(olit, &sum),
                     [olit.var().substitute_fixed(false)],
                     None,
                 )?),
             )
         };
-        self.semantic_defs.insert((id, val), defs);
-        Ok(defs.get(typ).into())
+        debug_assert!(!self.semantic_defs.contains_key(&def_id));
+        self.semantic_defs.insert(def_id, defs);
+        Ok(defs)
+    }
+
+    #[expect(clippy::too_many_lines)]
+    fn define_pseudo_semantics<W>(
+        &mut self,
+        id: NodeId,
+        offset: usize,
+        len_limit: Option<NonZeroUsize>,
+        value: usize,
+        leafs: impl Iterator<Item = (Lit, usize)> + Clone,
+        proof: &mut pidgeons::Proof<W>,
+    ) -> std::io::Result<SemDefs>
+    where
+        W: std::io::Write,
+    {
+        debug_assert!(offset > 0 || len_limit.is_some());
+
+        // Check that the rewritten sum matches what we were passed as leafs
+        {
+            let mut sum = offset;
+            debug_assert!(leafs.clone().eq(self[id].vals(offset + 1..).map(|val| {
+                let cf = val - sum;
+                sum = val;
+                (self[id][val], cf)
+            })));
+        }
+
+        #[cfg(feature = "verbose-proofs")]
+        proof.comment(&format_args!(
+            "pseudo semantics for node {id}, offset {offset}, len_limit {len_limit:?}",
+        ))?;
+
+        let mut output_defs = None;
+
+        // These are the pseudo semantics for `value == offset`
+        #[cfg(feature = "verbose-proofs")]
+        proof.comment(&"value == offset")?;
+        let defs = SemDefs::new(
+            None,
+            Some(proof.redundant::<Var, _, _, _>(
+                &PbConstraint::new_lb_unsigned(leafs.clone(), 0),
+                [],
+                [],
+            )?),
+        );
+        let def_id = SemDefId {
+            id,
+            value: offset,
+            offset,
+            len_limit,
+        };
+        debug_assert!(!self.semantic_defs.contains_key(&def_id));
+        self.semantic_defs.insert(def_id, defs);
+        if value == offset {
+            output_defs = Some(defs);
+        }
+
+        let mut true_leafs: Vec<_> = vec![];
+        // NOTE: the `.take(usize::MAX)` here and below is slightly hacky in order to get the same
+        // type no matter whether `len_limit` is some or none
+        for val in self[id]
+            .vals(offset + 1..)
+            .take(len_limit.map_or(usize::MAX, NonZero::get))
+        {
+            if self.get_semantics(id, val).is_none() {
+                if true_leafs.is_empty() {
+                    true_leafs = self.leaf_iter(id).collect();
+                }
+                self.define_real_semantics(id, val, true_leafs.iter().copied(), proof)?;
+            }
+        }
+
+        // NOTE: the `.take(usize::MAX)` here and below is slightly hacky in order to get the same
+        // type no matter whether `len_limit` is some or none
+        for main_val in self[id]
+            .vals(offset + 1..)
+            .take(len_limit.map_or(usize::MAX, NonZero::get))
+        {
+            #[cfg(feature = "verbose-proofs")]
+            proof.comment(&format_args!("pseudo semantics value {main_val}"))?;
+            let this_defs = self
+                .get_semantics(id, main_val)
+                .expect("should have been defined above");
+            // the actual rewrite happens here
+            let mut if_def = OperationSequence::<Var>::empty();
+            let mut only_if_def = OperationSequence::<Var>::empty();
+            let mut last_val = offset;
+            for sub_val in self[id]
+                .vals(offset + 1..)
+                .take(len_limit.map_or(usize::MAX, NonZero::get))
+            {
+                let defs = self
+                    .get_semantics(id, sub_val)
+                    .expect("should have added the definitions earlier");
+                match sub_val.cmp(&main_val) {
+                    std::cmp::Ordering::Less => {
+                        if_def += Axiom::from(!self[id][sub_val]) * (sub_val - last_val);
+                        only_if_def +=
+                            (((OperationSequence::<Var>::from(this_defs.only_if_def.unwrap())
+                                + defs.if_def.unwrap())
+                                / (main_val - sub_val + 1))
+                                .saturate())
+                                * (sub_val - last_val);
+                    }
+                    std::cmp::Ordering::Greater => {
+                        if_def += (((OperationSequence::<Var>::from(this_defs.if_def.unwrap())
+                            + defs.only_if_def.unwrap())
+                            / (sub_val - main_val + 1))
+                            .saturate())
+                            * (sub_val - last_val);
+                        only_if_def += Axiom::from(self[id][sub_val]) * (sub_val - last_val);
+                    }
+                    std::cmp::Ordering::Equal => {
+                        if_def += Axiom::from(!self[id][sub_val]) * (sub_val - last_val - 1);
+                    }
+                }
+                last_val = sub_val;
+            }
+            let if_def = proof.operations::<Var>(&if_def)?;
+            let only_if_def = proof.operations::<Var>(&only_if_def)?;
+            #[cfg(feature = "verbose-proofs")]
+            {
+                let sum = PbConstraint::new_lb_unsigned(
+                    leafs.clone(),
+                    isize::try_from(main_val - offset)
+                        .expect("cannot handle values larger than `isize::MAX`"),
+                );
+                let olit = self[id][main_val];
+                proof.equals(&atomics::pb_impl_lit(&sum, olit), Some(if_def.into()))?;
+                proof.equals(&atomics::lit_impl_pb(olit, &sum), Some(only_if_def.into()))?;
+            }
+            let defs = SemDefs::new(Some(if_def), Some(only_if_def));
+
+            let def_id = SemDefId {
+                id,
+                value: main_val,
+                offset,
+                len_limit,
+            };
+            debug_assert!(!self.semantic_defs.contains_key(&def_id));
+            self.semantic_defs.insert(def_id, defs);
+            if main_val == value {
+                output_defs = Some(defs);
+            }
+        }
+
+        if matches!(self[id], Node::Unit(_)) {
+            // NOTE: these semantics are only needed to encode the "only if" direction, and
+            // therefore only for unweighteed nodes. For weighted nodes, determining what `max_cost
+            // + 1` is is not so trivial.
+            let sum = PbConstraint::new_lb_unsigned(leafs.map(|(l, w)| (!l, w)), 0);
+            #[cfg(feature = "verbose-proofs")]
+            proof.comment(&"value > max")?;
+            let defs = SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?), None);
+            let def_id = SemDefId {
+                id,
+                value: len_limit.map_or(self[id].max_val() + 1, |lim| lim.get() + offset + 1),
+                offset,
+                len_limit,
+            };
+            debug_assert!(!self.semantic_defs.contains_key(&def_id));
+            self.semantic_defs.insert(def_id, defs);
+            if value == def_id.value {
+                output_defs = Some(defs);
+            }
+        }
+
+        Ok(output_defs.expect("`value` should have been included in `vals`"))
     }
 
     /// Gets the semantic definitions for an output value, if they exist
     #[must_use]
     pub fn get_semantics(&self, id: NodeId, value: usize) -> Option<SemDefs> {
-        self.semantic_defs.get(&(id, value)).copied()
+        self.semantic_defs
+            .get(&SemDefId {
+                id,
+                value,
+                offset: 0,
+                len_limit: None,
+            })
+            .copied()
     }
 
     /// Generates the encoding to define the positive output literal with value `val`, if it is not
@@ -127,7 +340,9 @@ impl super::Db {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// - If writing the proof fails, returns [`std::io::Error`].
+    #[expect(clippy::too_many_lines)]
     pub fn define_weighted_cert<Col, W>(
         &mut self,
         id: NodeId,
@@ -135,8 +350,8 @@ impl super::Db {
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
-        (leafs, leafs_init): (&mut [(Lit, usize)], bool),
-    ) -> anyhow::Result<Option<Lit>>
+        (leafs, mut leafs_init, leafs_needed): (&mut [(Lit, usize)], bool, bool),
+    ) -> anyhow::Result<Option<(Lit, bool)>>
     where
         Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
@@ -151,11 +366,12 @@ impl super::Db {
                 debug_assert_eq!(val, 1);
                 if !leafs_init {
                     leafs[0] = (*lit, 1);
+                    leafs_init = true;
                 }
                 if val != 1 {
                     return Ok(None);
                 }
-                Ok(Some(*lit))
+                Ok(Some((*lit, leafs_init)))
             }
             Node::Unit(node) => {
                 if val > node.lits.len() || val == 0 {
@@ -163,21 +379,22 @@ impl super::Db {
                 }
 
                 let mut unweighted_leafs: Vec<_> = leafs.iter().map(|(l, _)| *l).collect();
-                let olit = self.define_unweighted_cert(
+                let (olit, _) = self.define_unweighted_cert(
                     id,
                     val - 1,
                     Semantics::If,
                     collector,
                     var_manager,
                     proof,
-                    (&mut unweighted_leafs, leafs_init),
+                    (&mut unweighted_leafs, leafs_init, leafs_needed),
                 )?;
-                if !leafs_init {
+                if leafs_needed && !leafs_init {
                     for (idx, &lit) in unweighted_leafs.iter().enumerate() {
                         leafs[idx] = (lit, 1);
                     }
+                    leafs_init = true;
                 }
-                Ok(Some(olit))
+                Ok(Some((olit, leafs_init)))
             }
             Node::General(node) => {
                 // Check if already encoded
@@ -192,8 +409,9 @@ impl super::Db {
                                 for (idx, leaf) in self.leaf_iter(id).enumerate() {
                                     leafs[idx] = leaf;
                                 }
+                                leafs_init = true;
                             }
-                            return Ok(Some(*lit));
+                            return Ok(Some((*lit, leafs_init)));
                         }
                     }
                 } else {
@@ -218,18 +436,28 @@ impl super::Db {
                 let mut left_leafs_populated = leafs_init;
                 let mut right_leafs_populated = leafs_init;
                 if leafs_init {
-                    // to have the correct weights at the child nodes, need to reverse map the
-                    // populated leaf weights down
+                    // to have the correct weights at the child nodes, need to divide the
+                    // populated leaf weights
+                    debug_assert_eq!(lcon.divisor(), 1);
+                    debug_assert_eq!(rcon.divisor(), 1);
                     for (idx, (_, w)) in leafs.iter_mut().enumerate() {
                         if idx < self[lcon.id].n_leafs() {
-                            *w = lcon.rev_map(*w);
+                            *w /= lcon.multiplier();
                         } else {
-                            *w = rcon.rev_map(*w);
+                            *w /= rcon.multiplier();
                         }
                     }
                 }
 
-                let (left_leafs, right_leafs) = leafs.split_at_mut(self[lcon.id].n_leafs());
+                let n_left_leafs = lcon.len_limit.map_or(
+                    if lcon.offset() == 0 {
+                        self[lcon.id].n_leafs()
+                    } else {
+                        self[lcon.id].vals(lcon.offset() + 1..).count()
+                    },
+                    NonZero::get,
+                );
+                let (left_leafs, right_leafs) = leafs.split_at_mut(n_left_leafs);
 
                 #[cfg(feature = "verbose-proofs")]
                 proof.comment(&format_args!(
@@ -247,8 +475,8 @@ impl super::Db {
                         debug_assert!(rval > 0);
                         let rval_rev = rcon.rev_map(rval);
                         if rcon.is_possible(rval) && rval_rev <= rmax {
-                            if let Some(rlit) = self.define_weighted_cert(
-                                rcon.id,
+                            if let Some(rlit) = self.define_weighted_treat_pseudo_leafs(
+                                rcon,
                                 rval_rev,
                                 collector,
                                 var_manager,
@@ -259,17 +487,20 @@ impl super::Db {
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
-                                let llit = unreachable_none!(self.define_weighted_cert(
-                                    lcon.id,
-                                    lval,
-                                    collector,
-                                    var_manager,
-                                    proof,
-                                    (left_leafs, left_leafs_populated)
-                                )?);
+                                let llit = unreachable_none!(self
+                                    .define_weighted_treat_pseudo_leafs(
+                                        lcon,
+                                        lval,
+                                        collector,
+                                        var_manager,
+                                        proof,
+                                        (left_leafs, left_leafs_populated)
+                                    )?);
                                 left_leafs_populated = true;
                                 let left_def = self.define_semantics(
                                     lcon.id,
+                                    lcon.offset(),
+                                    lcon.len_limit,
                                     lval,
                                     SemDefTyp::OnlyIf,
                                     left_leafs.iter().copied(),
@@ -277,6 +508,8 @@ impl super::Db {
                                 )?;
                                 let right_def = self.define_semantics(
                                     rcon.id,
+                                    rcon.offset(),
+                                    rcon.len_limit,
                                     rval_rev,
                                     SemDefTyp::OnlyIf,
                                     right_leafs.iter().copied(),
@@ -284,6 +517,8 @@ impl super::Db {
                                 )?;
                                 let this_def = self.define_semantics(
                                     id,
+                                    0,
+                                    None,
                                     val,
                                     SemDefTyp::If,
                                     left_leafs
@@ -313,8 +548,8 @@ impl super::Db {
 
                 // Propagate value
                 if lcon.is_possible(val) && lcon.rev_map(val) <= self[lcon.id].max_val() {
-                    if let Some(llit) = self.define_weighted_cert(
-                        lcon.id,
+                    if let Some(llit) = self.define_weighted_treat_pseudo_leafs(
+                        lcon,
                         lcon.rev_map(val),
                         collector,
                         var_manager,
@@ -328,9 +563,12 @@ impl super::Db {
                             for (idx, leaf) in self.leaf_iter(rcon.id).enumerate() {
                                 right_leafs[idx] = leaf;
                             }
+                            right_leafs_populated = true;
                         }
                         let left_def = self.define_semantics(
                             lcon.id,
+                            lcon.offset(),
+                            lcon.len_limit,
                             lcon.rev_map(val),
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
@@ -338,13 +576,17 @@ impl super::Db {
                         )?;
                         let right_def = self.define_semantics(
                             rcon.id,
-                            0,
+                            rcon.offset(),
+                            rcon.len_limit,
+                            rcon.offset(),
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
                             proof,
                         )?;
                         let this_def = self.define_semantics(
                             id,
+                            0,
+                            None,
                             val,
                             SemDefTyp::If,
                             left_leafs
@@ -370,30 +612,36 @@ impl super::Db {
                     }
                 }
                 if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
-                    if let Some(rlit) = self.define_weighted_cert(
-                        rcon.id,
+                    if let Some(rlit) = self.define_weighted_treat_pseudo_leafs(
+                        rcon,
                         rcon.rev_map(val),
                         collector,
                         var_manager,
                         proof,
                         (right_leafs, right_leafs_populated),
                     )? {
+                        right_leafs_populated = true;
                         if !left_leafs_populated {
                             // We have not recursed down the left branch yet and therefore need to
                             // manually populate the left half of the leaf vector
                             for (idx, leaf) in self.leaf_iter(lcon.id).enumerate() {
                                 left_leafs[idx] = leaf;
                             }
+                            left_leafs_populated = true;
                         }
                         let left_def = self.define_semantics(
                             lcon.id,
-                            0,
+                            lcon.offset(),
+                            lcon.len_limit,
+                            lcon.offset(),
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
                         )?;
                         let right_def = self.define_semantics(
                             rcon.id,
+                            rcon.offset(),
+                            rcon.len_limit,
                             rcon.rev_map(val),
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
@@ -401,6 +649,8 @@ impl super::Db {
                         )?;
                         let this_def = self.define_semantics(
                             id,
+                            0,
+                            None,
                             val,
                             SemDefTyp::If,
                             left_leafs
@@ -428,11 +678,13 @@ impl super::Db {
 
                 // Only now finally multiply the leaf weights since they won't be used at lower
                 // levels any more
+                debug_assert_eq!(lcon.divisor(), 1);
+                debug_assert_eq!(rcon.divisor(), 1);
                 for (idx, (_, w)) in leafs.iter_mut().enumerate() {
                     if idx < self[lcon.id].n_leafs() {
-                        *w = lcon.map(*w);
+                        *w *= lcon.multiplier();
                     } else {
-                        *w = rcon.map(*w);
+                        *w *= rcon.multiplier();
                     }
                 }
 
@@ -440,9 +692,71 @@ impl super::Db {
                 unreachable_none!(self[id].mut_general().lits.get_mut(&val))
                     .add_semantics(Semantics::If);
 
-                Ok(Some(olit))
+                debug_assert!(!leafs_needed || left_leafs_populated && right_leafs_populated);
+                Ok(Some((olit, left_leafs_populated && right_leafs_populated)))
             }
             Node::Dummy => Ok(None),
+        }
+    }
+
+    fn define_weighted_treat_pseudo_leafs<Col, W>(
+        &mut self,
+        con: NodeCon,
+        val: usize,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pidgeons::Proof<W>,
+        (leafs, leafs_init): (&mut [(Lit, usize)], bool),
+    ) -> anyhow::Result<Option<Lit>>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+    {
+        if con.offset() == 0 && con.len_limit.is_none() {
+            // normal recursion case
+            let ret = self.define_weighted_cert(
+                con.id,
+                val,
+                collector,
+                var_manager,
+                proof,
+                (leafs, leafs_init, true),
+            )?;
+            debug_assert!(ret.map_or(true, |(_, i)| i));
+            Ok(ret.map(|(l, _)| l))
+        } else {
+            // with length limit or offset, treat intermediate output nodes as leafs
+            // for this, recurse without keeping track of leafs, if not required for encoding
+            // NOTE: this could be in efficient if we encode many outputs with a new empty leaf
+            // vector each time
+            let mut true_leafs = vec![(lit![0], 0); self[con.id].n_leafs()];
+            let ret = self.define_weighted_cert(
+                con.id,
+                val,
+                collector,
+                var_manager,
+                proof,
+                (&mut true_leafs, false, false),
+            )?;
+            if !leafs_init {
+                let mut last_val = con.offset();
+                if let Some(limit) = con.len_limit {
+                    for (idx, val) in self[con.id]
+                        .vals(con.offset() + 1..)
+                        .take(limit.get())
+                        .enumerate()
+                    {
+                        leafs[idx] = (self[con.id][val], (val - last_val));
+                        last_val = val;
+                    }
+                } else {
+                    for (idx, val) in self[con.id].vals(con.offset() + 1..).enumerate() {
+                        leafs[idx] = (self[con.id][val], (val - last_val));
+                        last_val = val;
+                    }
+                }
+            }
+            Ok(ret.map(|(l, _)| l))
         }
     }
 
@@ -454,75 +768,142 @@ impl super::Db {
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
         (leafs, leafs_init): (&mut [Lit], bool),
-    ) -> anyhow::Result<()>
+    ) -> anyhow::Result<bool>
     where
         Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
-        let (left_leafs, right_leafs) = leafs.split_at_mut(self[pre.lcon.id].n_leafs());
+        let n_left_leafs = pre.lcon.len_limit.map_or(
+            if pre.lcon.offset() == 0 {
+                self[pre.lcon.id].n_leafs()
+            } else {
+                self[pre.lcon.id].len() - pre.lcon.offset()
+            },
+            NonZero::get,
+        );
+        let (left_leafs, right_leafs) = leafs.split_at_mut(n_left_leafs);
         let mut left_leafs_populated = leafs_init;
         let mut right_leafs_populated = leafs_init;
-        for lval in pre.left_if.clone() {
-            if lval == 0 {
-                continue;
+        left_leafs_populated = self.recurse_unweighted_single_node(
+            pre.lcon,
+            pre.left_if.clone(),
+            Semantics::If,
+            collector,
+            var_manager,
+            proof,
+            (left_leafs, left_leafs_populated),
+        )?;
+        right_leafs_populated = self.recurse_unweighted_single_node(
+            pre.rcon,
+            pre.right_if.clone(),
+            Semantics::If,
+            collector,
+            var_manager,
+            proof,
+            (right_leafs, right_leafs_populated),
+        )?;
+        left_leafs_populated = self.recurse_unweighted_single_node(
+            pre.lcon,
+            pre.left_only_if.clone(),
+            Semantics::OnlyIf,
+            collector,
+            var_manager,
+            proof,
+            (left_leafs, left_leafs_populated),
+        )?;
+        right_leafs_populated = self.recurse_unweighted_single_node(
+            pre.rcon,
+            pre.right_only_if.clone(),
+            Semantics::OnlyIf,
+            collector,
+            var_manager,
+            proof,
+            (right_leafs, right_leafs_populated),
+        )?;
+        // in the unweighted case, there are always both sides involved, both halfs of the leaf
+        // slice must therefore be populated
+        debug_assert!(left_leafs_populated);
+        debug_assert!(right_leafs_populated);
+        Ok(left_leafs_populated && right_leafs_populated)
+    }
+
+    #[expect(clippy::too_many_arguments)]
+    fn recurse_unweighted_single_node<Col, W>(
+        &mut self,
+        con: NodeCon,
+        range: ops::RangeInclusive<usize>,
+        sems: Semantics,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pidgeons::Proof<W>,
+        (leafs, mut leafs_init): (&mut [Lit], bool),
+    ) -> anyhow::Result<bool>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+    {
+        if con.offset() == 0 && con.len_limit.is_none() {
+            // normal recursion case
+            for val in range {
+                if matches!(sems, Semantics::If) && val == 0
+                    || matches!(sems, Semantics::OnlyIf) && val == self.con_len(con)
+                {
+                    continue;
+                }
+                let idx = match sems {
+                    Semantics::If => val - 1,
+                    Semantics::OnlyIf => val,
+                    Semantics::IfAndOnlyIf => {
+                        panic!("should never call this for both semantics at once")
+                    }
+                };
+                self.define_unweighted_cert(
+                    con.id,
+                    con_idx(idx, con),
+                    sems,
+                    collector,
+                    var_manager,
+                    proof,
+                    (leafs, leafs_init, true),
+                )?;
+                leafs_init = true;
             }
-            self.define_unweighted_cert(
-                pre.lcon.id,
-                con_idx(lval - 1, pre.lcon),
-                Semantics::If,
-                collector,
-                var_manager,
-                proof,
-                (left_leafs, left_leafs_populated),
-            )?;
-            left_leafs_populated = true;
-        }
-        for rval in pre.right_if.clone() {
-            if rval == 0 {
-                continue;
+        } else {
+            // with length limit or offset, treat intermediate output nodes as leafs
+            // for this, recurse without keeping track of leafs, if not required for encoding
+            let mut true_leafs = vec![lit![0]; self[con.id].n_leafs()];
+            let mut true_leafs_init = false;
+            for val in range {
+                if matches!(sems, Semantics::If) && val == 0
+                    || matches!(sems, Semantics::OnlyIf) && val == self.con_len(con)
+                {
+                    continue;
+                }
+                let oidx = match sems {
+                    Semantics::If => val - 1,
+                    Semantics::OnlyIf => val,
+                    Semantics::IfAndOnlyIf => {
+                        panic!("should never call this for both semantics at once")
+                    }
+                };
+                (_, true_leafs_init) = self.define_unweighted_cert(
+                    con.id,
+                    con_idx(oidx, con),
+                    sems,
+                    collector,
+                    var_manager,
+                    proof,
+                    (&mut true_leafs, true_leafs_init, false),
+                )?;
             }
-            self.define_unweighted_cert(
-                pre.rcon.id,
-                con_idx(rval - 1, pre.rcon),
-                Semantics::If,
-                collector,
-                var_manager,
-                proof,
-                (right_leafs, right_leafs_populated),
-            )?;
-            right_leafs_populated = true;
-        }
-        for lval in pre.left_only_if.clone() {
-            if lval == self.con_len(pre.lcon) {
-                continue;
+            if !leafs_init {
+                for (idx, leaf) in leafs.iter_mut().enumerate() {
+                    *leaf = self[con.id][idx + con.offset() + 1];
+                }
             }
-            self.define_unweighted_cert(
-                pre.lcon.id,
-                con_idx(lval, pre.lcon),
-                Semantics::OnlyIf,
-                collector,
-                var_manager,
-                proof,
-                (left_leafs, left_leafs_populated),
-            )?;
-            left_leafs_populated = true;
+            leafs_init = true;
         }
-        for rval in pre.right_only_if.clone() {
-            if rval == self.con_len(pre.rcon) {
-                continue;
-            }
-            self.define_unweighted_cert(
-                pre.rcon.id,
-                con_idx(rval, pre.rcon),
-                Semantics::OnlyIf,
-                collector,
-                var_manager,
-                proof,
-                (right_leafs, right_leafs_populated),
-            )?;
-            right_leafs_populated = true;
-        }
-        Ok(())
+        Ok(leafs_init)
     }
 
     /// Last step of [`Self::define_unweighted_cert`]
@@ -530,7 +911,8 @@ impl super::Db {
     /// # Panics
     ///
     /// If the semantics are already encoded.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_lines)]
     fn encode_unweighted_cert<W, Col>(
         &mut self,
         id: NodeId,
@@ -556,7 +938,15 @@ impl super::Db {
         // Mark positive literal as encoded (done first to avoid borrow checker problems)
         self[id].mut_unit().lits[idx].add_semantics(req_semantics);
 
-        let (left_leafs, right_leafs) = leafs.split_at(self[pre.lcon.id].n_leafs());
+        let n_left_leafs = pre.lcon.len_limit.map_or(
+            if pre.lcon.offset() == 0 {
+                self[pre.lcon.id].n_leafs()
+            } else {
+                self[pre.lcon.id].len() - pre.lcon.offset()
+            },
+            NonZero::get,
+        );
+        let (left_leafs, right_leafs) = leafs.split_at(n_left_leafs);
 
         #[cfg(feature = "verbose-proofs")]
         proof.comment(&format_args!(
@@ -582,6 +972,8 @@ impl super::Db {
             }
             let left_def = self.define_semantics(
                 pre.lcon.id,
+                pre.lcon.offset(),
+                pre.lcon.len_limit,
                 pre.lcon.rev_map(lval),
                 SemDefTyp::OnlyIf,
                 left_leafs.iter().map(|l| (*l, 1)),
@@ -589,6 +981,8 @@ impl super::Db {
             )?;
             let right_def = self.define_semantics(
                 pre.rcon.id,
+                pre.rcon.offset(),
+                pre.rcon.len_limit,
                 pre.rcon.rev_map(rval),
                 SemDefTyp::OnlyIf,
                 right_leafs.iter().map(|l| (*l, 1)),
@@ -596,6 +990,8 @@ impl super::Db {
             )?;
             let this_def = self.define_semantics(
                 id,
+                0,
+                None,
                 idx + 1,
                 SemDefTyp::If,
                 leafs.iter().map(|l| (*l, 1)),
@@ -624,6 +1020,8 @@ impl super::Db {
             }
             let left_def = self.define_semantics(
                 pre.lcon.id,
+                pre.lcon.offset(),
+                pre.lcon.len_limit,
                 pre.lcon.rev_map(lval + 1),
                 SemDefTyp::If,
                 left_leafs.iter().map(|l| (*l, 1)),
@@ -631,6 +1029,8 @@ impl super::Db {
             )?;
             let right_def = self.define_semantics(
                 pre.rcon.id,
+                pre.rcon.offset(),
+                pre.rcon.len_limit,
                 pre.rcon.rev_map(rval + 1),
                 SemDefTyp::If,
                 right_leafs.iter().map(|l| (*l, 1)),
@@ -638,6 +1038,8 @@ impl super::Db {
             )?;
             let this_def = self.define_semantics(
                 id,
+                0,
+                None,
                 idx + 1,
                 SemDefTyp::OnlyIf,
                 leafs.iter().map(|l| (*l, 1)),
@@ -676,21 +1078,22 @@ impl super::Db {
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pidgeons::Proof<W>,
-        (leafs, leafs_init): (&mut [Lit], bool),
-    ) -> anyhow::Result<Lit>
+        (leafs, mut leafs_init, leafs_needed): (&mut [Lit], bool, bool),
+    ) -> anyhow::Result<(Lit, bool)>
     where
         Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
-        debug_assert_eq!(leafs.len(), self[id].len());
+        debug_assert_eq!(leafs.len(), self[id].n_leafs());
 
         let pre = match self.precond_unweighted(id, idx, semantics) {
             PrecondOutcome::Return(lit) => {
-                if !leafs_init {
+                if leafs_needed && !leafs_init {
                     let mut new_leafs = collect_leafs_unweighted(self, id);
                     leafs.swap_with_slice(&mut new_leafs);
+                    leafs_init = true;
                 }
-                return Ok(lit);
+                return Ok((lit, leafs_init));
             }
             PrecondOutcome::Passthrough(_) => {
                 // TODO: Decide what to do here
@@ -703,7 +1106,8 @@ impl super::Db {
         };
 
         // Encode children (recurse)
-        self.recurse_unweighted_cert(&pre, collector, var_manager, proof, (leafs, leafs_init))?;
+        leafs_init =
+            self.recurse_unweighted_cert(&pre, collector, var_manager, proof, (leafs, leafs_init))?;
 
         // Reserve variable for this node, if needed
         let olit = self.get_olit(id, idx, var_manager);
@@ -711,7 +1115,7 @@ impl super::Db {
         // Encode this node
         self.encode_unweighted_cert(id, idx, olit, semantics, &pre, collector, proof, leafs)?;
 
-        Ok(olit)
+        Ok((olit, leafs_init))
     }
 }
 
@@ -743,6 +1147,19 @@ impl SemDefs {
             SemDefTyp::OnlyIf => self.only_if_def.unwrap(),
         }
     }
+}
+
+/// The data needed to identify a semantic definition
+#[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SemDefId {
+    /// The ID of the node that the definition is fo
+    id: NodeId,
+    /// The output value of the node, disregarding the offset
+    value: usize,
+    /// The offset. If the offset is non-zero, the semantic defintions need to be rewritten.
+    offset: usize,
+    /// The length limit of the connection
+    len_limit: Option<NonZeroUsize>,
 }
 
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
@@ -843,10 +1260,10 @@ mod tests {
 
     use crate::{
         encodings::{
-            nodedb::{NodeById, NodeLike},
-            totdb::{Db, Semantics},
+            nodedb::{NodeById, NodeCon, NodeLike},
+            totdb::{Db, Node, Semantics},
         },
-        instances::{BasicVarManager, Cnf, ManageVars},
+        instances::{BasicVarManager, Cnf},
         lit,
         types::Var,
         var,
@@ -893,46 +1310,21 @@ mod tests {
 
         let mut cnf = Cnf::new();
         let mut leafs = [lit![0]; 4];
-        db.define_unweighted_cert(
-            root,
-            0,
-            Semantics::If,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, false),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            1,
-            Semantics::If,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            2,
-            Semantics::If,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            3,
-            Semantics::If,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
+        let mut leafs_init = false;
+
+        for idx in 0..=3 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    root,
+                    idx,
+                    Semantics::If,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
 
         let proof_file = proof
             .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
@@ -952,46 +1344,21 @@ mod tests {
 
         let mut cnf = Cnf::new();
         let mut leafs = [lit![0]; 4];
-        db.define_unweighted_cert(
-            root,
-            0,
-            Semantics::OnlyIf,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, false),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            1,
-            Semantics::OnlyIf,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            2,
-            Semantics::OnlyIf,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            3,
-            Semantics::OnlyIf,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
+        let mut leafs_init = false;
+
+        for idx in 0..=3 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    root,
+                    idx,
+                    Semantics::OnlyIf,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
 
         let proof_file = proof
             .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
@@ -1013,96 +1380,21 @@ mod tests {
 
         let mut cnf = Cnf::new();
         let mut leafs = [(lit![0], 0); 4];
-        db.define_weighted_cert(
-            root,
-            1,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, false),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            2,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            3,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            4,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            5,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            6,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            7,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            8,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            9,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            10,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
+        let mut leafs_init = false;
+
+        for val in 1..=10 {
+            let ret = db
+                .define_weighted_cert(
+                    root,
+                    val,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+            leafs_init |= ret.is_some_and(|(_, i)| i);
+        }
 
         let proof_file = proof
             .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
@@ -1130,96 +1422,21 @@ mod tests {
 
         let mut cnf = Cnf::new();
         let mut leafs = [(lit![0], 0); 5];
-        db.define_weighted_cert(
-            root,
-            1,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, false),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            2,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            3,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            4,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            5,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            6,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            7,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            8,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            9,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            10,
-            &mut cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
+        let mut leafs_init = false;
+
+        for val in 1..=10 {
+            let ret = db
+                .define_weighted_cert(
+                    root,
+                    val,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+            leafs_init |= ret.is_some_and(|(_, i)| i);
+        }
 
         let proof_file = proof
             .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
@@ -1239,46 +1456,21 @@ mod tests {
 
         let mut cert_cnf = Cnf::new();
         let mut leafs = [lit![0]; 4];
-        db.define_unweighted_cert(
-            root,
-            0,
-            Semantics::If,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, false),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            1,
-            Semantics::If,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            2,
-            Semantics::If,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_unweighted_cert(
-            root,
-            3,
-            Semantics::If,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
+        let mut leafs_init = false;
+
+        for idx in 0..=3 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    root,
+                    idx,
+                    Semantics::If,
+                    &mut cert_cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
 
         let mut db = Db::default();
         let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
@@ -1286,14 +1478,11 @@ mod tests {
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
         let mut norm_cnf = Cnf::new();
-        db.define_unweighted(root, 0, Semantics::If, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_unweighted(root, 1, Semantics::If, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_unweighted(root, 2, Semantics::If, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_unweighted(root, 3, Semantics::If, &mut norm_cnf, &mut var_manager)
-            .unwrap();
+
+        for idx in 0..=3 {
+            db.define_unweighted(root, idx, Semantics::If, &mut norm_cnf, &mut var_manager)
+                .unwrap();
+        }
 
         assert_eq!(norm_cnf, cert_cnf);
     }
@@ -1311,96 +1500,21 @@ mod tests {
 
         let mut cert_cnf = Cnf::new();
         let mut leafs = [(lit![0], 0); 4];
-        db.define_weighted_cert(
-            root,
-            1,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, false),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            2,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            3,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            4,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            5,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            6,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            7,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            8,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            9,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
-        db.define_weighted_cert(
-            root,
-            10,
-            &mut cert_cnf,
-            &mut var_manager,
-            &mut proof,
-            (&mut leafs, true),
-        )
-        .unwrap();
+        let mut leafs_init = false;
+
+        for val in 1..=10 {
+            let ret = db
+                .define_weighted_cert(
+                    root,
+                    val,
+                    &mut cert_cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+            leafs_init |= ret.is_some_and(|(_, i)| i);
+        }
 
         let mut db = Db::default();
         let root = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)]);
@@ -1410,27 +1524,132 @@ mod tests {
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
         let mut norm_cnf = Cnf::new();
-        db.define_weighted(root, 1, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 2, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 3, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 4, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 5, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 6, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 7, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 8, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 9, &mut norm_cnf, &mut var_manager)
-            .unwrap();
-        db.define_weighted(root, 10, &mut norm_cnf, &mut var_manager)
-            .unwrap();
+
+        for val in 1..=10 {
+            db.define_weighted(root, val, &mut norm_cnf, &mut var_manager)
+                .unwrap();
+        }
 
         assert_eq!(norm_cnf, cert_cnf);
+    }
+
+    #[test]
+    fn tot_db_offset() {
+        let mut db = Db::default();
+        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let c = db.insert(Node::internal(
+            NodeCon::offset_weighted(a, 2, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let mut var_manager = BasicVarManager::from_next_free(var![6]);
+        db.reserve_vars(a, &mut var_manager);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut leafs = [lit![0]; 4];
+        let mut leafs_init = false;
+
+        for idx in 0..=3 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    c,
+                    idx,
+                    Semantics::IfAndOnlyIf,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+    }
+
+    #[test]
+    fn tot_db_offset_2() {
+        let mut db = Db::default();
+        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let c = db.insert(Node::internal(
+            NodeCon::offset_weighted(a, 1, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let mut var_manager = BasicVarManager::from_next_free(var![6]);
+        db.reserve_vars(a, &mut var_manager);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut leafs = [lit![0]; 5];
+        let mut leafs_init = false;
+
+        for idx in 0..=4 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    c,
+                    idx,
+                    Semantics::IfAndOnlyIf,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+    }
+
+    #[test]
+    fn gte_db_offset() {
+        let mut db = Db::default();
+        let a = db.weighted_lit_tree(&[(lit![0], 1), (lit![1], 2), (lit![2], 10)]);
+        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let c = db.insert(Node::internal(
+            NodeCon::offset_weighted(a.id, 2, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let mut var_manager = BasicVarManager::from_next_free(var![6]);
+        db.reserve_vars(a.id, &mut var_manager);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut leafs = [(lit![0], 0); 7];
+        let mut leafs_init = false;
+
+        for idx in 1..=13 {
+            let ret = db
+                .define_weighted_cert(
+                    c,
+                    idx,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+            leafs_init |= ret.is_some_and(|(_, i)| i);
+        }
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
     }
 }

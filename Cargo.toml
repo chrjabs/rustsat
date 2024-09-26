@@ -61,7 +61,7 @@ description = "This library aims to provide implementations of elements commonly
 keywords = ["sat", "satisfiability", "encodings"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
-rust-version = "1.66.1"
+rust-version = "1.70.0"
 
 [dependencies]
 anyhow.workspace = true

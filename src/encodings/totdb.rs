@@ -1,6 +1,6 @@
 //! # Totalizer Database
 
-use std::{cmp, collections::BTreeMap, ops};
+use std::{cmp, collections::BTreeMap, num::NonZero, ops};
 
 use crate::{
     encodings::atomics,
@@ -40,7 +40,7 @@ macro_rules! get_lit_slice {
 }
 
 /// A totalizer database
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Db {
     /// The node database of the totalizer
     nodes: Vec<Node>,
@@ -49,7 +49,7 @@ pub struct Db {
     /// Dummy Node ID
     dummy_id: Option<NodeId>,
     #[cfg(feature = "proof-logging")]
-    semantic_defs: RsHashMap<(NodeId, usize), cert::SemDefs>,
+    semantic_defs: RsHashMap<cert::SemDefId, cert::SemDefs>,
 }
 
 impl NodeById for Db {
@@ -553,23 +553,7 @@ impl Db {
         self.reserve_vars(unreachable_none!(self[id].left()).id, var_manager);
         self.reserve_vars(unreachable_none!(self[id].right()).id, var_manager);
 
-        match &mut self[id] {
-            Node::Unit(UnitNode { lits, .. }) => {
-                for olit in lits {
-                    if let LitData::None = olit {
-                        *olit = LitData::new_lit(var_manager.new_var().pos_lit());
-                    }
-                }
-            }
-            Node::General(GeneralNode { lits, .. }) => {
-                for (_, olit) in lits.iter_mut() {
-                    if let LitData::None = olit {
-                        *olit = LitData::new_lit(var_manager.new_var().pos_lit());
-                    }
-                }
-            }
-            Node::Leaf(_) | Node::Dummy => unreachable!(),
-        }
+        self[id].reserve_vars(var_manager);
     }
 
     /// Resets the status of what has already been encoded
@@ -824,6 +808,22 @@ impl NodeLike for Node {
         let general = left.multiplier != right.multiplier
             || matches!(&db[left.id], Node::General(_))
             || matches!(&db[right.id], Node::General(_));
+        let depth = std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1;
+        let n_leafs = left.len_limit.map_or(
+            if left.offset() == 0 {
+                db[left.id].n_leafs()
+            } else {
+                db[left.id].vals(left.offset() + 1..).count()
+            },
+            NonZero::get,
+        ) + right.len_limit.map_or(
+            if right.offset() == 0 {
+                db[right.id].n_leafs()
+            } else {
+                db[right.id].vals(right.offset() + 1..).count()
+            },
+            NonZero::get,
+        );
         if general {
             let lvals: Vec<_> = db[left.id]
                 .vals(left.offset()..)
@@ -834,20 +834,15 @@ impl NodeLike for Node {
                 .map(|val| right.map(val))
                 .collect();
             return Node::General(GeneralNode::new(
-                &lvals,
-                &rvals,
-                std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
-                db[left.id].n_leafs() + db[right.id].n_leafs(),
-                left,
-                right,
+                &lvals, &rvals, depth, n_leafs, left, right,
             ));
         }
         // if both inputs have the same weight, the multiplier should be 1
         debug_assert!(left.multiplier() == 1 && right.multiplier() == 1);
         Node::Unit(UnitNode::new(
             db.con_len(left) + db.con_len(right),
-            std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1,
-            db[left.id].n_leafs() + db[right.id].n_leafs(),
+            depth,
+            n_leafs,
             left,
             right,
         ))
@@ -933,6 +928,27 @@ impl Node {
         }
     }
 
+    /// Reserves variables for all outputs of this node
+    pub fn reserve_vars(&mut self, var_manager: &mut dyn ManageVars) {
+        match self {
+            Node::Unit(UnitNode { lits, .. }) => {
+                for olit in lits {
+                    if let LitData::None = olit {
+                        *olit = LitData::new_lit(var_manager.new_var().pos_lit());
+                    }
+                }
+            }
+            Node::General(GeneralNode { lits, .. }) => {
+                for (_, olit) in lits.iter_mut() {
+                    if let LitData::None = olit {
+                        *olit = LitData::new_lit(var_manager.new_var().pos_lit());
+                    }
+                }
+            }
+            Node::Leaf(_) | Node::Dummy => (),
+        }
+    }
+
     /// Adjusts the connections of the node to draining a range of nodes. If the
     /// nodes references a nodes within the drained range, it returns that
     /// [`NodeId`] as an Error.
@@ -970,7 +986,8 @@ impl ops::Index<usize> for Node {
     type Output = Lit;
 
     fn index(&self, val: usize) -> &Self::Output {
-        self.lit(val).unwrap()
+        self.lit(val)
+            .expect("trying to access output literal that has not been reserved")
     }
 }
 
@@ -1366,7 +1383,7 @@ mod tests {
         lit, var,
     };
 
-    use super::{Db, Semantics};
+    use super::{Db, Node, Semantics};
 
     #[test]
     fn tot_db_if() {
@@ -1568,5 +1585,99 @@ mod tests {
         let t3 = db.lit_tree(&[lit![8], lit![9], lit![10], lit![11]]);
         db.merge(&[NodeCon::full(t1), NodeCon::full(t3)]);
         db.drain(t1 + 1..=t2).unwrap();
+    }
+
+    #[test]
+    fn leaf_iter() {
+        let mut lits = vec![(lit![0], 3), (lit![1], 2), (lit![2], 1), (lit![3], 42)];
+        let mut db = Db::default();
+        let con = db.weighted_lit_tree(&lits);
+        assert_eq!(con.multiplier(), 1);
+        assert_eq!(con.divisor(), 1);
+        assert_eq!(con.offset(), 0);
+        let mut leafs: Vec<_> = db.leaf_iter(con.id).collect();
+        lits.sort_unstable();
+        leafs.sort_unstable();
+        assert_eq!(lits, leafs);
+        assert_eq!(leafs.len(), db[con.id].n_leafs());
+    }
+
+    #[test]
+    fn leaf_iter_pseudo_leaf() {
+        let mut vm = BasicVarManager::from_next_free(var![3]);
+        let mut db = Db::default();
+        let a = db.insert(Node::leaf(lit![0]));
+        let b = db.insert(Node::leaf(lit![1]));
+        let c = db.insert(Node::internal(NodeCon::full(a), NodeCon::full(b), &db));
+        let leafs: Vec<_> = db.leaf_iter(c).collect();
+        assert_eq!(vec![(lit![0], 1), (lit![1], 1)], leafs);
+        assert_eq!(leafs.len(), db[c].n_leafs());
+        let d = db.insert(Node::leaf(lit![2]));
+        let e = db.insert(Node::internal(
+            NodeCon::full(d),
+            NodeCon::single(c, 2, 1),
+            &db,
+        ));
+        db[c].reserve_vars(&mut vm);
+        let leafs: Vec<_> = db.leaf_iter(e).collect();
+        assert_eq!(vec![(lit![2], 1), (db[c][2], 1)], leafs);
+        assert_eq!(leafs.len(), db[e].n_leafs());
+    }
+
+    #[test]
+    fn leaf_iter_offset() {
+        let mut vm = BasicVarManager::from_next_free(var![8]);
+        let mut db = Db::default();
+        let lits = [lit![0], lit![1], lit![2], lit![3]];
+        let a = db.lit_tree(&lits);
+        db[a].reserve_vars(&mut vm);
+        let lits = [lit![4], lit![5], lit![6], lit![7]];
+        let b = db.lit_tree(&lits);
+        db[b].reserve_vars(&mut vm);
+        let c = db.insert(Node::internal(
+            NodeCon::offset_weighted(a, 2, 2),
+            NodeCon::offset_weighted(b, 1, 4),
+            &db,
+        ));
+        let leafs: Vec<_> = db.leaf_iter(c).collect();
+        assert_eq!(
+            vec![
+                (db[a][3], 2),
+                (db[a][4], 2),
+                (db[b][2], 4),
+                (db[b][3], 4),
+                (db[b][4], 4)
+            ],
+            leafs
+        );
+        assert_eq!(leafs.len(), db[c].n_leafs());
+    }
+
+    #[test]
+    fn leaf_iter_offset_weighted() {
+        let mut vm = BasicVarManager::from_next_free(var![4]);
+        let mut db = Db::default();
+        let lits = [(lit![0], 1), (lit![1], 2), (lit![2], 10)];
+        let a = db.weighted_lit_tree(&lits);
+        db[a.id].reserve_vars(&mut vm);
+        let b = db.insert(Node::leaf(lit![3]));
+        let c = db.insert(Node::internal(
+            NodeCon::offset_weighted(a.id, 2, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let leafs: Vec<_> = db.leaf_iter(c).collect();
+        assert_eq!(
+            vec![
+                (db[a.id][3], 1),
+                (db[a.id][10], 7),
+                (db[a.id][11], 1),
+                (db[a.id][12], 1),
+                (db[a.id][13], 1),
+                (lit![3], 1)
+            ],
+            leafs
+        );
+        assert_eq!(leafs.len(), db[c].n_leafs());
     }
 }

@@ -374,16 +374,15 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                self.db.define_unweighted_cert(
+                (_, leafs_init) = self.db.define_unweighted_cert(
                     id,
                     idx,
                     totdb::Semantics::If,
                     collector,
                     var_manager,
                     proof,
-                    (&mut leafs, leafs_init),
+                    (&mut leafs, leafs_init, false),
                 )?;
-                leafs_init = true;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
@@ -437,16 +436,15 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                self.db.define_unweighted_cert(
+                (_, leafs_init) = self.db.define_unweighted_cert(
                     id,
                     idx - 1,
                     totdb::Semantics::OnlyIf,
                     collector,
                     var_manager,
                     proof,
-                    (&mut leafs, leafs_init),
+                    (&mut leafs, leafs_init, false),
                 )?;
-                leafs_init = true;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;

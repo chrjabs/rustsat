@@ -395,20 +395,22 @@ impl super::cert::BoundUpperIncremental for DbGte {
         self.extend_tree(range.end - 1);
         if let Some(con) = self.root {
             let mut leafs = vec![(crate::lit![0], 0); self.db[con.id].n_leafs()];
+            let mut leafs_init = false;
             self.db[con.id]
                 .vals(
                     con.rev_map_round_up(range.start + 1)
                         ..=con.rev_map(range.end + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    self.db
+                    (_, leafs_init) = self
+                        .db
                         .define_weighted_cert(
                             con.id,
                             val,
                             collector,
                             var_manager,
                             proof,
-                            (&mut leafs, false),
+                            (&mut leafs, leafs_init, true),
                         )?
                         .unwrap();
                     Ok::<(), anyhow::Error>(())

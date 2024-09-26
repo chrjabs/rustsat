@@ -10,7 +10,7 @@
 use std::{
     cmp, fmt,
     num::{NonZeroU8, NonZeroUsize},
-    ops::{self, Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
+    ops::{self, Add, AddAssign, IndexMut, Range, RangeBounds, Sub, SubAssign},
 };
 
 use crate::{types::Lit, utils::unreachable_none};
@@ -293,6 +293,7 @@ impl NodeCon {
     #[inline]
     #[must_use]
     pub fn map(&self, val: usize) -> usize {
+        // TODO: this might be incorrect for weighted nodes
         if let Some(limit) = self.len_limit {
             cmp::min((val - self.offset()) / self.divisor(), limit.into()) * self.multiplier()
         } else {
@@ -304,6 +305,7 @@ impl NodeCon {
     #[inline]
     #[must_use]
     pub fn rev_map(&self, val: usize) -> usize {
+        // TODO: this might be incorrect for weighted nodes
         if let Some(limit) = self.len_limit {
             match cmp::min(val / self.multiplier(), limit.into()) * self.divisor() {
                 0 => 0,
@@ -558,6 +560,12 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
     /// Gets an iterator over the literals at the leafs of the subtree rooted at a given node and
     /// the weight with which they appear at the given node
+    ///
+    /// For connections with an offset or limited length, the output literals of the child are
+    /// treatet as leafs, in order for certification to work.
+    ///
+    /// This iterator can not be used if the subtree contains connections with a divisor greater
+    /// than one.
     fn leaf_iter(&self, node: NodeId) -> LeafIter<'_, Self>
     where
         Self: Sized,
@@ -573,6 +581,10 @@ pub struct LeafIter<'db, Db> {
     /// The trace of the iterator. Everything left of the last node in the trace has already been
     /// explored.
     trace: Vec<(NodeId, bool, usize)>,
+    /// The range of literals to return as leafs from the current node
+    lit_range: Range<usize>,
+    /// The weight of the last literal returned from this node
+    last_val: usize,
 }
 
 impl<'db, Db> LeafIter<'db, Db>
@@ -584,30 +596,31 @@ where
         let mut trace = vec![(root, false, 1)];
         let mut current = root;
         let mut mult = 1;
+        let mut lit_range = 1..2;
+        let mut last_val = 0;
         while let Some(con) = db[current].left() {
+            debug_assert_eq!(con.divisor(), 1);
             mult *= con.multiplier();
             trace.push((con.id, false, mult));
+            if con.offset() > 0 || con.len_limit.is_some() {
+                lit_range = con.offset() + 1
+                    ..con
+                        .len_limit
+                        .map_or(db[con.id].max_val() + 1, |lim| lim.get() + con.offset() + 1);
+                last_val = con.offset();
+                break;
+            }
             current = con.id;
         }
-        Self { db, trace }
-    }
-}
-
-impl<'db, Db> Iterator for LeafIter<'db, Db>
-where
-    Db: NodeById,
-{
-    type Item = (Lit, usize);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.trace.is_empty() {
-            return None;
+        Self {
+            db,
+            trace,
+            lit_range,
+            last_val,
         }
+    }
 
-        // get item to yield
-        let elem = unreachable_none!(self.trace.last());
-        let lit = self.db[elem.0][1];
-        let weight = elem.2;
+    fn find_next_leaf_node(&mut self) {
         // find last element in trace to which we moved left
         let mut last = self.trace.len();
         while last > 0 && self.trace[last - 1].1 {
@@ -618,18 +631,66 @@ where
         self.trace.drain(last..);
         if last == 0 {
             // done iterating
-            return Some((lit, weight));
+            return;
         }
         // Extend trace to next leaf
         let con = unreachable_none!(self.db[self.trace.last().unwrap().0].right());
         let mut mult = unreachable_none!(self.trace.last()).2 * con.multiplier();
         self.trace.push((con.id, true, mult));
-        let mut current = self.trace.last().unwrap().0;
+        if con.offset() > 0 || con.len_limit.is_some() {
+            self.lit_range = con.offset() + 1
+                ..con.len_limit.map_or(self.db[con.id].max_val() + 1, |lim| {
+                    lim.get() + con.offset() + 1
+                });
+            self.last_val = con.offset();
+            return;
+        }
+        let mut current = con.id;
         while let Some(con) = self.db[current].left() {
             mult *= con.multiplier();
             self.trace.push((con.id, false, mult));
+            if con.offset() > 0 || con.len_limit.is_some() {
+                self.lit_range = con.offset() + 1
+                    ..con.len_limit.map_or(self.db[con.id].max_val() + 1, |lim| {
+                        lim.get() + con.offset() + 1
+                    });
+                self.last_val = con.offset();
+                return;
+            }
             current = con.id;
         }
+        self.lit_range = 1..2;
+        self.last_val = 0;
+    }
+}
+
+impl<'db, Db> Iterator for LeafIter<'db, Db>
+where
+    Db: NodeById,
+{
+    type Item = (Lit, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // get item to yield
+        let elem = *self.trace.last()?;
+
+        let (val, elem) = if let Some(val) = self.db[elem.0].vals(self.lit_range.clone()).next() {
+            (val, elem)
+        } else {
+            self.find_next_leaf_node();
+            let elem = *self.trace.last()?;
+            (
+                self.db[elem.0]
+                    .vals(self.lit_range.clone())
+                    .next()
+                    .expect("just progressed to new node, should have next val"),
+                elem,
+            )
+        };
+        let lit = self.db[elem.0][val];
+        let weight = elem.2 * (val - self.last_val);
+        self.lit_range.start = val + 1;
+        self.last_val = val;
 
         Some((lit, weight))
     }
