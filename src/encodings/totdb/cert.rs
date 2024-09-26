@@ -414,9 +414,7 @@ impl super::Db {
                     {
                         if semantics.has_if() {
                             if !leafs_init {
-                                for (idx, leaf) in self.leaf_iter(id).enumerate() {
-                                    leafs[idx] = leaf;
-                                }
+                                self.populate_weighted_leafs(NodeCon::full(id), leafs);
                                 leafs_init = true;
                             }
                             return Ok(Some((*lit, leafs_init)));
@@ -568,9 +566,7 @@ impl super::Db {
                         if !right_leafs_populated {
                             // We have not recursed down the right branch yet and therefore need to
                             // manually populate the right half of the leaf vector
-                            for (idx, leaf) in self.leaf_iter(rcon.id).enumerate() {
-                                right_leafs[idx] = leaf;
-                            }
+                            self.populate_weighted_leafs(rcon, right_leafs);
                             right_leafs_populated = true;
                         }
                         let left_def = self.define_semantics(
@@ -632,9 +628,7 @@ impl super::Db {
                         if !left_leafs_populated {
                             // We have not recursed down the left branch yet and therefore need to
                             // manually populate the left half of the leaf vector
-                            for (idx, leaf) in self.leaf_iter(lcon.id).enumerate() {
-                                left_leafs[idx] = leaf;
-                            }
+                            self.populate_weighted_leafs(lcon, left_leafs);
                             left_leafs_populated = true;
                         }
                         let left_def = self.define_semantics(
@@ -747,24 +741,27 @@ impl super::Db {
                 (&mut true_leafs, false, false),
             )?;
             if !leafs_init {
-                let mut last_val = con.offset();
-                if let Some(limit) = con.len_limit {
-                    for (idx, val) in self[con.id]
-                        .vals(con.offset() + 1..)
-                        .take(limit.get())
-                        .enumerate()
-                    {
-                        leafs[idx] = (self[con.id][val], (val - last_val));
-                        last_val = val;
-                    }
-                } else {
-                    for (idx, val) in self[con.id].vals(con.offset() + 1..).enumerate() {
-                        leafs[idx] = (self[con.id][val], (val - last_val));
-                        last_val = val;
-                    }
-                }
+                self.populate_weighted_leafs(con, leafs);
             }
             Ok(ret.map(|(l, _)| l))
+        }
+    }
+
+    fn populate_weighted_leafs(&self, con: NodeCon, leafs: &mut [(Lit, usize)]) {
+        if con.offset() == 0 && con.len_limit.is_none() {
+            for (idx, leaf) in self.leaf_iter(con.id).enumerate() {
+                leafs[idx] = leaf;
+            }
+        } else {
+            let mut last_val = con.offset();
+            for (idx, val) in self[con.id]
+                .vals(con.offset() + 1..)
+                .take(con.len_limit.map_or(usize::MAX, NonZero::get))
+                .enumerate()
+            {
+                leafs[idx] = (self[con.id][val], (val - last_val));
+                last_val = val;
+            }
         }
     }
 
