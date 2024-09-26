@@ -41,7 +41,7 @@ impl super::Db {
         id: NodeId,
         offset: usize,
         mut len_limit: Option<NonZeroUsize>,
-        value: usize,
+        mut value: usize,
         typ: SemDefTyp,
         leafs: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pidgeons::Proof<W>,
@@ -57,6 +57,10 @@ impl super::Db {
             if limit.get() + offset >= self[id].max_val() {
                 len_limit = None;
             }
+        }
+
+        if value <= offset {
+            value = 0;
         }
 
         let def_id = SemDefId {
@@ -76,11 +80,11 @@ impl super::Db {
         {
             // leaf or pseudo-leaf, i.e., only transmitting a single literal
             if value == 0 && typ == SemDefTyp::OnlyIf {
-                let olit = *self[id].lit(offset + 1).unwrap();
+                let olit = self[id][offset + 1];
                 return Ok(olit.into());
             }
-            if value == 2 && typ == SemDefTyp::If {
-                let olit = *self[id].lit(offset + 1).unwrap();
+            if value == offset + 2 && typ == SemDefTyp::If {
+                let olit = self[id][offset + 1];
                 return Ok((!olit).into());
             }
             return Ok(SemDefinition::None);
@@ -170,11 +174,14 @@ impl super::Db {
         // Check that the rewritten sum matches what we were passed as leafs
         {
             let mut sum = offset;
-            debug_assert!(leafs.clone().eq(self[id].vals(offset + 1..).map(|val| {
-                let cf = val - sum;
-                sum = val;
-                (self[id][val], cf)
-            })));
+            debug_assert!(leafs.clone().eq(self[id]
+                .vals(offset + 1..)
+                .take(len_limit.map_or(usize::MAX, NonZero::get))
+                .map(|val| {
+                    let cf = val - sum;
+                    sum = val;
+                    (self[id][val], cf)
+                })));
         }
 
         #[cfg(feature = "verbose-proofs")]
@@ -197,13 +204,14 @@ impl super::Db {
         );
         let def_id = SemDefId {
             id,
-            value: offset,
+            value: 0,
             offset,
             len_limit,
         };
         debug_assert!(!self.semantic_defs.contains_key(&def_id));
         self.semantic_defs.insert(def_id, defs);
-        if value == offset {
+        debug_assert!(value > offset || value == 0);
+        if value == 0 {
             output_defs = Some(defs);
         }
 
@@ -510,7 +518,7 @@ impl super::Db {
                                     rcon.id,
                                     rcon.offset(),
                                     rcon.len_limit,
-                                    rval_rev,
+                                    rcon.rev_map_no_limit(rval),
                                     SemDefTyp::OnlyIf,
                                     right_leafs.iter().copied(),
                                     proof,
@@ -569,14 +577,14 @@ impl super::Db {
                             lcon.id,
                             lcon.offset(),
                             lcon.len_limit,
-                            lcon.rev_map(val),
+                            lcon.rev_map_no_limit(val),
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
                         )?;
                         let right_def = self.define_semantics(
                             rcon.id,
-                            rcon.offset(),
+                            0,
                             rcon.len_limit,
                             rcon.offset(),
                             SemDefTyp::OnlyIf,
@@ -633,7 +641,7 @@ impl super::Db {
                             lcon.id,
                             lcon.offset(),
                             lcon.len_limit,
-                            lcon.offset(),
+                            0,
                             SemDefTyp::OnlyIf,
                             left_leafs.iter().copied(),
                             proof,
@@ -642,7 +650,7 @@ impl super::Db {
                             rcon.id,
                             rcon.offset(),
                             rcon.len_limit,
-                            rcon.rev_map(val),
+                            rcon.rev_map_no_limit(val),
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
                             proof,
@@ -974,7 +982,7 @@ impl super::Db {
                 pre.lcon.id,
                 pre.lcon.offset(),
                 pre.lcon.len_limit,
-                pre.lcon.rev_map(lval),
+                pre.lcon.rev_map_no_limit(lval),
                 SemDefTyp::OnlyIf,
                 left_leafs.iter().map(|l| (*l, 1)),
                 proof,
@@ -983,7 +991,7 @@ impl super::Db {
                 pre.rcon.id,
                 pre.rcon.offset(),
                 pre.rcon.len_limit,
-                pre.rcon.rev_map(rval),
+                pre.rcon.rev_map_no_limit(rval),
                 SemDefTyp::OnlyIf,
                 right_leafs.iter().map(|l| (*l, 1)),
                 proof,
@@ -1022,7 +1030,7 @@ impl super::Db {
                 pre.lcon.id,
                 pre.lcon.offset(),
                 pre.lcon.len_limit,
-                pre.lcon.rev_map(lval + 1),
+                pre.lcon.rev_map_no_limit(lval + 1),
                 SemDefTyp::If,
                 left_leafs.iter().map(|l| (*l, 1)),
                 proof,
@@ -1031,7 +1039,7 @@ impl super::Db {
                 pre.rcon.id,
                 pre.rcon.offset(),
                 pre.rcon.len_limit,
-                pre.rcon.rev_map(rval + 1),
+                pre.rcon.rev_map_no_limit(rval + 1),
                 SemDefTyp::If,
                 right_leafs.iter().map(|l| (*l, 1)),
                 proof,
@@ -1531,6 +1539,126 @@ mod tests {
         }
 
         assert_eq!(norm_cnf, cert_cnf);
+    }
+
+    #[test]
+    fn tot_db_single() {
+        let mut db = Db::default();
+        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let c = db.insert(Node::internal(
+            NodeCon::single(a, 3, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let mut var_manager = BasicVarManager::from_next_free(var![6]);
+        db.reserve_vars(a, &mut var_manager);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut leafs = [lit![0]; 3];
+        let mut leafs_init = false;
+
+        for idx in 0..=2 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    c,
+                    idx,
+                    Semantics::IfAndOnlyIf,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+    }
+
+    #[test]
+    fn tot_db_limited() {
+        let mut db = Db::default();
+        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let c = db.insert(Node::internal(
+            NodeCon::limited(a, 0, 2, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let mut var_manager = BasicVarManager::from_next_free(var![6]);
+        db.reserve_vars(a, &mut var_manager);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut leafs = [lit![0]; 4];
+        let mut leafs_init = false;
+
+        for idx in 0..=3 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    c,
+                    idx,
+                    Semantics::IfAndOnlyIf,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+    }
+
+    #[test]
+    fn tot_db_limited_offset() {
+        let mut db = Db::default();
+        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let c = db.insert(Node::internal(
+            NodeCon::limited(a, 1, 2, 1),
+            NodeCon::full(b),
+            &db,
+        ));
+        let mut var_manager = BasicVarManager::from_next_free(var![6]);
+        db.reserve_vars(a, &mut var_manager);
+
+        let mut proof = new_proof(0, false);
+
+        let mut cnf = Cnf::new();
+        let mut leafs = [lit![0]; 4];
+        let mut leafs_init = false;
+
+        for idx in 0..=3 {
+            (_, leafs_init) = db
+                .define_unweighted_cert(
+                    c,
+                    idx,
+                    Semantics::IfAndOnlyIf,
+                    &mut cnf,
+                    &mut var_manager,
+                    &mut proof,
+                    (&mut leafs, leafs_init, false),
+                )
+                .unwrap();
+        }
+
+        let proof_file = proof
+            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
     }
 
     #[test]

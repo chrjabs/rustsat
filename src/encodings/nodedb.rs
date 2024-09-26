@@ -316,6 +316,14 @@ impl NodeCon {
         }
     }
 
+    /// Maps an output value of the connection to its input value, ignore the connection length
+    /// limit
+    #[inline]
+    #[must_use]
+    pub fn rev_map_no_limit(&self, val: usize) -> usize {
+        val / self.multiplier() * self.divisor() + self.offset()
+    }
+
     /// Maps an output value of the connection to its input value, rounding up
     #[inline]
     #[must_use]
