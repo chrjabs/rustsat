@@ -222,7 +222,7 @@ impl super::Db {
             .vals(offset + 1..)
             .take(len_limit.map_or(usize::MAX, NonZero::get))
         {
-            if self.get_semantics(id, val).is_none() {
+            if self.get_semantics(id, 0, val).is_none() {
                 if true_leafs.is_empty() {
                     true_leafs = self.leaf_iter(id).collect();
                 }
@@ -239,7 +239,7 @@ impl super::Db {
             #[cfg(feature = "verbose-proofs")]
             proof.comment(&format_args!("pseudo semantics value {main_val}"))?;
             let this_defs = self
-                .get_semantics(id, main_val)
+                .get_semantics(id, 0, main_val)
                 .expect("should have been defined above");
             // the actual rewrite happens here
             let mut if_def = OperationSequence::<Var>::empty();
@@ -250,7 +250,7 @@ impl super::Db {
                 .take(len_limit.map_or(usize::MAX, NonZero::get))
             {
                 let defs = self
-                    .get_semantics(id, sub_val)
+                    .get_semantics(id, 0, sub_val)
                     .expect("should have added the definitions earlier");
                 match sub_val.cmp(&main_val) {
                     std::cmp::Ordering::Less => {
@@ -330,12 +330,12 @@ impl super::Db {
 
     /// Gets the semantic definitions for an output value, if they exist
     #[must_use]
-    pub fn get_semantics(&self, id: NodeId, value: usize) -> Option<SemDefs> {
+    pub fn get_semantics(&self, id: NodeId, offset: usize, value: usize) -> Option<SemDefs> {
         self.semantic_defs
             .get(&SemDefId {
                 id,
                 value,
-                offset: 0,
+                offset,
                 len_limit: None,
             })
             .copied()
@@ -349,6 +349,7 @@ impl super::Db {
     pub fn ensure_semantics<W>(
         &mut self,
         id: NodeId,
+        offset: usize,
         value: usize,
         leafs: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pidgeons::Proof<W>,
@@ -357,18 +358,18 @@ impl super::Db {
         W: std::io::Write,
     {
         debug_assert!(value <= self[id].max_val());
-        debug_assert!(value > 0);
+        debug_assert!(value > offset);
         let def_id = SemDefId {
             id,
             value,
-            offset: 0,
+            offset,
             len_limit: None,
         };
         if let Some(&defs) = self.semantic_defs.get(&def_id) {
             return Ok(defs);
         }
         // NOTE: doesn't matter which type we specify here, since both will be introduced anyway
-        self.define_semantics(id, 0, None, value, SemDefTyp::If, leafs, proof)?;
+        self.define_semantics(id, offset, None, value, SemDefTyp::If, leafs, proof)?;
         Ok(unreachable_none!(self.semantic_defs.get(&def_id).copied()))
     }
 

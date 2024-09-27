@@ -27,7 +27,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct DbGte {
     /// Input literals and weights not yet in the tree
     lit_buffer: RsHashMap<Lit, usize>,
@@ -126,10 +126,19 @@ impl DbGte {
                     return Err(Error::NotEncoded);
                 }
                 self.db
-                    .get_semantics(root.id, value)
+                    .get_semantics(root.id, root.offset, value)
                     .map(|sem| (self.db[root.id][root.rev_map(value)], sem))
                     .ok_or(Error::NotEncoded)
             }
+        }
+    }
+
+    /// Gets the number of output literals in the generalized totalizer
+    #[must_use]
+    pub fn n_output_lits(&self) -> usize {
+        match self.root {
+            Some(root) => self.db[root.id].len(),
+            None => 0,
         }
     }
 

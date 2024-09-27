@@ -3,7 +3,7 @@
 //! This is an alternative implementation of the
 //! [`crate::encodings::card::Totalizer`] encoding.
 
-use std::ops::RangeBounds;
+use std::{cmp, ops::RangeBounds};
 
 use crate::{
     encodings::{
@@ -29,7 +29,7 @@ use super::{
 ///     Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
 ///     Cardinality Constraints for MaxSAT_, CP 2014.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
     lit_buffer: Vec<Lit>,
@@ -41,16 +41,19 @@ pub struct DbTotalizer {
     n_clauses: usize,
     /// The node database of the totalizer
     db: totdb::Db,
+    /// The offset of the totalizer
+    offset: usize,
 }
 
 impl DbTotalizer {
     /// Creates a totalizer from its internal parts
     #[cfg(feature = "internals")]
     #[must_use]
-    pub fn from_raw(root: NodeId, db: totdb::Db) -> Self {
+    pub fn from_raw(root: NodeId, offset: usize, db: totdb::Db) -> Self {
         Self {
             root: Some(root),
             db,
+            offset,
             ..Default::default()
         }
     }
@@ -88,9 +91,20 @@ impl DbTotalizer {
             None => Err(Error::NotEncoded),
             Some(root) => self
                 .db
-                .get_semantics(root, value)
-                .map(|sem| (self.db[root][value], sem))
+                .get_semantics(root, self.offset, value + self.offset)
+                .map(|sem| (self.db[root][value + self.offset], sem))
                 .ok_or(Error::NotEncoded),
+        }
+    }
+
+    /// Gets the number of output literals in the totalizer
+    ///
+    /// This will only differ from [`Self::n_lits`] if the encoding has an offset
+    #[must_use]
+    pub fn n_output_lits(&self) -> usize {
+        match self.root {
+            Some(root) => self.db[root].len() - self.offset,
+            None => 0,
         }
     }
 
@@ -145,7 +159,7 @@ impl BoundUpper for DbTotalizer {
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        if ub >= self.n_lits() {
+        if ub >= self.n_lits() - self.offset {
             return Ok(vec![]);
         }
         if !self.lit_buffer.is_empty() {
@@ -154,14 +168,14 @@ impl BoundUpper for DbTotalizer {
         if let Some(id) = self.root {
             match &self.db[id] {
                 totdb::Node::Leaf(lit) => {
-                    debug_assert_eq!(ub, 0);
+                    debug_assert_eq!(ub, self.offset);
                     return Ok(vec![!*lit]);
                 }
                 totdb::Node::Unit(node) => {
                     if let totdb::LitData::Lit {
                         lit,
                         semantics: Some(semantics),
-                    } = node.lits[ub]
+                    } = node.lits[ub + self.offset]
                     {
                         if semantics.has_if() {
                             return Ok(vec![!lit]);
@@ -187,6 +201,7 @@ impl BoundUpperIncremental for DbTotalizer {
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
         if range.is_empty() {
             return Ok(());
         }
@@ -195,8 +210,13 @@ impl BoundUpperIncremental for DbTotalizer {
             let n_vars_before = var_manager.n_used();
             let n_clauses_before = collector.n_clauses();
             for idx in range {
-                self.db
-                    .define_unweighted(id, idx, totdb::Semantics::If, collector, var_manager)?;
+                self.db.define_unweighted(
+                    id,
+                    idx + self.offset,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                )?;
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
@@ -221,10 +241,10 @@ impl BoundLower for DbTotalizer {
     }
 
     fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
-        if lb == 0 {
+        if lb <= self.offset {
             return Ok(vec![]);
         }
-        if lb > self.n_lits() {
+        if lb > self.n_lits() + self.offset {
             return Err(Error::Unsat);
         }
         if !self.lit_buffer.is_empty() {
@@ -240,7 +260,7 @@ impl BoundLower for DbTotalizer {
                     if let totdb::LitData::Lit {
                         lit,
                         semantics: Some(semantics),
-                    } = node.lits[lb - 1]
+                    } = node.lits[lb - 1 + self.offset]
                     {
                         if semantics.has_only_if() {
                             return Ok(vec![lit]);
@@ -266,6 +286,7 @@ impl BoundLowerIncremental for DbTotalizer {
         R: RangeBounds<usize>,
     {
         let range = super::prepare_lb_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
         if range.is_empty() {
             return Ok(());
         }
@@ -276,7 +297,7 @@ impl BoundLowerIncremental for DbTotalizer {
             for idx in range {
                 self.db.define_unweighted(
                     id,
-                    idx - 1,
+                    idx - 1 + self.offset,
                     totdb::Semantics::OnlyIf,
                     collector,
                     var_manager,
@@ -307,6 +328,7 @@ impl From<Vec<Lit>> for DbTotalizer {
             n_vars: 0,
             n_clauses: 0,
             db: totdb::Db::default(),
+            offset: 0,
         }
     }
 }
@@ -319,6 +341,7 @@ impl FromIterator<Lit> for DbTotalizer {
             n_vars: 0,
             n_clauses: 0,
             db: totdb::Db::default(),
+            offset: 0,
         }
     }
 }
@@ -364,6 +387,7 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
         W: std::io::Write,
     {
         let range = super::prepare_ub_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
         if range.is_empty() {
             return Ok(());
         }
@@ -376,7 +400,7 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
             for idx in range {
                 (_, leafs_init) = self.db.define_unweighted_cert(
                     id,
-                    idx,
+                    idx + self.offset,
                     totdb::Semantics::If,
                     collector,
                     var_manager,
@@ -426,6 +450,7 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
         W: std::io::Write,
     {
         let range = super::prepare_lb_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
         if range.is_empty() {
             return Ok(());
         }
@@ -438,7 +463,7 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
             for idx in range {
                 (_, leafs_init) = self.db.define_unweighted_cert(
                     id,
-                    idx - 1,
+                    idx - 1 + self.offset,
                     totdb::Semantics::OnlyIf,
                     collector,
                     var_manager,
