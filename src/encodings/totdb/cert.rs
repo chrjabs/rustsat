@@ -137,7 +137,7 @@ impl super::Db {
             let sum = PbConstraint::new_lb_unsigned(leafs.map(|(l, w)| (!l, w)), 0);
             SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?), None)
         } else {
-            let olit = *self[id].lit(value).unwrap();
+            let olit = self[id][value];
             SemDefs::new(
                 Some(proof.redundant(
                     &atomics::pb_impl_lit(&sum, olit),
@@ -341,6 +341,37 @@ impl super::Db {
             .copied()
     }
 
+    /// Ensures that the semantics definitions for an output are in the proof
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails, returns [`std::io::Error`]
+    pub fn ensure_semantics<W>(
+        &mut self,
+        id: NodeId,
+        value: usize,
+        leafs: impl Iterator<Item = (Lit, usize)> + Clone,
+        proof: &mut pidgeons::Proof<W>,
+    ) -> std::io::Result<SemDefs>
+    where
+        W: std::io::Write,
+    {
+        debug_assert!(value <= self[id].max_val());
+        debug_assert!(value > 0);
+        let def_id = SemDefId {
+            id,
+            value,
+            offset: 0,
+            len_limit: None,
+        };
+        if let Some(&defs) = self.semantic_defs.get(&def_id) {
+            return Ok(defs);
+        }
+        // NOTE: doesn't matter which type we specify here, since both will be introduced anyway
+        self.define_semantics(id, 0, None, value, SemDefTyp::If, leafs, proof)?;
+        Ok(unreachable_none!(self.semantic_defs.get(&def_id).copied()))
+    }
+
     /// Generates the encoding to define the positive output literal with value `val`, if it is not
     /// already defined. The derivation of the generated clauses is certified in the provided
     /// proof. Recurses down the tree. The returned literal is the output literal and the encoding
@@ -413,7 +444,7 @@ impl super::Db {
                     } = lit_data
                     {
                         if semantics.has_if() {
-                            if !leafs_init {
+                            if leafs_needed && !leafs_init {
                                 self.populate_weighted_leafs(NodeCon::full(id), leafs);
                                 leafs_init = true;
                             }
@@ -441,19 +472,6 @@ impl super::Db {
 
                 let mut left_leafs_populated = leafs_init;
                 let mut right_leafs_populated = leafs_init;
-                if leafs_init {
-                    // to have the correct weights at the child nodes, need to divide the
-                    // populated leaf weights
-                    debug_assert_eq!(lcon.divisor(), 1);
-                    debug_assert_eq!(rcon.divisor(), 1);
-                    for (idx, (_, w)) in leafs.iter_mut().enumerate() {
-                        if idx < self[lcon.id].n_leafs() {
-                            *w /= lcon.multiplier();
-                        } else {
-                            *w /= rcon.multiplier();
-                        }
-                    }
-                }
 
                 let n_left_leafs = lcon.len_limit.map_or(
                     if lcon.offset() == 0 {
@@ -463,6 +481,20 @@ impl super::Db {
                     },
                     NonZero::get,
                 );
+
+                if leafs_init {
+                    // to have the correct weights at the child nodes, need to divide the
+                    // populated leaf weights
+                    debug_assert_eq!(lcon.divisor(), 1);
+                    debug_assert_eq!(rcon.divisor(), 1);
+                    for (idx, (_, w)) in leafs.iter_mut().enumerate() {
+                        if idx < n_left_leafs {
+                            *w /= lcon.multiplier();
+                        } else {
+                            *w /= rcon.multiplier();
+                        }
+                    }
+                }
                 let (left_leafs, right_leafs) = leafs.split_at_mut(n_left_leafs);
 
                 #[cfg(feature = "verbose-proofs")]
@@ -580,9 +612,9 @@ impl super::Db {
                         )?;
                         let right_def = self.define_semantics(
                             rcon.id,
-                            0,
-                            rcon.len_limit,
                             rcon.offset(),
+                            rcon.len_limit,
+                            0,
                             SemDefTyp::OnlyIf,
                             right_leafs.iter().copied(),
                             proof,
@@ -683,7 +715,7 @@ impl super::Db {
                 debug_assert_eq!(lcon.divisor(), 1);
                 debug_assert_eq!(rcon.divisor(), 1);
                 for (idx, (_, w)) in leafs.iter_mut().enumerate() {
-                    if idx < self[lcon.id].n_leafs() {
+                    if idx < n_left_leafs {
                         *w *= lcon.multiplier();
                     } else {
                         *w *= rcon.multiplier();
@@ -1549,7 +1581,7 @@ mod tests {
             &db,
         ));
         let mut var_manager = BasicVarManager::from_next_free(var![6]);
-        db.reserve_vars(a, &mut var_manager);
+        db[a].reserve_vars(3..=3, &mut var_manager);
 
         let mut proof = new_proof(0, false);
 
@@ -1589,7 +1621,7 @@ mod tests {
             &db,
         ));
         let mut var_manager = BasicVarManager::from_next_free(var![6]);
-        db.reserve_vars(a, &mut var_manager);
+        db[a].reserve_vars(..=2, &mut var_manager);
 
         let mut proof = new_proof(0, false);
 
@@ -1629,7 +1661,7 @@ mod tests {
             &db,
         ));
         let mut var_manager = BasicVarManager::from_next_free(var![6]);
-        db.reserve_vars(a, &mut var_manager);
+        db[a].reserve_vars(2..=4, &mut var_manager);
 
         let mut proof = new_proof(0, false);
 
@@ -1669,7 +1701,7 @@ mod tests {
             &db,
         ));
         let mut var_manager = BasicVarManager::from_next_free(var![6]);
-        db.reserve_vars(a, &mut var_manager);
+        db[a].reserve_vars(3.., &mut var_manager);
 
         let mut proof = new_proof(0, false);
 
@@ -1709,7 +1741,7 @@ mod tests {
             &db,
         ));
         let mut var_manager = BasicVarManager::from_next_free(var![6]);
-        db.reserve_vars(a, &mut var_manager);
+        db[a].reserve_vars(2.., &mut var_manager);
 
         let mut proof = new_proof(0, false);
 
@@ -1749,7 +1781,7 @@ mod tests {
             &db,
         ));
         let mut var_manager = BasicVarManager::from_next_free(var![6]);
-        db.reserve_vars(a.id, &mut var_manager);
+        db[a.id].reserve_vars(3.., &mut var_manager);
 
         let mut proof = new_proof(0, false);
 

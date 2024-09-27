@@ -553,7 +553,7 @@ impl Db {
         self.reserve_vars(unreachable_none!(self[id].left()).id, var_manager);
         self.reserve_vars(unreachable_none!(self[id].right()).id, var_manager);
 
-        self[id].reserve_vars(var_manager);
+        self[id].reserve_vars(.., var_manager);
     }
 
     /// Resets the status of what has already been encoded
@@ -928,18 +928,30 @@ impl Node {
         }
     }
 
-    /// Reserves variables for all outputs of this node
-    pub fn reserve_vars(&mut self, var_manager: &mut dyn ManageVars) {
+    /// Reserves variables for all the outputs of this node in the given range
+    pub fn reserve_vars<R>(&mut self, range: R, var_manager: &mut dyn ManageVars)
+    where
+        R: ops::RangeBounds<usize>,
+    {
         match self {
             Node::Unit(UnitNode { lits, .. }) => {
-                for olit in lits {
+                let range = match range.start_bound() {
+                    ops::Bound::Included(&v) => v - 1,
+                    ops::Bound::Excluded(&v) => v,
+                    ops::Bound::Unbounded => 0,
+                }..match range.end_bound() {
+                    ops::Bound::Included(&v) => v,
+                    ops::Bound::Excluded(&v) => v - 1,
+                    ops::Bound::Unbounded => lits.len(),
+                };
+                for olit in &mut lits[range] {
                     if let LitData::None = olit {
                         *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
                 }
             }
             Node::General(GeneralNode { lits, .. }) => {
-                for (_, olit) in lits.iter_mut() {
+                for (_, olit) in lits.range_mut(range) {
                     if let LitData::None = olit {
                         *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
@@ -986,8 +998,9 @@ impl ops::Index<usize> for Node {
     type Output = Lit;
 
     fn index(&self, val: usize) -> &Self::Output {
-        self.lit(val)
-            .expect("trying to access output literal that has not been reserved")
+        self.lit(val).unwrap_or_else(|| {
+            panic!("trying to access output literal {val} that has not been reserved")
+        })
     }
 }
 
@@ -1618,7 +1631,7 @@ mod tests {
             NodeCon::single(c, 2, 1),
             &db,
         ));
-        db[c].reserve_vars(&mut vm);
+        db[c].reserve_vars(2..=2, &mut vm);
         let leafs: Vec<_> = db.leaf_iter(e).collect();
         assert_eq!(vec![(lit![2], 1), (db[c][2], 1)], leafs);
         assert_eq!(leafs.len(), db[e].n_leafs());
@@ -1630,10 +1643,10 @@ mod tests {
         let mut db = Db::default();
         let lits = [lit![0], lit![1], lit![2], lit![3]];
         let a = db.lit_tree(&lits);
-        db[a].reserve_vars(&mut vm);
+        db[a].reserve_vars(3.., &mut vm);
         let lits = [lit![4], lit![5], lit![6], lit![7]];
         let b = db.lit_tree(&lits);
-        db[b].reserve_vars(&mut vm);
+        db[b].reserve_vars(2.., &mut vm);
         let c = db.insert(Node::internal(
             NodeCon::offset_weighted(a, 2, 2),
             NodeCon::offset_weighted(b, 1, 4),
@@ -1659,7 +1672,7 @@ mod tests {
         let mut db = Db::default();
         let lits = [(lit![0], 1), (lit![1], 2), (lit![2], 10)];
         let a = db.weighted_lit_tree(&lits);
-        db[a.id].reserve_vars(&mut vm);
+        db[a.id].reserve_vars(3.., &mut vm);
         let b = db.insert(Node::leaf(lit![3]));
         let c = db.insert(Node::internal(
             NodeCon::offset_weighted(a.id, 2, 1),

@@ -293,8 +293,10 @@ impl NodeCon {
     #[inline]
     #[must_use]
     pub fn map(&self, val: usize) -> usize {
-        // TODO: this might be incorrect for weighted nodes
-        if let Some(limit) = self.len_limit {
+        if val <= self.offset() {
+            0
+        } else if let Some(limit) = self.len_limit {
+            // TODO: this might be incorrect for weighted nodes
             cmp::min((val - self.offset()) / self.divisor(), limit.into()) * self.multiplier()
         } else {
             (val - self.offset()) / self.divisor() * self.multiplier()
@@ -305,8 +307,8 @@ impl NodeCon {
     #[inline]
     #[must_use]
     pub fn rev_map(&self, val: usize) -> usize {
-        // TODO: this might be incorrect for weighted nodes
         if let Some(limit) = self.len_limit {
+            // TODO: this might be incorrect for weighted nodes
             match cmp::min(val / self.multiplier(), limit.into()) * self.divisor() {
                 0 => 0,
                 x => x + self.offset(),
