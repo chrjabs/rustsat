@@ -238,6 +238,18 @@ pub struct Axiom<V: VarLike> {
     pub(crate) var: V,
 }
 
+impl<V: VarLike> Axiom<V> {
+    /// Gets the variable of the axiom
+    pub fn var(&self) -> V {
+        self.var
+    }
+
+    /// Returns true if the axiom is negated
+    pub fn is_neg(&self) -> bool {
+        self.neg
+    }
+}
+
 impl<V: VarLike> fmt::Display for Axiom<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
