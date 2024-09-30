@@ -347,6 +347,7 @@ macro_rules! clause {
 /// Dynamically sized clause type to be used with references
 ///
 /// [`Clause`] is the owned version: if [`Clause`] is [`String`], this is [`str`].
+#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Cl {
     lits: [Lit],

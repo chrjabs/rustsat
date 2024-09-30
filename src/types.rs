@@ -626,7 +626,7 @@ macro_rules! ipasir_lit {
 }
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Hash)]
 #[repr(u8)]
 pub enum TernaryVal {
     /// Positive assignment.
@@ -733,7 +733,7 @@ enum VLineFormat {
 }
 
 /// Type representing an assignment of variables.
-#[derive(Clone, PartialEq, Eq, Default)]
+#[derive(Clone, PartialEq, Eq, Default, Hash)]
 #[repr(transparent)]
 pub struct Assignment {
     assignment: Vec<TernaryVal>,
