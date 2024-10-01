@@ -117,5 +117,5 @@ echo "quiet build returned: $?"
 
 echo "Building logging"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
-cargo build --features=logging &> logging-build.log
+cargo build --no-default-features --features=logging &> logging-build.log
 echo "logging build returned: $?"

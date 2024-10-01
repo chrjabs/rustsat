@@ -122,5 +122,5 @@ echo "quiet test returned: $?"
 
 echo "Testing logging"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
-cargo test --features=logging &> logging-test.log
+cargo test --no-default-features --features=logging &> logging-test.log
 echo "logging test returned: $?"
