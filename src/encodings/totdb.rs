@@ -1230,6 +1230,10 @@ pub struct ValueIter<'a> {
     trace: Vec<(NodeCon, Option<usize>)>,
     /// The assignment to the input literals
     assign: &'a Assignment,
+    // TODO: figure out whether we can avoid always caching for _all_ nodes
+    /// Cache for values already computed, since the structure does not have to be a tree
+    /// We use [`usize::MAX`] to mark not computed values
+    cache: Vec<usize>,
 }
 
 impl<'a> ValueIter<'a> {
@@ -1256,7 +1260,13 @@ impl<'a> ValueIter<'a> {
             }
             _ => panic!("expected last in trace to be a leaf"),
         }
-        Self { db, trace, assign }
+        let cache = vec![usize::MAX; root.0 + 1];
+        Self {
+            db,
+            trace,
+            assign,
+            cache,
+        }
     }
 }
 
@@ -1271,24 +1281,41 @@ impl Iterator for ValueIter<'_> {
         };
         // if right of new last element has already been explored, only add value
         let last = match self.trace.last_mut() {
-            Some((_, Some(val))) => {
+            Some((con, Some(val))) => {
                 // right branch has been explored, add value
                 *val += popped_con.map(popped_val);
+                // cache the value for the last node in case we come back to it
+                self.cache[con.id.0] = *val;
                 return Some((popped_con.id, popped_val));
             }
             Some(last) => last,
             _ => return Some((popped_con.id, popped_val)),
         };
         debug_assert!(last.1.is_none());
+        // Ensure we have cached the value (if the node is not a leaf)
+        debug_assert!(self.db[popped_con.id].is_leaf() || self.cache[popped_con.id.0] < usize::MAX);
         // mark left branch as explored and storing left value
         last.1 = Some(popped_con.map(popped_val));
         // if the node does not have a right child, do nothing
         let Some(right) = self.db[last.0.id].right() else {
-            return Some((popped.0.id, popped.1.unwrap()));
+            return Some((popped_con.id, popped_val));
         };
+        if self.cache[right.id.0] < usize::MAX {
+            // have encountered this node before and cached its value
+            let val = popped_con.map(popped_val) + right.map(self.cache[right.id.0]);
+            last.1 = Some(val);
+            self.cache[last.0.id.0] = val;
+            return Some((popped_con.id, popped_val));
+        }
         self.trace.push((right, None));
         let mut current = right.id;
         while let Some(con) = self.db[current].left() {
+            if self.cache[con.id.0] < usize::MAX {
+                // have encountered this node before and cached its value
+                let last = unreachable_none!(self.trace.last_mut());
+                last.1 = Some(self.cache[con.id.0]);
+                return Some((popped_con.id, popped_val));
+            }
             self.trace.push((con, None));
             current = con.id;
         }
