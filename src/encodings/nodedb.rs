@@ -322,6 +322,7 @@ impl NodeCon {
     /// limit
     #[inline]
     #[must_use]
+    #[cfg(any(feature = "proof-logging", feature = "internals"))]
     pub fn rev_map_no_limit(&self, val: usize) -> usize {
         val / self.multiplier() * self.divisor() + self.offset()
     }
