@@ -826,11 +826,11 @@ impl NodeLike for Node {
         );
         if general {
             let lvals: Vec<_> = db[left.id]
-                .vals(left.offset()..)
+                .vals(left.offset() + 1..)
                 .map(|val| left.map(val))
                 .collect();
             let rvals: Vec<_> = db[right.id]
-                .vals(right.offset()..)
+                .vals(right.offset() + 1..)
                 .map(|val| right.map(val))
                 .collect();
             return Node::General(GeneralNode::new(
@@ -1082,19 +1082,16 @@ impl GeneralNode {
         right: NodeCon,
     ) -> Self {
         let mut lits: BTreeMap<_, _> = lvals.iter().map(|&val| (val, LitData::default())).collect();
-        for val in rvals {
-            if !lits.contains_key(val) {
-                lits.insert(*val, LitData::default());
-            }
-        }
-        let mut max_val = 0;
-        for lval in lvals {
-            for rval in rvals {
+        for rval in rvals {
+            lits.entry(*rval).or_insert_with(LitData::default);
+            for lval in lvals {
                 let val = lval + rval;
-                max_val = val;
                 lits.entry(val).or_insert_with(LitData::default);
             }
         }
+        // NOTE: values are ordered
+        let max_val = lvals.last().copied().unwrap_or(0) + rvals.last().copied().unwrap_or(0);
+        debug_assert!(*lits.first_key_value().unwrap().0 > 0);
         Self {
             lits,
             depth,

@@ -126,7 +126,7 @@ impl DbGte {
                     return Err(Error::NotEncoded);
                 }
                 self.db
-                    .get_semantics(root.id, root.offset, value)
+                    .get_semantics(root.id, root.offset, root.rev_map(value))
                     .map(|sem| (self.db[root.id][root.rev_map(value)], sem))
                     .ok_or(Error::NotEncoded)
             }
