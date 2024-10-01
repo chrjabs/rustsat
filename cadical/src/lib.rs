@@ -110,7 +110,7 @@ impl Default for CaDiCaL<'_, '_> {
             "not enough memory to initialize CaDiCaL solver"
         );
         let solver = Self {
-            handle: unsafe { ffi::ccadical_init() },
+            handle,
             state: InternalSolverState::default(),
             terminate_cb: None,
             learner_cb: None,
