@@ -113,6 +113,18 @@ int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
     return OUT_OF_MEM;
   }
 }
+
+int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path) {
+  FILE *trace_file = fopen(path, "w");
+  if (!trace_file)
+    return 1;
+  ((Wrapper *)wrapper)->solver->trace_api_calls(trace_file);
+  return 0;
+}
+
+int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path) {
+  return ((Wrapper *)wrapper)->solver->trace_proof(path);
+}
 }
 
 #ifdef TRACER
