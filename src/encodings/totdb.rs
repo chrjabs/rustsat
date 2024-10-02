@@ -1290,7 +1290,9 @@ impl Iterator for ValueIter<'_> {
         };
         debug_assert!(last.1.is_none());
         // Ensure we have cached the value (if the node is not a leaf)
-        debug_assert!(self.db[popped_con.id].is_leaf() || self.cache[popped_con.id.0] < usize::MAX);
+        debug_assert!(
+            self.db[popped_con.id].is_leaf() || self.cache[popped_con.id.0] == popped_val
+        );
         // mark left branch as explored and storing left value
         last.1 = Some(popped_con.map(popped_val));
         // if the node does not have a right child, do nothing
@@ -1310,8 +1312,18 @@ impl Iterator for ValueIter<'_> {
             if self.cache[con.id.0] < usize::MAX {
                 // have encountered this node before and cached its value
                 let last = unreachable_none!(self.trace.last_mut());
-                last.1 = Some(self.cache[con.id.0]);
-                return Some((popped_con.id, popped_val));
+                last.1 = Some(con.map(self.cache[con.id.0]));
+                let right = self.db[current].right().unwrap();
+                if self.cache[right.id.0] < usize::MAX {
+                    // have also encountered the right child, so do not need to recurse further
+                    last.1 =
+                        Some(con.map(self.cache[con.id.0]) + right.map(self.cache[right.id.0]));
+                    return Some((popped_con.id, popped_val));
+                }
+                // put right child in trace and continue
+                self.trace.push((right, None));
+                current = right.id;
+                continue;
             }
             self.trace.push((con, None));
             current = con.id;
