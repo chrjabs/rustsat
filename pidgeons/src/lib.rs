@@ -227,6 +227,12 @@ where
         self.first_proof_id
     }
 
+    /// Gets the next unused constraint ID in the proof
+    #[must_use]
+    pub fn next_id(&self) -> AbsConstraintId {
+        self.next_id
+    }
+
     /// Adds a line to verify the number of constraints in the proof
     ///
     /// Note that equality constraints count as two constraints
