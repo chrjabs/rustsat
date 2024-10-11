@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 echo "Testing default (newest) version"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi

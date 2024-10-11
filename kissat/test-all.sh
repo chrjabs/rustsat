@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 echo "Testing default (newest) version"
 cargo test &> def-test.log

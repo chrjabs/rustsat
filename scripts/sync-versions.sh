@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 VERSION=$(grep '^version = "[[:digit:]]\+.[[:digit:]]\+.[[:digit:]]\+"' rustsat/Cargo.toml | cut -d '"' -f2)
 SED_PATTERN="s/^version = \"[[:digit:]]\+.[[:digit:]]\+.[[:digit:]]\+\"$/version = \"${VERSION}\"/g"

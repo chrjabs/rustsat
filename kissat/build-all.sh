@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 echo "Building default (newest) version"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
