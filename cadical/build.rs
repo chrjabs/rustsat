@@ -190,11 +190,13 @@ fn main() {
         }
     }
 
+    let cadical_dir = get_cadical_dir(None);
+
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
         .clang_arg("-Icppsrc")
-        .header(format!("{out_dir}/cadical/src/ccadical.h"))
-        .allowlist_file(format!("{out_dir}/cadical/src/ccadical.h"))
+        .header(format!("{cadical_dir}/src/ccadical.h"))
+        .allowlist_file(format!("{cadical_dir}/src/ccadical.h"))
         .allowlist_file("cppsrc/ccadical_extension.h")
         .blocklist_item("FILE")
         .blocklist_function("ccadical_add")
@@ -220,21 +222,27 @@ fn main() {
         .expect("Could not write ffi bindings");
 }
 
-fn build(repo: &str, branch: &str, version: Version) {
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let cadical_dir_str = {
+fn get_cadical_dir(remote: Option<(&str, &str, Version)>) -> String {
+    std::env::var("CADICAL_SRC_DIR").unwrap_or_else(|_| {
+        let out_dir = env::var("OUT_DIR").unwrap();
         let mut tmp = out_dir.clone();
         tmp.push_str("/cadical");
+        if let Some((repo, branch, version)) = remote {
+            update_repo(
+                Path::new(&tmp),
+                repo,
+                branch,
+                version.reference(),
+                Path::new("patches").join(version.patch()),
+            );
+        }
         tmp
-    };
-    let cadical_dir = { Path::new(&cadical_dir_str) };
-    update_repo(
-        cadical_dir,
-        repo,
-        branch,
-        version.reference(),
-        Path::new("patches").join(version.patch()),
-    );
+    })
+}
+
+fn build(repo: &str, branch: &str, version: Version) {
+    let cadical_dir_str = get_cadical_dir(Some((repo, branch, version)));
+    let cadical_dir = Path::new(&cadical_dir_str);
     // We specify the build manually here instead of calling make for better portability
     let src_files = glob(&format!("{cadical_dir_str}/src/*.cpp"))
         .unwrap()
@@ -284,9 +292,12 @@ fn build(repo: &str, branch: &str, version: Version) {
         cadical_build.define("IPASIRUP", None);
     }
 
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let out_dir = Path::new(&out_dir);
+
     // Generate build header
-    let mut build_header = File::create(cadical_dir.join("src").join("build.hpp"))
-        .expect("Could not create kissat CaDiCaL header");
+    let mut build_header =
+        File::create(out_dir.join("build.hpp")).expect("Could not create CaDiCaL header");
     let mut cadical_version =
         fs::read_to_string(cadical_dir.join("VERSION")).expect("Cannot read CaDiCaL version");
     cadical_version.retain(|c| c != '\n');
@@ -298,6 +309,7 @@ fn build(repo: &str, branch: &str, version: Version) {
             ).expect("Failed to write CaDiCaL build.hpp");
     // Build CaDiCaL
     cadical_build
+        .include(out_dir)
         .include(cadical_dir.join("src"))
         .include("cppsrc")
         .warnings(false)
