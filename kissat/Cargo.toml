@@ -1,9 +1,9 @@
 [package]
 name = "rustsat-kissat"
 version = "0.2.1"
-edition = "2021"
+edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
-license = "MIT"
+license.workspace = true
 description = "Interface to the SAT solver kissat for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
@@ -17,6 +17,8 @@ build = "build.rs"
 debug = []
 safe = []
 quiet = []
+v4-0-1 = []
+v4-0-0 = []
 v3-1-1 = []
 v3-1-0 = []
 v3-0-0 = []
@@ -25,18 +27,19 @@ sc2022-hyper = []
 sc2022-bulky = []
 
 [dependencies]
-cpu-time = "1.0.0"
-rustsat = { version = "0.5.1", path = "../rustsat", default-features = false }
-thiserror = { version = "1.0.57" }
-anyhow = { version = "1.0.80" }
+anyhow.workspace = true
+cpu-time.workspace = true
+thiserror.workspace = true
+rustsat.workspace = true
 
 [build-dependencies]
-cc = { version = "1.0.83", features = ["parallel"] }
-git2 = "0.19.0"
-glob = "0.3.1"
-chrono = "0.4.31"
+bindgen.workspace = true
+cc.workspace = true
+chrono.workspace = true
+git2.workspace = true
+glob.workspace = true
 
 [dev-dependencies]
-rustsat-solvertests = { path = "../solvertests" }
-clap = { version = "4.5.4", features = ["derive"] }
-signal-hook = { version = "0.3.17" }
+clap.workspace = true
+rustsat-solvertests.workspace = true
+signal-hook.workspace = true

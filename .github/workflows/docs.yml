@@ -2,12 +2,13 @@ name: Docs
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTDOCFLAGS: "-Dwarnings"
     
 jobs:
   doc:
@@ -27,7 +28,11 @@ jobs:
         run: |
           cargo install cargo-rdme
           return=true
-          for dir in rustsat tools cadical kissat minisat glucose ipasir capi pyapi; do
+          if ! cargo rdme --check; then
+            echo "failed for main crate"
+            return=false
+          fi
+          for dir in tools cadical kissat minisat glucose batsat ipasir capi pyapi; do
             cd ${dir}
             if ! cargo rdme --check; then
               echo "failed for ${dir}"

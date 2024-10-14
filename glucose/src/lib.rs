@@ -12,6 +12,7 @@
 //! The version of Glucose in this crate is Version 4.2.1.
 //! The used C++ source repository can be found [here](https://github.com/chrjabs/glucose4).
 
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
 use rustsat::{
@@ -23,8 +24,6 @@ use thiserror::Error;
 
 pub mod core;
 pub mod simp;
-
-const OUT_OF_MEM: c_int = 50;
 
 /// Fatal error returned if the Glucose API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
@@ -63,7 +62,7 @@ impl InternalSolverState {
 }
 
 /// Possible Glucose limits
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Limit {
     /// No limits
     None,
@@ -77,8 +76,8 @@ impl fmt::Display for Limit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Limit::None => write!(f, "none"),
-            Limit::Conflicts(val) => write!(f, "conflicts ({})", val),
-            Limit::Propagations(val) => write!(f, "propagations ({})", val),
+            Limit::Conflicts(val) => write!(f, "conflicts ({val})"),
+            Limit::Propagations(val) => write!(f, "propagations ({val})"),
         }
     }
 }
@@ -86,7 +85,7 @@ impl fmt::Display for Limit {
 macro_rules! handle_oom {
     ($val:expr) => {{
         let val = $val;
-        if val == crate::OUT_OF_MEM {
+        if val == $crate::ffi::OUT_OF_MEM {
             return anyhow::Context::context(
                 Err(rustsat::OutOfMemory::ExternalApi),
                 "glucose out of memory",
@@ -96,3 +95,21 @@ macro_rules! handle_oom {
     }};
 }
 pub(crate) use handle_oom;
+
+pub(crate) mod ffi {
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+
+    use std::os::raw::{c_int, c_void};
+
+    use rustsat::types::Lit;
+
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+    pub extern "C" fn rustsat_glucose_collect_lits(vec: *mut c_void, lit: c_int) {
+        let vec = vec.cast::<Vec<Lit>>();
+        let lit = Lit::from_ipasir(lit).expect("got invalid IPASIR lit from Glucose");
+        unsafe { (*vec).push(lit) };
+    }
+}

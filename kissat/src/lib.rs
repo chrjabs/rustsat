@@ -14,6 +14,8 @@
 //!
 //! Kissat versions can be selected via cargo crate features.
 //! The following Kissat versions are available:
+//! - `v4-0-1`: [Version 4.0.1](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.1)
+//! - `v4-0-0`: [Version 4.0.0](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.0)
 //! - `v3-1-0`: [Version 3.1.0](https://github.com/arminbiere/kissat/releases/tag/rel-3.1.0)
 //! - `v3-0-0`: [Version 3.0.0](https://github.com/arminbiere/kissat/releases/tag/rel-3.0.0)
 //! - `sc2022-light`: [SAT Competition 2022 Light](https://github.com/arminbiere/kissat/releases/tag/sc2022-light)
@@ -23,19 +25,19 @@
 //! Without any features selected, the newest version will be used.
 //! If conflicting Kissat versions are requested, the newest requested version will be selected.
 
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
 use cpu_time::ProcessTime;
-use ffi::KissatHandle;
 use rustsat::{
     solvers::{
         ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
         SolverStats, StateError, Terminate,
     },
-    types::{Clause, Lit, TernaryVal, Var},
+    types::{Cl, Clause, Lit, TernaryVal, Var},
 };
 use thiserror::Error;
 
@@ -73,7 +75,7 @@ type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
 
 /// The Kissat solver type
 pub struct Kissat<'term> {
-    handle: *mut KissatHandle,
+    handle: *mut ffi::kissat,
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     stats: SolverStats,
@@ -85,9 +87,9 @@ impl Default for Kissat<'_> {
     fn default() -> Self {
         let solver = Self {
             handle: unsafe { ffi::kissat_init() },
-            state: Default::default(),
-            terminate_cb: Default::default(),
-            stats: Default::default(),
+            state: InternalSolverState::default(),
+            terminate_cb: None,
+            stats: SolverStats::default(),
         };
         let quiet = CString::new("quiet").unwrap();
         unsafe { ffi::kissat_set_option(solver.handle, quiet.as_ptr(), 1) };
@@ -96,7 +98,20 @@ impl Default for Kissat<'_> {
 }
 
 impl Kissat<'_> {
+    #[allow(clippy::cast_precision_loss)]
+    #[inline]
+    fn update_avg_clause_len(&mut self, clause: &Cl) {
+        self.stats.avg_clause_len =
+            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
+                / self.stats.n_clauses as f32;
+    }
+
     /// Gets the commit ID that Kissat was built from
+    ///
+    /// # Panics
+    ///
+    /// If the Kissat library returns an id that is invalid UTF-8.
+    #[must_use]
     pub fn commit_id() -> &'static str {
         let c_chars = unsafe { ffi::kissat_id() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -104,6 +119,11 @@ impl Kissat<'_> {
     }
 
     /// Gets the Kissat version
+    ///
+    /// # Panics
+    ///
+    /// If the Kissat library returns a version that is invalid UTF-8.
+    #[must_use]
     pub fn version() -> &'static str {
         let c_chars = unsafe { ffi::kissat_version() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -113,6 +133,11 @@ impl Kissat<'_> {
     }
 
     /// Gets the compiler Kissat was built with
+    ///
+    /// # Panics
+    ///
+    /// If the Kissat library returns a compiler that is invalid UTF-8.
+    #[must_use]
     pub fn compiler() -> &'static str {
         let c_chars = unsafe { ffi::kissat_compiler() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -122,6 +147,12 @@ impl Kissat<'_> {
     }
 
     /// Sets a pre-defined configuration for Kissat's internal options
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`StateError`] if the solver is not in [`SolverState::Configuring`]
+    /// - Returns [`InvalidApiReturn`] if the C-API does not return `true`. This case can be
+    ///   considered a bug in either the Kissat library or this crate.
     pub fn set_configuration(&mut self, config: Config) -> anyhow::Result<()> {
         if self.state != InternalSolverState::Configuring {
             return Err(StateError {
@@ -130,13 +161,7 @@ impl Kissat<'_> {
             }
             .into());
         }
-        let config_name = match config {
-            Config::Default => CString::new("default").unwrap(),
-            Config::Basic => CString::new("basic").unwrap(),
-            Config::Plain => CString::new("plain").unwrap(),
-            Config::SAT => CString::new("sat").unwrap(),
-            Config::UNSAT => CString::new("unsat").unwrap(),
-        };
+        let config_name: &CStr = config.into();
         let ret = unsafe { ffi::kissat_set_configuration(self.handle, config_name.as_ptr()) };
         if ret != 0 {
             Ok(())
@@ -151,6 +176,11 @@ impl Kissat<'_> {
 
     /// Sets the value of a Kissat option. For possible options, check Kissat with `kissat --help`.
     /// Requires state [`SolverState::Configuring`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidApiReturn`] if the C-API does not return `true`. This is most likely due
+    /// to a wrongly specified `name` or an invalid `value`.
     pub fn set_option(&mut self, name: &str, value: c_int) -> anyhow::Result<()> {
         let c_name = CString::new(name)?;
         if unsafe { ffi::kissat_set_option(self.handle, c_name.as_ptr(), value) } != 0 {
@@ -165,6 +195,11 @@ impl Kissat<'_> {
     }
 
     /// Gets the value of a Kissat option. For possible options, check Kissat with `kissat --help`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidApiReturn`] if the C-API does not return `true`. This is most likely due
+    /// to a wrongly specified `name`.
     pub fn get_option(&self, name: &str) -> anyhow::Result<c_int> {
         let c_name = CString::new(name)?;
         Ok(unsafe { ffi::kissat_get_option(self.handle, c_name.as_ptr()) })
@@ -187,16 +222,19 @@ impl Kissat<'_> {
 impl Extend<Clause> for Kissat<'_> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         iter.into_iter()
-            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"))
+            .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
 }
 
-impl<'a> Extend<&'a Clause> for Kissat<'_> {
-    fn extend<T: IntoIterator<Item = &'a Clause>>(&mut self, iter: T) {
+impl<'a, C> Extend<&'a C> for Kissat<'_>
+where
+    C: AsRef<Cl> + ?Sized,
+{
+    fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
-                .expect("Error adding clause in extend")
-        })
+                .expect("Error adding clause in extend");
+        });
     }
 }
 
@@ -272,7 +310,10 @@ impl Solve for Kissat<'_> {
         }
     }
 
-    fn add_clause_ref(&mut self, clause: &Clause) -> anyhow::Result<()> {
+    fn add_clause_ref<C>(&mut self, clause: &C) -> anyhow::Result<()>
+    where
+        C: AsRef<Cl> + ?Sized,
+    {
         // Kissat is non-incremental, so only add if in input or configuring state
         if !matches!(
             self.state,
@@ -284,16 +325,15 @@ impl Solve for Kissat<'_> {
             }
             .into());
         }
+        let clause = clause.as_ref();
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
-        self.stats.avg_clause_len =
-            (self.stats.avg_clause_len * ((self.stats.n_clauses - 1) as f32) + clause.len() as f32)
-                / self.stats.n_clauses as f32;
+        self.update_avg_clause_len(clause);
         clause.iter().for_each(|l| match self.stats.max_var {
             None => self.stats.max_var = Some(l.var()),
             Some(var) => {
                 if l.var() > var {
-                    self.stats.max_var = Some(l.var())
+                    self.stats.max_var = Some(l.var());
                 }
             }
         });
@@ -342,13 +382,14 @@ impl<'term> Terminate<'term> for Kissat<'term> {
         CB: FnMut() -> ControlSignal + 'term,
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
-        let cb_ptr = self.terminate_cb.as_mut().unwrap().as_mut() as *const _ as *const c_void;
+        let cb_ptr =
+            std::ptr::from_mut(self.terminate_cb.as_mut().unwrap().as_mut()).cast::<c_void>();
         unsafe { ffi::kissat_set_terminate(self.handle, cb_ptr, Some(ffi::kissat_terminate_cb)) }
     }
 
     fn detach_terminator(&mut self) {
         self.terminate_cb = None;
-        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null(), None) }
+        unsafe { ffi::kissat_set_terminate(self.handle, std::ptr::null_mut(), None) }
     }
 }
 
@@ -365,7 +406,7 @@ impl Interrupt for Kissat<'_> {
 /// An Interrupter for the Kissat solver
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut KissatHandle,
+    handle: *mut ffi::kissat,
 }
 
 unsafe impl Send for Interrupter {}
@@ -399,9 +440,27 @@ pub enum Config {
     /// Plain CDCL solving without advanced techniques
     Plain,
     /// Target satisfiable instances
-    SAT,
+    Sat,
     /// Target unsatisfiable instances
-    UNSAT,
+    Unsat,
+}
+
+impl From<&Config> for &'static CStr {
+    fn from(value: &Config) -> Self {
+        match value {
+            Config::Default => c"default",
+            Config::Basic => c"basic",
+            Config::Plain => c"plain",
+            Config::Sat => c"sat",
+            Config::Unsat => c"unsat",
+        }
+    }
+}
+
+impl From<Config> for &'static CStr {
+    fn from(value: Config) -> Self {
+        (&value).into()
+    }
 }
 
 impl fmt::Display for Config {
@@ -410,14 +469,14 @@ impl fmt::Display for Config {
             Config::Default => write!(f, "default"),
             Config::Basic => write!(f, "basic"),
             Config::Plain => write!(f, "plain"),
-            Config::SAT => write!(f, "sat"),
-            Config::UNSAT => write!(f, "unsat"),
+            Config::Sat => write!(f, "sat"),
+            Config::Unsat => write!(f, "unsat"),
         }
     }
 }
 
 /// Possible Kissat limits
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Limit {
     /// A limit on the number of conflicts
     Conflicts(c_uint),
@@ -428,8 +487,8 @@ pub enum Limit {
 impl fmt::Display for Limit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Limit::Conflicts(val) => write!(f, "conflicts ({})", val),
-            Limit::Decisions(val) => write!(f, "decisions ({})", val),
+            Limit::Conflicts(val) => write!(f, "conflicts ({val})"),
+            Limit::Decisions(val) => write!(f, "decisions ({val})"),
         }
     }
 }
@@ -444,7 +503,7 @@ pub fn panic_intead_of_abort() {
 }
 
 /// Changes Kissat's abort behaviour to call the given function instead
-pub fn call_instead_of_abort(abort: Option<extern "C" fn()>) {
+pub fn call_instead_of_abort(abort: Option<unsafe extern "C" fn()>) {
     unsafe { ffi::kissat_call_function_instead_of_abort(abort) };
 }
 
@@ -464,8 +523,8 @@ mod test {
         solver.set_configuration(Config::Default).unwrap();
         solver.set_configuration(Config::Basic).unwrap();
         solver.set_configuration(Config::Plain).unwrap();
-        solver.set_configuration(Config::SAT).unwrap();
-        solver.set_configuration(Config::UNSAT).unwrap();
+        solver.set_configuration(Config::Sat).unwrap();
+        solver.set_configuration(Config::Unsat).unwrap();
         solver.add_unit(lit![0]).unwrap();
         assert!(solver.set_configuration(Config::Default).is_err_and(|e| e
             .downcast::<StateError>()
@@ -492,51 +551,21 @@ mod test {
 }
 
 mod ffi {
-    use super::TermCallbackPtr;
-    use core::ffi::{c_char, c_int, c_uint, c_void};
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+
+    use core::ffi::{c_int, c_void};
+
     use rustsat::solvers::ControlSignal;
 
-    #[repr(C)]
-    pub struct KissatHandle {
-        _private: [u8; 0],
-    }
+    use super::TermCallbackPtr;
 
-    #[link(name = "kissat", kind = "static")]
-    extern "C" {
-        // Redefinitions of Kissat API
-        pub fn kissat_signature() -> *const c_char;
-        pub fn kissat_init() -> *mut KissatHandle;
-        pub fn kissat_release(solver: *mut KissatHandle);
-        pub fn kissat_add(solver: *mut KissatHandle, lit_or_zero: c_int);
-        pub fn kissat_solve(solver: *mut KissatHandle) -> c_int;
-        pub fn kissat_value(solver: *mut KissatHandle, lit: c_int) -> c_int;
-        pub fn kissat_set_terminate(
-            solver: *mut KissatHandle,
-            state: *const c_void,
-            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
-        );
-        pub fn kissat_terminate(solver: *mut KissatHandle);
-        pub fn kissat_reserve(solver: *mut KissatHandle, max_var: c_int);
-        pub fn kissat_id() -> *const c_char;
-        pub fn kissat_version() -> *const c_char;
-        pub fn kissat_compiler() -> *const c_char;
-        pub fn kissat_set_option(
-            solver: *mut KissatHandle,
-            name: *const c_char,
-            val: c_int,
-        ) -> c_int;
-        pub fn kissat_get_option(solver: *mut KissatHandle, name: *const c_char) -> c_int;
-        pub fn kissat_set_configuration(solver: *mut KissatHandle, name: *const c_char) -> c_int;
-        pub fn kissat_set_conflict_limit(solver: *mut KissatHandle, limit: c_uint);
-        pub fn kissat_set_decision_limit(solver: *mut KissatHandle, limit: c_uint);
-        pub fn kissat_print_statistics(solver: *mut KissatHandle);
-        // This is from `error.h`
-        pub fn kissat_call_function_instead_of_abort(abort: Option<extern "C" fn()>);
-    }
+    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
     // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn kissat_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb = unsafe { &mut *(ptr as *mut TermCallbackPtr) };
+    pub extern "C" fn kissat_terminate_cb(ptr: *mut c_void) -> c_int {
+        let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr>() };
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,

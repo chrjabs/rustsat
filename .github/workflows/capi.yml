@@ -2,9 +2,9 @@ name: C-API
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -14,7 +14,7 @@ jobs:
     name: Build and test
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources
@@ -40,7 +40,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Check
-        run: "[ \"$(grep '^version = ' rustsat/Cargo.toml)\" = \"$(grep '^version = ' capi/Cargo.toml)\" ]"
+        run: "[ \"$(grep '^version = ' Cargo.toml)\" = \"$(grep '^version = ' capi/Cargo.toml)\" ]"
 
   cbindgen:
     name: Test generated C header

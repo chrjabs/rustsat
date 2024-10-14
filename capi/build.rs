@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic)]
+
 extern crate cbindgen;
 
 use std::env;
@@ -13,7 +15,7 @@ fn main() {
     // Generate C-API header
     cbindgen::Builder::new()
         .with_config(
-            cbindgen::Config::from_file(format!("{}/cbindgen.toml", crate_dir))
+            cbindgen::Config::from_file(format!("{crate_dir}/cbindgen.toml"))
                 .expect("could not read cbindgen.toml"),
         )
         .with_crate(crate_dir)
@@ -21,23 +23,19 @@ fn main() {
         .expect("Unable to generate bindings")
         .write_to_file("rustsat.h");
 
-    println!("cargo:rerun-if-changed=cbindgen.toml");
-    println!("cargo:rerun-if-changed=src/capi.rs");
+    println!("cargo::rerun-if-changed=cbindgen.toml");
+    println!("cargo::rerun-if-changed=src/capi.rs");
 
     // Setup inline-c
     let include_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ld_dir = target_dir().unwrap();
 
-    let cflags = format!("cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat_capi -D_DEBUG -D_CRT_SECURE_NO_WARNINGS", I=include_dir, L=ld_dir.to_string_lossy());
-    let cflags = format!("{} -llzma -lbz2", cflags);
-    println!("{}", cflags);
+    let cflags = format!("-I{include_dir} -D_DEBUG -D_CRT_SECURE_NO_WARNINGS");
+    println!("cargo::rustc-env=INLINE_C_RS_CFLAGS={cflags}");
 
-    let ldflags = format!(
-        "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat_capi.a",
-        L = ld_dir.to_string_lossy()
-    );
-    let ldflags = format!("{} -llzma -lbz2", ldflags);
-    println!("{}", ldflags);
+    let ldflags = format!("-L{L} -lrustsat_capi", L = ld_dir.to_string_lossy());
+    let ldflags = format!("{ldflags} -llzma -lbz2");
+    println!("cargo::rustc-env=INLINE_C_RS_LDFLAGS={ldflags}");
 }
 
 // https://github.com/rust-lang/cargo/issues/9661#issuecomment-1722358176

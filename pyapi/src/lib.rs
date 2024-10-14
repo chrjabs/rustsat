@@ -12,9 +12,11 @@
 //!
 //! Documentation for this API can be found [here](https://christophjabs.info/rustsat/pyapi/).
 
+#![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
 
-use pyo3::{prelude::*, types::PySlice};
+use pyo3::prelude::*;
 
 mod encodings;
 mod instances;
@@ -25,12 +27,6 @@ use crate::{
     instances::{Cnf, VarManager},
     types::{Clause, Lit},
 };
-
-#[derive(FromPyObject)]
-pub(crate) enum SliceOrInt<'a> {
-    Slice(&'a PySlice),
-    Int(isize),
-}
 
 pub(crate) enum SingleOrList<T> {
     Single(T),

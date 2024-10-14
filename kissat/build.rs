@@ -1,9 +1,11 @@
+#![warn(clippy::pedantic)]
+
 use glob::glob;
 use std::{
     env,
     fs::{self, File},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     str,
 };
@@ -15,7 +17,11 @@ fn main() {
     }
 
     // Select commit based on features. If conflict, always choose newest release
-    let tag = if cfg!(feature = "v3-1-1") {
+    let tag = if cfg!(feature = "v4-0-1") {
+        "refs/tags/rel-4.0.1"
+    } else if cfg!(feature = "v4-0-0") {
+        "refs/tags/rel-4.0.0"
+    } else if cfg!(feature = "v3-1-1") {
         "refs/tags/rel-3.1.1"
     } else if cfg!(feature = "v3-1-0") {
         "refs/tags/rel-3.1.0"
@@ -29,7 +35,7 @@ fn main() {
         "refs/tags/sc2022-bulky"
     } else {
         // default to newest version
-        "refs/tags/rel-3.1.1"
+        "refs/tags/rel-4.0.1"
     };
 
     // Build C library
@@ -39,8 +45,27 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
 
     // Built solver is in out_dir
-    println!("cargo:rustc-link-search={}", out_dir);
-    println!("cargo:rustc-link-search={}/lib", out_dir);
+    println!("cargo:rustc-link-search={out_dir}");
+    println!("cargo:rustc-link-search={out_dir}/lib");
+    println!("cargo:rustc-link-lib=static=kissat");
+
+    // Generate Rust FFI bindings
+    let bindings = bindgen::Builder::default()
+        .header(format!("{out_dir}/kissat/src/kissat.h"))
+        .header(format!("{out_dir}/kissat/src/error.h"))
+        .blocklist_function("kissat_copyright")
+        .blocklist_function("kissat_build")
+        .blocklist_function("kissat_banner")
+        .blocklist_function("kissat_has_configuration")
+        .blocklist_function("kissat_error")
+        .blocklist_function("kissat_fatal")
+        .blocklist_function("kissat_fatal_message_start")
+        .blocklist_function("kissat_abort")
+        .generate()
+        .expect("Unable to generate ffi bindings");
+    bindings
+        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .expect("Could not write ffi bindings");
 }
 
 fn build(repo: &str, branch: &str, reference: &str) {
@@ -53,7 +78,7 @@ fn build(repo: &str, branch: &str, reference: &str) {
     {
         // Repo changed, rebuild
         // We specify the build manually here instead of calling make for better portability
-        let src_files = glob(&format!("{}/src/*.c", kissat_dir_str))
+        let src_files = glob(&format!("{kissat_dir_str}/src/*.c"))
             .unwrap()
             .filter_map(|res| {
                 if let Ok(p) = res {
@@ -97,7 +122,8 @@ fn build(repo: &str, branch: &str, reference: &str) {
         let mut kissat_version =
             fs::read_to_string(kissat_dir.join("VERSION")).expect("Cannot read kissat version");
         kissat_version.retain(|c| c != '\n');
-        let (compiler_desc, compiler_flags) = get_compiler_description(kissat_build.get_compiler());
+        let (compiler_desc, compiler_flags) =
+            get_compiler_description(&kissat_build.get_compiler());
         write!(
                 build_header,
                 "#define VERSION \"{}\"\n#define COMPILER \"{} {}\"\n#define ID \"{}\"\n#define BUILD \"{}\"\n#define DIR \"{}\"",
@@ -115,38 +141,32 @@ fn build(repo: &str, branch: &str, reference: &str) {
 /// Returns true if there were changes, false if not
 fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
     let mut changed = false;
-    let repo = match git2::Repository::open(path) {
-        Ok(repo) => {
-            if repo.find_reference(reference).is_err() {
-                // Fetch repo
-                let mut remote = repo.find_remote("origin").unwrap_or_else(|e| {
-                    panic!("Expected remote \"origin\" in git repo {:?}: {}", path, e)
-                });
-                remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
-                    panic!(
-                        "Could not fetch \"origin/{}\" for git repo {:?}: {}",
-                        branch, path, e
-                    )
-                });
-                drop(remote);
-                changed = true;
-            }
-            repo
-        }
-        Err(_) => {
-            if path.exists() {
-                fs::remove_dir_all(path).unwrap_or_else(|e| {
-                    panic!(
-                        "Could not delete directory {}: {}",
-                        path.to_str().unwrap(),
-                        e
-                    )
-                });
-            };
+    let repo = if let Ok(repo) = git2::Repository::open(path) {
+        if repo.find_reference(reference).is_err() {
+            // Fetch repo
+            let mut remote = repo
+                .find_remote("origin")
+                .unwrap_or_else(|e| panic!("Expected remote \"origin\" in git repo {path:?}: {e}"));
+            remote.fetch(&[branch], None, None).unwrap_or_else(|e| {
+                panic!("Could not fetch \"origin/{branch}\" for git repo {path:?}: {e}")
+            });
+            drop(remote);
             changed = true;
-            git2::Repository::clone(url, path)
-                .unwrap_or_else(|e| panic!("Could not clone repository {}: {}", url, e))
         }
+        repo
+    } else {
+        if path.exists() {
+            fs::remove_dir_all(path).unwrap_or_else(|e| {
+                panic!(
+                    "Could not delete directory {}: {}",
+                    path.to_str().unwrap(),
+                    e
+                )
+            });
+        };
+        changed = true;
+        git2::Repository::clone(url, path)
+            .unwrap_or_else(|e| panic!("Could not clone repository {url}: {e}"))
     };
     let target_commit = repo
         .find_reference(reference)
@@ -164,7 +184,7 @@ fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
 }
 
 /// Gets a description of the C(++) compiler used and the used flags
-fn get_compiler_description(compiler: cc::Tool) -> (String, String) {
+fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;
     let compiler_version = match Command::new(compiler_command.get_program())

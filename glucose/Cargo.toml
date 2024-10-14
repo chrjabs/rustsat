@@ -1,9 +1,9 @@
 [package]
 name = "rustsat-glucose"
 version = "0.3.1"
-edition = "2021"
+edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
-license = "MIT"
+license.workspace = true
 description = "Interface to the SAT solver Glucose for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
@@ -19,17 +19,14 @@ quiet = []
 default = ["quiet"]
 
 [dependencies]
-cpu-time = "1.0.0"
-rustsat = { version = "0.5.1", path = "../rustsat", default-features = false }
-thiserror = { version = "1.0.57" }
-anyhow = { version = "1.0.80" }
+anyhow.workspace = true
+cpu-time.workspace = true
+thiserror.workspace = true
+rustsat.workspace = true
 
 [build-dependencies]
-cc = { version = "1.0.83", features = ["parallel"] }
-git2 = "0.19.0"
-glob = "0.3.1"
-chrono = "0.4.31"
-cmake = "0.1.50"
+bindgen.workspace = true
+cmake.workspace = true
 
 [dev-dependencies]
-rustsat-solvertests = { path = "../solvertests" }
+rustsat-solvertests.workspace = true

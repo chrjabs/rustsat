@@ -2,7 +2,7 @@ name: Semver checks
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "next-major" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -43,3 +43,7 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           package: rustsat-ipasir
+      - name: BatSat
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: rustsat-batsat
