@@ -191,7 +191,7 @@ fn main() {
 
     for ext in ["h", "cpp"] {
         for file in glob(&format!("cppsrc/*.{ext}")).unwrap() {
-            println!("cargo::rerun-if-changed={}", file.unwrap().display());
+            println!("cargo:rerun-if-changed={}", file.unwrap().display());
         }
     }
 
