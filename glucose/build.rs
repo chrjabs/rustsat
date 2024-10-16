@@ -6,13 +6,7 @@ use std::{
 };
 
 fn main() {
-    if std::env::var("DOCS_RS").is_ok() {
-        // don't build c++ library on docs.rs due to network restrictions
-        return;
-    }
-
     // Build C++ library
-    // Full commit hash needs to be provided
     build();
 
     let out_dir = env::var("OUT_DIR").unwrap();
