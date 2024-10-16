@@ -1114,7 +1114,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.1.1"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-capi"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "cbindgen",
  "inline-c",
@@ -1209,7 +1209,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-pyapi"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
