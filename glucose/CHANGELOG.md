@@ -11,11 +11,9 @@ All notable changes to this project will be documented in this file.
 ### Features
 
 - `Propagate` trait
-- `Cl` as light-weight DST for clauses
 
 ### Miscellaneous Tasks
 
-- Move main crate to project root
 - Pedantic clippy
 
 ### Refactor
