@@ -76,7 +76,7 @@ tempfile.workspace = true
 xz2 = { workspace = true, optional = true }
 
 [dev-dependencies]
-rustsat-minisat.workspace = true
+rustsat-minisat = { path = "./minisat" }
 rustsat-solvertests.workspace = true
 rustsat-tools = { path = "./tools" }
 
