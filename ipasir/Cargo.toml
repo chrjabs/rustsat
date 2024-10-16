@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-ipasir"
-version = "0.1.2"
+version = "0.1.3"
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
