@@ -11,8 +11,12 @@ use std::{
 };
 
 fn main() {
+    let out_dir = env::var("OUT_DIR").unwrap();
+
     if std::env::var("DOCS_RS").is_ok() {
         // don't build c library on docs.rs due to network restrictions
+        // instead, only generate bindings from included header file
+        generate_bindings("csrc/dummy-kissat.h", &out_dir);
         return;
     }
 
@@ -42,17 +46,20 @@ fn main() {
     // Full commit hash needs to be provided
     build("https://github.com/arminbiere/kissat.git", "master", tag);
 
-    let out_dir = env::var("OUT_DIR").unwrap();
-
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
     println!("cargo:rustc-link-lib=static=kissat");
 
     // Generate Rust FFI bindings
+    generate_bindings(&format!("{out_dir}/kissat/src/kissat.h"), &out_dir);
+}
+
+/// Generates Rust FFI bindings
+fn generate_bindings(header_path: &str, out_dir: &str) {
     let bindings = bindgen::Builder::default()
-        .header(format!("{out_dir}/kissat/src/kissat.h"))
-        .header(format!("{out_dir}/kissat/src/error.h"))
+        .header(header_path)
+        .header(header_path)
         .blocklist_function("kissat_copyright")
         .blocklist_function("kissat_build")
         .blocklist_function("kissat_banner")

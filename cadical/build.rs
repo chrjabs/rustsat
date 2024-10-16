@@ -158,15 +158,19 @@ impl Version {
 }
 
 fn main() {
+    let out_dir = env::var("OUT_DIR").unwrap();
+
+    let version = Version::determine();
+
     if std::env::var("DOCS_RS").is_ok() {
         // don't build c++ library on docs.rs due to network restrictions
+        // instead, only generate bindings from included header file
+        generate_bindings("cppsrc/dummy-ccadical.h", version, &out_dir);
         return;
     }
 
     #[cfg(all(feature = "quiet", feature = "logging"))]
     compile_error!("cannot combine cadical features quiet and logging");
-
-    let version = Version::determine();
 
     // Build C++ library
     build(
@@ -174,8 +178,6 @@ fn main() {
         "master",
         version,
     );
-
-    let out_dir = env::var("OUT_DIR").unwrap();
 
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
@@ -197,11 +199,15 @@ fn main() {
 
     let cadical_dir = get_cadical_dir(None);
 
-    // Generate Rust FFI bindings
+    generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
+}
+
+/// Generates Rust FFI bindings
+fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
     let bindings = bindgen::Builder::default()
         .clang_arg("-Icppsrc")
-        .header(format!("{cadical_dir}/src/ccadical.h"))
-        .allowlist_file(format!("{cadical_dir}/src/ccadical.h"))
+        .header(header_path)
+        .allowlist_file(header_path)
         .allowlist_file("cppsrc/ccadical_extension.h")
         .blocklist_item("FILE")
         .blocklist_function("ccadical_add")
