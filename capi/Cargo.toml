@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-capi"
-version = "0.5.1"
+version = "0.6.0"
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true

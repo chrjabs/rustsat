@@ -46,8 +46,3 @@ git_release_enable = false
 name = "rustsat-pyapi"
 release = false
 git_release_enable = false
-
-[[package]]
-name = "rustsat-batsat"
-release = false
-git_release_enable = false
