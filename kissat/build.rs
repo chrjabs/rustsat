@@ -24,6 +24,22 @@ enum Version {
     V401,
 }
 
+/// Checks if the version was set manually via a feature
+macro_rules! version_set_manually {
+    () => {
+        cfg!(any(
+            feature = "v4-0-1",
+            feature = "v4-0-0",
+            feature = "v3-1-1",
+            feature = "v3-1-0",
+            feature = "v3-0-0",
+            feature = "sc2022-light",
+            feature = "sc2022-hyper",
+            feature = "sc2022-bulky",
+        ))
+    };
+}
+
 impl Version {
     fn determine() -> Self {
         if cfg!(feature = "v4-0-1") {
@@ -80,6 +96,13 @@ fn main() {
 }
 
 fn get_kissat_src(version: Version) -> PathBuf {
+    if let Ok(src_dir) = std::env::var("KISSAT_SRC_DIR") {
+        if version_set_manually!() {
+            println!("cargo:warning=Both version feature and KISSAT_SRC_DIR. Will ignore version feature");
+        }
+        return PathBuf::from(src_dir);
+    }
+
     if version == Version::default() {
         // the sources for the default version are included with the crate and do not need to be
         // cloned

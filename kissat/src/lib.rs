@@ -24,6 +24,12 @@
 //!
 //! Without any features selected, the newest version will be used.
 //! If conflicting Kissat versions are requested, the newest requested version will be selected.
+//!
+//! ## Customization
+//!
+//! In order to build a custom version of Kissat, this crate supports the `KISSAT_SRC_DIR`
+//! environment variable.
+//! If this is set, Kissat will be built from the path specified there.
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
