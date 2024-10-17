@@ -4,3 +4,6 @@
 [submodule "glucose/cppsrc"]
 	path = glucose/cppsrc
 	url = git@github.com:chrjabs/glucose4.git
+[submodule "kissat/csrc"]
+	path = kissat/csrc
+	url = git@github.com:arminbiere/kissat.git
