@@ -212,14 +212,15 @@ impl ops::Add<u32> for Var {
     type Output = Var;
 
     fn add(self, rhs: u32) -> Self::Output {
-        Var {
-            idx: self.idx + rhs,
-        }
+        let idx = self.idx + rhs;
+        debug_assert!(idx <= Var::MAX_IDX, "variable index overflow");
+        Var { idx }
     }
 }
 
 impl ops::AddAssign<u32> for Var {
     fn add_assign(&mut self, rhs: u32) {
+        debug_assert!(self.idx + rhs <= Var::MAX_IDX, "variable index overflow");
         self.idx += rhs;
     }
 }
@@ -1124,6 +1125,34 @@ mod tests {
         let lit = Lit::positive(idx);
         let var = Var::new(idx);
         assert_eq!(lit.var(), var);
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_add_1_overflow() {
+        let var = Var::new(Var::MAX_IDX);
+        let _ = var + 1;
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_add_42_overflow() {
+        let var = Var::new(Var::MAX_IDX - 41);
+        let _ = var + 42;
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_addassign_1_overflow() {
+        let mut var = Var::new(Var::MAX_IDX);
+        var += 1;
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_addassign_overflow() {
+        let mut var = Var::new(Var::MAX_IDX - 41);
+        var += 42;
     }
 
     #[test]
