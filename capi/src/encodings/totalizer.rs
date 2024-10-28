@@ -144,10 +144,10 @@ mod tests {
 
             int main() {
                 DbTotalizer *tot = tot_new();
-                tot_add(tot, 1);
-                tot_add(tot, 2);
-                tot_add(tot, 3);
-                tot_add(tot, 4);
+                assert(tot_add(tot, 1) == Ok);
+                assert(tot_add(tot, 2) == Ok);
+                assert(tot_add(tot, 3) == Ok);
+                assert(tot_add(tot, 4) == Ok);
                 uint32_t n_used = 4;
                 uint32_t n_clauses = 0;
                 tot_encode_ub(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
