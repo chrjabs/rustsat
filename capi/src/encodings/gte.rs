@@ -3,7 +3,7 @@
 use std::ffi::{c_int, c_void};
 
 use rustsat::{
-    encodings::pb::{BoundUpper, BoundUpperIncremental, DbGte},
+    encodings::pb::{BoundUpper, BoundUpperIncremental, DbGte, EncodeIncremental as _},
     types::Lit,
 };
 
@@ -99,6 +99,20 @@ pub unsafe extern "C" fn gte_enforce_ub(
     }
 }
 
+/// Reserves all auxiliary variables that the encoding might need
+///
+/// All calls to [`gte_encode_ub`] following a call to this function are guaranteed to not increase
+/// the value of `n_vars_used`. This does _not_ hold if [`gte_add`] is called in between
+///
+/// # Safety
+///
+/// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+#[no_mangle]
+pub unsafe extern "C" fn gte_reserve(gte: *mut DbGte, n_vars_used: &mut u32) {
+    let mut var_manager = VarManager::new(n_vars_used);
+    unsafe { (*gte).reserve(&mut var_manager) };
+}
+
 /// Frees the memory associated with a [`DbGte`]
 ///
 /// # Safety
@@ -158,6 +172,40 @@ mod tests {
                 printf("%d", n_used);
                 assert(n_used == 24);
                 assert(n_clauses == 25);
+                return 0;
+            }
+        })
+        .success();
+    }
+
+    #[test]
+    fn reserve() {
+        (assert_c! {
+            #include <assert.h>
+            #include "rustsat.h"
+
+            void clause_counter(int lit, void *data) {
+                if (!lit) {
+                    int *cnt = (int *)data;
+                    (*cnt)++;
+                }
+            }
+
+            int main() {
+                DbGte *gte = gte_new();
+                assert(gte_add(gte, 1, 1) == Ok);
+                assert(gte_add(gte, 2, 1) == Ok);
+                assert(gte_add(gte, 3, 2) == Ok);
+                assert(gte_add(gte, 4, 2) == Ok);
+                uint32_t n_used = 4;
+                uint32_t n_clauses = 0;
+                gte_reserve(gte, &n_used);
+                assert(n_used == 14);
+                gte_encode_ub(gte, 2, 6, &n_used, &clause_counter, &n_clauses);
+                assert(n_used == 14);
+                gte_encode_ub(gte, 0, 4, &n_used, &clause_counter, &n_clauses);
+                assert(n_used == 14);
+                gte_drop(gte);
                 return 0;
             }
         })
