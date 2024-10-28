@@ -5,6 +5,7 @@ use std::ffi::{c_int, c_void};
 use rustsat::{
     encodings::pb::{
         BinaryAdder, BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
+        EncodeIncremental,
     },
     types::Lit,
 };
@@ -172,6 +173,22 @@ pub unsafe extern "C" fn bin_adder_enforce_lb(
         }
         Err(err) => err.into(),
     }
+}
+
+/// Reserves all auxiliary variables that the encoding might need
+///
+/// All calls to [`bin_adder_encode_ub`] or [`bin_adder_encode_lb`] following a call to this
+/// function are guaranteed to not increase the value of `n_vars_used`. This does _not_ hold if
+/// [`bin_adder_add`] is called in between
+///
+/// # Safety
+///
+/// `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+/// called on.
+#[no_mangle]
+pub unsafe extern "C" fn bin_adder_reserve(adder: *mut BinaryAdder, n_vars_used: &mut u32) {
+    let mut var_manager = VarManager::new(n_vars_used);
+    unsafe { (*adder).reserve(&mut var_manager) };
 }
 
 /// Frees the memory associated with a [`BinaryAdder`]

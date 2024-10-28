@@ -238,6 +238,20 @@ enum MaybeError bin_adder_enforce_ub(struct BinaryAdder *adder,
 struct BinaryAdder *bin_adder_new(void);
 
 /**
+ * Reserves all auxiliary variables that the encoding might need
+ *
+ * All calls to [`bin_adder_encode_ub`] or [`bin_adder_encode_lb`] following a call to this
+ * function are guaranteed to not increase the value of `n_vars_used`. This does _not_ hold if
+ * [`bin_adder_add`] is called in between
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+ * called on.
+ */
+void bin_adder_reserve(struct BinaryAdder *adder, uint32_t *n_vars_used);
+
+/**
  * Adds a new input literal to a [`DynamicPolyWatchdog`].
  *
  * # Errors
@@ -382,6 +396,18 @@ struct DynamicPolyWatchdog *dpw_new(void);
 size_t dpw_next_precision(struct DynamicPolyWatchdog *dpw);
 
 /**
+ * Reserves all auxiliary variables that the encoding might need
+ *
+ * All calls to [`dpw_encode_ub`] following a call to this function are guaranteed to not increase
+ * the value of `n_vars_used`. This does _not_ hold if [`dpw_add`] is called in between
+ *
+ * # Safety
+ *
+ * `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
+ */
+void dpw_reserve(struct DynamicPolyWatchdog *dpw, uint32_t *n_vars_used);
+
+/**
  * Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
  * effectively be built such that the weight of every input literal is divided by `divisor`
  * (integer division, rounding down). Divisor values must be powers of 2. After building the
@@ -477,6 +503,18 @@ enum MaybeError gte_enforce_ub(struct DbGte *gte,
 struct DbGte *gte_new(void);
 
 /**
+ * Reserves all auxiliary variables that the encoding might need
+ *
+ * All calls to [`gte_encode_ub`] following a call to this function are guaranteed to not increase
+ * the value of `n_vars_used`. This does _not_ hold if [`gte_add`] is called in between
+ *
+ * # Safety
+ *
+ * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ */
+void gte_reserve(struct DbGte *gte, uint32_t *n_vars_used);
+
+/**
  * Adds a new input literal to a [`DbTotalizer`]
  *
  * # Errors
@@ -548,6 +586,18 @@ enum MaybeError tot_enforce_ub(struct DbTotalizer *tot, size_t ub, int *assump);
  * Creates a new [`DbTotalizer`] cardinality encoding
  */
 struct DbTotalizer *tot_new(void);
+
+/**
+ * Reserves all auxiliary variables that the encoding might need
+ *
+ * All calls to [`tot_encode_ub`] following a call to this function are guaranteed to not increase
+ * the value of `n_vars_used`. This does _not_ hold if [`tot_add`] is called in between
+ *
+ * # Safety
+ *
+ * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
+ */
+void tot_reserve(struct DbTotalizer *tot, uint32_t *n_vars_used);
 
 #ifdef __cplusplus
 }  // extern "C"
