@@ -98,6 +98,7 @@ impl Encode for DbTotalizer {
 
 impl EncodeIncremental for DbTotalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.extend_tree();
         if let Some(root) = self.root {
             self.db.reserve_vars(root, var_manager);
         }
@@ -1286,7 +1287,7 @@ mod tests {
     use super::{DbTotalizer, TotDb};
     use crate::{
         encodings::{
-            card::{BoundUpper, BoundUpperIncremental},
+            card::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
             nodedb::{NodeById, NodeCon, NodeLike},
             EncodeStats, Error,
         },
@@ -1469,5 +1470,17 @@ mod tests {
         let t3 = db.lit_tree(&[lit![8], lit![9], lit![10], lit![11]]);
         db.merge(&[NodeCon::full(t1), NodeCon::full(t3)]);
         db.drain(t1 + 1..=t2).unwrap();
+    }
+
+    #[test]
+    fn reserve() {
+        let mut tot = DbTotalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        tot.reserve(&mut var_manager);
+        assert_eq!(var_manager.n_used(), 12);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 12);
     }
 }

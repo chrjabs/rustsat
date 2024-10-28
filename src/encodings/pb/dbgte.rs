@@ -151,6 +151,7 @@ impl Encode for DbGte {
 
 impl EncodeIncremental for DbGte {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.extend_tree(usize::MAX);
         if let Some(con) = self.root {
             self.db.reserve_vars(con.id, var_manager);
         }
@@ -617,7 +618,7 @@ mod tests {
     use crate::{
         encodings::{
             card,
-            pb::{BoundUpper, BoundUpperIncremental},
+            pb::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
             EncodeStats, Error,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
@@ -748,5 +749,17 @@ mod tests {
         assert_eq!(gte_cnf.len(), tot_cnf.len());
         assert_eq!(gte_cnf.len(), gte.n_clauses());
         assert_eq!(tot_cnf.len(), tot.n_clauses());
+    }
+
+    #[test]
+    fn reserve() {
+        let mut gte = DbGte::default();
+        gte.extend(vec![(lit![0], 1), (lit![1], 2), (lit![2], 3), (lit![3], 4)]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        gte.reserve(&mut var_manager);
+        assert_eq!(var_manager.n_used(), 24);
+        let mut cnf = Cnf::new();
+        gte.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 24);
     }
 }
