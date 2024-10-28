@@ -119,6 +119,7 @@ impl IterInputs for Totalizer {
 
 impl EncodeIncremental for Totalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.extend_tree();
         if let Some(root) = &mut self.root {
             root.reserve_all_vars_rec(var_manager);
         }
@@ -898,6 +899,7 @@ mod tests {
         encodings::{
             card::{
                 BoundBoth, BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
+                EncodeIncremental,
             },
             EncodeStats, Error,
         },
@@ -1171,5 +1173,17 @@ mod tests {
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
         assert_eq!(cnf2.len(), tot2.n_clauses());
+    }
+
+    #[test]
+    fn reserve() {
+        let mut tot = Totalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        tot.reserve(&mut var_manager);
+        assert_eq!(var_manager.n_used(), 12);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 12);
     }
 }

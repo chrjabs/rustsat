@@ -270,6 +270,15 @@ impl IterWeightedInputs for DynamicPolyWatchdog {
 
 impl EncodeIncremental for DynamicPolyWatchdog {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        if self.structure.is_none() && !self.in_lits.is_empty() {
+            self.structure = Some(build_structure(
+                &mut self.weight_queue,
+                self.prec_div,
+                true,
+                &mut self.db,
+                var_manager,
+            ));
+        }
         if let Some(structure) = &self.structure {
             self.db.reserve_vars(structure.root(), var_manager);
         }
@@ -1027,10 +1036,10 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Er
 mod tests {
     use crate::{
         encodings::{
-            pb::{BoundUpper, BoundUpperIncremental},
+            pb::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
             EncodeStats,
         },
-        instances::{BasicVarManager, Cnf},
+        instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         types::{RsHashMap, Var},
         var,
@@ -1368,5 +1377,18 @@ mod tests {
         let mut hardened = Cnf::new();
         dpw.limit_range(1..4, &mut hardened).unwrap();
         assert_eq!(hardened.len(), 2);
+    }
+
+    #[test]
+    fn reserve() {
+        let mut dpw: DynamicPolyWatchdog = [(lit![0], 1), (lit![1], 2), (lit![2], 3), (lit![3], 4)]
+            .into_iter()
+            .collect();
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        dpw.reserve(&mut var_manager);
+        assert_eq!(var_manager.n_used(), 23);
+        let mut cnf = Cnf::new();
+        dpw.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 23);
     }
 }
