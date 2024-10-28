@@ -55,4 +55,4 @@ jobs:
       - name: Check C header
         run: |
           cargo install cbindgen
-          cbindgen -c capi/cbindgen.toml --crate rustsat-capi -o capi/rustsat.h --verify
+          scripts/verify-c-header.sh
