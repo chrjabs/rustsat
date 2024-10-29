@@ -176,7 +176,7 @@ impl Var {
     /// Converts the variable to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR variable
-    /// will have idx+1.
+    /// will have `idx+1`.
     ///
     /// # Panics
     ///
@@ -193,7 +193,7 @@ impl Var {
     /// Converts the variable to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
-    /// will have idx+1 and be negative if the literal is negated.
+    /// will have `idx+1` and be negative if the literal is negated.
     ///
     /// # Errors
     ///
@@ -432,7 +432,7 @@ impl Lit {
         (self.lidx >> 1) as usize
     }
 
-    /// Gets the 32bit variable index of the literal
+    /// Gets the 32-bit variable index of the literal
     #[inline]
     #[must_use]
     pub fn vidx32(self) -> u32 {
@@ -479,7 +479,7 @@ impl Lit {
     /// Converts the literal to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the
     /// [DIMACS file format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The
-    /// IPASIR literal will have idx+1 and be negative if the literal is negated. Panics if the
+    /// IPASIR literal will have `idx+1` and be negative if the literal is negated. Panics if the
     /// literal does not fit into a `c_int`.
     ///
     /// # Panics
@@ -503,7 +503,7 @@ impl Lit {
     /// Converts the literal to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
-    /// will have idx+1 and be negative if the literal is negated.
+    /// will have `idx+1` and be negative if the literal is negated.
     ///
     /// # Errors
     ///
@@ -640,7 +640,7 @@ pub enum TernaryVal {
 }
 
 impl TernaryVal {
-    /// Converts a [`TernaryVal`] to a bool with a default value for "don't cares"
+    /// Converts a [`TernaryVal`] to a [`bool`] with a default value for "don't cares"
     #[must_use]
     pub fn to_bool_with_def(self, def: bool) -> bool {
         match self {
@@ -720,7 +720,7 @@ pub enum InvalidVLine {
     EmptyLine,
 }
 
-/// Different possible v-line fomats
+/// Different possible `v`-line formats
 enum VLineFormat {
     /// Assignment specified as a space-spearated sequence of IPASIR literals. This is the format
     /// used in the SAT competition.

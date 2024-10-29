@@ -61,15 +61,15 @@ impl Default for Options {
 /// Possible relational operators
 #[derive(Debug, PartialEq, Eq)]
 enum OpbOperator {
-    /// <=
+    /// `<=`
     LE,
-    /// >=
+    /// `>=`
     GE,
-    /// <
+    /// `<`
     LT,
-    /// >
+    /// `>`
     GT,
-    /// =
+    /// `=`
     EQ,
 }
 
@@ -215,7 +215,7 @@ fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
 }
 
 /// Parses a literal. The spec for linear OPB instances only allows for
-/// variables but we allow negated literals with '~' as in non-linear OPB
+/// variables but we allow negated literals with `~` as in non-linear OPB
 /// instances.
 pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
     match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
@@ -384,7 +384,7 @@ pub enum FileLine<LI: crate::types::WLitIter> {
     Objective(LI),
 }
 
-/// Writes an OPB file from an interator over [`FileLine`]s
+/// Writes an OPB file from an iterator over [`FileLine`]s
 ///
 /// # Errors
 ///
@@ -406,7 +406,7 @@ where
     Ok(())
 }
 
-/// Writes an OPB file from an interator over [`FileLine`]s
+/// Writes an OPB file from an iterator over [`FileLine`]s
 ///
 /// # Errors
 ///

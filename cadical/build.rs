@@ -377,7 +377,7 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
     }
 }
 
-/// Applies a patch to the repo
+/// Applies a patch to the repository
 fn apply_patch<P: AsRef<Path>>(repo: &Repository, patch: P) {
     let mut f = File::open(patch).unwrap();
     let mut buffer = Vec::new();
@@ -387,7 +387,7 @@ fn apply_patch<P: AsRef<Path>>(repo: &Repository, patch: P) {
         .unwrap();
 }
 
-/// Gets a description of the C(++) compiler used and the used flags
+/// Gets a description of the C(pp) compiler used and the used flags
 fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;

@@ -1,6 +1,6 @@
 //! # Module for File IO (Writing and Parsing)
 //!
-//! As the submodules have different APIs, it is recommended to parse and write
+//! As the sub-modules have different APIs, it is recommended to parse and write
 //! through the interface of instance types rather than using these functions
 //! directly.
 

@@ -1,4 +1,4 @@
-//! # mo2ilp
+//! # `mo2ilp`
 //!
 //! A small tool for converting multi-objective MaxSAT/PBO instances to the custom MO-ILP input formats.
 

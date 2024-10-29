@@ -1,7 +1,7 @@
 //! # Node Database Functionality For Universal Tree-Like Encodings
 //!
 //! Encodings with a tree-like structure where each node contains a sorted
-//! version of its childrens' literals. The leafs are input literals.
+//! version of its children's literals. The leafs are input literals.
 //!
 //! This is used as the basis for the dynamic polynomial watchdog encoding.
 //! (Note that the DPW encoding is not technically tree-like since it might
@@ -15,7 +15,7 @@ use std::{
 
 use crate::{types::Lit, utils::unreachable_none};
 
-/// An ID of a [`NodeLike`] in a database. The usize is typically the index in a
+/// An ID of a [`NodeLike`] in a database. The [`usize`] is typically the index in a
 /// vector of nodes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[repr(transparent)]
@@ -135,7 +135,7 @@ pub trait NodeLike {
     /// Gets the connection to the left child
     fn left(&self) -> Option<NodeCon>;
 
-    /// Gets the distance to the leaf furthest away in the subtree
+    /// Gets the distance to the leaf furthest away in the sub-tree
     fn depth(&self) -> usize;
 
     /// Creates a new internal node
@@ -459,7 +459,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
     /// the root (that will be a full connection, except for if the input is a
-    /// single connection). While the merging subtree will be balanced in terms
+    /// single connection). While the merging sub-tree will be balanced in terms
     /// of nodes, the overall tree might not be.
     fn merge(&mut self, cons: &[NodeCon]) -> NodeCon
     where

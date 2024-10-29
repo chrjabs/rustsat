@@ -222,7 +222,7 @@ struct DynamicPolyWatchdog *dpw_new(void);
  *
  * Note that this is not the next possible precision value from the last _set_ precision but from
  * the last _encoded_ precision. The divisor value will always be a power of two so that calling
- * `set_precision` and then encoding will produce the smalles non-empty next segment of the
+ * `set_precision` and then encoding will produce the smallest non-empty next segment of the
  * encoding.
  *
  * # Safety
@@ -234,14 +234,14 @@ size_t dpw_next_precision(struct DynamicPolyWatchdog *dpw);
 /**
  * Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
  * effectively be built such that the weight of every input literal is divided by `divisor`
- * (interger division, rounding down). Divisor values must be powers of 2. After building the
+ * (integer division, rounding down). Divisor values must be powers of 2. After building the
  * encoding, the precision can only be increased, i.e., only call this function with _decreasing_
  * divisor values.
  *
  * # Errors
  *
  * - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
- * - If `divisor` is larger than the last divisor, i.e., precision is attemted to be decreased,
+ * - If `divisor` is larger than the last divisor, i.e., precision is attempted to be decreased,
  *     [`MaybeError::PrecisionDecreased`] is returned
  *
  * # Safety

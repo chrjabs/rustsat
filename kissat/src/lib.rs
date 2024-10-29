@@ -1,4 +1,4 @@
-//! # rustsat-kissat - Interface to the kissat SAT Solver for RustSAT
+//! # rustsat-kissat - Interface to the Kissat SAT Solver for RustSAT
 //!
 //! Armin Biere's SAT solver [Kissat](https://github.com/arminbiere/kissat) to be used with the [RustSAT](https://github.com/chrjabs/rustsat) library.
 //!
@@ -7,7 +7,7 @@
 //! ## Features
 //!
 //! - `debug`: if this feature is enables, the C library will be built with debug functionality if the Rust project is built in debug mode
-//! - `safe`: disable writing through 'popen' for more safe usage of the library in applications
+//! - `safe`: disable writing through `popen` for more safe usage of the library in applications
 //! - `quiet`: exclude message and profiling code (logging too)
 //!
 //! ## Kissat Versions
@@ -497,12 +497,12 @@ extern "C" fn panic_instead_of_abort() {
     panic!("kissat called kissat_abort");
 }
 
-/// Changes Kissat's abort behaviour to cause a Rust panic instead
+/// Changes Kissat's abort behavior to cause a Rust panic instead
 pub fn panic_intead_of_abort() {
     unsafe { ffi::kissat_call_function_instead_of_abort(Some(panic_instead_of_abort)) };
 }
 
-/// Changes Kissat's abort behaviour to call the given function instead
+/// Changes Kissat's abort behavior to call the given function instead
 pub fn call_instead_of_abort(abort: Option<unsafe extern "C" fn()>) {
     unsafe { ffi::kissat_call_function_instead_of_abort(abort) };
 }

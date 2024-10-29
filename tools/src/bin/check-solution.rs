@@ -1,4 +1,4 @@
-//! # check-solution
+//! # `check-solution`
 //!
 //! A small tool for checking solutions to SAT and optimization instances.
 
@@ -40,7 +40,7 @@ struct Args {
     /// The instance to check the solution against
     instance: PathBuf,
     /// The solution specified as one or multiple v-lines. If not specified, will be read from
-    /// stdin.
+    /// `stdin`.
     solution: Option<PathBuf>,
     /// The file format of the instance. With infer, the file format is
     /// inferred from the file extension.

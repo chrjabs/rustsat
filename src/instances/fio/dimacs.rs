@@ -7,8 +7,8 @@
 //! ## References
 //!
 //! - [DIMACS CNF](http://www.satcompetition.org/2011/format-benchmarks2011.html)
-//! - [DIMACS WCNF pre22](https://maxsat-evaluations.github.io/2017/rules.html#input)
-//! - [DIMACS WCNF post22](https://maxsat-evaluations.github.io/2022/rules.html#input)
+//! - [DIMACS WCNF pre-22](https://maxsat-evaluations.github.io/2017/rules.html#input)
+//! - [DIMACS WCNF post-22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
 use crate::{
     instances::{Cnf, ManageVars, SatInstance},
@@ -221,7 +221,7 @@ where
 }
 
 #[cfg(feature = "optimization")]
-/// Main parser for WCNF pre 22 (with p line)
+/// Main parser for WCNF pre-22 (with p line)
 ///
 /// # Errors
 ///
@@ -371,7 +371,7 @@ fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
 }
 
 #[cfg(feature = "optimization")]
-/// Parses a WCNF pre 22 line, either a comment or a clause
+/// Parses a WCNF pre-22 line, either a comment or a clause
 fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> {
     let (input, _) = multispace0::<_, NomError<_>>(input)?;
     if input.trim().is_empty() {
@@ -394,7 +394,7 @@ type McnfDataLine = Option<(Option<(usize, usize)>, Clause)>;
 #[cfg(feature = "optimization")]
 /// Parses a MCNF or WCNF post 22 line, either a comment or a clause with
 /// objective index. If a line does not explicitly specify an objective index,
-/// it is assumed to be 1. This enables for also parsing mcnf lines.
+/// it is assumed to be 1. This enables for also parsing MCNF lines.
 fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine> {
     let (input, _) = multispace0::<_, NomError<_>>(input)?;
     if input.trim().is_empty() {
@@ -480,8 +480,8 @@ fn parse_lit(input: &str) -> IResult<&str, Lit> {
 }
 
 /// Parses the end of a clause
-/// A '0' followed by a linebreak, as well as a '0' followed by
-/// whitespace or only a linebreak are treated as valid clause endings.
+/// A '0' followed by a line-break, as well as a '0' followed by
+/// white-space or only a line-break are treated as valid clause endings.
 /// This is more lean than the file format spec.
 fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
     recognize(pair(
