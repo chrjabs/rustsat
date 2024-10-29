@@ -1,0 +1,11 @@
+[profile.default]
+final-status-level = "slow"
+
+[profile.ci]
+fail-fast = false
+
+[[profile.ci.overrides]]
+# Flaky tests on MacOS GHA runners with cputime
+platform = 'cfg(target_os = "macos")'
+filter = 'package(rustsat) and (binary(pb_encodings) or binary(card_encodings) or binary(am1_encodings))'
+retries = { count = 5, backoff = "exponential", delay = "5s" }
