@@ -22,10 +22,14 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-spellcheck
+        uses: taiki-e/install-action@cargo-spellcheck
       - name: Run cargo doc
         run: cargo doc --workspace --verbose --no-deps --features=all
       - name: Run doc tests
         run: cargo test --doc --workspace
+      - name: Spellcheck documentation
+        run: cargo spellcheck --code 1
       - name: Check READMEs
         run: |
           cargo install cargo-rdme
