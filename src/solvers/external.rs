@@ -1,4 +1,4 @@
-//! # Solver Inferface for External Executables
+//! # Solver Interface for External Executables
 
 use std::{
     fs, io,

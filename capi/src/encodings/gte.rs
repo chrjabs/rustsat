@@ -1,4 +1,4 @@
-//! # Generatlized Totalizer C-API
+//! # Generalized Totalizer C-API
 
 use std::ffi::{c_int, c_void};
 

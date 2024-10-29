@@ -60,7 +60,7 @@ impl VarManager {
         self.0.increase_next_free(Var::new(n_used))
     }
 
-    /// Gets a new unsued variable
+    /// Gets a new unused variable
     fn new_var(&mut self) -> u32 {
         let v = self.0.new_var();
         v.idx32() + 1

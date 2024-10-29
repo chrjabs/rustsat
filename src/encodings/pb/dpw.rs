@@ -121,7 +121,7 @@ impl DynamicPolyWatchdog {
 
     /// Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
     /// effectively be built such that the weight of every input literal is divided by `divisor`
-    /// (interger division, rounding down). Divisor values must be powers of 2. After building
+    /// (integer division, rounding down). Divisor values must be powers of 2. After building
     /// the encoding, the precision can only be increased, i.e., only call this function with
     /// _decreasing_ divisor values.
     ///
@@ -143,7 +143,7 @@ impl DynamicPolyWatchdog {
     ///
     /// Note that this is not the next possible precision value from the last _set_ precision but
     /// from the last _encoded_ precision. The divisor value will always be a power of two so that
-    /// calling `set_precision` and then encoding will produce the smalles non-empty next segment
+    /// calling `set_precision` and then encoding will produce the smallest non-empty next segment
     /// of the encoding.
     #[must_use]
     pub fn next_precision(&self) -> usize {
@@ -247,7 +247,7 @@ impl Structure {
         self.bottom_buckets[0]
     }
     /// Gets the power of the output literals (they represent a weight of
-    /// 2^power)
+    /// `2^power`)
     #[must_use]
     pub fn output_power(&self) -> usize {
         self.tares.len()

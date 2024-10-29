@@ -1,4 +1,4 @@
-//! # cnf2opb
+//! # `cnf2opb`
 //!
 //! A small tool for converting DIMACS CNF files to OPB.
 

@@ -395,7 +395,7 @@ impl Cl {
             })
     }
 
-    /// Checks wheter the clause is satisfied
+    /// Checks whether the clause is satisfied
     #[must_use]
     #[deprecated(
         since = "0.6.0",

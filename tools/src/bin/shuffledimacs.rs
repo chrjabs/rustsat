@@ -1,4 +1,4 @@
-//! # shuffledimacs
+//! # `shuffledimacs`
 //!
 //! A small tool for shuffling the order of constraints and the variable
 //! indexing in a DIMACS file.

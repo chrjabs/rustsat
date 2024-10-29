@@ -1,4 +1,4 @@
-//! # wcnf2opb
+//! # `wcnf2opb`
 //!
 //! A small tool for converting DIMACS WCNF files to OPB.
 

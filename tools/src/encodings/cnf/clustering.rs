@@ -46,13 +46,13 @@ impl fmt::Display for Variant {
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 enum VarId {
-    /// b i k
+    /// `b i k`
     Binary(u32, u32),
-    /// y i k
+    /// `y i k`
     Unary(u32, u32),
-    /// EQ i j k
+    /// `EQ i j k`
     Eq(u32, u32, u32),
-    /// S i j
+    /// `S i j`
     Same(u32, u32),
 }
 
@@ -133,17 +133,17 @@ pub enum Similarity {
 }
 
 enum Clause {
-    /// EQUALITY i j k 0..3
+    /// `EQUALITY i j k 0..3`
     Eq(u32, u32, u32, u8),
-    /// SameCluster i j 0..a
+    /// `SameCluster i j 0..a`
     Same(u32, u32, u32),
-    /// ML i j 0..2a
+    /// `ML i j 0..2a`
     MustLink(u32, u32, u32),
-    /// CL i j
+    /// `CL i j`
     CannotLink(u32, u32),
-    /// S i j
+    /// `S i j`
     Similar(u32, u32),
-    /// -S i j
+    /// `-S i j`
     DisSimilar(u32, u32),
 }
 

@@ -194,7 +194,7 @@ fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
     changed
 }
 
-/// Gets a description of the C(++) compiler used and the used flags
+/// Gets a description of the C(pp) compiler used and the used flags
 fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;

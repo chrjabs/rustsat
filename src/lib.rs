@@ -1,6 +1,6 @@
-//! # rustsat - A Comprehensive SAT Library for Rust
+//! # RustSAT - A Comprehensive SAT Library for Rust
 //!
-//! `rustsat` is a collection of interfaces and utilities for working with the boolean satisfiability problem in Rust.
+//! RustSAT is a collection of interfaces and utilities for working with the boolean satisfiability problem in Rust.
 //! This library aims to provide implementations of elements commonly used in the development of software in the area of satisfiability solving.
 //! The focus of the library is to provide as much ease of use without giving up on performance.
 //!
@@ -32,8 +32,8 @@
 //! | --- | --- |
 //! | `rustsat` | The main library, containing basic types, traits, encodings, parsers, and more. |
 //! | `rustsat-tools` | A collection of small helpful tools based on RustSAT that can be installed as binaries. For a list of available tools, see [this directory](https://github.com/chrjabs/rustsat/tree/main/tools/src/bin) with short descriptions of the tools in the headers of the files. |
-//! | `rustsat-<satsolver>` | Interfaces to SAT solvers that can be used alongside `rustsat`. Currently interfaces are available for `cadical`, `kissat`, `glucose`, and `minisat`. |
-//! | `rustsat-ipasir` | [IPASIR](https://github.com/biotomas/ipasir) bindings to use any compliant solver with `rustsat`. |
+//! | `rustsat-<satsolver>` | Interfaces to SAT solvers that can be used alongside RustSAT. Currently interfaces are available for `cadical`, `kissat`, `glucose`, and `minisat`. |
+//! | `rustsat-ipasir` | [IPASIR](https://github.com/biotomas/ipasir) bindings to use any compliant solver with RustSAT. |
 //!
 //! ## Installation
 //!
@@ -50,11 +50,11 @@
 //! | `optimization` | Include optimization (MaxSAT) data structures etc. |
 //! | `multiopt` | Include data structures etc. for multi-objective optimization. |
 //! | `compression` | Enable parsing and writing compressed input. |
-//! | `fxhash` | Use the faster firefox hash function from `rustc-hash` in `rustsat`. |
+//! | `fxhash` | Use the faster firefox hash function from `rustc-hash` in RustSAT. |
 //! | `rand` | Enable randomization features. (Shuffling clauses etc.) |
 //! | `ipasir-display` | Changes `Display` trait for `Lit` and `Var` types to follow IPASIR variables indexing. |
 //! | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
-//! | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the `rustsat` implementation of another encoding. Note that the internal API might change between releases. |
+//! | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
 //!
 //! ## Examples
 //!

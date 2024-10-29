@@ -13,7 +13,7 @@ solvers. This crate provides bindings for this API to be used with the
 
 **Note**: This crate only provides bindings to the API, linking to a IPASIR library needs to be
 set up by the user. This is intentional to allow easy integration of solvers that we do not
-provide a specialized crate for. For a plug-and-play experience see the other rustsat solver
+provide a specialized crate for. For a plug-and-play experience see the other RustSAT solver
 crates.
 
 ## Linking

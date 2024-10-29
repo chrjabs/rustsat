@@ -988,7 +988,7 @@ impl TotDb {
         Ok(olit)
     }
 
-    /// Recursively reserves all variables in the subtree rooted at the given node
+    /// Recursively reserves all variables in the sub-tree rooted at the given node
     pub fn reserve_vars(&mut self, id: NodeId, var_manager: &mut dyn ManageVars) {
         if self[id].is_leaf() {
             return;
