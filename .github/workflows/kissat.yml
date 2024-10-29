@@ -24,11 +24,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "build-test"
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
       - name: Cargo build
         run: cargo build -p rustsat-kissat --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
-      - name: Cargo test
-        run: cargo test -p rustsat-kissat --verbose
+      - name: Run tests
+        run: cargo nextest run --profile ci -p rustsat-kissat --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}

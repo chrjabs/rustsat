@@ -24,6 +24,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo doc
         run: cargo doc --workspace --verbose --no-deps --features=all
+      - name: Run doc tests
+        run: cargo test --doc --workspace
       - name: Check READMEs
         run: |
           cargo install cargo-rdme
