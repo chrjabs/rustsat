@@ -843,7 +843,7 @@ impl Assignment {
         }
     }
 
-    /// Creates an assignment from a SAT solver value line  
+    /// Creates an assignment from a SAT solver value line
     ///
     /// # Errors
     ///

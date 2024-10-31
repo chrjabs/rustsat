@@ -21,7 +21,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
-          
+
   clippy:
     name: Lints
     runs-on: ubuntu-latest
