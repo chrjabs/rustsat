@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-    
+
 jobs:
   build-test:
     name: Build and test
@@ -72,4 +72,3 @@ jobs:
         uses: model-checking/kani-github-action@v1
         with:
           args: '-p rustsat'
-

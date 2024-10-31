@@ -362,7 +362,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         Self: 'own;
 
     /// Gets an iterator over references to the nodes. The nodes are iterated in
-    /// order of [`NodeId`].    
+    /// order of [`NodeId`].
     fn iter(&self) -> Self::Iter<'_>;
 
     /// Gets the number of node in the database

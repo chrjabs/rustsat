@@ -56,6 +56,6 @@ int main() {
       RustSAT::dpw_enforce_ub(dpw, 30, assump_collector, &assumps);
   assert(ret == RustSAT::MaybeError::Ok);
   solver.solve_assumps(assumps);
-  
+
   return 0;
 }
