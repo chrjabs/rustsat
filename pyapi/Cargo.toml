@@ -15,7 +15,7 @@ build = "build.rs"
 
 [dependencies]
 rustsat.workspace = true
-pyo3 = { version = "0.22.5", features = [
+pyo3 = { version = "0.22.6", features = [
   "extension-module",
   "abi3",
   "abi3-py37",
