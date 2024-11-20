@@ -1,4 +1,4 @@
-37
+38
 accessor
 al
 AllDifferent
@@ -11,6 +11,7 @@ boolean
 cardinality
 changelog
 children's
+comparator
 decrementing
 encoding/S
 et
