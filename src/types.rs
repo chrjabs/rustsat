@@ -59,7 +59,7 @@ impl Var {
     ///
     /// If `idx > Var::MAX_IDX`.
     #[must_use]
-    pub fn new(idx: u32) -> Var {
+    pub const fn new(idx: u32) -> Var {
         assert!(idx <= Var::MAX_IDX, "variable index too high");
         Var { idx }
     }
@@ -87,7 +87,7 @@ impl Var {
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub unsafe fn new_unchecked(idx: u32) -> Var {
+    pub const unsafe fn new_unchecked(idx: u32) -> Var {
         debug_assert!(idx <= Var::MAX_IDX);
         Var { idx }
     }
@@ -104,7 +104,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn lit(self, negated: bool) -> Lit {
+    pub const fn lit(self, negated: bool) -> Lit {
         unsafe { Lit::new_unchecked(self.idx, negated) }
     }
 
@@ -120,7 +120,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn pos_lit(self) -> Lit {
+    pub const fn pos_lit(self) -> Lit {
         unsafe { Lit::positive_unchecked(self.idx) }
     }
 
@@ -136,7 +136,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn neg_lit(self) -> Lit {
+    pub const fn neg_lit(self) -> Lit {
         unsafe { Lit::negative_unchecked(self.idx) }
     }
 
@@ -301,8 +301,8 @@ pub struct Lit {
 impl Lit {
     /// Represents a literal in memory
     #[inline]
-    fn represent(idx: u32, negated: bool) -> u32 {
-        (idx << 1) + u32::from(negated)
+    const fn represent(idx: u32, negated: bool) -> u32 {
+        (idx << 1) + if negated { 1 } else { 0 }
     }
 
     /// Creates a new (negated or not) literal with a given index.
@@ -311,7 +311,7 @@ impl Lit {
     ///
     /// If `idx > Var::MAX_IDX`.
     #[must_use]
-    pub fn new(idx: u32, negated: bool) -> Lit {
+    pub const fn new(idx: u32, negated: bool) -> Lit {
         assert!(idx < Var::MAX_IDX, "variable index too high");
         Lit {
             lidx: Lit::represent(idx, negated),
@@ -340,7 +340,7 @@ impl Lit {
     ///
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[must_use]
-    pub unsafe fn new_unchecked(idx: u32, negated: bool) -> Lit {
+    pub const unsafe fn new_unchecked(idx: u32, negated: bool) -> Lit {
         debug_assert!(idx <= Var::MAX_IDX);
         Lit {
             lidx: Lit::represent(idx, negated),
@@ -351,7 +351,7 @@ impl Lit {
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
     #[must_use]
-    pub fn positive(idx: u32) -> Lit {
+    pub const fn positive(idx: u32) -> Lit {
         Lit::new(idx, false)
     }
 
@@ -359,7 +359,7 @@ impl Lit {
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
     #[must_use]
-    pub fn negative(idx: u32) -> Lit {
+    pub const fn negative(idx: u32) -> Lit {
         Lit::new(idx, true)
     }
 
@@ -392,7 +392,7 @@ impl Lit {
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub unsafe fn positive_unchecked(idx: u32) -> Lit {
+    pub const unsafe fn positive_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, false)
     }
 
@@ -405,7 +405,7 @@ impl Lit {
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub unsafe fn negative_unchecked(idx: u32) -> Lit {
+    pub const unsafe fn negative_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, true)
     }
 
