@@ -64,6 +64,9 @@ pub use dpw::DynamicPolyWatchdog;
 pub mod dbgte;
 pub use dbgte::DbGte;
 
+pub mod adder;
+pub use adder::BinaryAdder;
+
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode {
     /// Get the sum of weights in the encoding

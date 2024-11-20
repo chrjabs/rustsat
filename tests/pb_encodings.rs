@@ -3,7 +3,7 @@ use rustsat::{
     encodings::{
         card::Totalizer,
         pb::{
-            simulators::Card, BoundBoth, BoundBothIncremental, BoundLower, BoundUpper,
+            simulators::Card, BinaryAdder, BoundBoth, BoundBothIncremental, BoundLower, BoundUpper,
             BoundUpperIncremental, DbGte, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
             GeneralizedTotalizer, InvertedGeneralizedTotalizer,
         },
@@ -49,37 +49,37 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     let mut enc = PBE::default();
     enc.extend(lits);
 
-    enc.encode_ub(0..3, &mut solver, &mut var_manager).unwrap();
+    enc.encode_ub(0..=2, &mut solver, &mut var_manager).unwrap();
     let assumps = enc.enforce_ub(2).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..5, &mut solver, &mut var_manager)
+    enc.encode_ub_change(0..=4, &mut solver, &mut var_manager)
         .unwrap();
     let assumps = enc.enforce_ub(4).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..6, &mut solver, &mut var_manager)
+    enc.encode_ub_change(0..=5, &mut solver, &mut var_manager)
         .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Sat);
 
     let mut lits = RsHashMap::default();
     lits.insert(lit![5], 4);
     enc.extend(lits);
 
-    enc.encode_ub_change(0..6, &mut solver, &mut var_manager)
+    enc.encode_ub_change(0..=5, &mut solver, &mut var_manager)
         .unwrap();
     let assumps = enc.enforce_ub(5).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..10, &mut solver, &mut var_manager)
+    enc.encode_ub_change(0..=9, &mut solver, &mut var_manager)
         .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Sat);
 
     let mut lits = RsHashMap::default();
@@ -90,16 +90,16 @@ fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>()
     lits.insert(lit![10], 2);
     enc.extend(lits);
 
-    enc.encode_ub_change(0..10, &mut solver, &mut var_manager)
+    enc.encode_ub_change(0..=9, &mut solver, &mut var_manager)
         .unwrap();
     let assumps = enc.enforce_ub(9).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
-    enc.encode_ub_change(0..15, &mut solver, &mut var_manager)
+    enc.encode_ub_change(0..=14, &mut solver, &mut var_manager)
         .unwrap();
     let assumps = enc.enforce_ub(14).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Sat);
 }
 
@@ -115,7 +115,7 @@ fn test_pb_eq<PBE: BoundBothIncremental + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 2);
     let mut enc = PBE::from(lits);
 
-    enc.encode_both(4..5, &mut solver, &mut var_manager)
+    enc.encode_both(4..=4, &mut solver, &mut var_manager)
         .unwrap();
 
     let mut assumps = enc.enforce_eq(4).unwrap();
@@ -177,14 +177,15 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 3);
     let mut enc = PBE::from(lits);
 
-    enc.encode_lb(0..11, &mut solver, &mut var_manager).unwrap();
+    enc.encode_lb(0..=10, &mut solver, &mut var_manager)
+        .unwrap();
     let assumps = enc.enforce_lb(10).unwrap();
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Unsat);
 
     let assumps = enc.enforce_lb(9).unwrap();
     println!("{:?}", assumps);
-    let res = solver.solve_assumps(&assumps).unwrap();
+    let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Sat);
 }
 
@@ -200,7 +201,7 @@ fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![2], 1);
     let mut enc = PBE::from(lits);
 
-    enc.encode_ub(2..3, &mut solver, &mut var_manager).unwrap();
+    enc.encode_ub(2..=2, &mut solver, &mut var_manager).unwrap();
     let mut assumps = enc.enforce_ub(2).unwrap();
     assumps.extend(vec![lit![0], lit![1], lit![2]]);
     let res = solver.solve_assumps(&assumps).unwrap();
@@ -280,6 +281,26 @@ fn dbgte_ub() {
 #[test]
 fn dbgte_min_enc() {
     test_pb_ub_min_enc::<DbGte>()
+}
+
+#[test]
+fn adder_ub() {
+    test_inc_pb_ub::<BinaryAdder>()
+}
+
+#[test]
+fn adder_lb() {
+    test_pb_lb::<BinaryAdder>()
+}
+
+#[test]
+fn adder_eq() {
+    test_pb_eq::<BinaryAdder>()
+}
+
+#[test]
+fn adder_min_enc() {
+    test_pb_ub_min_enc::<BinaryAdder>()
 }
 
 use rustsat_tools::{test_all, test_assignment};
@@ -424,6 +445,8 @@ generate_exhaustive!(
     tot_sim,
     simulators::Card<rustsat::encodings::card::Totalizer>
 );
+
+generate_exhaustive!(adder, BinaryAdder);
 
 mod dpw_inc_prec {
     use rustsat::{
