@@ -66,8 +66,8 @@ where
 
         for split in 0..n_splits {
             let lits = &self.in_lits[split * N..std::cmp::min(self.in_lits.len(), (split + 1) * N)];
-            for k in 0..p as usize {
-                let aux = aux_vars[k].lit(split & (1 << k) == 0);
+            for (k, aux) in aux_vars.iter().enumerate().take(p as usize) {
+                let aux = aux.lit(split & (1 << k) == 0);
                 collector.extend_clauses(atomics::clause_impl_lit(lits, aux))?;
             }
             let mut sub = lits.iter().copied().collect::<Sub>();
