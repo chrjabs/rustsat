@@ -311,6 +311,9 @@ impl fmt::Debug for Clause {
 /// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
+    () => {
+        $crate::types::Clause::new()
+    };
     ( $($l:expr),* ) => {
         {
             let mut tmp_clause = $crate::types::Clause::new();
