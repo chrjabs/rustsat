@@ -706,6 +706,20 @@ impl ops::Neg for TernaryVal {
     }
 }
 
+#[cfg(kani)]
+impl kani::Arbitrary for TernaryVal {
+    fn any() -> Self {
+        let val: u8 = kani::any();
+        kani::assume(val < 3);
+        match val {
+            0 => TernaryVal::False,
+            1 => TernaryVal::True,
+            2 => TernaryVal::DontCare,
+            _ => panic!(),
+        }
+    }
+}
+
 /// Possible errors in parsing a SAT solver value (`v`) line
 #[derive(Error, Debug)]
 pub enum InvalidVLine {
