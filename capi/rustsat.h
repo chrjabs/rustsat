@@ -44,6 +44,19 @@ typedef enum MaybeError {
 } MaybeError;
 
 /**
+ * Implementation of the binary adder encoding first described in \[1\].
+ * The implementation follows the description in \[2\].
+ *
+ * ## References
+ *
+ * - \[1\] Joose P. Warners: _A linear-time transformation of linear inequalities into conjunctive
+ *     normal form_, Inf. Process. Lett. 1998.
+ * - \[2\] Niklas Eén and Niklas Sörensson: _Translating Pseudo-Boolean Constraints into SAT_,
+ *     JSAT 2006.
+ */
+typedef struct BinaryAdder BinaryAdder;
+
+/**
  * Implementation of the binary adder tree generalized totalizer encoding
  * \[1\]. The implementation is incremental. The implementation is recursive.
  * This encoding only support upper bounding. Lower bounding can be achieved by
@@ -96,6 +109,132 @@ typedef void (*CAssumpCollector)(int lit, void *data);
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * Adds a new input literal to a [`BinaryAdder`].
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+ * called on.
+ */
+enum MaybeError bin_adder_add(struct BinaryAdder *adder, int lit, size_t weight);
+
+/**
+ * Frees the memory associated with a [`BinaryAdder`]
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] and cannot be used
+ * afterwards again.
+ */
+void bin_adder_drop(struct BinaryAdder *adder);
+
+/**
+ * Lazily builds the _change in_ pseudo-boolean encoding to enable lower bounds from within the
+ * range.
+ *
+ * The min and max bounds are inclusive. After a call to [`bin_adder_encode_lb`] with
+ * `min_bound=2` and `max_bound=4`, bounds satisfying `2 <= bound <= 4` can be enforced.
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+ * called on.
+ *
+ * # Panics
+ *
+ * If `min_bound > max_bound`.
+ */
+void bin_adder_encode_lb(struct BinaryAdder *adder,
+                         size_t min_bound,
+                         size_t max_bound,
+                         uint32_t *n_vars_used,
+                         CClauseCollector collector,
+                         void *collector_data);
+
+/**
+ * Lazily builds the _change in_ pseudo-boolean encoding to enable upper bounds from within the
+ * range.
+ *
+ * The min and max bounds are inclusive. After a call to [`bin_adder_encode_ub`] with
+ * `min_bound=2` and `max_bound=4`, bounds satisfying `2 <= bound <= 4` can be enforced.
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+ * called on.
+ *
+ * # Panics
+ *
+ * If `min_bound > max_bound`.
+ */
+void bin_adder_encode_ub(struct BinaryAdder *adder,
+                         size_t min_bound,
+                         size_t max_bound,
+                         uint32_t *n_vars_used,
+                         CClauseCollector collector,
+                         void *collector_data);
+
+/**
+ * Returns assumptions/units for enforcing an upper bound (`sum of lits >= lb`). Make sure that
+ * [`bin_adder_encode_lb`] has been called adequately and nothing has been called afterwards,
+ * otherwise [`MaybeError::NotEncoded`] will be returned.
+ *
+ * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
+ * assumptions are passed when [`bin_adder_enforce_lb`] returns.
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+ * called on.
+ */
+enum MaybeError bin_adder_enforce_lb(struct BinaryAdder *adder,
+                                     size_t ub,
+                                     CAssumpCollector collector,
+                                     void *collector_data);
+
+/**
+ * Returns assumptions/units for enforcing an upper bound (`sum of lits <= ub`). Make sure that
+ * [`bin_adder_encode_ub`] has been called adequately and nothing has been called afterwards,
+ * otherwise [`MaybeError::NotEncoded`] will be returned.
+ *
+ * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
+ * assumptions are passed when [`bin_adder_enforce_ub`] returns.
+ *
+ * # Safety
+ *
+ * `adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been
+ * called on.
+ */
+enum MaybeError bin_adder_enforce_ub(struct BinaryAdder *adder,
+                                     size_t ub,
+                                     CAssumpCollector collector,
+                                     void *collector_data);
+
+/**
+ * Creates a new [`BinaryAdder`] cardinality encoding
+ */
+struct BinaryAdder *bin_adder_new(void);
 
 /**
  * Adds a new input literal to a [`DynamicPolyWatchdog`].

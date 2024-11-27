@@ -153,6 +153,7 @@ impl<'a> ManageVars for VarManager<'a> {
     }
 }
 
+pub mod adder;
 pub mod dpw;
 pub mod gte;
 pub mod totalizer;
