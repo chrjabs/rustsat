@@ -44,8 +44,12 @@ pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeErro
 /// The min and max bounds are inclusive. After a call to [`tot_encode_ub`] with `min_bound=2` and
 /// `max_bound=4` bound including `<= 2` and `<= 4` can be enforced.
 ///
-/// A call to `var_manager` must yield a new variable. The encoding will be returned via the given
-/// callback function as 0-terminated clauses (in the same way as IPASIR's `add`).
+/// Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+/// passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+/// passed as the first argument and the `collector_data` as a second.
+///
+/// `n_vars_used` must be the number of variables already used and will be incremented by the
+/// number of variables used up in the encoding.
 ///
 /// # Safety
 ///
@@ -53,7 +57,8 @@ pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeErro
 ///
 /// # Panics
 ///
-/// If `min_bound > max_bound`.
+/// - If `min_bound > max_bound`.
+/// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn tot_encode_ub(
     tot: *mut DbTotalizer,

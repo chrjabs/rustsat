@@ -61,7 +61,8 @@ pub unsafe extern "C" fn bin_adder_add(
 ///
 /// # Panics
 ///
-/// If `min_bound > max_bound`.
+/// - If `min_bound > max_bound`.
+/// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn bin_adder_encode_ub(
     adder: *mut BinaryAdder,

@@ -53,7 +53,8 @@ pub unsafe extern "C" fn gte_add(gte: *mut DbGte, lit: c_int, weight: usize) -> 
 ///
 /// # Panics
 ///
-/// If `min_bound > max_bound`.
+/// - If `min_bound > max_bound`.
+/// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn gte_encode_ub(
     gte: *mut DbGte,
