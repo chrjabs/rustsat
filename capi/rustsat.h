@@ -291,6 +291,10 @@ void gte_drop(struct DbGte *gte);
  * # Safety
  *
  * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ *
+ * # Panics
+ *
+ * If `min_bound > max_bound`.
  */
 void gte_encode_ub(struct DbGte *gte,
                    size_t min_bound,
@@ -364,7 +368,7 @@ void tot_drop(struct DbTotalizer *tot);
  *
  * # Panics
  *
- * If `min_bound <= max_bound`.
+ * If `min_bound > max_bound`.
  */
 void tot_encode_ub(struct DbTotalizer *tot,
                    size_t min_bound,

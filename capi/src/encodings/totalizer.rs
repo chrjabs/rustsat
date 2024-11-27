@@ -53,7 +53,7 @@ pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeErro
 ///
 /// # Panics
 ///
-/// If `min_bound <= max_bound`.
+/// If `min_bound > max_bound`.
 #[no_mangle]
 pub unsafe extern "C" fn tot_encode_ub(
     tot: *mut DbTotalizer,
