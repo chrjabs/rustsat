@@ -50,6 +50,10 @@ pub unsafe extern "C" fn gte_add(gte: *mut DbGte, lit: c_int, weight: usize) -> 
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+///
+/// # Panics
+///
+/// If `min_bound > max_bound`.
 #[no_mangle]
 pub unsafe extern "C" fn gte_encode_ub(
     gte: *mut DbGte,
