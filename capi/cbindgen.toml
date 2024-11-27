@@ -50,7 +50,7 @@ cpp_compat = true
 
 
 [export]
-include = ["DbTotalizer", "DynamicPolyWatchdog", "DbGte"]
+include = ["DbTotalizer", "DynamicPolyWatchdog", "DbGte", "BinaryAdder"]
 exclude = []
 # prefix = "CAPI_"
 item_types = []
