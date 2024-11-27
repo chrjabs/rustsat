@@ -59,6 +59,11 @@ pub unsafe extern "C" fn dpw_add(
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
+///
+/// # Panics
+///
+/// - If `min_bound > max_bound`.
+/// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn dpw_encode_ub(
     dpw: *mut DynamicPolyWatchdog,
@@ -183,6 +188,11 @@ pub unsafe extern "C" fn dpw_is_max_precision(dpw: *mut DynamicPolyWatchdog) -> 
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
+///
+/// # Panics
+///
+/// - If `min_bound <= max_bound`.
+/// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn dpw_limit_range(
     dpw: *mut DynamicPolyWatchdog,
