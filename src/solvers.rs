@@ -44,12 +44,12 @@
 //! ### Minisat
 //!
 //! [Minisat](https://github.com/niklasso/minisat) is an incremental SAT solver
-//! by Niklas Een and Niklas Sörensson. It is available through the
+//! by Niklas Eén and Niklas Sörensson. It is available through the
 //! [`rustsat-minisat`](https://crates.io/crates/rustsat-minisat) crate.
 //!
 //! #### References
 //!
-//! - Niklas Een and Niklas Sörensson (2003): _An Extensible SAT-solver_, SAT
+//! - Niklas Eén and Niklas Sörensson (2003): _An Extensible SAT-solver_, SAT
 //!   2003.
 //! - Repository:
 //!   [`https://github.com/niklasso/minisat`](https://github.com/niklasso/minisat)
