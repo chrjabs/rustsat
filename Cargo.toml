@@ -18,17 +18,17 @@ license = "MIT"
 edition = "2021"
 
 [workspace.dependencies]
-anyhow = "1.0.91"
+anyhow = "1.0.94"
 atty = "0.2.14"
 bindgen = "0.70.0"
 bzip2 = "0.4.4"
 cc = { version = "1.1.31", features = ["parallel"] }
 chrono = "0.4.38"
-clap = { version = "4.5.16", features = ["derive", "cargo"] }
-cmake = "0.1.51"
+clap = { version = "4.5.23", features = ["derive", "cargo"] }
+cmake = "0.1.52"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
-flate2 = { version = "1.0.31", features = [
+flate2 = { version = "1.0.35", features = [
   "zlib-ng",
 ], default-features = false }
 git2 = "0.19.0"
