@@ -932,7 +932,7 @@ dependencies = [
  "memoffset",
  "once_cell",
  "portable-atomic",
- "pyo3-build-config",
+ "pyo3-build-config 0.22.5",
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
@@ -949,13 +949,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyo3-build-config"
+version = "0.23.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc0e0469a84f208e20044b98965e1561028180219e35352a2afaf2b942beff3b"
+dependencies = [
+ "once_cell",
+ "target-lexicon 0.12.16",
+]
+
+[[package]]
 name = "pyo3-ffi"
 version = "0.22.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94845622d88ae274d2729fcefc850e63d7a3ddff5e3ce11bd88486db9f1d357d"
 dependencies = [
  "libc",
- "pyo3-build-config",
+ "pyo3-build-config 0.22.5",
 ]
 
 [[package]]
@@ -978,7 +988,7 @@ checksum = "ae1e3f09eecd94618f60a455a23def79f79eba4dc561a97324bf9ac8c6df30ce"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
- "pyo3-build-config",
+ "pyo3-build-config 0.22.5",
  "quote",
  "syn",
 ]
@@ -1212,7 +1222,7 @@ name = "rustsat-pyapi"
 version = "0.6.1"
 dependencies = [
  "pyo3",
- "pyo3-build-config",
+ "pyo3-build-config 0.23.3",
  "rustsat",
 ]
 
