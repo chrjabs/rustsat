@@ -39,7 +39,7 @@ termcolor = "1.4.1"
 thiserror = "1.0.69"
 rand = "0.8.5"
 rand_chacha = "0.3.1"
-rustc-hash = "2.0.0"
+rustc-hash = "2.1.0"
 rustsat = { version = "0.6.1", path = "./", default-features = false }
 rustsat-cadical = { version = "0.4.1", path = "./cadical" }
 rustsat-minisat = { version = "0.4.1", path = "./minisat" }
