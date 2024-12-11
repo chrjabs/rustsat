@@ -91,9 +91,9 @@ jobs:
         uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - name: Install maturin from PyPI
-        uses: install-pinned/maturin@67ff90997b8fd501e8e81c67e5cef66b45f9c779
+        uses: install-pinned/maturin@c8c3a8f7f2b2ecf1728c96824734c6c6afe7e3e8
       - name: Install mypy from PyPI
-        uses: install-pinned/mypy@e7fbd267da691692d1f587abebff11d9a012c2e5
+        uses: install-pinned/mypy@acfb567eb55a86c12a58ca1d28cd3e183e6a6d63
       - name: Install python project
         run: maturin build -m pyapi/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
       - name: Test stubs
