@@ -28,21 +28,10 @@ use crate::{
     types::{Clause, Lit},
 };
 
+#[derive(IntoPyObject)]
 pub(crate) enum SingleOrList<T> {
     Single(T),
     List(Vec<T>),
-}
-
-impl<T> IntoPy<PyObject> for SingleOrList<T>
-where
-    T: IntoPy<PyObject>,
-{
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        match self {
-            SingleOrList::Single(single) => single.into_py(py),
-            SingleOrList::List(list) => list.into_py(py),
-        }
-    }
 }
 
 /// Python bindings for the RustSAT library
@@ -53,14 +42,14 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Cnf>()?;
     m.add_class::<VarManager>()?;
 
-    let encodings = PyModule::new_bound(py, "rustsat.encodings")?;
+    let encodings = PyModule::new(py, "rustsat.encodings")?;
     encodings.add_class::<Totalizer>()?;
     encodings.add_class::<GeneralizedTotalizer>()?;
     encodings.add_class::<DynamicPolyWatchdog>()?;
     m.add("encodings", &encodings)?;
 
     // To import encodings. Fix from https://github.com/PyO3/pyo3/issues/759
-    py.import_bound("sys")?
+    py.import("sys")?
         .getattr("modules")?
         .set_item("rustsat.encodings", &encodings)?;
 
