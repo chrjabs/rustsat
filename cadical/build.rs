@@ -205,6 +205,7 @@ fn main() {
 /// Generates Rust FFI bindings
 fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
     let bindings = bindgen::Builder::default()
+        .rust_target("1.66.1".parse().unwrap()) // Set MSRV of RustSAT
         .clang_arg("-Icppsrc")
         .header(header_path)
         .allowlist_file(header_path)
