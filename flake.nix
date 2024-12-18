@@ -2,7 +2,7 @@
   description = "Rust library for tools and encodings related to SAT solving library";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     systems.url = "github:nix-systems/default-linux";
   };
 

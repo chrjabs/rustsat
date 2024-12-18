@@ -12,6 +12,8 @@ in
       rustup
       cargo-rdme
       cargo-nextest
+      release-plz
+      jq
     ];
     buildInputs = libs;
     RUSTC_VERSION = overrides.toolchain.channel;
