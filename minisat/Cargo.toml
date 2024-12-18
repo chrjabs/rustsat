@@ -8,6 +8,15 @@ description = "Interface to the SAT solver Minisat for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = [
+  "build.rs",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/examples/",
+  "/cppsrc/",
+  "!/cppsrc/doc/",
+]
 
 build = "build.rs"
 
