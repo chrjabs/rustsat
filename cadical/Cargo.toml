@@ -8,6 +8,15 @@ description = "Interface to the SAT solver CaDiCaL for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = [
+  "build.rs",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/patches/",
+  "/examples/",
+  "/cppsrc/",
+]
 
 build = "build.rs"
 

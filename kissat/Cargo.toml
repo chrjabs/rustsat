@@ -8,6 +8,17 @@ description = "Interface to the SAT solver kissat for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = [
+  "build.rs",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/examples/",
+  "/csrc/src/",
+  "/csrc/README.md",
+  "/csrc/LICENSE",
+  "/csrc/VERSION",
+]
 
 build = "build.rs"
 

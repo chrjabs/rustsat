@@ -60,6 +60,14 @@ keywords = ["sat", "satisfiability", "encodings"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 rust-version = "1.66.1"
+include = [
+  "LICENSE",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/examples/",
+  "/docs/",
+]
 
 [dependencies]
 anyhow.workspace = true

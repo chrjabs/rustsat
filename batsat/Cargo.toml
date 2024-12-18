@@ -8,6 +8,7 @@ description = "Interface to the SAT solver BatSat for the RustSAT library. BatSa
 keywords = ["sat-solver", "rustsat", "batsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = ["CHANGELOG.md", "README.md", "/src/"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
