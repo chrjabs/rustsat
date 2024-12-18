@@ -1,0 +1,23 @@
+name: Publish Dry Run
+
+on:
+  pull_request:
+    branches: [ "main", "next-major" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-dry-run:
+    name: Dry-run cargo publish
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'release') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Dry run publish crates
+        run: scripts/dry-run-publish.sh
