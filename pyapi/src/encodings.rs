@@ -89,19 +89,19 @@ impl Totalizer {
     }
 
     /// Incrementally builds the totalizer encoding to that upper bounds
-    /// in the range `max_ub..=min_ub` can be enforced. New variables will
+    /// in the range `min_ub..=max_ub` can be enforced. New variables will
     /// be taken from `var_manager`.
     fn encode_ub(
         &mut self,
-        max_ub: usize,
         min_ub: usize,
+        max_ub: usize,
         var_manager: &mut VarManager,
     ) -> PyResult<Cnf> {
         let mut cnf = RsCnf::new();
         let var_manager: &mut BasicVarManager = var_manager.into();
         handle_oom!(self
             .0
-            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager));
+            .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
         Ok(cnf.into())
     }
 
@@ -171,19 +171,19 @@ impl GeneralizedTotalizer {
     }
 
     /// Incrementally builds the GTE encoding to that upper bounds
-    /// in the range `max_ub..=min_ub` can be enforced. New variables will
+    /// in the range `min_ub..=max_ub` can be enforced. New variables will
     /// be taken from `var_manager`.
     fn encode_ub(
         &mut self,
-        max_ub: usize,
         min_ub: usize,
+        max_ub: usize,
         var_manager: &mut VarManager,
     ) -> PyResult<Cnf> {
         let mut cnf = RsCnf::new();
         let var_manager: &mut BasicVarManager = var_manager.into();
         handle_oom!(self
             .0
-            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager));
+            .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
         Ok(cnf.into())
     }
 
@@ -248,19 +248,19 @@ impl DynamicPolyWatchdog {
     }
 
     /// Incrementally builds the DPW encoding to that upper bounds
-    /// in the range `max_ub..=min_ub` can be enforced. New variables will
+    /// in the range `min_ub..=max_ub` can be enforced. New variables will
     /// be taken from `var_manager`.
     fn encode_ub(
         &mut self,
-        max_ub: usize,
         min_ub: usize,
+        max_ub: usize,
         var_manager: &mut VarManager,
     ) -> PyResult<Cnf> {
         let mut cnf = RsCnf::new();
         let var_manager: &mut BasicVarManager = var_manager.into();
         handle_oom!(self
             .0
-            .encode_ub_change(max_ub..=min_ub, &mut cnf, var_manager));
+            .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
         Ok(cnf.into())
     }
 
