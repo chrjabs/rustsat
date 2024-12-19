@@ -14,6 +14,7 @@ in
       cargo-nextest
       release-plz
       jq
+      maturin
     ];
     buildInputs = libs;
     RUSTC_VERSION = overrides.toolchain.channel;
