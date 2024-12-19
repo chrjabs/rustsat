@@ -1,2 +1,4 @@
 rustsat.rustsat
 rustsat.encodings
+rustsat.encodings.pb
+rustsat.encodings.card

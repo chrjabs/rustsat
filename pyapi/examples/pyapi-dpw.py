@@ -1,5 +1,5 @@
 from rustsat import Lit, VarManager
-from rustsat.encodings import DynamicPolyWatchdog as Dpw
+from rustsat.encodings.pb import DynamicPolyWatchdog as Dpw
 
 # Lit creates a literal object from an ipasir integer representation.  The
 # encoding takes a list of (lit, weight) pairs as input.

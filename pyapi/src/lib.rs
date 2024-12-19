@@ -23,7 +23,10 @@ mod instances;
 mod types;
 
 use crate::{
-    encodings::{BinaryAdder, DynamicPolyWatchdog, GeneralizedTotalizer, Totalizer},
+    encodings::{
+        card::Totalizer,
+        pb::{BinaryAdder, DynamicPolyWatchdog, GeneralizedTotalizer},
+    },
     instances::{Cnf, VarManager},
     types::{Clause, Lit},
 };
@@ -43,16 +46,26 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<VarManager>()?;
 
     let encodings = PyModule::new(py, "rustsat.encodings")?;
-    encodings.add_class::<Totalizer>()?;
-    encodings.add_class::<GeneralizedTotalizer>()?;
-    encodings.add_class::<DynamicPolyWatchdog>()?;
-    encodings.add_class::<BinaryAdder>()?;
+    let card = PyModule::new(py, "rustsat.encodings.card")?;
+    card.add_class::<Totalizer>()?;
+    let pb = PyModule::new(py, "rustsat.encodings.pb")?;
+    pb.add_class::<GeneralizedTotalizer>()?;
+    pb.add_class::<DynamicPolyWatchdog>()?;
+    pb.add_class::<BinaryAdder>()?;
+    encodings.add("card", &card)?;
+    encodings.add("pb", &pb)?;
     m.add("encodings", &encodings)?;
 
     // To import encodings. Fix from https://github.com/PyO3/pyo3/issues/759
     py.import("sys")?
         .getattr("modules")?
         .set_item("rustsat.encodings", &encodings)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings.pb", &pb)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings.card", &card)?;
 
     Ok(())
 }
