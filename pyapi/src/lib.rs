@@ -24,6 +24,7 @@ mod types;
 
 use crate::{
     encodings::{
+        am1::{Bitwise, Commander, Ladder, Pairwise},
         card::Totalizer,
         pb::{BinaryAdder, DynamicPolyWatchdog, GeneralizedTotalizer},
     },
@@ -52,8 +53,14 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     pb.add_class::<GeneralizedTotalizer>()?;
     pb.add_class::<DynamicPolyWatchdog>()?;
     pb.add_class::<BinaryAdder>()?;
+    let am1 = PyModule::new(py, "rustsat.encodings.am1")?;
+    am1.add_class::<Bitwise>()?;
+    am1.add_class::<Commander>()?;
+    am1.add_class::<Ladder>()?;
+    am1.add_class::<Pairwise>()?;
     encodings.add("card", &card)?;
     encodings.add("pb", &pb)?;
+    encodings.add("am1", &am1)?;
     m.add("encodings", &encodings)?;
 
     // To import encodings. Fix from https://github.com/PyO3/pyo3/issues/759
@@ -66,6 +73,9 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     py.import("sys")?
         .getattr("modules")?
         .set_item("rustsat.encodings.card", &card)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings.am1", &am1)?;
 
     Ok(())
 }
