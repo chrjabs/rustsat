@@ -62,7 +62,7 @@ jobs:
           RS_EXT_SOLVER=./gimsatul-1-1-2 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
 
   kani:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
