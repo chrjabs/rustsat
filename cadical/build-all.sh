@@ -120,6 +120,11 @@ if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
 cargo build --features=v2-1-0 &> v210-build.log
 echo "v2.1.0 build returned: $?"
 
+echo "Building v2.1.1"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo build --features=v2-1-1 &> v211-build.log
+echo "v2.1.1 build returned: $?"
+
 echo "Building quiet"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
 cargo build --features=quiet &> quiet-build.log
