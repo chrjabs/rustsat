@@ -31,6 +31,164 @@ fn convert_error(err: Error) -> PyErr {
     }
 }
 
+macro_rules! shared_pyapi {
+    (derive_from, $type:ty, $rstype:ty) => {
+        impl From<$rstype> for $type {
+            fn from(value: $rstype) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<$type> for $rstype {
+            fn from(value: $type) -> Self {
+                value.0
+            }
+        }
+    };
+    (extend, $type:ty) => {
+        #[pymethods]
+        impl $type {
+            /// Adds additional input literals to the encoding
+            fn extend(&mut self, lits: Vec<(Lit, usize)>) {
+                let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
+                self.0.extend(lits);
+            }
+        }
+    };
+    (base, $type:ty, $rstype:ty) => {
+        #[pymethods]
+        impl $type {
+            #[new]
+            fn new(lits: Vec<(Lit, usize)>) -> Self {
+                let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
+                <$rstype>::from_iter(lits).into()
+            }
+
+            /// Gets the sum of weights in the encoding
+            fn weight_sum(&self) -> usize {
+                self.0.weight_sum()
+            }
+
+            /// Gets the number of clauses in the encoding
+            fn n_clauses(&self) -> usize {
+                self.0.n_clauses()
+            }
+
+            /// Gets the number of variables in the encoding
+            fn n_vars(&self) -> u32 {
+                self.0.n_vars()
+            }
+        }
+    };
+    (ub, $type:ty) => {
+        #[pymethods]
+        impl $type {
+            /// Incrementally builds the encoding to that upper bounds in the range
+            /// `min_ub..=max_ub` can be enforced. New variables will be taken from `var_manager`.
+            fn encode_ub(
+                &mut self,
+                min_ub: usize,
+                max_ub: usize,
+                var_manager: &mut VarManager,
+            ) -> PyResult<Cnf> {
+                let mut cnf = RsCnf::new();
+                let var_manager: &mut BasicVarManager = var_manager.into();
+                handle_oom!(self
+                    .0
+                    .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
+                Ok(cnf.into())
+            }
+
+            /// Gets assumptions to enforce the given upper bound. Make sure that the required
+            /// encoding is built first.
+            fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
+                let assumps: Vec<Lit> =
+                    unsafe { std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_error)?) };
+                Ok(assumps)
+            }
+        }
+    };
+    (lb, $type:ty) => {
+        #[pymethods]
+        impl $type {
+            /// Incrementally builds the encoding to that lower bounds in the range `min_lb..=max_lb`
+            /// can be enforced. New variables will be taken from `var_manager`.
+            fn encode_lb(
+                &mut self,
+                min_lb: usize,
+                max_lb: usize,
+                var_manager: &mut VarManager,
+            ) -> PyResult<Cnf> {
+                let mut cnf = RsCnf::new();
+                let var_manager: &mut BasicVarManager = var_manager.into();
+                handle_oom!(self
+                    .0
+                    .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager));
+                Ok(cnf.into())
+            }
+
+            /// Gets assumptions to enforce the given lower bound. Make sure that the required encoding
+            /// is built first.
+            fn enforce_lb(&self, lb: usize) -> PyResult<Vec<Lit>> {
+                let assumps = self.0.enforce_lb(lb).map_err(convert_error)?;
+                Ok(assumps.into_iter().map(Into::into).collect())
+            }
+        }
+    };
+    (both, $type:ty) => {
+        #[pymethods]
+        impl $type {
+            /// Incrementally builds the encoding to that both bounds in the range
+            /// `min_bound..=max_bound` can be enforced. New variables will be taken from
+            /// `var_manager`.
+            fn encode_both(
+                &mut self,
+                min_bound: usize,
+                max_bound: usize,
+                var_manager: &mut VarManager,
+            ) -> PyResult<Cnf> {
+                let mut cnf = RsCnf::new();
+                let var_manager: &mut BasicVarManager = var_manager.into();
+                handle_oom!(self.0.encode_both_change(
+                    min_bound..=max_bound,
+                    &mut cnf,
+                    var_manager
+                ));
+                Ok(cnf.into())
+            }
+
+            /// Gets assumptions to enforce the given equality bound. Make sure that the required
+            /// encoding is built first.
+            fn enforce_eq(&self, val: usize) -> PyResult<Vec<Lit>> {
+                let assumps = self.0.enforce_eq(val).map_err(convert_error)?;
+                Ok(assumps.into_iter().map(Into::into).collect())
+            }
+        }
+    };
+}
+
+macro_rules! implement_pyapi {
+    (ub, $type:ty, $rstype:ty) => {
+        shared_pyapi!(derive_from, $type, $rstype);
+        shared_pyapi!(base, $type, $rstype);
+        shared_pyapi!(extend, $type);
+        shared_pyapi!(ub, $type);
+    };
+    (ub_noextend, $type:ty, $rstype:ty) => {
+        shared_pyapi!(derive_from, $type, $rstype);
+        shared_pyapi!(base, $type, $rstype);
+        shared_pyapi!(ub, $type);
+    };
+    (both, $type:ty, $rstype:ty) => {
+        shared_pyapi!(derive_from, $type, $rstype);
+        shared_pyapi!(base, $type, $rstype);
+        shared_pyapi!(extend, $type);
+        shared_pyapi!(ub, $type);
+        shared_pyapi!(lb, $type);
+        shared_pyapi!(both, $type);
+    };
+}
+
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
 /// This encoding only support upper bounding. Lower bounding can be achieved by
@@ -46,72 +204,7 @@ fn convert_error(err: Error) -> PyErr {
 #[repr(transparent)]
 pub struct GeneralizedTotalizer(DbGte);
 
-impl From<DbGte> for GeneralizedTotalizer {
-    fn from(value: DbGte) -> Self {
-        Self(value)
-    }
-}
-
-impl From<GeneralizedTotalizer> for DbGte {
-    fn from(value: GeneralizedTotalizer) -> Self {
-        value.0
-    }
-}
-
-#[pymethods]
-impl GeneralizedTotalizer {
-    #[new]
-    fn new(lits: Vec<(Lit, usize)>) -> Self {
-        let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
-        DbGte::from_iter(lits).into()
-    }
-
-    /// Adds additional input literals to the generalized totalizer
-    fn extend(&mut self, lits: Vec<(Lit, usize)>) {
-        let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
-        self.0.extend(lits);
-    }
-
-    /// Gets the sum of weights in the encoding
-    fn weight_sum(&self) -> usize {
-        self.0.weight_sum()
-    }
-
-    /// Gets the number of clauses in the encoding
-    fn n_clauses(&self) -> usize {
-        self.0.n_clauses()
-    }
-
-    /// Gets the number of variables in the encoding
-    fn n_vars(&self) -> u32 {
-        self.0.n_vars()
-    }
-
-    /// Incrementally builds the GTE encoding to that upper bounds
-    /// in the range `min_ub..=max_ub` can be enforced. New variables will
-    /// be taken from `var_manager`.
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut VarManager,
-    ) -> PyResult<Cnf> {
-        let mut cnf = RsCnf::new();
-        let var_manager: &mut BasicVarManager = var_manager.into();
-        handle_oom!(self
-            .0
-            .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
-        Ok(cnf.into())
-    }
-
-    /// Gets assumptions to enforce the given upper bound. Make sure that
-    /// the required encoding is built first.
-    fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-        let assumps: Vec<Lit> =
-            unsafe { std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_error)?) };
-        Ok(assumps)
-    }
-}
+implement_pyapi!(ub, GeneralizedTotalizer, DbGte);
 
 /// Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
 ///
@@ -129,65 +222,7 @@ impl GeneralizedTotalizer {
 #[repr(transparent)]
 pub struct DynamicPolyWatchdog(RsDpw);
 
-impl From<RsDpw> for DynamicPolyWatchdog {
-    fn from(value: RsDpw) -> Self {
-        Self(value)
-    }
-}
-
-impl From<DynamicPolyWatchdog> for RsDpw {
-    fn from(value: DynamicPolyWatchdog) -> Self {
-        value.0
-    }
-}
-
-#[pymethods]
-impl DynamicPolyWatchdog {
-    #[new]
-    fn new(lits: Vec<(Lit, usize)>) -> Self {
-        let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
-        RsDpw::from_iter(lits).into()
-    }
-
-    /// Gets the sum of weights in the encoding
-    fn weight_sum(&self) -> usize {
-        self.0.weight_sum()
-    }
-
-    /// Gets the number of clauses in the encoding
-    fn n_clauses(&self) -> usize {
-        self.0.n_clauses()
-    }
-
-    /// Gets the number of variables in the encoding
-    fn n_vars(&self) -> u32 {
-        self.0.n_vars()
-    }
-
-    /// Incrementally builds the DPW encoding to that upper bounds
-    /// in the range `min_ub..=max_ub` can be enforced. New variables will
-    /// be taken from `var_manager`.
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut VarManager,
-    ) -> PyResult<Cnf> {
-        let mut cnf = RsCnf::new();
-        let var_manager: &mut BasicVarManager = var_manager.into();
-        handle_oom!(self
-            .0
-            .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
-        Ok(cnf.into())
-    }
-
-    /// Gets assumptions to enforce the given upper bound. Make sure that
-    /// the required encoding is built first.
-    fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-        let assumps = self.0.enforce_ub(ub).map_err(convert_error)?;
-        Ok(assumps.into_iter().map(Into::into).collect())
-    }
-}
+implement_pyapi!(ub_noextend, DynamicPolyWatchdog, RsDpw);
 
 /// Implementation of the binary adder encoding first described in \[1\].
 /// The implementation follows the description in \[2\].
@@ -202,110 +237,4 @@ impl DynamicPolyWatchdog {
 #[repr(transparent)]
 pub struct BinaryAdder(RsAdder);
 
-impl From<RsAdder> for BinaryAdder {
-    fn from(value: RsAdder) -> Self {
-        Self(value)
-    }
-}
-
-impl From<BinaryAdder> for RsAdder {
-    fn from(value: BinaryAdder) -> Self {
-        value.0
-    }
-}
-
-#[pymethods]
-impl BinaryAdder {
-    #[new]
-    fn new(lits: Vec<(Lit, usize)>) -> Self {
-        let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
-        RsAdder::from_iter(lits).into()
-    }
-
-    /// Gets the sum of weights in the encoding
-    fn weight_sum(&self) -> usize {
-        self.0.weight_sum()
-    }
-
-    /// Gets the number of clauses in the encoding
-    fn n_clauses(&self) -> usize {
-        self.0.n_clauses()
-    }
-
-    /// Gets the number of variables in the encoding
-    fn n_vars(&self) -> u32 {
-        self.0.n_vars()
-    }
-
-    /// Incrementally builds the DPW encoding to that upper bounds
-    /// in the range `min_ub..=max_ub` can be enforced. New variables will
-    /// be taken from `var_manager`.
-    fn encode_ub(
-        &mut self,
-        min_ub: usize,
-        max_ub: usize,
-        var_manager: &mut VarManager,
-    ) -> PyResult<Cnf> {
-        let mut cnf = RsCnf::new();
-        let var_manager: &mut BasicVarManager = var_manager.into();
-        handle_oom!(self
-            .0
-            .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
-        Ok(cnf.into())
-    }
-
-    /// Gets assumptions to enforce the given upper bound. Make sure that
-    /// the required encoding is built first.
-    fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-        let assumps = self.0.enforce_ub(ub).map_err(convert_error)?;
-        Ok(assumps.into_iter().map(Into::into).collect())
-    }
-
-    /// Incrementally builds the Adder encoding to that lower bounds
-    /// in the range `min_lb..=max_lb` can be enforced. New variables will
-    /// be taken from `var_manager`.
-    fn encode_lb(
-        &mut self,
-        min_lb: usize,
-        max_lb: usize,
-        var_manager: &mut VarManager,
-    ) -> PyResult<Cnf> {
-        let mut cnf = RsCnf::new();
-        let var_manager: &mut BasicVarManager = var_manager.into();
-        handle_oom!(self
-            .0
-            .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager));
-        Ok(cnf.into())
-    }
-
-    /// Gets assumptions to enforce the given lower bound. Make sure that
-    /// the required encoding is built first.
-    fn enforce_lb(&self, lb: usize) -> PyResult<Vec<Lit>> {
-        let assumps = self.0.enforce_lb(lb).map_err(convert_error)?;
-        Ok(assumps.into_iter().map(Into::into).collect())
-    }
-
-    /// Incrementally builds the Adder encoding to that both bounds
-    /// in the range `min_bound..=max_bound` can be enforced. New variables will
-    /// be taken from `var_manager`.
-    fn encode_both(
-        &mut self,
-        min_bound: usize,
-        max_bound: usize,
-        var_manager: &mut VarManager,
-    ) -> PyResult<Cnf> {
-        let mut cnf = RsCnf::new();
-        let var_manager: &mut BasicVarManager = var_manager.into();
-        handle_oom!(self
-            .0
-            .encode_both_change(min_bound..=max_bound, &mut cnf, var_manager));
-        Ok(cnf.into())
-    }
-
-    /// Gets assumptions to enforce the given equality bound. Make sure that
-    /// the required encoding is built first.
-    fn enforce_eq(&self, val: usize) -> PyResult<Vec<Lit>> {
-        let assumps = self.0.enforce_eq(val).map_err(convert_error)?;
-        Ok(assumps.into_iter().map(Into::into).collect())
-    }
-}
+implement_pyapi!(both, BinaryAdder, RsAdder);
