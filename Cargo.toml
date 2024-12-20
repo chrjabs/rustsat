@@ -21,7 +21,7 @@ edition = "2021"
 anyhow = "1.0.94"
 atty = "0.2.14"
 bindgen = "0.71.1"
-bzip2 = "0.4.4"
+bzip2 = "0.5.0"
 cc = { version = "1.2.5", features = ["parallel"] }
 chrono = "0.4.39"
 clap = { version = "4.5.23", features = ["derive", "cargo"] }
