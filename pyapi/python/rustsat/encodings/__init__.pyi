@@ -1,1 +1,1 @@
-from rustsat.encodings import card, pb
+from rustsat.encodings import card, pb, am1
