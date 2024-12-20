@@ -36,13 +36,16 @@ enum Version {
     V194,
     V195,
     V200,
-    #[default]
     V210,
+    #[default]
+    V211,
 }
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v2-1-0") {
+        if cfg!(feature = "v2-1-1") {
+            Version::V211
+        } else if cfg!(feature = "v2-1-0") {
             Version::V210
         } else if cfg!(feature = "v2-0-0") {
             Version::V200
@@ -119,6 +122,7 @@ impl Version {
             Version::V195 => "refs/tags/rel-1.9.5",
             Version::V200 => "refs/tags/rel-2.0.0",
             Version::V210 => "refs/tags/rel-2.1.0",
+            Version::V211 => "refs/tags/rel-2.1.1",
         }
     }
 
@@ -137,6 +141,7 @@ impl Version {
             V192 | V193 | V194 | V195 => "v192.patch",
             V200 => "v200.patch",
             V210 => "v210.patch",
+            V211 => "v211.patch",
         }
     }
 
@@ -291,6 +296,9 @@ fn build(repo: &str, branch: &str, version: Version) {
     cadical_build.define("QUIET", None); // --quiet
     #[cfg(feature = "logging")]
     cadical_build.define("LOGGING", None); // --log
+    if version >= Version::V211 && cfg!(target_os = "macos") {
+        cadical_build.define("NCLOSEFROM", None);
+    }
     if version.has_flip() {
         cadical_build.define("FLIP", None);
     }
