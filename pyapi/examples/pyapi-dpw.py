@@ -4,16 +4,16 @@ from rustsat.encodings.pb import DynamicPolyWatchdog as Dpw
 # Lit creates a literal object from an ipasir integer representation.  The
 # encoding takes a list of (lit, weight) pairs as input.
 input_lits = [
-  (Lit(1), 5),
-  (Lit(-2), 4),
-  (Lit(3), 3),
-  (Lit(-4), 2),
-  (Lit(5), 1),
+    (Lit(1), 5),
+    (Lit(-2), 4),
+    (Lit(3), 3),
+    (Lit(-4), 2),
+    (Lit(5), 1),
 ]
 
 # Getting unused variables is handled by a VarManager. Create one that has 5
 # variables already used.
-vm = VarManager(n_used = 5)
+vm = VarManager(n_used=5)
 
 dpw = Dpw(input_lits)
 
@@ -26,8 +26,8 @@ cnf = dpw.encode_ub(3, 5, vm)
 # DIMACS format.
 for cl in cnf:
     for l in cl:
-        print(l.to_ipasir(), end=' ')
-    print('0')
+        print(l.to_ipasir(), end=" ")
+    print("0")
 
 # Get assumptions to enforce an upper bound of 4 on the input literals. The
 # assumptions are a list of literals.
