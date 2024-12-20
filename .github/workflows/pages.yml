@@ -33,7 +33,7 @@ jobs:
       - name: Install Python package
         run: pip install --no-index --find-links target/wheels/ rustsat
       - name: Build Python API docs
-        run: pip install pdoc && pdoc -o _site/pyapi/ rustsat
+        run: pip install pdoc && pdoc -o _site/pyapi/ --no-show-source rustsat
       - name: Upload artifact
         # Automatically uploads an artifact from the './_site' directory by default
         uses: actions/upload-pages-artifact@v3
