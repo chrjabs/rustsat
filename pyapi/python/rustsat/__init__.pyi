@@ -1,5 +1,7 @@
 from typing import List, final
 
+from rustsat import encodings
+
 @final
 class Lit:
     def __new__(cls, ipasir: int) -> "Lit": ...
