@@ -45,7 +45,7 @@ rustsat-cadical = { version = "0.4.3", path = "./cadical" }
 rustsat-minisat = { version = "0.4.3", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 signal-hook = "0.3.17"
-tempfile = "3.14.0"
+tempfile = "3.15.0"
 visibility = "0.1.1"
 xz2 = "0.1.7"
 
