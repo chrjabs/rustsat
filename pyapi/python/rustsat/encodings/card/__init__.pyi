@@ -1,6 +1,8 @@
 from rustsat import Lit, Cnf, VarManager
 from typing import List, final
 
+__all__ = ["Totalizer"]
+
 @final
 class Totalizer:
     def __new__(cls, lits: List[Lit]) -> "Totalizer": ...
