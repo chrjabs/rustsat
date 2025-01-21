@@ -1,4 +1,4 @@
-name: Pidgeons
+name: Pigeons
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-    
+
 jobs:
   build-test:
     name: Build and test
@@ -27,10 +27,10 @@ jobs:
         with:
           shared-key: "build-test"
       - name: Cargo build
-        run: cargo build -p pidgeons --verbose
+        run: cargo build -p pigeons --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
       - name: Cargo test
-        run: cargo test -p pidgeons --verbose
+        run: cargo test -p pigeons --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}

@@ -1007,7 +1007,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pidgeons"
+name = "pigeons"
 version = "0.1.0"
 dependencies = [
  "itertools 0.14.0",
@@ -1261,7 +1261,7 @@ dependencies = [
  "flate2",
  "itertools 0.14.0",
  "nom",
- "pidgeons",
+ "pigeons",
  "rand",
  "rustc-hash",
  "rustsat-minisat",
@@ -1297,7 +1297,7 @@ dependencies = [
  "cpu-time",
  "git2",
  "glob",
- "pidgeons",
+ "pigeons",
  "rustsat",
  "rustsat-solvertests",
  "signal-hook",

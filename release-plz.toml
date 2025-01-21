@@ -48,6 +48,6 @@ release = false
 git_release_enable = false
 
 [[package]]
-name = "pidgeons"
+name = "pigeons"
 release = false
 git_release_enable = false

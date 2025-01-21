@@ -16,7 +16,7 @@ use crate::{
     utils::unreachable_none,
 };
 
-use pidgeons::{AbsConstraintId, Axiom, OperationLike, OperationSequence, VarLike};
+use pigeons::{AbsConstraintId, Axiom, OperationLike, OperationSequence, VarLike};
 
 use super::{con_idx, LitData, Node, PrecondOutcome, Semantics, UnitNode, UnweightedPrecondResult};
 
@@ -44,7 +44,7 @@ impl super::Db {
         mut value: usize,
         typ: SemDefTyp,
         leafs: impl Iterator<Item = (Lit, usize)> + Clone,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> std::io::Result<SemDefinition>
     where
         W: std::io::Write,
@@ -108,7 +108,7 @@ impl super::Db {
         id: NodeId,
         value: usize,
         leafs: impl Iterator<Item = (Lit, usize)> + Clone,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> std::io::Result<SemDefs>
     where
         W: std::io::Write,
@@ -164,7 +164,7 @@ impl super::Db {
         len_limit: Option<NonZeroUsize>,
         value: usize,
         leafs: impl Iterator<Item = (Lit, usize)> + Clone,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> std::io::Result<SemDefs>
     where
         W: std::io::Write,
@@ -352,7 +352,7 @@ impl super::Db {
         offset: usize,
         value: usize,
         leafs: impl Iterator<Item = (Lit, usize)> + Clone,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> std::io::Result<SemDefs>
     where
         W: std::io::Write,
@@ -389,14 +389,14 @@ impl super::Db {
         val: usize,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
         (leafs, mut leafs_init, leafs_needed): (&mut [(Lit, usize)], bool, bool),
     ) -> anyhow::Result<Option<(Lit, bool)>>
     where
         Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
-        use pidgeons::OperationLike;
+        use pigeons::OperationLike;
 
         debug_assert!(val <= self[id].max_val());
         debug_assert!(val > 0);
@@ -740,7 +740,7 @@ impl super::Db {
         val: usize,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
         (leafs, leafs_init): (&mut [(Lit, usize)], bool),
     ) -> anyhow::Result<Option<Lit>>
     where
@@ -804,7 +804,7 @@ impl super::Db {
         pre: &UnweightedPrecondResult,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
         (leafs, leafs_init): (&mut [Lit], bool),
     ) -> anyhow::Result<bool>
     where
@@ -873,7 +873,7 @@ impl super::Db {
         sems: Semantics,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
         (leafs, mut leafs_init): (&mut [Lit], bool),
     ) -> anyhow::Result<bool>
     where
@@ -959,14 +959,14 @@ impl super::Db {
         req_semantics: Semantics,
         pre: &UnweightedPrecondResult,
         collector: &mut Col,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
         leafs: &mut [Lit],
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,
         W: std::io::Write,
     {
-        use pidgeons::OperationLike;
+        use pigeons::OperationLike;
 
         // Store what part of the encoding we need to build
         let new_semantics = self[id].unit().lits[idx]
@@ -1115,7 +1115,7 @@ impl super::Db {
         semantics: Semantics,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
         (leafs, mut leafs_init, leafs_needed): (&mut [Lit], bool, bool),
     ) -> anyhow::Result<(Lit, bool)>
     where
@@ -1190,11 +1190,11 @@ impl SemDefs {
 /// The data needed to identify a semantic definition
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SemDefId {
-    /// The ID of the node that the definition is fo
+    /// The ID of the node that the definition is for
     id: NodeId,
     /// The output value of the node, disregarding the offset
     value: usize,
-    /// The offset. If the offset is non-zero, the semantic defintions need to be rewritten.
+    /// The offset. If the offset is non-zero, the semantic definitions need to be rewritten.
     offset: usize,
     /// The length limit of the connection
     len_limit: Option<NonZeroUsize>,
@@ -1220,63 +1220,61 @@ impl From<Lit> for SemDefinition {
 }
 
 impl ops::Add<SemDefinition> for SemDefinition {
-    type Output = pidgeons::OperationSequence<Var>;
+    type Output = pigeons::OperationSequence<Var>;
 
     fn add(self, rhs: SemDefinition) -> Self::Output {
         match self {
             SemDefinition::None => match rhs {
-                SemDefinition::None => pidgeons::OperationSequence::empty(),
+                SemDefinition::None => pigeons::OperationSequence::empty(),
                 SemDefinition::Id(rhs) => rhs.into(),
-                SemDefinition::Axiom(rhs) => pidgeons::Axiom::from(rhs).into(),
+                SemDefinition::Axiom(rhs) => pigeons::Axiom::from(rhs).into(),
             },
             SemDefinition::Id(lhs) => match rhs {
                 SemDefinition::None => lhs.into(),
                 SemDefinition::Id(rhs) => Self::Output::from(lhs) + rhs,
-                SemDefinition::Axiom(rhs) => lhs + pidgeons::Axiom::from(rhs),
+                SemDefinition::Axiom(rhs) => lhs + pigeons::Axiom::from(rhs),
             },
             SemDefinition::Axiom(lhs) => match rhs {
-                SemDefinition::None => pidgeons::Axiom::from(lhs).into(),
-                SemDefinition::Id(rhs) => pidgeons::Axiom::from(lhs) + rhs,
-                SemDefinition::Axiom(rhs) => {
-                    pidgeons::Axiom::from(lhs) + pidgeons::Axiom::from(rhs)
-                }
+                SemDefinition::None => pigeons::Axiom::from(lhs).into(),
+                SemDefinition::Id(rhs) => pigeons::Axiom::from(lhs) + rhs,
+                SemDefinition::Axiom(rhs) => pigeons::Axiom::from(lhs) + pigeons::Axiom::from(rhs),
             },
         }
     }
 }
 
-impl ops::Add<SemDefinition> for pidgeons::OperationSequence<Var> {
-    type Output = pidgeons::OperationSequence<Var>;
+impl ops::Add<SemDefinition> for pigeons::OperationSequence<Var> {
+    type Output = pigeons::OperationSequence<Var>;
 
     fn add(self, rhs: SemDefinition) -> Self::Output {
         match rhs {
             SemDefinition::None => self,
             SemDefinition::Id(rhs) => self + rhs,
-            SemDefinition::Axiom(rhs) => self + pidgeons::Axiom::from(rhs),
+            SemDefinition::Axiom(rhs) => self + pigeons::Axiom::from(rhs),
         }
     }
 }
 
-impl ops::Add<pidgeons::OperationSequence<Var>> for SemDefinition {
-    type Output = pidgeons::OperationSequence<Var>;
+impl ops::Add<pigeons::OperationSequence<Var>> for SemDefinition {
+    type Output = pigeons::OperationSequence<Var>;
 
-    fn add(self, rhs: pidgeons::OperationSequence<Var>) -> Self::Output {
+    fn add(self, rhs: pigeons::OperationSequence<Var>) -> Self::Output {
         match self {
             SemDefinition::None => rhs,
             SemDefinition::Id(id) => id + rhs,
-            SemDefinition::Axiom(ax) => pidgeons::Axiom::from(ax) + rhs,
+            SemDefinition::Axiom(ax) => pigeons::Axiom::from(ax) + rhs,
         }
     }
 }
 
 impl ops::Mul<usize> for SemDefinition {
-    type Output = pidgeons::OperationSequence<Var>;
+    type Output = pigeons::OperationSequence<Var>;
 
     fn mul(self, rhs: usize) -> Self::Output {
         match self {
-            SemDefinition::None => pidgeons::OperationSequence::empty(),
+            SemDefinition::None => pigeons::OperationSequence::empty(),
             SemDefinition::Id(id) => Self::Output::from(id) * rhs,
-            SemDefinition::Axiom(ax) => pidgeons::Axiom::from(ax) * rhs,
+            SemDefinition::Axiom(ax) => pigeons::Axiom::from(ax) * rhs,
         }
     }
 }
@@ -1332,9 +1330,9 @@ mod tests {
     fn new_proof(
         num_constraints: usize,
         optimization: bool,
-    ) -> pidgeons::Proof<tempfile::NamedTempFile> {
+    ) -> pigeons::Proof<tempfile::NamedTempFile> {
         let file = tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
-        pidgeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+        pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
     }
 
     #[test]
@@ -1365,7 +1363,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1399,7 +1397,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1435,7 +1433,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1477,7 +1475,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1605,7 +1603,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1645,7 +1643,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1685,7 +1683,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1725,7 +1723,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1765,7 +1763,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1805,7 +1803,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());

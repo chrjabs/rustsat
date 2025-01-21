@@ -369,7 +369,7 @@ impl super::cert::BoundUpper for DbGte {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,
@@ -389,7 +389,7 @@ impl super::cert::BoundUpperIncremental for DbGte {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,

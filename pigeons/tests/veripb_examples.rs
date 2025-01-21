@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-use pidgeons::{
+use pigeons::{
     Conclusion, ConstraintId as Id, ConstraintLike, OperationLike, OperationSequence,
     OutputGuarantee, Proof, VarLike,
 };
@@ -47,7 +47,7 @@ impl<'slf> ConstraintLike<&'slf str> for Constr<'slf> {
         self.rhs
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<&'slf str>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<&'slf str>)> {
         self.terms
             .iter()
             .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))
@@ -75,7 +75,7 @@ fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
 
 fn new_proof(num_constraints: usize, optimization: bool) -> Proof<tempfile::NamedTempFile> {
     let file = tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
-    pidgeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+    pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
 }
 
 #[test]

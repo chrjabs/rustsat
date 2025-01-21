@@ -1113,7 +1113,7 @@ impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 mod proofs {
     use std::fmt;
 
-    /// A formatter for [`super::Var`] for use with the [`pidgeons`] library to ensure same
+    /// A formatter for [`super::Var`] for use with the [`pigeons`] library to ensure same
     /// variable formatting as in VeriPB
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[repr(transparent)]
@@ -1131,13 +1131,13 @@ mod proofs {
         }
     }
 
-    impl pidgeons::VarLike for super::Var {
+    impl pigeons::VarLike for super::Var {
         type Formatter = PidgeonVarFormatter;
     }
 
-    impl From<super::Lit> for pidgeons::Axiom<super::Var> {
+    impl From<super::Lit> for pigeons::Axiom<super::Var> {
         fn from(value: super::Lit) -> Self {
-            use pidgeons::VarLike;
+            use pigeons::VarLike;
 
             if value.is_pos() {
                 value.var().pos_axiom()
@@ -1195,7 +1195,7 @@ mod tests {
     #[cfg(feature = "proof-logging")]
     #[test]
     fn proof_log_var() {
-        use pidgeons::VarLike;
+        use pigeons::VarLike;
         let var = Var::new(3);
         assert_eq!(&format!("{}", <Var as VarLike>::Formatter::from(var)), "x4");
     }

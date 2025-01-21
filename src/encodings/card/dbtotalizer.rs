@@ -360,7 +360,7 @@ impl super::cert::BoundUpper for DbTotalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,
@@ -380,7 +380,7 @@ impl super::cert::BoundUpperIncremental for DbTotalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,
@@ -423,7 +423,7 @@ impl super::cert::BoundLower for DbTotalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,
@@ -443,7 +443,7 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: crate::encodings::CollectCertClauses,

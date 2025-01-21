@@ -1001,15 +1001,15 @@ impl Objective {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ObjectiveLike<crate::types::Var> for Objective {
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+impl pigeons::ObjectiveLike<crate::types::Var> for Objective {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
         self.iter_soft_lits()
             .expect("objective for proof logging cannot have soft clauses")
             .into_iter()
             .map(|(l, w)| {
                 (
                     isize::try_from(w).expect("can only handle coefficients up to `isize::MAX`"),
-                    pidgeons::Axiom::from(l),
+                    pigeons::Axiom::from(l),
                 )
             })
     }
@@ -1630,7 +1630,7 @@ mod tests {
     #[test]
     fn proof_log_obj() {
         use itertools::Itertools;
-        use pidgeons::ObjectiveLike;
+        use pigeons::ObjectiveLike;
 
         use crate::lit;
 

@@ -21,7 +21,7 @@ pub trait BoundUpper: super::Encode + super::BoundUpper {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: CollectCertClauses,
@@ -46,7 +46,7 @@ pub trait BoundLower: super::Encode + super::BoundLower {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: CollectCertClauses,
@@ -70,7 +70,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: CollectCertClauses,
@@ -105,7 +105,7 @@ pub trait BoundUpperIncremental: BoundUpper + super::EncodeIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: CollectCertClauses,
@@ -131,7 +131,7 @@ pub trait BoundLowerIncremental: BoundLower + super::EncodeIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: CollectCertClauses,
@@ -155,7 +155,7 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-        proof: &mut pidgeons::Proof<W>,
+        proof: &mut pigeons::Proof<W>,
     ) -> anyhow::Result<()>
     where
         Col: CollectCertClauses,

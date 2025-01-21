@@ -1,7 +1,7 @@
-[![Build & Test](https://github.com/chrjabs/rustsat/actions/workflows/pidgeons.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/pidgeons.yml)
-[![crates.io](https://img.shields.io/crates/v/rustsat)](https://crates.io/crates/pidgeons)
-[![docs.rs](https://img.shields.io/docsrs/rustsat)](https://docs.rs/pidgeons)
-[![License](https://img.shields.io/crates/l/pidgeons)](./LICENSE)
+[![Build & Test](https://github.com/chrjabs/rustsat/actions/workflows/pigeons.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/pigeons.yml)
+[![crates.io](https://img.shields.io/crates/v/rustsat)](https://crates.io/crates/pigeons)
+[![docs.rs](https://img.shields.io/docsrs/rustsat)](https://docs.rs/pigeons)
+[![License](https://img.shields.io/crates/l/pigeons)](./LICENSE)
 
 <!-- cargo-rdme start -->
 

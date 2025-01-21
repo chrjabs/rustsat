@@ -690,7 +690,7 @@ mod cert {
         assert_eq!(res, SolverResult::Sat);
 
         let proof_file = proof
-            .conclude::<Var>(pidgeons::OutputGuarantee::None, &pidgeons::Conclusion::None)
+            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -866,9 +866,9 @@ mod cert {
     fn new_proof(
         num_constraints: usize,
         optimization: bool,
-    ) -> pidgeons::Proof<tempfile::NamedTempFile> {
+    ) -> pigeons::Proof<tempfile::NamedTempFile> {
         let file = tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
-        pidgeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+        pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
     }
 
     #[test]

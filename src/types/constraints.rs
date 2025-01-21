@@ -309,24 +309,24 @@ impl fmt::Debug for Clause {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike<crate::types::Var> for Clause {
+impl pigeons::ConstraintLike<crate::types::Var> for Clause {
     fn rhs(&self) -> isize {
         1
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
-        self.lits.iter().map(|l| (1, pidgeons::Axiom::from(*l)))
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        self.lits.iter().map(|l| (1, pigeons::Axiom::from(*l)))
     }
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike<crate::types::Var> for Cl {
+impl pigeons::ConstraintLike<crate::types::Var> for Cl {
     fn rhs(&self) -> isize {
         1
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
-        self.lits.iter().map(|l| (1, pidgeons::Axiom::from(*l)))
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        self.lits.iter().map(|l| (1, pigeons::Axiom::from(*l)))
     }
 }
 
@@ -848,7 +848,7 @@ impl From<Clause> for CardConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike<crate::types::Var> for CardConstraint {
+impl pigeons::ConstraintLike<crate::types::Var> for CardConstraint {
     fn rhs(&self) -> isize {
         match self {
             CardConstraint::Ub(c) => {
@@ -865,14 +865,14 @@ impl pidgeons::ConstraintLike<crate::types::Var> for CardConstraint {
         }
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
         match self {
-            CardConstraint::Ub(CardUbConstr { lits, .. }) => PidgeonLitIter {
+            CardConstraint::Ub(CardUbConstr { lits, .. }) => PigeonLitIter {
                 lits: lits.iter(),
                 negate: true,
             },
             CardConstraint::Lb(CardLbConstr { lits, .. })
-            | CardConstraint::Eq(CardEqConstr { lits, .. }) => PidgeonLitIter {
+            | CardConstraint::Eq(CardEqConstr { lits, .. }) => PigeonLitIter {
                 lits: lits.iter(),
                 negate: false,
             },
@@ -881,23 +881,23 @@ impl pidgeons::ConstraintLike<crate::types::Var> for CardConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-struct PidgeonLitIter<'a> {
+struct PigeonLitIter<'a> {
     lits: std::slice::Iter<'a, Lit>,
     negate: bool,
 }
 
 #[cfg(feature = "proof-logging")]
-impl Iterator for PidgeonLitIter<'_> {
-    type Item = (isize, pidgeons::Axiom<crate::types::Var>);
+impl Iterator for PigeonLitIter<'_> {
+    type Item = (isize, pigeons::Axiom<crate::types::Var>);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.lits.next().map(|l| {
             (
                 1,
                 if self.negate {
-                    pidgeons::Axiom::from(!*l)
+                    pigeons::Axiom::from(!*l)
                 } else {
-                    pidgeons::Axiom::from(*l)
+                    pigeons::Axiom::from(*l)
                 },
             )
         })
@@ -1567,7 +1567,7 @@ impl PbConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pidgeons::ConstraintLike<crate::types::Var> for PbConstraint {
+impl pigeons::ConstraintLike<crate::types::Var> for PbConstraint {
     fn rhs(&self) -> isize {
         match self {
             PbConstraint::Ub(c) => {
@@ -1581,14 +1581,14 @@ impl pidgeons::ConstraintLike<crate::types::Var> for PbConstraint {
         }
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pidgeons::Axiom<crate::types::Var>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
         match self {
-            PbConstraint::Ub(PbUbConstr { lits, .. }) => PidgeonWLitIter {
+            PbConstraint::Ub(PbUbConstr { lits, .. }) => PigeonWLitIter {
                 lits: lits.iter(),
                 negate: true,
             },
             PbConstraint::Lb(PbLbConstr { lits, .. })
-            | PbConstraint::Eq(PbEqConstr { lits, .. }) => PidgeonWLitIter {
+            | PbConstraint::Eq(PbEqConstr { lits, .. }) => PigeonWLitIter {
                 lits: lits.iter(),
                 negate: false,
             },
@@ -1597,23 +1597,23 @@ impl pidgeons::ConstraintLike<crate::types::Var> for PbConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-struct PidgeonWLitIter<'a> {
+struct PigeonWLitIter<'a> {
     lits: std::slice::Iter<'a, (Lit, usize)>,
     negate: bool,
 }
 
 #[cfg(feature = "proof-logging")]
-impl Iterator for PidgeonWLitIter<'_> {
-    type Item = (isize, pidgeons::Axiom<crate::types::Var>);
+impl Iterator for PigeonWLitIter<'_> {
+    type Item = (isize, pigeons::Axiom<crate::types::Var>);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.lits.next().map(|(l, w)| {
             (
                 isize::try_from(*w).expect("can only handle coefficients up to `isize::MAX`"),
                 if self.negate {
-                    pidgeons::Axiom::from(!*l)
+                    pigeons::Axiom::from(!*l)
                 } else {
-                    pidgeons::Axiom::from(*l)
+                    pigeons::Axiom::from(*l)
                 },
             )
         })
@@ -1993,7 +1993,7 @@ mod tests {
     #[test]
     fn proof_log_clause() {
         use itertools::Itertools;
-        use pidgeons::ConstraintLike;
+        use pigeons::ConstraintLike;
 
         let cl = clause![lit![0], lit![1], lit![2], !lit![3]];
         let truth = "1 x1 1 x2 1 x3 1 ~x4 >= 1";
@@ -2095,7 +2095,7 @@ mod tests {
     #[test]
     fn proof_log_card() {
         use itertools::Itertools;
-        use pidgeons::ConstraintLike;
+        use pigeons::ConstraintLike;
 
         let lits = vec![lit![0], lit![1], !lit![2]];
         let ub = CardConstraint::new_ub(lits.clone(), 1);
@@ -2187,7 +2187,7 @@ mod tests {
     #[test]
     fn proof_log_pb() {
         use itertools::Itertools;
-        use pidgeons::ConstraintLike;
+        use pigeons::ConstraintLike;
 
         let lits = vec![(lit![0], 2), (lit![1], 3), (!lit![2], 2)];
         let ub = PbConstraint::new_ub(lits.clone(), 3);
