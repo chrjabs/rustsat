@@ -36,7 +36,7 @@ impl From<ConstrIdInternal> for ConstraintId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ConstrIdInternal {
-    /// An abosulte ID
+    /// An absolute ID
     Abs(AbsConstraintId),
     /// A relative ID
     Rel(RelConstraintId),
@@ -539,7 +539,7 @@ where
     }
 }
 
-/// A proof target of a subproof
+/// A proof target of a sub-proof
 pub struct ProofGoal<V: VarLike, C> {
     /// The goal id
     id: ProofGoalId,
@@ -722,7 +722,7 @@ pub enum OutputGuarantee {
     Derivable(OutputType),
     /// The constraints are equisatisfiable
     Equisatisfiable(OutputType),
-    /// The constraints are equiptimal
+    /// The constraints are equioptimal
     Equioptimal(OutputType),
 }
 

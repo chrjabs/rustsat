@@ -1,4 +1,4 @@
-//! # Pidgeons
+//! # Pigeons
 //!
 //! A proof logging library for [VeriPB](https://gitlab.com/MIAOresearch/software/VeriPB).
 //!
@@ -21,7 +21,7 @@
 //! - [x] `soli`: [`Proof::improve_solution`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
 //! - [x] `conclusion`: [`Proof::conclusion`], [`Proof::conclude`]
-//! - [x] Subproofs
+//! - [x] Sub-proofs
 //! - [x] `e`: [`Proof::equals`]
 //! - [x] `ea`: [`Proof::equals_add`]
 //! - [x] `eobj`: [`Proof::obj_equals`]
@@ -190,7 +190,7 @@ where
         id
     }
 
-    /// Writes a subproof, if the iterator is not empty
+    /// Writes a sub-proof, if the iterator is not empty
     fn write_subproof<V, C, PI>(&mut self, proof: PI) -> io::Result<()>
     where
         V: VarLike,
@@ -248,7 +248,7 @@ where
         writeln!(self.writer, "f {num_constraints}")
     }
 
-    /// Adds an arbitraty single-line comment to the proof
+    /// Adds an arbitrary single-line comment to the proof
     ///
     /// **Note**: if the object displays as more than one line, an invalid VeriPB line will be
     /// produced
@@ -265,7 +265,7 @@ where
         Ok(())
     }
 
-    /// Adds an arbitraty multi-line comment to the proof
+    /// Adds an arbitrary multi-line comment to the proof
     ///
     /// # Proof Log
     ///

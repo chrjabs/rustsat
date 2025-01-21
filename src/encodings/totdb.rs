@@ -543,7 +543,7 @@ impl Db {
         Ok(olit)
     }
 
-    /// Recursively reserves all variables in the subtree rooted at the given node
+    /// Recursively reserves all variables in the sub-tree rooted at the given node
     pub fn reserve_vars(&mut self, id: NodeId, var_manager: &mut dyn ManageVars) {
         if matches!(self[id], Node::Leaf(_) | Node::Dummy) {
             return;
@@ -632,17 +632,6 @@ impl Semantics {
     #[must_use]
     pub fn has_only_if(self) -> bool {
         matches!(self, Semantics::OnlyIf | Semantics::IfAndOnlyIf)
-    }
-
-    /// Checks whether the given semantics already satisfy required semantics
-    #[inline]
-    #[must_use]
-    pub fn satisfies(self, required: Semantics) -> bool {
-        match required {
-            Semantics::If => self.has_if(),
-            Semantics::OnlyIf => self.has_only_if(),
-            Semantics::IfAndOnlyIf => matches!(self, Semantics::IfAndOnlyIf),
-        }
     }
 
     /// Updates the given semantics with additional semantics

@@ -217,7 +217,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
     let bindings = bindgen::Builder::default()
         .rust_target("1.70.0".parse().unwrap()) // Set MSRV of RustSAT
         .clang_arg("-Icppsrc")
-        .clang_arg(&format!("-I{cadical_dir}/src"))
+        .clang_arg(format!("-I{cadical_dir}/src"))
         .header(header_path)
         .allowlist_file(header_path)
         .allowlist_file("cppsrc/ccadical_extension.h")
