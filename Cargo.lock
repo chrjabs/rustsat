@@ -120,9 +120,9 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "batsat"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c46275d5d413790e96e7a74bab90591ba0aad8117662fadee8ba266685e5908a"
+checksum = "ec82b6bbce8ea42f5003417b699267860a9f4dd869fc9ba8faceac761d5afed1"
 dependencies = [
  "bit-vec",
 ]
