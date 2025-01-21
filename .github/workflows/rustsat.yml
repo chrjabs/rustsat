@@ -34,6 +34,12 @@ jobs:
           key: ${{ matrix.rust-version }}
       - name: Install latest nextest release
         uses: taiki-e/install-action@nextest
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Install VeriPB
+        run: pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
       - name: Cargo build
         run: cargo build -p rustsat --verbose --features=all
         env:

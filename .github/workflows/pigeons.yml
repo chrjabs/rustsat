@@ -26,11 +26,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "build-test"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Install VeriPB
+        run: pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
       - name: Cargo build
         run: cargo build -p pigeons --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
       - name: Cargo test
-        run: cargo test -p pigeons --verbose
+        run: cargo nextest run --profile ci -p pigeons --verbose
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
