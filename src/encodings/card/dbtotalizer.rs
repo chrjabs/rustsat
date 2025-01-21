@@ -718,7 +718,7 @@ mod tests {
     use super::DbTotalizer;
     use crate::{
         encodings::{
-            card::{BoundUpper, BoundUpperIncremental},
+            card::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
             EncodeStats, Error,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
