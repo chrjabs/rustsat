@@ -36,7 +36,7 @@ pub trait CollectClauses {
 
 /// Trait for collecting clauses including their [`pidgeons::AbsConstraintId`] in a proof
 ///
-/// The default implementation of this traint simply ignores the proof log IDs
+/// The default implementation of this trait simply ignores the proof log IDs
 #[cfg(feature = "proof-logging")]
 pub trait CollectCertClauses: CollectClauses {
     /// Extends the collector with an iterator of clauses and proof log IDs
@@ -95,7 +95,7 @@ mod nodedb {
     //! # Node Database Functionality For Universal Tree-Like Encodings
     //!
     //! Encodings with a tree-like structure where each node contains a sorted
-    //! version of its childrens' literals. The leafs are input literals.
+    //! version of its children's literals. The leafs are input literals.
     //!
     //! This is used as the basis for the dynamic polynomial watchdog encoding.
     //! (Note that the DPW encoding is not technically tree-like since it might

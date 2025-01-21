@@ -6,13 +6,7 @@ use std::{
 };
 
 fn main() {
-    if std::env::var("DOCS_RS").is_ok() {
-        // don't build c++ library on docs.rs due to network restrictions
-        return;
-    }
-
     // Build C++ library
-    // Full commit hash needs to be provided
     build();
 
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -33,6 +27,7 @@ fn main() {
 
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
+        .rust_target("1.66.1".parse().unwrap()) // Set MSRV of RustSAT
         .header("cppsrc/minisat/cminisat.h")
         .allowlist_file("cppsrc/minisat/cminisat.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

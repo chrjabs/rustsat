@@ -6,7 +6,7 @@
 //!
 //! # BatSat Version
 //!
-//! The version of BatSat in this crate is Version 0.5.0.
+//! The version of BatSat in this crate is Version 0.6.0.
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -104,7 +104,7 @@ where
 
 impl<Cb: Callbacks> Solve for Solver<Cb> {
     fn signature(&self) -> &'static str {
-        "BatSat 0.5.0"
+        "BatSat 0.6.0"
     }
 
     fn solve(&mut self) -> anyhow::Result<SolverResult> {

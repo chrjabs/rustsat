@@ -1,4 +1,4 @@
-//! # encodings
+//! # `encodings`
 //!
 //! A collection of (multi-objective) MaxSAT/PBO encodings.
 //!

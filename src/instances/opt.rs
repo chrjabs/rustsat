@@ -155,7 +155,7 @@ impl Objective {
         }
     }
 
-    /// Gets the weight sum of all softs
+    /// Gets the weight sum of all soft literals and clauses
     #[must_use]
     pub fn weight_sum(&self) -> usize {
         self.lit_weight_sum() + self.clause_weight_sum()
@@ -837,7 +837,7 @@ impl Objective {
         }
     }
 
-    /// Reindexes all variables in the instance with a reindexing variable manager
+    /// Re-indexes all variables in the instance with a re-indexing variable manager
     #[must_use]
     pub fn reindex<R: ReindexVars>(self, reindexer: &mut R) -> Objective {
         match self.0 {
@@ -1234,7 +1234,7 @@ impl<VM: ManageVars> Instance<VM> {
         )
     }
 
-    /// Reindexes all variables in the instance with a reindexing variable manager
+    /// Re-indexes all variables in the instance with a re-indexing variable manager
     #[must_use]
     pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
         let obj = self.obj.reindex(&mut reindexer);
@@ -1254,9 +1254,9 @@ impl<VM: ManageVars> Instance<VM> {
         varset
     }
 
-    /// Reindex all variables in the instance in order
+    /// Re-index all variables in the instance in order
     ///
-    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// If the re-indexing variable manager produces new free variables in order, this results in
     /// the variable _order_ being preserved with gaps in the variable space being closed
     #[must_use]
     pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
@@ -1424,7 +1424,7 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
     /// - Returns [`io::Error`] on errors during writing
     pub fn write_opb_path<P: AsRef<Path>>(
         &self,
@@ -1446,7 +1446,7 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
     /// - Returns [`io::Error`] on errors during writing
     pub fn write_opb<W: io::Write>(
         &self,

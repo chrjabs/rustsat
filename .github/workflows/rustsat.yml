@@ -8,13 +8,15 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-    
+
 jobs:
   build-test:
     name: Build and test
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        # 1.66.1 is the MSRV
+        rust-version: ["1.66.1", stable]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources
@@ -23,15 +25,21 @@ jobs:
           submodules: "recursive"
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust-version }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "build-test"
+          # Matrix instances (other than the OS) need to be added to this explicitly
+          key: ${{ matrix.rust-version }}
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
       - name: Cargo build
         run: cargo build -p rustsat --verbose --features=all
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
-      - name: Cargo test
-        run: cargo test -p rustsat --verbose --features=all
+      - name: Run tests
+        run: cargo nextest run --profile ci -p rustsat --verbose --features=all
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
       - name: CaDiCaL external solver
@@ -39,22 +47,22 @@ jobs:
         run: |
           curl -O https://media.christophjabs.info/cadical-2-0-0
           chmod +x cadical-2-0-0
-          RS_EXT_SOLVER=./cadical-2-0-0 cargo test --test external_solver --verbose -- --ignored
+          RS_EXT_SOLVER=./cadical-2-0-0 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
       - name: Kissat external solver
         if: matrix.os == 'ubuntu-latest'
         run: |
           curl -O https://media.christophjabs.info/kissat-3-1-1
           chmod +x kissat-3-1-1
-          RS_EXT_SOLVER=./kissat-3-1-1 cargo test --test external_solver --verbose -- --ignored
+          RS_EXT_SOLVER=./kissat-3-1-1 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
       - name: Gimsatul external solver
         if: matrix.os == 'ubuntu-latest'
         run: |
           curl -O https://media.christophjabs.info/gimsatul-1-1-2
           chmod +x gimsatul-1-1-2
-          RS_EXT_SOLVER=./gimsatul-1-1-2 cargo test --test external_solver --verbose -- --ignored
+          RS_EXT_SOLVER=./gimsatul-1-1-2 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
 
   kani:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -64,4 +72,3 @@ jobs:
         uses: model-checking/kani-github-action@v1
         with:
           args: '-p rustsat'
-

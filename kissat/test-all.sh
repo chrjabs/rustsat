@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 echo "Testing default (newest) version"
 cargo test &> def-test.log
@@ -31,6 +31,10 @@ echo "v3.1.1 test returned: $?"
 echo "Testing v4.0.0"
 cargo test --features=v4-0-0 &> v400-test.log
 echo "v4.0.0 test returned: $?"
+
+echo "Testing v4.0.1"
+cargo test --features=v4-0-1 &> v401-test.log
+echo "v4.0.1 test returned: $?"
 
 echo "Testing quiet"
 cargo test --features=quiet &> quiet-test.log

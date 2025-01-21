@@ -1,6 +1,6 @@
-# Migration Guide for Breaking Changes in v0.5.0
+# Migration Guide for Breaking Changes in `v0.5.0`
 
-This document gives an overview of the breaking API changes in v0.5.0 and how
+This document gives an overview of the breaking API changes in `v0.5.0` and how
 to update your code accordingly. Mostly, follow the error messages the compiler
 will give you after updating to the new RustSAT version.
 
@@ -40,7 +40,7 @@ There have been some API changes to improve usability, even though they are brea
   object. This now has to be done externally to avoid potentially double
   buffering.
 - "Heavy" conversion function (e.g., `SatInstance::to_cnf`) are now called
-  `into_`. Additionally, inplace converter functions named `convert_to_` are also
+  `into_`. Additionally, in-place converter functions named `convert_to_` are also
   provided.
 - Methods providing references to internal data are now named `_ref` and `_mut`
   if mutability is allowed. If only a non-mutable accessor is present, the `_ref`
@@ -50,7 +50,7 @@ There have been some API changes to improve usability, even though they are brea
 
 This release also includes a push towards catching the most common cases where
 this library could run out of memory. The two main cases of this are adding
-clauses to solvers and generating CNF encodings. For the first, C++ error
+clauses to solvers and generating CNF encodings. For the first, Cpp error
 exceptions are now caught in the C-API wrapper and a Rust error
 (`rustsat::OutOfMemory::ExternalApi`) is returned. The other case is if a
 clause collector used when generating an encoding runs out of memory. For this
@@ -60,5 +60,5 @@ crate any more, but has the functions `extend_clauses` and `add_clause`.
 `SatInstance`). In the Rust types, `try_reserve` is now used and
 `rustsat::OutOfMemory::TryReserve` will be returned if memory allocation fails.
 For most use cases, there are at most some more errors that you can treat with
-`unwrap` or `expect` to get the same behaviour as previously. This just enables
+`unwrap` or `expect` to get the same behavior as previously. This just enables
 more sophisticated memory error handling now.

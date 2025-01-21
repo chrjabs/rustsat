@@ -19,8 +19,8 @@ git_release_latest = false
 # labels for the release PR
 pr_labels = ["release"]
 
-# disallow updating repositories with uncommitted changes
-allow_dirty = false
+# needed because of committed files in kissat repo that are also in .gitignore
+allow_dirty = true
 
 # disallow packaging with uncommitted changes
 publish_allow_dirty = false
@@ -48,6 +48,6 @@ release = false
 git_release_enable = false
 
 [[package]]
-name = "rustsat-batsat"
+name = "pidgeons"
 release = false
 git_release_enable = false

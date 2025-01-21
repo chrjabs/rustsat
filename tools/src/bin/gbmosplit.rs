@@ -1,9 +1,9 @@
-//! # gbmosplit
+//! # `gbmosplit`
 //!
 //! Detect generalized boolean multilevel optimization instances from MaxSAT
 //! instances and split them into multi-objective instances. Compared to \[1\],
 //! in order to have truly separated objectives, we require a stricter criterion
-//! for GBMO: left_sum < min_right_diff (instead of <=).
+//! for GBMO: `left_sum < min_right_diff` (instead of `<=`).
 //!
 //! ## References
 //!
@@ -281,7 +281,7 @@ enum SplitAlg {
     /// detects lexicographic optimization of unweighted MO instances.)
     Bmo,
     /// Detect generalized boolean multilevel optimization, but only with the
-    /// gcd method. (This detects lexicographic optimization of weighted MO
+    /// GCD method. (This detects lexicographic optimization of weighted MO
     /// instances.)
     Gcd,
     /// Full generalized boolean multilevel optimization detection. (With this

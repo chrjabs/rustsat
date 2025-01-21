@@ -35,8 +35,8 @@ int main() {
       RustSAT::dpw_enforce_ub(dpw, 30, ipasir_assump_collector, solver);
   assert(ret == RustSAT::MaybeError::Ok);
   ipasir_solve(solver);
-  
+
   ipasir_release(solver);
-  
+
   return 0;
 }

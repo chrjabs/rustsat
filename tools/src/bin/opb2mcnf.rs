@@ -1,4 +1,4 @@
-//! # opb2mcnf
+//! # `opb2mcnf`
 //!
 //! A small tool for converting OPB files to DIMACS MCNF.
 

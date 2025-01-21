@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-batsat"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 authors = ["Noah Bruns <nbruns@efs.at>"]
 license = "MIT"
@@ -8,11 +8,12 @@ description = "Interface to the SAT solver BatSat for the RustSAT library. BatSa
 keywords = ["sat-solver", "rustsat", "batsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = ["CHANGELOG.md", "README.md", "/src/"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-batsat = "0.5.0"           # when changing this version, do not forget to update signature
+batsat = "0.6.0"           # when changing this version, do not forget to update signature
 anyhow.workspace = true
 cpu-time.workspace = true
 thiserror.workspace = true

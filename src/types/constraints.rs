@@ -333,6 +333,9 @@ impl pidgeons::ConstraintLike<crate::types::Var> for Cl {
 /// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
+    () => {
+        $crate::types::Clause::new()
+    };
     ( $($l:expr),* ) => {
         {
             let mut tmp_clause = $crate::types::Clause::new();
@@ -418,7 +421,7 @@ impl Cl {
             })
     }
 
-    /// Checks wheter the clause is satisfied
+    /// Checks whether the clause is satisfied
     #[must_use]
     #[deprecated(
         since = "0.6.0",

@@ -120,7 +120,7 @@ impl DynamicPolyWatchdog {
 
     /// Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
     /// effectively be built such that the weight of every input literal is divided by `divisor`
-    /// (interger division, rounding down). Divisor values must be powers of 2. After building
+    /// (integer division, rounding down). Divisor values must be powers of 2. After building
     /// the encoding, the precision can only be increased, i.e., only call this function with
     /// _decreasing_ divisor values.
     ///
@@ -142,7 +142,7 @@ impl DynamicPolyWatchdog {
     ///
     /// Note that this is not the next possible precision value from the last _set_ precision but
     /// from the last _encoded_ precision. The divisor value will always be a power of two so that
-    /// calling `set_precision` and then encoding will produce the smalles non-empty next segment
+    /// calling `set_precision` and then encoding will produce the smallest non-empty next segment
     /// of the encoding.
     #[must_use]
     pub fn next_precision(&self) -> usize {
@@ -246,7 +246,7 @@ impl Structure {
         self.bottom_buckets[0]
     }
     /// Gets the power of the output literals (they represent a weight of
-    /// 2^power)
+    /// `2^power`)
     #[must_use]
     pub fn output_power(&self) -> usize {
         self.tares.len()
@@ -269,6 +269,15 @@ impl IterWeightedInputs for DynamicPolyWatchdog {
 
 impl EncodeIncremental for DynamicPolyWatchdog {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        if self.structure.is_none() && !self.in_lits.is_empty() {
+            self.structure = Some(build_structure(
+                &mut self.weight_queue,
+                self.prec_div,
+                true,
+                &mut self.db,
+                var_manager,
+            ));
+        }
         if let Some(structure) = &self.structure {
             self.db.reserve_vars(structure.root(), var_manager);
         }
@@ -1051,10 +1060,10 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>
 mod tests {
     use crate::{
         encodings::{
-            pb::{BoundUpper, BoundUpperIncremental},
+            pb::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
             EncodeStats,
         },
-        instances::{BasicVarManager, Cnf},
+        instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         types::{RsHashMap, Var},
         var,
@@ -1392,5 +1401,18 @@ mod tests {
         let mut hardened = Cnf::new();
         dpw.limit_range(1..4, &mut hardened).unwrap();
         assert_eq!(hardened.len(), 2);
+    }
+
+    #[test]
+    fn reserve() {
+        let mut dpw: DynamicPolyWatchdog = [(lit![0], 1), (lit![1], 2), (lit![2], 3), (lit![3], 4)]
+            .into_iter()
+            .collect();
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        dpw.reserve(&mut var_manager);
+        assert_eq!(var_manager.n_used(), 23);
+        let mut cnf = Cnf::new();
+        dpw.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 23);
     }
 }

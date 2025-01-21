@@ -26,6 +26,18 @@ use crate::instances::ManageVars;
 mod pairwise;
 pub use pairwise::Pairwise;
 
+mod ladder;
+pub use ladder::Ladder;
+
+mod bitwise;
+pub use bitwise::Bitwise;
+
+mod commander;
+pub use commander::Commander;
+
+mod bimander;
+pub use bimander::Bimander;
+
 /// Trait for all at-most-1 encodings
 pub trait Encode {
     /// Gets the number of literals in the encoding

@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-cadical"
-version = "0.3.1"
+version = "0.4.3"
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
@@ -8,6 +8,15 @@ description = "Interface to the SAT solver CaDiCaL for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = [
+  "build.rs",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/patches/",
+  "/examples/",
+  "/cppsrc/",
+]
 
 build = "build.rs"
 
@@ -40,6 +49,8 @@ v1-9-3 = []
 v1-9-4 = []
 v1-9-5 = []
 v2-0-0 = []
+v2-1-0 = []
+v2-1-1 = []
 pidgeons = ["dep:pidgeons", "rustsat/proof-logging"]
 
 [dependencies]

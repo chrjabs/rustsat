@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-glucose"
-version = "0.3.1"
+version = "0.3.5"
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
@@ -8,6 +8,14 @@ description = "Interface to the SAT solver Glucose for the RustSAT library."
 keywords = ["sat-solver", "rustsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+include = [
+  "build.rs",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/cppsrc/",
+  "!/cppsrc/parallel/",
+]
 
 build = "build.rs"
 

@@ -232,7 +232,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         )
     }
 
-    /// Reindexes all variables in the instance with a reindexing variable manager
+    /// Re-indexes all variables in the instance with a re-indexing variable manager
     pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
         let objs = self
             .objs
@@ -257,15 +257,15 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         varset
     }
 
-    /// Reindex all variables in the instance in order
+    /// Re-index all variables in the instance in order
     ///
-    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// If the re-indexing variable manager produces new free variables in order, this results in
     /// the variable _order_ being preserved with gaps in the variable space being closed
     #[must_use]
     pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
         let mut varset = BTreeSet::new();
         self.extend_var_set(&mut varset);
-        // reindex variables in order to ensure ordered reindexing
+        // reindex variables in order to ensure ordered re-indexing
         for var in varset {
             reindexer.reindex(var);
         }
@@ -434,7 +434,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
     /// - Returns [`io::Error`] on errors during writing
     pub fn write_opb_path<P: AsRef<Path>>(
         &self,
@@ -456,7 +456,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective containes soft literals, returns [`RequiresSoftLits`]
+    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
     /// - Returns [`io::Error`] on errors during writing
     pub fn write_opb<W: io::Write>(
         &self,
@@ -524,7 +524,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// Comments start with `c`, as in other DIMACS formats. Hard clauses start
     /// with an `h`, as in WCNF files. Soft clauses are of the following form
     /// `o<obj idx> <weight> <lit 1> ... <lit n> 0`. The first token must be a
-    /// positive number preceded by an 'o', indicating what objective this soft
+    /// positive number preceded by an `o`, indicating what objective this soft
     /// clause belongs to. After that, the format is identical to a soft clause
     /// in a WCNF file.
     ///

@@ -1,0 +1,37 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    -   id: trailing-whitespace
+        exclude: .+\.(patch|log)$
+    -   id: end-of-file-fixer
+        exclude: .+\.(patch|log)$
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+    -   id: taplo-format
+-   repo: local
+    hooks:
+    -   id: cargo-check
+        name: Check cargo workspace
+        description: Check the cargo workspace for errors
+        entry: cargo check --workspace
+        language: system
+        files: (.+\.rs|.*Cargo.(toml|lock))$
+        pass_filenames: false
+    -   id: cargo-fmt
+        name: Format cargo workspace
+        description: Format the cargo workspace
+        entry: cargo fmt --all
+        language: system
+        files: src/.+\.rs$
+        pass_filenames: false
+    -   id: cargo-spellcheck
+        name: Spellchecking documentation
+        entry: cargo spellcheck --code 1
+        language: system
+        files: (.+\.rs|docs/.+\.md)$

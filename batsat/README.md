@@ -13,6 +13,6 @@ BatSat is fully implemented in Rust which has advantages in restricted compilati
 
 # BatSat Version
 
-The version of BatSat in this crate is Version 0.5.0.
+The version of BatSat in this crate is Version 0.6.0.
 
 <!-- cargo-rdme end -->

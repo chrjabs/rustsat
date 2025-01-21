@@ -119,6 +119,7 @@ impl IterInputs for Totalizer {
 
 impl EncodeIncremental for Totalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+        self.extend_tree();
         if let Some(root) = &mut self.root {
             root.reserve_all_vars_rec(var_manager);
         }
@@ -352,7 +353,7 @@ enum Node {
     Internal {
         /// The output literals of this node
         out_lits: Vec<Option<Lit>>,
-        /// The path length to the leaf furthest away in the subtree
+        /// The path length to the leaf furthest away in the sub-tree
         depth: usize,
         /// The number of clauses this node produced
         n_clauses: usize,
@@ -391,7 +392,7 @@ impl Node {
         }
     }
 
-    /// Gets the maximum depth of the subtree rooted in this node
+    /// Gets the maximum depth of the sub-tree rooted in this node
     #[must_use]
     pub fn depth(&self) -> usize {
         match self {
@@ -822,7 +823,7 @@ impl Node {
         self.reserve_vars_range(0..max_val + 1, var_manager);
     }
 
-    /// Reserves all variables this node and the lower subtree might need. This
+    /// Reserves all variables this node and the lower sub-tree might need. This
     /// is used if variables in the totalizer should have consecutive indices.
     pub fn reserve_all_vars_rec(&mut self, var_manager: &mut dyn ManageVars) {
         match self {
@@ -898,6 +899,7 @@ mod tests {
         encodings::{
             card::{
                 BoundBoth, BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
+                EncodeIncremental,
             },
             EncodeStats, Error,
         },
@@ -1171,5 +1173,17 @@ mod tests {
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
         assert_eq!(cnf2.len(), tot2.n_clauses());
+    }
+
+    #[test]
+    fn reserve() {
+        let mut tot = Totalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::from_next_free(var![4]);
+        tot.reserve(&mut var_manager);
+        assert_eq!(var_manager.n_used(), 12);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 12);
     }
 }

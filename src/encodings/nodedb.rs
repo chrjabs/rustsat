@@ -1,7 +1,7 @@
 //! # Node Database Functionality For Universal Tree-Like Encodings
 //!
 //! Encodings with a tree-like structure where each node contains a sorted
-//! version of its childrens' literals. The leafs are input literals.
+//! version of its children's literals. The leafs are input literals.
 //!
 //! This is used as the basis for the dynamic polynomial watchdog encoding.
 //! (Note that the DPW encoding is not technically tree-like since it might
@@ -15,7 +15,7 @@ use std::{
 
 use crate::{types::Lit, utils::unreachable_none};
 
-/// An ID of a [`NodeLike`] in a database. The usize is typically the index in a
+/// An ID of a [`NodeLike`] in a database. The [`usize`] is typically the index in a
 /// vector of nodes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 #[repr(transparent)]
@@ -135,10 +135,10 @@ pub trait NodeLike: ops::Index<usize, Output = Lit> {
     /// Gets the connection to the left child
     fn left(&self) -> Option<NodeCon>;
 
-    /// Gets the distance to the leaf furthest away in the subtree
+    /// Gets the distance to the leaf furthest away in the sub-tree
     fn depth(&self) -> usize;
 
-    /// Gets the number of leafs in the subtree rooted at this node
+    /// Gets the number of leafs in the sub-tree rooted at this node
     fn n_leafs(&self) -> usize;
 
     /// Creates a new internal node
@@ -378,7 +378,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         Self: 'own;
 
     /// Gets an iterator over references to the nodes. The nodes are iterated in
-    /// order of [`NodeId`].    
+    /// order of [`NodeId`].
     fn iter(&self) -> Self::Iter<'_>;
 
     /// Gets the number of node in the database
@@ -475,7 +475,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
     /// the root (that will be a full connection, except for if the input is a
-    /// single connection). While the merging subtree will be balanced in terms
+    /// single connection). While the merging sub-tree will be balanced in terms
     /// of nodes, the overall tree might not be.
     fn merge(&mut self, cons: &[NodeCon]) -> NodeCon
     where
@@ -569,13 +569,13 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         self.merge_balanced(&merged_cons)
     }
 
-    /// Gets an iterator over the literals at the leafs of the subtree rooted at a given node and
+    /// Gets an iterator over the literals at the leafs of the sub-tree rooted at a given node and
     /// the weight with which they appear at the given node
     ///
     /// For connections with an offset or limited length, the output literals of the child are
-    /// treatet as leafs, in order for certification to work.
+    /// treated as leafs, in order for certification to work.
     ///
-    /// This iterator can not be used if the subtree contains connections with a divisor greater
+    /// This iterator can not be used if the sub-tree contains connections with a divisor greater
     /// than one.
     fn leaf_iter(&self, node: NodeId) -> LeafIter<'_, Self>
     where
@@ -585,7 +585,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     }
 }
 
-/// An iterator over the leafs in a given subtree
+/// An iterator over the leafs in a given sub-tree
 pub struct LeafIter<'db, Db> {
     /// The database that the tree is in
     db: &'db Db,

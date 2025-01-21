@@ -59,7 +59,7 @@ pub trait ManageVars {
     fn forget_from(&mut self, min_var: Var);
 }
 
-/// Trait for variable managers reindexing an existing instance
+/// Trait for variable managers re-indexing an existing instance
 pub trait ReindexVars: ManageVars {
     /// Gets a remapped variable for an input variable or crates a new mapping
     fn reindex(&mut self, in_var: Var) -> Var;
@@ -72,9 +72,9 @@ pub trait ReindexVars: ManageVars {
             v.neg_lit()
         }
     }
-    /// Reverses the reindexing of a variable
+    /// Reverses the re-indexing of a variable
     fn reverse(&self, out_var: Var) -> Option<Var>;
-    /// Reverses the reindexing of a literal
+    /// Reverses the re-indexing of a literal
     fn reverse_lit(&self, out_lit: Lit) -> Option<Lit> {
         self.reverse(out_lit.var()).map(|v| {
             if out_lit.is_pos() {
@@ -146,7 +146,7 @@ impl Default for BasicVarManager {
     }
 }
 
-/// Manager for reindexing an existing instance
+/// Manager for re-indexing an existing instance
 #[derive(PartialEq, Eq)]
 pub struct ReindexingVarManager {
     next_var: Var,
@@ -257,7 +257,7 @@ impl ObjectVarManager {
     }
 
     /// Gets a variable associated with an object
-    /// A new variabe is used up if the object is seen for the first time
+    /// A new variable is used up if the object is seen for the first time
     pub fn object_var<T>(&mut self, obj: T) -> Var
     where
         T: Eq + Hash + 'static,
@@ -323,7 +323,7 @@ impl ManageVars for ObjectVarManager {
 }
 
 #[cfg(feature = "rand")]
-/// Manager for randomly reindexing an instance
+/// Manager for randomly re-indexing an instance
 #[derive(PartialEq, Eq)]
 pub struct RandReindVarManager {
     next_var: Var,

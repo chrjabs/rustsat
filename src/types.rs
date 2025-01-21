@@ -59,7 +59,7 @@ impl Var {
     ///
     /// If `idx > Var::MAX_IDX`.
     #[must_use]
-    pub fn new(idx: u32) -> Var {
+    pub const fn new(idx: u32) -> Var {
         assert!(idx <= Var::MAX_IDX, "variable index too high");
         Var { idx }
     }
@@ -87,7 +87,7 @@ impl Var {
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub unsafe fn new_unchecked(idx: u32) -> Var {
+    pub const unsafe fn new_unchecked(idx: u32) -> Var {
         debug_assert!(idx <= Var::MAX_IDX);
         Var { idx }
     }
@@ -104,7 +104,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn lit(self, negated: bool) -> Lit {
+    pub const fn lit(self, negated: bool) -> Lit {
         unsafe { Lit::new_unchecked(self.idx, negated) }
     }
 
@@ -120,7 +120,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn pos_lit(self) -> Lit {
+    pub const fn pos_lit(self) -> Lit {
         unsafe { Lit::positive_unchecked(self.idx) }
     }
 
@@ -136,7 +136,7 @@ impl Var {
     /// ```
     #[inline]
     #[must_use]
-    pub fn neg_lit(self) -> Lit {
+    pub const fn neg_lit(self) -> Lit {
         unsafe { Lit::negative_unchecked(self.idx) }
     }
 
@@ -176,7 +176,7 @@ impl Var {
     /// Converts the variable to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR variable
-    /// will have idx+1.
+    /// will have `idx+1`.
     ///
     /// # Panics
     ///
@@ -193,7 +193,7 @@ impl Var {
     /// Converts the variable to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
-    /// will have idx+1 and be negative if the literal is negated.
+    /// will have `idx+1` and be negative if the literal is negated.
     ///
     /// # Errors
     ///
@@ -212,14 +212,15 @@ impl ops::Add<u32> for Var {
     type Output = Var;
 
     fn add(self, rhs: u32) -> Self::Output {
-        Var {
-            idx: self.idx + rhs,
-        }
+        let idx = self.idx + rhs;
+        debug_assert!(idx <= Var::MAX_IDX, "variable index overflow");
+        Var { idx }
     }
 }
 
 impl ops::AddAssign<u32> for Var {
     fn add_assign(&mut self, rhs: u32) {
+        debug_assert!(self.idx + rhs <= Var::MAX_IDX, "variable index overflow");
         self.idx += rhs;
     }
 }
@@ -300,8 +301,8 @@ pub struct Lit {
 impl Lit {
     /// Represents a literal in memory
     #[inline]
-    fn represent(idx: u32, negated: bool) -> u32 {
-        (idx << 1) + u32::from(negated)
+    const fn represent(idx: u32, negated: bool) -> u32 {
+        (idx << 1) + if negated { 1 } else { 0 }
     }
 
     /// Creates a new (negated or not) literal with a given index.
@@ -310,7 +311,7 @@ impl Lit {
     ///
     /// If `idx > Var::MAX_IDX`.
     #[must_use]
-    pub fn new(idx: u32, negated: bool) -> Lit {
+    pub const fn new(idx: u32, negated: bool) -> Lit {
         assert!(idx < Var::MAX_IDX, "variable index too high");
         Lit {
             lidx: Lit::represent(idx, negated),
@@ -339,7 +340,7 @@ impl Lit {
     ///
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[must_use]
-    pub unsafe fn new_unchecked(idx: u32, negated: bool) -> Lit {
+    pub const unsafe fn new_unchecked(idx: u32, negated: bool) -> Lit {
         debug_assert!(idx <= Var::MAX_IDX);
         Lit {
             lidx: Lit::represent(idx, negated),
@@ -350,7 +351,7 @@ impl Lit {
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
     #[must_use]
-    pub fn positive(idx: u32) -> Lit {
+    pub const fn positive(idx: u32) -> Lit {
         Lit::new(idx, false)
     }
 
@@ -358,7 +359,7 @@ impl Lit {
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
     #[must_use]
-    pub fn negative(idx: u32) -> Lit {
+    pub const fn negative(idx: u32) -> Lit {
         Lit::new(idx, true)
     }
 
@@ -391,7 +392,7 @@ impl Lit {
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub unsafe fn positive_unchecked(idx: u32) -> Lit {
+    pub const unsafe fn positive_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, false)
     }
 
@@ -404,7 +405,7 @@ impl Lit {
     /// `idx` must be guaranteed to be not higher than `Var::MAX_IDX`
     #[inline]
     #[must_use]
-    pub unsafe fn negative_unchecked(idx: u32) -> Lit {
+    pub const unsafe fn negative_unchecked(idx: u32) -> Lit {
         Lit::new_unchecked(idx, true)
     }
 
@@ -431,7 +432,7 @@ impl Lit {
         (self.lidx >> 1) as usize
     }
 
-    /// Gets the 32bit variable index of the literal
+    /// Gets the 32-bit variable index of the literal
     #[inline]
     #[must_use]
     pub fn vidx32(self) -> u32 {
@@ -478,7 +479,7 @@ impl Lit {
     /// Converts the literal to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the
     /// [DIMACS file format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The
-    /// IPASIR literal will have idx+1 and be negative if the literal is negated. Panics if the
+    /// IPASIR literal will have `idx+1` and be negative if the literal is negated. Panics if the
     /// literal does not fit into a `c_int`.
     ///
     /// # Panics
@@ -502,7 +503,7 @@ impl Lit {
     /// Converts the literal to an integer as accepted by
     /// [IPASIR](https://github.com/biotomas/ipasir) and the [DIMACS file
     /// format](http://www.satcompetition.org/2011/format-benchmarks2011.html). The IPASIR literal
-    /// will have idx+1 and be negative if the literal is negated.
+    /// will have `idx+1` and be negative if the literal is negated.
     ///
     /// # Errors
     ///
@@ -639,7 +640,7 @@ pub enum TernaryVal {
 }
 
 impl TernaryVal {
-    /// Converts a [`TernaryVal`] to a bool with a default value for "don't cares"
+    /// Converts a [`TernaryVal`] to a [`bool`] with a default value for "don't cares"
     #[must_use]
     pub fn to_bool_with_def(self, def: bool) -> bool {
         match self {
@@ -705,6 +706,20 @@ impl ops::Neg for TernaryVal {
     }
 }
 
+#[cfg(kani)]
+impl kani::Arbitrary for TernaryVal {
+    fn any() -> Self {
+        let val: u8 = kani::any();
+        kani::assume(val < 3);
+        match val {
+            0 => TernaryVal::False,
+            1 => TernaryVal::True,
+            2 => TernaryVal::DontCare,
+            _ => panic!(),
+        }
+    }
+}
+
 /// Possible errors in parsing a SAT solver value (`v`) line
 #[derive(Error, Debug)]
 pub enum InvalidVLine {
@@ -719,7 +734,7 @@ pub enum InvalidVLine {
     EmptyLine,
 }
 
-/// Different possible v-line fomats
+/// Different possible `v`-line formats
 enum VLineFormat {
     /// Assignment specified as a space-spearated sequence of IPASIR literals. This is the format
     /// used in the SAT competition.
@@ -854,7 +869,7 @@ impl Assignment {
         }
     }
 
-    /// Creates an assignment from a SAT solver value line  
+    /// Creates an assignment from a SAT solver value line
     ///
     /// # Errors
     ///
@@ -1183,6 +1198,34 @@ mod tests {
         use pidgeons::VarLike;
         let var = Var::new(3);
         assert_eq!(&format!("{}", <Var as VarLike>::Formatter::from(var)), "x4");
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_add_1_overflow() {
+        let var = Var::new(Var::MAX_IDX);
+        let _ = var + 1;
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_add_42_overflow() {
+        let var = Var::new(Var::MAX_IDX - 41);
+        let _ = var + 42;
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_addassign_1_overflow() {
+        let mut var = Var::new(Var::MAX_IDX);
+        var += 1;
+    }
+
+    #[test]
+    #[should_panic(expected = "variable index overflow")]
+    fn var_addassign_overflow() {
+        let mut var = Var::new(Var::MAX_IDX - 41);
+        var += 42;
     }
 
     #[test]

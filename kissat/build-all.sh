@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 echo "Building default (newest) version"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
@@ -39,6 +39,11 @@ echo "Building v4.0.0"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
 cargo build --features=v4-0-0 &> v400-build.log
 echo "v4.0.0 build returned: $?"
+
+echo "Building v4.0.1"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi
+cargo build --features=v4-0-1 &> v401-build.log
+echo "v4.0.1 build returned: $?"
 
 echo "Building quiet"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-kissat > /dev/null; fi

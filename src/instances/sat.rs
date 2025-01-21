@@ -1,4 +1,4 @@
-//! # Satsifiability Instance Representations
+//! # Satisfiability Instance Representations
 
 use std::{
     cmp,
@@ -441,14 +441,14 @@ impl<VM: ManageVars> Instance<VM> {
         self.add_clause(clause![lit1, lit2, lit3]);
     }
 
-    /// Adds an implication of form (a -> b) to the instance
+    /// Adds an implication of form `(a -> b)` to the instance
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
         self.var_manager.mark_used(a.var());
         self.var_manager.mark_used(b.var());
         self.cnf.add_lit_impl_lit(a, b);
     }
 
-    /// Adds an implication of form a -> (b1 | b2 | ... | bm)
+    /// Adds an implication of form `a -> (b1 | b2 | ... | bm)`
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
         self.var_manager.mark_used(a.var());
         for l in b {
@@ -457,7 +457,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_lit_impl_clause(a, b);
     }
 
-    /// Adds an implication of form a -> (b1 & b2 & ... & bm)
+    /// Adds an implication of form `a -> (b1 & b2 & ... & bm)`
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
         self.var_manager.mark_used(a.var());
         for l in b {
@@ -466,7 +466,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_lit_impl_cube(a, b);
     }
 
-    /// Adds an implication of form (a1 & a2 & ... & an) -> b
+    /// Adds an implication of form `(a1 & a2 & ... & an) -> b`
     pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
         for l in a {
             self.var_manager.mark_used(l.var());
@@ -475,7 +475,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_cube_impl_lit(a, b);
     }
 
-    /// Adds an implication of form (a1 | a2 | ... | an) -> b
+    /// Adds an implication of form `(a1 | a2 | ... | an) -> b`
     pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
         for l in a {
             self.var_manager.mark_used(l.var());
@@ -484,7 +484,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_clause_impl_lit(a, b);
     }
 
-    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)
+    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
     pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         for l in a {
             self.var_manager.mark_used(l.var());
@@ -495,7 +495,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_cube_impl_clause(a, b);
     }
 
-    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)
+    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
     pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
         for l in a {
             self.var_manager.mark_used(l.var());
@@ -506,7 +506,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_clause_impl_clause(a, b);
     }
 
-    /// Adds an implication of form (a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)
+    /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)`
     pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         for l in a {
             self.var_manager.mark_used(l.var());
@@ -517,7 +517,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.cnf.add_clause_impl_cube(a, b);
     }
 
-    /// Adds an implication of form (a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)
+    /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
     pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
         for l in a {
             self.var_manager.mark_used(l.var());
@@ -640,7 +640,7 @@ impl<VM: ManageVars> Instance<VM> {
         )
     }
 
-    /// Converts the instance to a set of clauses inplace.
+    /// Converts the instance to a set of clauses in-place.
     /// Uses the default encoders from the `encodings` module.
     ///
     /// See [`Self::into_cnf`] if you don't need to convert in place
@@ -701,7 +701,7 @@ impl<VM: ManageVars> Instance<VM> {
         (self.cnf, self.var_manager)
     }
 
-    /// Converts the instance inplace to a set of clauses with explicitly specified
+    /// Converts the instance in-place to a set of clauses with explicitly specified
     /// converters for non-clausal constraints.
     ///
     /// See [`Self::into_cnf_with_encoders`] if you don't need to convert in place
@@ -740,7 +740,7 @@ impl<VM: ManageVars> Instance<VM> {
         self.var_manager.combine(other.var_manager);
     }
 
-    /// Reindexes all variables in the instance with a reindexing variable manager
+    /// Re-indexes all variables in the instance with a re-indexing variable manager
     #[must_use]
     pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> Instance<R> {
         self.cnf
@@ -782,9 +782,9 @@ impl<VM: ManageVars> Instance<VM> {
         varset
     }
 
-    /// Reindex all variables in the instance in order
+    /// Re-index all variables in the instance in order
     ///
-    /// If the reindexing variable manager produces new free variables in order, this results in
+    /// If the re-indexing variable manager produces new free variables in order, this results in
     /// the variable _order_ being preserved with gaps in the variable space being closed
     #[must_use]
     pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {

@@ -1,0 +1,18 @@
+dev_comments = false
+skip_readme = true
+
+[Hunspell]
+lang = "en_GB"
+search_dirs = ["."]
+extra_dictionaries = [
+  "lingo.dic",
+  "names.dic",
+  "abbreviations.dic",
+  "hacks.dic",
+]
+skip_os_lookups = true
+use_builtin = true
+
+[Reflow]
+# Reflows doc comments to adhere to a given maximum line width limit.
+max_line_length = 120

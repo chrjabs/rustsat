@@ -1,7 +1,7 @@
 //! # CaDiCaL CLI Tool
 //!
 //! A simple CLI wrapper around the CaDiCaL solver Rust interface. This is just an example, if you
-//! want to use CaDiCaL from the CLI, compile the binary from the C++ source directly.
+//! want to use CaDiCaL from the CLI, compile the binary from the Cpp source directly.
 
 use std::{
     io,

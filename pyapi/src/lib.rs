@@ -23,26 +23,19 @@ mod instances;
 mod types;
 
 use crate::{
-    encodings::{DynamicPolyWatchdog, GeneralizedTotalizer, Totalizer},
+    encodings::{
+        am1::{Bitwise, Commander, Ladder, Pairwise},
+        card::Totalizer,
+        pb::{BinaryAdder, DynamicPolyWatchdog, GeneralizedTotalizer},
+    },
     instances::{Cnf, VarManager},
     types::{Clause, Lit},
 };
 
+#[derive(IntoPyObject)]
 pub(crate) enum SingleOrList<T> {
     Single(T),
     List(Vec<T>),
-}
-
-impl<T> IntoPy<PyObject> for SingleOrList<T>
-where
-    T: IntoPy<PyObject>,
-{
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        match self {
-            SingleOrList::Single(single) => single.into_py(py),
-            SingleOrList::List(list) => list.into_py(py),
-        }
-    }
 }
 
 /// Python bindings for the RustSAT library
@@ -53,16 +46,36 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Cnf>()?;
     m.add_class::<VarManager>()?;
 
-    let encodings = PyModule::new_bound(py, "rustsat.encodings")?;
-    encodings.add_class::<Totalizer>()?;
-    encodings.add_class::<GeneralizedTotalizer>()?;
-    encodings.add_class::<DynamicPolyWatchdog>()?;
+    let encodings = PyModule::new(py, "rustsat.encodings")?;
+    let card = PyModule::new(py, "rustsat.encodings.card")?;
+    card.add_class::<Totalizer>()?;
+    let pb = PyModule::new(py, "rustsat.encodings.pb")?;
+    pb.add_class::<GeneralizedTotalizer>()?;
+    pb.add_class::<DynamicPolyWatchdog>()?;
+    pb.add_class::<BinaryAdder>()?;
+    let am1 = PyModule::new(py, "rustsat.encodings.am1")?;
+    am1.add_class::<Bitwise>()?;
+    am1.add_class::<Commander>()?;
+    am1.add_class::<Ladder>()?;
+    am1.add_class::<Pairwise>()?;
+    encodings.add("card", &card)?;
+    encodings.add("pb", &pb)?;
+    encodings.add("am1", &am1)?;
     m.add("encodings", &encodings)?;
 
     // To import encodings. Fix from https://github.com/PyO3/pyo3/issues/759
-    py.import_bound("sys")?
+    py.import("sys")?
         .getattr("modules")?
         .set_item("rustsat.encodings", &encodings)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings.pb", &pb)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings.card", &card)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("rustsat.encodings.am1", &am1)?;
 
     Ok(())
 }

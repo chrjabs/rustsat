@@ -1,0 +1,62 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "config:recommended",
+        "helpers:pinGitHubActionDigests",
+        "mergeConfidence:all-badges"
+    ],
+    "timezone": "Europe/Helsinki",
+    "schedule": ["after 8pm", "before 6am"],
+    "updateNotScheduled": false,
+    "automergeSchedule": ["before 4am on monday"],
+    "semanticCommits": "enabled",
+    "ignorePaths": [
+        "workspace-hack/**",
+        "**/fixtures/**",
+        "**/vendor/**"
+    ],
+    "addLabels": [
+        "dependencies"
+    ],
+    "packageRules": [
+        {
+            "matchUpdateTypes": [
+                "patch"
+            ],
+            "groupName": "patch updates",
+            "automerge": true
+        },
+        {
+            "matchUpdateTypes": [
+                "pin",
+                "pinDigest"
+            ],
+            "automerge": true
+        },
+        {
+            "matchUpdateTypes": [
+                "minor",
+                "major"
+            ],
+            "automerge": false
+        },
+        {
+            "matchDepTypes": [
+                "action"
+            ],
+            "automerge": true
+        },
+        {
+            "matchDatasources": ["crate"],
+            "rangeStrategy": "bump"
+        },
+        {
+            "matchDatasources": ["crate"],
+            "matchCurrentValue": "/^\\d+(\\.\\d+)?$/",
+            "rangeStrategy": "update-lockfile"
+        }
+    ],
+    "lockFileMaintenance": {
+        "enabled": true
+    }
+}

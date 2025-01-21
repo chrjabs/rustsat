@@ -64,6 +64,9 @@ pub use dpw::DynamicPolyWatchdog;
 pub mod dbgte;
 pub use dbgte::DbGte;
 
+pub mod adder;
+pub use adder::BinaryAdder;
+
 #[cfg(feature = "proof-logging")]
 pub mod cert;
 

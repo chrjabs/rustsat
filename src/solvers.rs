@@ -11,7 +11,7 @@
 //! ### CaDiCaL
 //!
 //! [CaDiCaL](https://github.com/arminbiere/cadical) is a fully incremental SAT
-//! solver by Armin Biere implemented in C++. It includes incremental
+//! solver by Armin Biere implemented in Cpp. It includes incremental
 //! inprocessing. It is available through the
 //! [`rustsat-cadical`](https://crates.io/crates/rustsat-cadical) crate.
 //!
@@ -21,9 +21,9 @@
 //!   Heisinger: _CaDiCaL, Kissat, Paracooba, Plingeling and Treengeling
 //!   Entering the SAT Competition 2020_, SAT Competition 2020.
 //! - Original Repository:
-//!   [https://github.com/arminbiere/cadical](https://github.com/arminbiere/cadical)
+//!   [`https://github.com/arminbiere/cadical`](https://github.com/arminbiere/cadical)
 //! - Solver crate:
-//!   [https://crates.io/crates/rustsat-cadical](https://crates.io/crates/rustsat-cadical)
+//!   [`https://crates.io/crates/rustsat-cadical`](https://crates.io/crates/rustsat-cadical)
 //!
 //! ### Kissat
 //!
@@ -37,26 +37,26 @@
 //!   Heisinger: _CaDiCaL, Kissat, Paracooba, Plingeling and Treengeling
 //!   Entering the SAT Competition 2020_, SAT Competition 2020.
 //! - Repository:
-//!   [https://github.com/arminbiere/kissat](https://github.com/arminbiere/kissat)
+//!   [`https://github.com/arminbiere/kissat`](https://github.com/arminbiere/kissat)
 //! - Solver crate:
-//!   [https://github.com/chrjabs/rustsat-kissat](https://github.com/chrjabs/rustsat-kissat)
+//!   [`https://github.com/chrjabs/rustsat-kissat`](https://github.com/chrjabs/rustsat-kissat)
 //!
 //! ### Minisat
 //!
 //! [Minisat](https://github.com/niklasso/minisat) is an incremental SAT solver
-//! by Niklas Een and Niklas Sörensson. It is available through the
+//! by Niklas Eén and Niklas Sörensson. It is available through the
 //! [`rustsat-minisat`](https://crates.io/crates/rustsat-minisat) crate.
 //!
 //! #### References
 //!
-//! - Niklas Een and Niklas Sörensson (2003): _An Extensible SAT-solver_, SAT
+//! - Niklas Eén and Niklas Sörensson (2003): _An Extensible SAT-solver_, SAT
 //!   2003.
 //! - Repository:
-//!   [https://github.com/niklasso/minisat](https://github.com/niklasso/minisat)
+//!   [`https://github.com/niklasso/minisat`](https://github.com/niklasso/minisat)
 //! - Solver crate:
-//!   [https://crates.io/crates/rustsat-minisat](https://crates.io/crates/rustsat-minisat)
+//!   [`https://crates.io/crates/rustsat-minisat`](https://crates.io/crates/rustsat-minisat)
 //! - Fork used in solver crate:
-//!   [https://github.com/chrjabs/minisat](https://github.com/chrjabs/minisat)
+//!   [`https://github.com/chrjabs/minisat`](https://github.com/chrjabs/minisat)
 //!
 //! ### Glucose
 //!
@@ -70,11 +70,11 @@
 //! - Gilles Audemard and Laurent Simon: _Predicting Learnt Clauses Quality in
 //!   Modern SAT Solvers_, IJCAI 2009.
 //! - More references at the [Glucose
-//!   webpage](https://www.labri.fr/perso/lsimon/research/glucose/)
+//!   web-page](https://www.labri.fr/perso/lsimon/research/glucose/)
 //! - Solver crate:
-//!   [https://crates.io/crates/rustsat-glucose](https://crates.io/crates/rustsat-glucose)
+//!   [`https://crates.io/crates/rustsat-glucose`](https://crates.io/crates/rustsat-glucose)
 //! - Fork used in solver crate:
-//!   [https://github.com/chrjabs/glucose4](https://github.com/chrjabs/glucose4)
+//!   [`https://github.com/chrjabs/glucose4`](https://github.com/chrjabs/glucose4)
 //!
 //! ### BatSat
 //!
@@ -86,11 +86,11 @@
 //! #### References
 //!
 //! - Solver interface crate:
-//!   [https://crates.io/crates/rustsat-batsat](https://crates.io/crate/rustsat-batsat)
+//!   [`https://crates.io/crates/rustsat-batsat`](https://crates.io/crate/rustsat-batsat)
 //! - BatSat crate:
-//!   [https://crate.io/crates/batsat](https://crates.io/crate/batsat)
+//!   [`https://crates.io/crates/batsat`](https://crates.io/crate/batsat)
 //! - BatSat repository:
-//!   [https://github.com/c-cube/batsat](https://github.com/c-cube/batsat)
+//!   [`https://github.com/c-cube/batsat`](https://github.com/c-cube/batsat)
 //!
 //! ### External Solvers
 //!
@@ -101,7 +101,7 @@
 //! ### IPASIR
 //!
 //! [IPASIR](https://github.com/biotomas/ipasir) is a C API for incremental SAT
-//! solvers. IPASIR bindings for rustsat are provided in the
+//! solvers. IPASIR bindings for RustSAT are provided in the
 //! [`rustsat-ipasir`](https://crates.io/crates/rustsat-ipasir) crate.
 
 use crate::{
@@ -453,7 +453,7 @@ pub trait GetInternalStats {
 /// Trait for propagating a set of assumptions and getting all propagated literals
 pub trait Propagate {
     /// Propagates the given assumptions and returns all propagated literals, as well as whether a
-    /// conflict was encoutered
+    /// conflict was encountered
     ///
     /// # Errors
     ///
@@ -532,8 +532,9 @@ pub trait SolveStats {
         self.stats().n_clauses
     }
     /// Gets the variable with the highest index in the solver, if any.
-    /// If all variables below have been used, the index of this variable +1 is
-    /// the number of variables in the solver.
+    ///
+    /// If all variables below have been used, the index of this variable plus one is the number of
+    /// variables in the solver.
     #[must_use]
     fn max_var(&self) -> Option<Var> {
         self.stats().max_var

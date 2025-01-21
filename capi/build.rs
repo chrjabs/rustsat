@@ -19,27 +19,34 @@ fn main() {
                 .expect("could not read cbindgen.toml"),
         )
         .with_crate(crate_dir)
+        .with_after_include(format!(
+            "#define RUSTSAT_VERSION {version}
+#define RUSTSAT_VERSION_MAJOR {major}
+#define RUSTSAT_VERSION_MINOR {minor}
+#define RUSTSAT_VERSION_PATCH {patch}",
+            version = env!("CARGO_PKG_VERSION"),
+            major = env!("CARGO_PKG_VERSION_MAJOR"),
+            minor = env!("CARGO_PKG_VERSION_MINOR"),
+            patch = env!("CARGO_PKG_VERSION_PATCH"),
+        ))
         .generate()
         .expect("Unable to generate bindings")
         .write_to_file("rustsat.h");
 
     println!("cargo:rerun-if-changed=cbindgen.toml");
-    println!("cargo:rerun-if-changed=src/capi.rs");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=src/");
 
     // Setup inline-c
     let include_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ld_dir = target_dir().unwrap();
 
-    let cflags = format!("cargo:rustc-env=INLINE_C_RS_CFLAGS=-I{I} -L{L} -lrustsat_capi -D_DEBUG -D_CRT_SECURE_NO_WARNINGS", I=include_dir, L=ld_dir.to_string_lossy());
-    let cflags = format!("{cflags} -llzma -lbz2");
-    println!("{cflags}");
+    let cflags = format!("-I{include_dir} -D_DEBUG -D_CRT_SECURE_NO_WARNINGS");
+    println!("cargo:rustc-env=INLINE_C_RS_CFLAGS={cflags}");
 
-    let ldflags = format!(
-        "cargo:rustc-env=INLINE_C_RS_LDFLAGS={L}/librustsat_capi.a",
-        L = ld_dir.to_string_lossy()
-    );
+    let ldflags = format!("-L{L} -lrustsat_capi", L = ld_dir.to_string_lossy());
     let ldflags = format!("{ldflags} -llzma -lbz2");
-    println!("{ldflags}");
+    println!("cargo:rustc-env=INLINE_C_RS_LDFLAGS={ldflags}");
 }
 
 // https://github.com/rust-lang/cargo/issues/9661#issuecomment-1722358176

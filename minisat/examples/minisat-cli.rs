@@ -1,7 +1,7 @@
 //! # Minisat CLI Tool
 //!
-//! A simple CLI wrapper around the MiniSAT solver Rust interface. This is just an example, if you
-//! want to use MiniSAT from the CLI, compile the binary from the C++ source directly.
+//! A simple CLI wrapper around the Minisat solver Rust interface. This is just an example, if you
+//! want to use Minisat from the CLI, compile the binary from the Cpp source directly.
 
 use std::{
     io,
@@ -27,7 +27,7 @@ enum FileType {
 struct Args {
     /// The DIMACS CNF input file. Reads from `stdin` if not given.
     in_path: Option<PathBuf>,
-    /// Use the version of MiniSAT with preprocessing
+    /// Use the version of Minisat with preprocessing
     #[arg(short, long)]
     simp: bool,
     /// Parse the input as an OPB file by default
