@@ -197,7 +197,7 @@ impl Cnf {
     #[must_use]
     pub fn shuffle(mut self) -> Self {
         use rand::seq::SliceRandom;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.clauses[..].shuffle(&mut rng);
         self
     }
@@ -800,7 +800,7 @@ impl<VM: ManageVars> Instance<VM> {
     pub fn shuffle(mut self) -> Self {
         use rand::seq::SliceRandom;
         self.cnf = self.cnf.shuffle();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         self.cards[..].shuffle(&mut rng);
         self.pbs[..].shuffle(&mut rng);
         self

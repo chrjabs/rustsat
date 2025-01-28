@@ -959,7 +959,7 @@ impl Objective {
                 soft_clauses,
                 ..
             } => {
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 (soft_lits[..]).shuffle(&mut rng);
                 (soft_clauses[..]).shuffle(&mut rng);
             }
