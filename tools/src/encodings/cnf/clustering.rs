@@ -17,7 +17,8 @@ use nom::{
     combinator::{map, recognize},
     multi::many1,
     number::complete::double,
-    sequence::{terminated, tuple},
+    sequence::terminated,
+    Parser,
 };
 use rustsat::{
     clause,
@@ -175,12 +176,13 @@ impl Encoding {
                 if line.starts_with('%') {
                     return None;
                 }
-                let (_, tup) = tuple((
+                let (_, tup) = (
                     terminated(ident, multispace1),
                     terminated(ident, multispace1),
                     double,
-                ))(line)
-                .ok()?;
+                )
+                    .parse(line)
+                    .ok()?;
                 if !ident_map.contains_key(&tup.0) {
                     ident_map.insert(tup.0.clone(), next_idx);
                     next_idx += 1;
@@ -427,7 +429,8 @@ fn ident(input: &str) -> nom::IResult<&str, String> {
     map(
         recognize(many1(alt((alphanumeric1, recognize(char('_')))))),
         String::from,
-    )(input)
+    )
+    .parse(input)
 }
 
 pub fn scaling_map(sim: f64, multiplier: u32) -> isize {

@@ -58,7 +58,7 @@ mod parsing {
     use std::io;
 
     use anyhow::Context;
-    use nom::character::complete::u32;
+    use nom::{character::complete::u32, Parser};
 
     use crate::parsing::{callback_separated, single_value};
 
@@ -75,12 +75,14 @@ mod parsing {
 
     pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::FacilityLocation> {
         let line = next_line!(reader).context("file ended before number of users line")?;
-        let (_, n_users) = single_value(u32, "#")(&line)
+        let (_, n_users) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of users line '{line}'"))?;
         let n_users = usize::try_from(n_users).context("u32 does not fit in usize")?;
         let line = next_line!(reader).context("file ended before number of services line")?;
-        let (_, n_services) = single_value(u32, "#")(&line)
+        let (_, n_services) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of services line '{line}'"))?;
         let n_services = usize::try_from(n_services).context("u32 does not fit in usize")?;

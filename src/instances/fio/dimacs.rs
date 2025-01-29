@@ -22,8 +22,8 @@ use nom::{
     combinator::{all_consuming, map, map_res, recognize, success},
     error::{context, Error as NomError},
     multi::separated_list0,
-    sequence::{pair, terminated, tuple},
-    IResult,
+    sequence::terminated,
+    IResult, Parser,
 };
 use std::{
     convert::TryFrom,
@@ -294,22 +294,24 @@ where
 fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
     let (input, _) = context(
         "p line does not start with 'p'",
-        terminated::<_, _, _, NomError<_>, _, _>(tag("p"), multispace1),
-    )(input)?;
+        terminated::<_, _, NomError<_>, _, _>(tag("p"), multispace1),
+    )
+    .parse(input)?;
     let (input, id_token) = context(
         "invalid id token in p line",
         alt((
-            terminated::<_, _, _, NomError<_>, _, _>(tag("cnf"), multispace1),
+            terminated::<_, _, NomError<_>, _, _>(tag("cnf"), multispace1),
             #[cfg(feature = "optimization")]
             terminated(tag("wcnf"), multispace1),
         )),
-    )(input)?;
+    )
+    .parse(input)?;
     //.with_context(|| format!("invalid id token in '{}'", input))?;
     if id_token == "cnf" {
         // Is CNF file
         let (input, (n_vars, _, n_clauses)) = context(
             "failed to parse number of variables and clauses",
-            tuple::<_, _, NomError<_>, _>((
+            (
                 context(
                     "number of vars does not fit usize",
                     map_res(u64, usize::try_from),
@@ -319,8 +321,9 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
                     "number of clauses does not fit usize",
                     map_res(u64, usize::try_from),
                 ),
-            )),
-        )(input)?;
+            ),
+        )
+        .parse(input)?;
         return Ok((input, Preamble::Cnf { n_vars, n_clauses }));
     }
     #[cfg(feature = "optimization")]
@@ -328,7 +331,7 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
         // Is WCNF file
         let (input, (n_vars, _, n_clauses, _, top)) = context(
             "failed to parse number of variables, clauses, and top",
-            tuple::<_, _, NomError<_>, _>((
+            (
                 context(
                     "number of vars does not fit usize",
                     map_res(u64, usize::try_from),
@@ -340,8 +343,9 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
                 ),
                 multispace1,
                 context("top does not fit usize", map_res(u64, usize::try_from)),
-            )),
-        )(input)?;
+            ),
+        )
+        .parse(input)?;
         return Ok((
             input,
             Preamble::WcnfPre22 {
@@ -383,7 +387,7 @@ fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> 
     } else {
         // Line is not a comment
         let (input, (weight, clause)) =
-            separated_pair(parse_weight, multispace1, parse_clause)(input)?;
+            separated_pair(parse_weight, multispace1, parse_clause).parse(input)?;
         Ok((input, Some((weight, clause))))
     }
 }
@@ -406,7 +410,7 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine> {
         Err(_) =>
         // Line is not a comment
         {
-            match terminated(tag::<_, _, NomError<_>>("h"), multispace1)(input) {
+            match terminated(tag::<_, _, NomError<_>>("h"), multispace1).parse(input) {
                 Ok((input, _)) => {
                     // Hard clause
                     let (input, clause) = parse_clause(input)?;
@@ -416,19 +420,19 @@ fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine> {
                     // Soft clause
                     if let Ok((input, _)) = tag::<_, _, NomError<_>>("o")(input) {
                         // MCNF soft (explicit obj index)
-                        let (input, (idx, _, weight, _, clause)) =
-                            tuple((
-                                parse_idx,
-                                multispace1,
-                                parse_weight,
-                                multispace1,
-                                parse_clause,
-                            ))(input)?;
+                        let (input, (idx, _, weight, _, clause)) = (
+                            parse_idx,
+                            multispace1,
+                            parse_weight,
+                            multispace1,
+                            parse_clause,
+                        )
+                            .parse(input)?;
                         Ok((input, Some((Some((idx, weight)), clause))))
                     } else {
                         // WCNF soft (implicit obj index of 1)
                         let (input, (weight, clause)) =
-                            separated_pair(parse_weight, multispace1, parse_clause)(input)?;
+                            separated_pair(parse_weight, multispace1, parse_clause).parse(input)?;
                         Ok((input, Some((Some((1, weight)), clause))))
                     }
                 }
@@ -445,7 +449,8 @@ fn parse_clause(input: &str) -> IResult<&str, Clause> {
             terminated(separated_list0(multispace1, parse_lit), parse_clause_ending),
             Clause::from_iter,
         ),
-    )(input)
+    )
+    .parse(input)
 }
 
 #[cfg(feature = "optimization")]
@@ -457,7 +462,8 @@ fn parse_weight(input: &str) -> IResult<&str, usize> {
             context("expected number for weight", u64),
             TryInto::try_into,
         ),
-    )(input)
+    )
+    .parse(input)
 }
 
 #[cfg(feature = "optimization")]
@@ -471,12 +477,13 @@ fn parse_idx(input: &str) -> IResult<&str, usize> {
             }
             w.try_into().map_err(|_| ())
         }),
-    )(input)
+    )
+    .parse(input)
 }
 
 /// Nom-like parser for literal
 fn parse_lit(input: &str) -> IResult<&str, Lit> {
-    context("invalid ipasir literal", map_res(i32, Lit::from_ipasir))(input)
+    context("invalid ipasir literal", map_res(i32, Lit::from_ipasir)).parse(input)
 }
 
 /// Parses the end of a clause
@@ -484,16 +491,17 @@ fn parse_lit(input: &str) -> IResult<&str, Lit> {
 /// white-space or only a line-break are treated as valid clause endings.
 /// This is more lean than the file format spec.
 fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
+    recognize((
         multispace0,
         alt((
-            recognize(all_consuming(success(""))),
-            recognize(all_consuming(tag("0"))),
-            recognize(terminated(tag("0"), line_ending)),
-            recognize(terminated(tag("0"), multispace1)),
-            recognize(line_ending),
+            all_consuming(success("")),
+            all_consuming(tag("0")),
+            terminated(tag("0"), line_ending),
+            terminated(tag("0"), multispace1),
+            line_ending,
         )),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 /// Writes a CNF to a DIMACS CNF file
