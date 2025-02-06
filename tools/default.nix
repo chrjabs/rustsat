@@ -4,9 +4,6 @@
   openssl,
   pkg-config,
   cmake,
-  fetchFromGitHub,
-  srcOnly,
-  stdenvNoCC,
   withCadical ? true,
   withMinisat ? false,
 }: let

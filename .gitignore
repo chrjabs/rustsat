@@ -6,3 +6,5 @@
 
 rustsat/pydocs/
 **/__pycache__/
+
+.pre-commit-config.yaml
