@@ -574,7 +574,7 @@ fn dbtot_both_exhaustive() {
     test_both_exhaustive::<DbTotalizer>()
 }
 
-#[cfg(feature = "proof-logging")]
+#[cfg(all(feature = "proof-logging", not(target_os = "windows")))]
 mod cert {
     use std::{
         fs::File,

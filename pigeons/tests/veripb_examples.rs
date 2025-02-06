@@ -79,6 +79,7 @@ fn new_proof(num_constraints: usize, optimization: bool) -> Proof<tempfile::Name
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn all_diff() {
     let mut proof = new_proof(15, false);
     let new1 = proof
@@ -110,6 +111,7 @@ fn all_diff() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn implication_weaker() {
     let mut proof = new_proof(1, false);
     proof
@@ -129,6 +131,7 @@ fn implication_weaker() {
 }
 
 #[test]
+#[cfg(not(target_os = "windows"))]
 fn g3_g5() {
     let mut proof = new_proof(361, false);
     let a = proof.redundant(

@@ -1285,7 +1285,7 @@ pub(super) enum SemDefTyp {
     OnlyIf,
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use std::{
         fs::File,

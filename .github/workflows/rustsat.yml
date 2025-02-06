@@ -39,6 +39,7 @@ jobs:
         with:
           python-version: 3.12
       - name: Install VeriPB
+        if: matrix.os != 'windows-latest'
         run: pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
       - name: Cargo build
         run: cargo build -p rustsat --verbose --features=all

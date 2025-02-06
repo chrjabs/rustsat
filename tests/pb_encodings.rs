@@ -623,7 +623,7 @@ mod dpw_inc_prec {
     }
 }
 
-#[cfg(feature = "proof-logging")]
+#[cfg(all(feature = "proof-logging", not(target_os = "windows")))]
 mod cert {
     use std::{
         fs::File,
