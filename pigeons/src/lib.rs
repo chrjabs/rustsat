@@ -20,7 +20,8 @@
 //! - [x] `solx`: [`Proof::exclude_solution`]
 //! - [x] `soli`: [`Proof::improve_solution`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
-//! - [x] `conclusion`: [`Proof::conclusion`], [`Proof::conclude`]
+//! - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
+//!     [`Proof::update_default_conclusion`]
 //! - [x] Sub-proofs
 //! - [x] `e`: [`Proof::equals`]
 //! - [x] `ea`: [`Proof::equals_add`]
@@ -67,8 +68,9 @@ use crate::types::{ConstrFormatter, ObjFormatter};
 ///
 /// This type represents the main API of this library.
 ///
-/// **Note**: if the proof is dropped without calling [`Proof::end`], the proof is ended with
-/// output guarantee [`OutputGuarantee::None`] and [`Conclusion::None`].
+/// **Note**: if the proof is dropped without calling [`Proof::conclude`], the proof is ended with
+/// output guarantee [`OutputGuarantee::None`] and [`Conclusion::None`], or whatever was set in
+/// [`Proof::new_with_conclusion`]
 #[derive(Debug)]
 pub struct Proof<Writer: io::Write> {
     /// Where the proof is written to
@@ -136,7 +138,7 @@ where
     /// Initializes a proof with a given writer
     ///
     /// If the proof is dropped, it will conclude with the specified output guarantee and
-    /// conclusion
+    /// conclusion. The conclusion can be updated with [`Proof::update_default_conclusion`].
     ///
     /// # Performance
     ///
