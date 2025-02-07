@@ -341,38 +341,6 @@ impl super::Db {
             .copied()
     }
 
-    /// Ensures that the semantics definitions for an output are in the proof
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails, returns [`std::io::Error`]
-    pub fn ensure_semantics<W>(
-        &mut self,
-        id: NodeId,
-        offset: usize,
-        value: usize,
-        leafs: impl Iterator<Item = (Lit, usize)> + Clone,
-        proof: &mut pigeons::Proof<W>,
-    ) -> std::io::Result<SemDefs>
-    where
-        W: std::io::Write,
-    {
-        debug_assert!(value <= self[id].max_val());
-        debug_assert!(value > offset);
-        let def_id = SemDefId {
-            id,
-            value,
-            offset,
-            len_limit: None,
-        };
-        if let Some(&defs) = self.semantic_defs.get(&def_id) {
-            return Ok(defs);
-        }
-        // NOTE: doesn't matter which type we specify here, since both will be introduced anyway
-        self.define_semantics(id, offset, None, value, SemDefTyp::If, leafs, proof)?;
-        Ok(unreachable_none!(self.semantic_defs.get(&def_id).copied()))
-    }
-
     /// Generates the encoding to define the positive output literal with value `val`, if it is not
     /// already defined. The derivation of the generated clauses is certified in the provided
     /// proof. Recurses down the tree. The returned literal is the output literal and the encoding
