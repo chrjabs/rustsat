@@ -1502,7 +1502,7 @@ mod tests {
 }
 
 #[cfg(kani)]
-mod proofs {
+mod kani {
     #[kani::proof]
     fn pos_lit() {
         let var: super::Var = kani::any();
