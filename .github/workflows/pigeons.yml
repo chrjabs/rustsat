@@ -32,12 +32,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: 3.12
-      - name: Install VeriPB (Ubuntu)
+      - name: Install VeriPB
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install libgmp-dev && pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
-      - name: Install VeriPB (MacOS)
-        if: matrix.os == 'macos-latest'
-        run: brew install gmp && pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
+        run: >
+          sudo apt-get install libgmp-dev &&
+          pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip &&
+          export VERIPB_CHECKER=$(which veripb)
       - name: Cargo build
         run: cargo build -p pigeons --verbose
         env:

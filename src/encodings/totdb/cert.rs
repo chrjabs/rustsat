@@ -1253,7 +1253,7 @@ pub(super) enum SemDefTyp {
     OnlyIf,
 }
 
-#[cfg(all(test, not(target_os = "windows")))]
+#[cfg(test)]
 mod tests {
     use std::{
         fs::File,
@@ -1282,17 +1282,21 @@ mod tests {
     }
 
     fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
-        println!("start checking proof");
-        let out = Command::new("veripb")
-            .arg(instance.as_ref())
-            .arg(proof.as_ref())
-            .output()
-            .expect("failed to run veripb");
-        print_file(proof);
-        if out.status.success() {
-            return;
+        if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
+            println!("start checking proof");
+            let out = Command::new(veripb)
+                .arg(instance.as_ref())
+                .arg(proof.as_ref())
+                .output()
+                .expect("failed to run veripb");
+            print_file(proof);
+            if out.status.success() {
+                return;
+            }
+            panic!("verification failed: {out:?}")
+        } else {
+            println!("`$VERIPB_CHECKER` not set, omitting proof checking");
         }
-        panic!("verification failed: {out:?}")
     }
 
     fn new_proof(

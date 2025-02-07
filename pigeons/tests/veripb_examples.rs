@@ -61,16 +61,21 @@ fn print_file<P: AsRef<Path>>(path: P) {
 }
 
 fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
-    let out = Command::new("veripb")
-        .arg(instance.as_ref())
-        .arg(proof.as_ref())
-        .output()
-        .expect("failed to run veripb");
-    if out.status.success() {
-        return;
+    if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
+        println!("start checking proof");
+        let out = Command::new(veripb)
+            .arg(instance.as_ref())
+            .arg(proof.as_ref())
+            .output()
+            .expect("failed to run veripb");
+        print_file(proof);
+        if out.status.success() {
+            return;
+        }
+        panic!("verification failed: {out:?}")
+    } else {
+        println!("`$VERIPB_CHECKER` not set, omitting proof checking");
     }
-    print_file(proof);
-    panic!("verification failed: {out:?}")
 }
 
 fn new_proof(num_constraints: usize, optimization: bool) -> Proof<tempfile::NamedTempFile> {
@@ -79,7 +84,6 @@ fn new_proof(num_constraints: usize, optimization: bool) -> Proof<tempfile::Name
 }
 
 #[test]
-#[cfg(not(target_os = "windows"))]
 fn all_diff() {
     let mut proof = new_proof(15, false);
     let new1 = proof
@@ -111,7 +115,6 @@ fn all_diff() {
 }
 
 #[test]
-#[cfg(not(target_os = "windows"))]
 fn implication_weaker() {
     let mut proof = new_proof(1, false);
     proof
@@ -131,7 +134,6 @@ fn implication_weaker() {
 }
 
 #[test]
-#[cfg(not(target_os = "windows"))]
 fn g3_g5() {
     let mut proof = new_proof(361, false);
     let a = proof.redundant(
