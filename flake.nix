@@ -10,6 +10,9 @@
 
     nix-tools.url = "github:gleachkr/nix-tools";
     nix-tools.inputs.nixpkgs.follows = "nixpkgs";
+
+    nix-config.url = "github:chrjabs/nix-config";
+    nix-config.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -18,11 +21,12 @@
     systems,
     rust-overlay,
     nix-tools,
+    nix-config,
   }: let
     lib = nixpkgs.lib;
     pkgsFor = lib.genAttrs (import systems) (system: (import nixpkgs {
       inherit system;
-      overlays = [(import rust-overlay) nix-tools.overlays.default];
+      overlays = [(import rust-overlay) nix-tools.overlays.default] ++ builtins.attrValues nix-config.overlays;
     }));
     forEachSystem = f: lib.genAttrs (import systems) (system: f pkgsFor.${system});
   in {
@@ -43,11 +47,13 @@
             jq
             maturin
             kani
+            veripb
           ];
           buildInputs = libs;
           LIBCLANG_PATH = lib.makeLibraryPath [pkgs.llvmPackages_12.libclang.lib];
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libs;
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig/";
+          VERIPB_CHECKER = "${lib.getExe pkgs.veripb}";
         };
     });
 
