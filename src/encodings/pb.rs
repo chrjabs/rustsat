@@ -67,6 +67,9 @@ pub use dbgte::DbGte;
 pub mod adder;
 pub use adder::BinaryAdder;
 
+#[cfg(feature = "proof-logging")]
+pub mod cert;
+
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode {
     /// Get the sum of weights in the encoding

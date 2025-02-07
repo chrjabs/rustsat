@@ -6,17 +6,19 @@
   cmake,
   fetchFromGitHub,
   srcOnly,
+  stdenvNoCC,
 }: let
   manifest = (lib.importTOML ./Cargo.toml).package;
   cadicalSrc = srcOnly {
     name = "cadical-src";
+    stdenv = stdenvNoCC;
     src = fetchFromGitHub {
       owner = "arminbiere";
       repo = "cadical";
-      rev = "rel-2.1.0";
+      rev = "rel-2.1.1";
       sha256 = "sha256-sSvJgHxsRaJ/xHEK32fox0MFI7u+pj5ERLfNn2s8kC8=";
     };
-    patches = [../cadical/patches/v210.patch];
+    patches = [../cadical/patches/v211.patch];
   };
 in
   rustPlatform.buildRustPackage {

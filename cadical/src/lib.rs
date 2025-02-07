@@ -39,6 +39,8 @@
 #![warn(missing_docs)]
 
 use core::ffi::{c_int, c_void, CStr};
+use std::ffi::NulError;
+use std::path::Path;
 use std::{cmp::Ordering, ffi::CString, fmt};
 
 use cpu_time::ProcessTime;
@@ -49,6 +51,61 @@ use rustsat::solvers::{
 };
 use rustsat::types::{Cl, Clause, Lit, TernaryVal, Var};
 use thiserror::Error;
+
+mod ffi;
+
+// >= 2.0.0
+#[cfg(all(
+    not(feature = "v1-5-0"),
+    not(feature = "v1-5-1"),
+    not(feature = "v1-5-2"),
+    not(feature = "v1-5-3"),
+    not(feature = "v1-5-4"),
+    not(feature = "v1-5-5"),
+    not(feature = "v1-5-6"),
+    not(feature = "v1-6-0"),
+    not(feature = "v1-7-0"),
+    not(feature = "v1-7-1"),
+    not(feature = "v1-7-2"),
+    not(feature = "v1-7-3"),
+    not(feature = "v1-7-4"),
+    not(feature = "v1-7-5"),
+    not(feature = "v1-8-0"),
+    not(feature = "v1-9-0"),
+    not(feature = "v1-9-1"),
+    not(feature = "v1-9-2"),
+    not(feature = "v1-9-3"),
+    not(feature = "v1-9-4"),
+    not(feature = "v1-9-5"),
+))]
+pub mod tracer;
+// >= 2.0.0
+#[cfg(all(
+    not(feature = "v1-5-0"),
+    not(feature = "v1-5-1"),
+    not(feature = "v1-5-2"),
+    not(feature = "v1-5-3"),
+    not(feature = "v1-5-4"),
+    not(feature = "v1-5-5"),
+    not(feature = "v1-5-6"),
+    not(feature = "v1-6-0"),
+    not(feature = "v1-7-0"),
+    not(feature = "v1-7-1"),
+    not(feature = "v1-7-2"),
+    not(feature = "v1-7-3"),
+    not(feature = "v1-7-4"),
+    not(feature = "v1-7-5"),
+    not(feature = "v1-8-0"),
+    not(feature = "v1-9-0"),
+    not(feature = "v1-9-1"),
+    not(feature = "v1-9-2"),
+    not(feature = "v1-9-3"),
+    not(feature = "v1-9-4"),
+    not(feature = "v1-9-5"),
+))]
+pub use tracer::{
+    CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ProofTracerHandle, TraceProof,
+};
 
 macro_rules! handle_oom {
     ($val:expr) => {{
@@ -458,6 +515,169 @@ impl CaDiCaL<'_, '_> {
             }
             .into()),
         }
+    }
+
+    /// Trace the CaDiCaL API calls to a file at the given path
+    ///
+    /// # Errors
+    ///
+    /// - If opening the file fails
+    /// - [`NulError`] if the provided path contains a nul byte
+    pub fn trace_api_calls<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
+        if unsafe { ffi::ccadical_trace_api_calls(self.handle, path.as_ptr()) } > 0 {
+            anyhow::bail!("failed to open file path for tracing");
+        }
+        Ok(())
+    }
+
+    /// Attaches a proof tracer of a given format, writing to a specified path
+    ///
+    /// # Errors
+    ///
+    /// If the provided path contains a nul byte
+    // We know that the set options exist and that this should therefore never panic
+    #[expect(clippy::missing_panics_doc)]
+    #[expect(clippy::too_many_lines)]
+    pub fn trace_proof<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        format: ProofFormat,
+    ) -> Result<(), NulError> {
+        let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
+        let binary = match format {
+            ProofFormat::Drat { binary } => binary,
+            // >= v1.7.0
+            #[cfg(all(
+                not(feature = "v1-5-0"),
+                not(feature = "v1-5-1"),
+                not(feature = "v1-5-2"),
+                not(feature = "v1-5-3"),
+                not(feature = "v1-5-4"),
+                not(feature = "v1-5-5"),
+                not(feature = "v1-5-6"),
+                not(feature = "v1-6-0"),
+            ))]
+            ProofFormat::Lrat { binary } => {
+                self.set_option("lrat", 1)
+                    .expect("we know this option exists");
+                binary
+            }
+            // >= v1.9.0
+            #[cfg(all(
+                not(feature = "v1-5-0"),
+                not(feature = "v1-5-1"),
+                not(feature = "v1-5-2"),
+                not(feature = "v1-5-3"),
+                not(feature = "v1-5-4"),
+                not(feature = "v1-5-5"),
+                not(feature = "v1-5-6"),
+                not(feature = "v1-6-0"),
+                not(feature = "v1-7-0"),
+                not(feature = "v1-7-1"),
+                not(feature = "v1-7-2"),
+                not(feature = "v1-7-3"),
+                not(feature = "v1-7-4"),
+                not(feature = "v1-7-5"),
+                not(feature = "v1-8-0"),
+            ))]
+            ProofFormat::Frat { binary, drat } => {
+                self.set_option("frat", 1 + c_int::from(drat))
+                    .expect("we know this option exists");
+                binary
+            }
+            // >= v1.9.0
+            #[cfg(all(
+                not(feature = "v1-5-0"),
+                not(feature = "v1-5-1"),
+                not(feature = "v1-5-2"),
+                not(feature = "v1-5-3"),
+                not(feature = "v1-5-4"),
+                not(feature = "v1-5-5"),
+                not(feature = "v1-5-6"),
+                not(feature = "v1-6-0"),
+                not(feature = "v1-7-0"),
+                not(feature = "v1-7-1"),
+                not(feature = "v1-7-2"),
+                not(feature = "v1-7-3"),
+                not(feature = "v1-7-4"),
+                not(feature = "v1-7-5"),
+                not(feature = "v1-8-0"),
+            ))]
+            ProofFormat::VeriPB {
+                checked_deletion,
+                drat,
+            } => {
+                self.set_option(
+                    "veripb",
+                    1 + c_int::from(!checked_deletion) + 2 * c_int::from(drat),
+                )
+                .expect("we know this option exists");
+                false
+            }
+            #[cfg(all(
+                not(feature = "v1-5-0"),
+                not(feature = "v1-5-1"),
+                not(feature = "v1-5-2"),
+                not(feature = "v1-5-3"),
+                not(feature = "v1-5-4"),
+                not(feature = "v1-5-5"),
+                not(feature = "v1-5-6"),
+                not(feature = "v1-6-0"),
+                not(feature = "v1-7-0"),
+                not(feature = "v1-7-1"),
+                not(feature = "v1-7-2"),
+                not(feature = "v1-7-3"),
+                not(feature = "v1-7-4"),
+                not(feature = "v1-7-5"),
+                not(feature = "v1-8-0"),
+                not(feature = "v1-9-0"),
+                not(feature = "v1-9-1"),
+                not(feature = "v1-9-2"),
+                not(feature = "v1-9-3"),
+                not(feature = "v1-9-4"),
+                not(feature = "v1-9-5"),
+            ))]
+            ProofFormat::Idrup { binary } => {
+                self.set_option("idrup", 1)
+                    .expect("we know this option exists");
+                binary
+            }
+            #[cfg(all(
+                not(feature = "v1-5-0"),
+                not(feature = "v1-5-1"),
+                not(feature = "v1-5-2"),
+                not(feature = "v1-5-3"),
+                not(feature = "v1-5-4"),
+                not(feature = "v1-5-5"),
+                not(feature = "v1-5-6"),
+                not(feature = "v1-6-0"),
+                not(feature = "v1-7-0"),
+                not(feature = "v1-7-1"),
+                not(feature = "v1-7-2"),
+                not(feature = "v1-7-3"),
+                not(feature = "v1-7-4"),
+                not(feature = "v1-7-5"),
+                not(feature = "v1-8-0"),
+                not(feature = "v1-9-0"),
+                not(feature = "v1-9-1"),
+                not(feature = "v1-9-2"),
+                not(feature = "v1-9-3"),
+                not(feature = "v1-9-4"),
+                not(feature = "v1-9-5"),
+            ))]
+            ProofFormat::Lidrup { binary } => {
+                self.set_option("lidrup", 1)
+                    .expect("we know this option exists");
+                binary
+            }
+        };
+        self.set_option("binary", c_int::from(binary))
+            .expect("we know this option exists");
+        unsafe {
+            ffi::ccadical_trace_proof_path(self.handle, path.as_ptr());
+        }
+        Ok(())
     }
 }
 
@@ -1011,9 +1231,151 @@ impl fmt::Display for Limit {
     }
 }
 
+/// The proof formats that CaDiCaL supports
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProofFormat {
+    /// The DRAT proof format
+    Drat {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+    // >= v1.7.0
+    #[cfg(all(
+        not(feature = "v1-5-0"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-4"),
+        not(feature = "v1-5-5"),
+        not(feature = "v1-5-6"),
+        not(feature = "v1-6-0"),
+    ))]
+    /// The LRAT proof format
+    Lrat {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+    // >= v1.9.0
+    // NOTE: FRAT is technically supported since v1.7.0, but the options for requesting it differ
+    #[cfg(all(
+        not(feature = "v1-5-0"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-4"),
+        not(feature = "v1-5-5"),
+        not(feature = "v1-5-6"),
+        not(feature = "v1-6-0"),
+        not(feature = "v1-7-0"),
+        not(feature = "v1-7-1"),
+        not(feature = "v1-7-2"),
+        not(feature = "v1-7-3"),
+        not(feature = "v1-7-4"),
+        not(feature = "v1-7-5"),
+        not(feature = "v1-8-0"),
+    ))]
+    /// The FRAT proof format
+    Frat {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+        /// Whether to use DRAT instead of LRAT
+        drat: bool,
+    },
+    // >= v1.9.0
+    // NOTE: VeriPB is technically supported since v1.7.0, but the options for requesting it differ
+    #[cfg(all(
+        not(feature = "v1-5-0"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-4"),
+        not(feature = "v1-5-5"),
+        not(feature = "v1-5-6"),
+        not(feature = "v1-6-0"),
+        not(feature = "v1-7-0"),
+        not(feature = "v1-7-1"),
+        not(feature = "v1-7-2"),
+        not(feature = "v1-7-3"),
+        not(feature = "v1-7-4"),
+        not(feature = "v1-7-5"),
+        not(feature = "v1-8-0"),
+    ))]
+    /// The VeriPB proof format
+    VeriPB {
+        /// Whether to use checked deletion
+        checked_deletion: bool,
+        /// Whether to disable (simulated) RUP with hints
+        drat: bool,
+    },
+    // >= v2.0.0
+    #[cfg(all(
+        not(feature = "v1-5-0"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-4"),
+        not(feature = "v1-5-5"),
+        not(feature = "v1-5-6"),
+        not(feature = "v1-6-0"),
+        not(feature = "v1-7-0"),
+        not(feature = "v1-7-1"),
+        not(feature = "v1-7-2"),
+        not(feature = "v1-7-3"),
+        not(feature = "v1-7-4"),
+        not(feature = "v1-7-5"),
+        not(feature = "v1-8-0"),
+        not(feature = "v1-9-0"),
+        not(feature = "v1-9-1"),
+        not(feature = "v1-9-2"),
+        not(feature = "v1-9-3"),
+        not(feature = "v1-9-4"),
+        not(feature = "v1-9-5"),
+    ))]
+    /// The incremental proof format IDRUP
+    Idrup {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+    // >= v2.0.0
+    #[cfg(all(
+        not(feature = "v1-5-0"),
+        not(feature = "v1-5-1"),
+        not(feature = "v1-5-2"),
+        not(feature = "v1-5-3"),
+        not(feature = "v1-5-4"),
+        not(feature = "v1-5-5"),
+        not(feature = "v1-5-6"),
+        not(feature = "v1-6-0"),
+        not(feature = "v1-7-0"),
+        not(feature = "v1-7-1"),
+        not(feature = "v1-7-2"),
+        not(feature = "v1-7-3"),
+        not(feature = "v1-7-4"),
+        not(feature = "v1-7-5"),
+        not(feature = "v1-8-0"),
+        not(feature = "v1-9-0"),
+        not(feature = "v1-9-1"),
+        not(feature = "v1-9-2"),
+        not(feature = "v1-9-3"),
+        not(feature = "v1-9-4"),
+        not(feature = "v1-9-5"),
+    ))]
+    /// The linear incremental proof format LIDRUP
+    Lidrup {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+}
+
+impl Default for ProofFormat {
+    fn default() -> Self {
+        ProofFormat::Drat { binary: true }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{CaDiCaL, Config, Limit};
+    use super::{CaDiCaL, Config, Limit, ProofFormat};
     use rustsat::{
         lit,
         solvers::{Solve, SolverState, StateError},
@@ -1076,53 +1438,103 @@ mod test {
         assert_eq!(solver.get_redundant(), 0);
         assert_eq!(solver.current_lit_val(lit![0]), TernaryVal::DontCare);
     }
-}
 
-mod ffi {
-    #![allow(non_upper_case_globals)]
-    #![allow(non_camel_case_types)]
-    #![allow(non_snake_case)]
-
-    use core::ffi::{c_int, c_void};
-    use std::slice;
-
-    use rustsat::{solvers::ControlSignal, types::Lit};
-
-    use super::{LearnCallbackPtr, TermCallbackPtr};
-
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
-    // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn rustsat_ccadical_terminate_cb(ptr: *mut c_void) -> c_int {
-        let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr<'_>>() };
-        match cb() {
-            ControlSignal::Continue => 0,
-            ControlSignal::Terminate => 1,
+    #[test]
+    fn proofs() {
+        let mut formats = vec![];
+        formats.extend([
+            ProofFormat::Drat { binary: false },
+            ProofFormat::Drat { binary: true },
+        ]);
+        #[cfg(all(
+            not(feature = "v1-5-0"),
+            not(feature = "v1-5-1"),
+            not(feature = "v1-5-2"),
+            not(feature = "v1-5-3"),
+            not(feature = "v1-5-4"),
+            not(feature = "v1-5-5"),
+            not(feature = "v1-5-6"),
+            not(feature = "v1-6-0"),
+        ))]
+        formats.extend([
+            ProofFormat::Lrat { binary: false },
+            ProofFormat::Lrat { binary: true },
+        ]);
+        #[cfg(all(
+            not(feature = "v1-5-0"),
+            not(feature = "v1-5-1"),
+            not(feature = "v1-5-2"),
+            not(feature = "v1-5-3"),
+            not(feature = "v1-5-4"),
+            not(feature = "v1-5-5"),
+            not(feature = "v1-5-6"),
+            not(feature = "v1-6-0"),
+            not(feature = "v1-7-0"),
+            not(feature = "v1-7-1"),
+            not(feature = "v1-7-2"),
+            not(feature = "v1-7-3"),
+            not(feature = "v1-7-4"),
+            not(feature = "v1-7-5"),
+            not(feature = "v1-8-0"),
+        ))]
+        formats.extend([
+            ProofFormat::Frat {
+                binary: false,
+                drat: true,
+            },
+            ProofFormat::Frat {
+                binary: true,
+                drat: true,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: false,
+                drat: false,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: true,
+                drat: false,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: false,
+                drat: true,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: true,
+                drat: true,
+            },
+        ]);
+        #[cfg(all(
+            not(feature = "v1-5-0"),
+            not(feature = "v1-5-1"),
+            not(feature = "v1-5-2"),
+            not(feature = "v1-5-3"),
+            not(feature = "v1-5-4"),
+            not(feature = "v1-5-5"),
+            not(feature = "v1-5-6"),
+            not(feature = "v1-6-0"),
+            not(feature = "v1-7-0"),
+            not(feature = "v1-7-1"),
+            not(feature = "v1-7-2"),
+            not(feature = "v1-7-3"),
+            not(feature = "v1-7-4"),
+            not(feature = "v1-7-5"),
+            not(feature = "v1-8-0"),
+            not(feature = "v1-9-0"),
+            not(feature = "v1-9-1"),
+            not(feature = "v1-9-2"),
+            not(feature = "v1-9-3"),
+            not(feature = "v1-9-4"),
+            not(feature = "v1-9-5"),
+        ))]
+        formats.extend([
+            ProofFormat::Idrup { binary: false },
+            ProofFormat::Idrup { binary: true },
+            ProofFormat::Lidrup { binary: false },
+            ProofFormat::Lidrup { binary: true },
+        ]);
+        for format in formats {
+            let mut slv = CaDiCaL::default();
+            slv.trace_proof("test-proof", format).unwrap();
         }
-    }
-
-    pub extern "C" fn rustsat_ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
-        let cb = unsafe { &mut *ptr.cast::<LearnCallbackPtr<'_>>() };
-
-        let mut cnt = 0;
-        for n in 0.. {
-            if unsafe { *clause.offset(n) } != 0 {
-                cnt += 1;
-            }
-        }
-        let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
-        let clause = int_slice
-            .iter()
-            .map(|il| {
-                Lit::from_ipasir(*il).expect("Invalid literal in learned clause from CaDiCaL")
-            })
-            .collect();
-        cb(clause);
-    }
-
-    pub extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_int) {
-        let vec = vec.cast::<Vec<Lit>>();
-        let lit = Lit::from_ipasir(lit).expect("got invalid IPASIR lit from CaDiCaL");
-        unsafe { (*vec).push(lit) };
     }
 }

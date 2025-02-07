@@ -7,9 +7,8 @@ use std::ops::RangeBounds;
 
 use crate::{
     encodings::{
-        card::dbtotalizer::{INode, LitData, TotDb},
         nodedb::{NodeById, NodeCon, NodeLike},
-        CollectClauses, EncodeStats, Error,
+        totdb, CollectClauses, EncodeStats, Error,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
@@ -28,7 +27,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct DbGte {
     /// Input literals and weights not yet in the tree
     lit_buffer: RsHashMap<Lit, usize>,
@@ -42,14 +41,14 @@ pub struct DbGte {
     /// The number of clauses in the totalizer
     n_clauses: usize,
     /// The node database of the totalizer
-    db: TotDb,
+    db: totdb::Db,
 }
 
 impl DbGte {
     /// Creates a generalized totalizer from its internal parts
     #[cfg(feature = "internals")]
     #[must_use]
-    pub fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
+    pub fn from_raw(root: NodeCon, db: totdb::Db, max_leaf_weight: usize) -> Self {
         Self {
             root: Some(root),
             max_leaf_weight,
@@ -112,6 +111,62 @@ impl DbGte {
     pub fn depth(&self) -> usize {
         self.root.map_or(0, |con| self.db[con.id].depth())
     }
+
+    /// Gets the details of a generalized totalizer output related to proof logging
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NotEncoded`] if the requested output is not encoded
+    #[cfg(feature = "proof-logging")]
+    pub fn output_proof_details(&self, value: usize) -> Result<(Lit, totdb::cert::SemDefs), Error> {
+        match self.root {
+            None => Err(Error::NotEncoded),
+            Some(root) => {
+                if !root.is_possible(value) {
+                    return Err(Error::NotEncoded);
+                }
+                self.db
+                    .get_semantics(root.id, root.offset, root.rev_map(value))
+                    .map(|sem| (self.db[root.id][root.rev_map(value)], sem))
+                    .ok_or(Error::NotEncoded)
+            }
+        }
+    }
+
+    /// Gets the number of output literals in the generalized totalizer
+    #[must_use]
+    pub fn n_output_lits(&self) -> usize {
+        match self.root {
+            Some(root) => self.db[root.id].len(),
+            None => 0,
+        }
+    }
+
+    /// Checks if the input literal buffer is empty, i.e., all input literals are included in the
+    /// encoding.
+    ///
+    /// Even after encodings, this might not be the case, if an input literal has a higher weight
+    /// than the bound encoded for
+    #[must_use]
+    pub fn is_buffer_empty(&self) -> bool {
+        self.lit_buffer.is_empty()
+    }
+
+    /// From an assignment to the input literals, generates an assignment over the totalizer
+    /// variables following strict semantics, i.e., `sum >= k <-> olit`
+    ///
+    /// # Panics
+    ///
+    /// If `assign` does not assign all input literals
+    pub fn strictly_extend_assignment<'slf>(
+        &'slf self,
+        assign: &'slf crate::types::Assignment,
+    ) -> std::iter::Flatten<std::option::IntoIter<totdb::AssignIter<'slf>>> {
+        self.root
+            .map(|root| self.db.strictly_extend_assignment(root.id, assign))
+            .into_iter()
+            .flatten()
+    }
 }
 
 impl Encode for DbGte {
@@ -169,7 +224,7 @@ impl BoundUpper for DbGte {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        self.db.reset_encoded();
+        self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
     }
 
@@ -192,28 +247,36 @@ impl BoundUpper for DbGte {
             self.db[con.id]
                 .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
                 .try_for_each(|val| {
-                    match &self.db[con.id].0 {
-                        INode::Leaf(lit) => {
+                    match &self.db[con.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[&val]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::Node::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -248,7 +311,7 @@ impl BoundUpperIncremental for DbGte {
                 )
                 .try_for_each(|val| {
                     self.db
-                        .define_pos(con.id, val, collector, var_manager)?
+                        .define_weighted(con.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
                 })?;
@@ -299,17 +362,86 @@ impl Extend<(Lit, usize)> for DbGte {
     }
 }
 
-/// Generalized totalizer encoding types that do not own but reference their [`TotDb`]
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpper for DbGte {
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        use super::cert::BoundUpperIncremental;
+        self.db.reset_encoded(totdb::Semantics::If);
+        self.encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpperIncremental for DbGte {
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_ub_range(self, range);
+        if range.is_empty() {
+            return Ok(());
+        }
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        self.extend_tree(range.end - 1);
+        if let Some(con) = self.root {
+            let mut leafs = vec![(crate::lit![0], 0); self.db[con.id].n_leafs()];
+            let mut leafs_init = false;
+            self.db[con.id]
+                .vals(
+                    con.rev_map_round_up(range.start + 1)
+                        ..=con.rev_map(range.end + self.max_leaf_weight),
+                )
+                .try_for_each(|val| {
+                    (_, leafs_init) = self
+                        .db
+                        .define_weighted_cert(
+                            con.id,
+                            val,
+                            collector,
+                            var_manager,
+                            proof,
+                            (&mut leafs, leafs_init, false),
+                        )?
+                        .unwrap();
+                    Ok::<(), anyhow::Error>(())
+                })?;
+        }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(())
+    }
+}
+
+/// Generalized totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
         encodings::{
-            card::dbtotalizer::{INode, LitData, TotDb},
             nodedb::{NodeCon, NodeLike},
             pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
-            CollectClauses, Error,
+            totdb, CollectClauses, Error,
         },
         instances::ManageVars,
         types::Lit,
@@ -328,7 +460,7 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb mut TotDb,
+        db: &'totdb mut totdb::Db,
     }
 
     /// Generalized totalizer encoding with a [`RefCell`] to a totalizer
@@ -344,12 +476,12 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut TotDb>,
+        db: &'totdb RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> Gte<'totdb> {
         /// Constructs a new GTE encoding referencing a totalizer database
-        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut TotDb) -> Self {
+        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut totdb::Db) -> Self {
             Self {
                 root,
                 max_leaf_weight,
@@ -369,7 +501,7 @@ pub mod referenced {
         pub fn new(
             root: NodeCon,
             max_leaf_weight: usize,
-            db: &'totdb RefCell<&'totdb mut TotDb>,
+            db: &'totdb RefCell<&'totdb mut totdb::Db>,
         ) -> Self {
             Self {
                 root,
@@ -448,7 +580,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.reset_encoded();
+            self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -465,28 +597,36 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db[self.root.id].0 {
-                        INode::Leaf(lit) => {
+                    match &self.db[self.root.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[&val]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::Node::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -505,7 +645,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.borrow_mut().reset_encoded();
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -522,28 +662,36 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db.borrow()[self.root.id].0 {
-                        INode::Leaf(lit) => {
+                    match &self.db.borrow()[self.root.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[&val]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::Node::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -573,7 +721,7 @@ pub mod referenced {
                 )
                 .try_for_each(|val| {
                     self.db
-                        .define_pos(self.root.id, val, collector, var_manager)?
+                        .define_weighted(self.root.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
                 })?;
@@ -603,7 +751,7 @@ pub mod referenced {
             vals.try_for_each(|val| {
                 self.db
                     .borrow_mut()
-                    .define_pos(self.root.id, val, collector, var_manager)?
+                    .define_weighted(self.root.id, val, collector, var_manager)?
                     .unwrap();
                 Ok::<(), crate::OutOfMemory>(())
             })?;

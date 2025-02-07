@@ -28,3 +28,5 @@ int ccadical_flippable(CCaDiCaL *wrapper, int lit);
 int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
                        size_t assumps_len, int psaving,
                        void (*prop_cb)(void *, int), void *cb_data);
+int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path);
+int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path);
