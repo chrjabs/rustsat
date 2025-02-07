@@ -1110,7 +1110,7 @@ pub trait IWLitIter: IntoIterator<Item = (Lit, isize)> {}
 impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 
 #[cfg(feature = "proof-logging")]
-mod proofs {
+mod pigeons {
     use std::fmt;
 
     /// A formatter for [`super::Var`] for use with the [`pigeons`] library to ensure same
@@ -1502,7 +1502,7 @@ mod tests {
 }
 
 #[cfg(kani)]
-mod kani {
+mod proofs {
     #[kani::proof]
     fn pos_lit() {
         let var: super::Var = kani::any();
