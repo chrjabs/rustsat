@@ -14,7 +14,7 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsat.workspace = true
+rustsat = { workspace = true, features = ["fxhash"] }
 pyo3 = { version = "0.23.4", features = [
   "extension-module",
   "abi3",

@@ -337,7 +337,7 @@ impl RandReindVarManager {
     pub fn init(n_vars: u32) -> Self {
         use rand::seq::SliceRandom;
         let mut in_map: Vec<Var> = (0..n_vars).map(Var::new).collect();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         // Build randomly shuffled input map
         in_map[..].shuffle(&mut rng);
         // Build reverse map

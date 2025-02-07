@@ -20,14 +20,16 @@ enum Version {
     V310,
     V311,
     V400,
-    #[default]
     V401,
+    #[default]
+    V402,
 }
 
 /// Checks if the version was set manually via a feature
 macro_rules! version_set_manually {
     () => {
         cfg!(any(
+            feature = "v4-0-2",
             feature = "v4-0-1",
             feature = "v4-0-0",
             feature = "v3-1-1",
@@ -42,7 +44,9 @@ macro_rules! version_set_manually {
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v4-0-1") {
+        if cfg!(feature = "v4-0-2") {
+            Version::V402
+        } else if cfg!(feature = "v4-0-1") {
             Version::V401
         } else if cfg!(feature = "v4-0-0") {
             Version::V400
@@ -74,6 +78,7 @@ impl Version {
             Version::V311 => "refs/tags/rel-3.1.1",
             Version::V400 => "refs/tags/rel-4.0.0",
             Version::V401 => "refs/tags/rel-4.0.1",
+            Version::V402 => "refs/tags/rel-4.0.2",
         }
     }
 }
@@ -139,6 +144,7 @@ fn generate_bindings(kissat_src_dir: &Path, out_dir: &str) {
         .blocklist_function("kissat_fatal")
         .blocklist_function("kissat_fatal_message_start")
         .blocklist_function("kissat_abort")
+        .blocklist_function("kissat_set_prefix")
         .generate()
         .expect("Unable to generate ffi bindings");
     bindings

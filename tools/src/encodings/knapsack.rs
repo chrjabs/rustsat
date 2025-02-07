@@ -42,9 +42,9 @@ impl Knapsack {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
         let items: Vec<_> = (0..n_items)
             .map(|_| {
-                let weight = rng.gen_range(weight_range.clone());
+                let weight = rng.random_range(weight_range.clone());
                 let values = (0..n_objectives)
-                    .map(|_| rng.gen_range(value_range.clone()))
+                    .map(|_| rng.random_range(value_range.clone()))
                     .collect();
                 ItemData { weight, values }
             })
