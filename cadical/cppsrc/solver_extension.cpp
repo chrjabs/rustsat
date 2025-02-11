@@ -24,6 +24,7 @@ int64_t Solver::conflicts() const {
   return res;
 }
 
+#ifdef PYSAT_PROPCHECK
 // Propagate and check
 // This is based on the implementation in PySat
 // https://github.com/pysathq/pysat/blob/master/solvers/patches/cadical195.patch
@@ -147,5 +148,6 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
 
   return !unsat && noconfl;
 }
+#endif
 
 } // namespace CaDiCaL

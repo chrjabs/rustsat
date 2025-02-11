@@ -25,6 +25,14 @@ int64_t ccadical_conflicts(CCaDiCaL *wrapper);
 int ccadical_flip(CCaDiCaL *wrapper, int lit);
 int ccadical_flippable(CCaDiCaL *wrapper, int lit);
 #endif
+#ifdef PYSAT_PROPCHECK
 int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
                        size_t assumps_len, int psaving,
                        void (*prop_cb)(void *, int), void *cb_data);
+#endif
+#ifdef PROPAGATE
+int ccadical_propagate(CCaDiCaL *wrapper);
+void ccadical_get_entrailed_literals(CCaDiCaL *wrapper,
+                                     void (*entrailed_cb)(void *, int),
+                                     void *cb_data);
+#endif

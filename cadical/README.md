@@ -21,7 +21,7 @@ Armin Biere's SAT solver [CaDiCaL](https://github.com/arminbiere/cadical) to be 
 ## CaDiCaL Versions
 
 CaDiCaL versions can be selected via cargo crate features.
-All CaDiCaL versions up to [Version 2.1.1](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.1) are available.
+All CaDiCaL versions up to [Version 2.1.3](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.3) are available.
 For the full list of versions and the changelog see [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
 
 Without any features selected, the newest version will be used.
