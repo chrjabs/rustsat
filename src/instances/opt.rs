@@ -1087,6 +1087,36 @@ impl FromIterator<(Clause, usize)> for Objective {
     }
 }
 
+impl winnow::stream::Accumulate<(Lit, usize)> for Objective {
+    fn initial(_capacity: Option<usize>) -> Self {
+        Self::new()
+    }
+
+    fn accumulate(&mut self, acc: (Lit, usize)) {
+        self.increase_soft_lit(acc.1, acc.0);
+    }
+}
+
+impl winnow::stream::Accumulate<(Lit, isize)> for Objective {
+    fn initial(_capacity: Option<usize>) -> Self {
+        Self::new()
+    }
+
+    fn accumulate(&mut self, acc: (Lit, isize)) {
+        self.increase_soft_lit_int(acc.1, acc.0);
+    }
+}
+
+impl winnow::stream::Accumulate<(Clause, usize)> for Objective {
+    fn initial(_capacity: Option<usize>) -> Self {
+        Self::new()
+    }
+
+    fn accumulate(&mut self, acc: (Clause, usize)) {
+        self.increase_soft_clause(acc.1, acc.0);
+    }
+}
+
 /// Type representing an optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -1549,7 +1579,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
     pub fn from_opb<R: io::BufRead>(
         reader: &mut R,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, fio::Error> {
         Self::from_opb_with_idx(reader, 0, opts)
     }
 
@@ -1564,7 +1594,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
         reader: &mut R,
         obj_idx: usize,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, fio::Error> {
         fio::opb::parse_opt_with_idx(reader, obj_idx, opts)
     }
 
@@ -1575,7 +1605,10 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    pub fn from_opb_path<P: AsRef<Path>>(
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(&mut reader, opts)
     }
@@ -1593,7 +1626,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
         path: P,
         obj_idx: usize,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb_with_idx(&mut reader, obj_idx, opts)
     }
