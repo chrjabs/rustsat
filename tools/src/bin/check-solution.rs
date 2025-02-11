@@ -144,6 +144,8 @@ fn parse_instance(
             Ok(MultiOptInstance::compose(inst, vec![obj]))
         }
         FileFormat::Mcnf => MultiOptInstance::from_dimacs_path(inst_path),
-        FileFormat::Opb => MultiOptInstance::from_opb_path(inst_path, opb_opts),
+        FileFormat::Opb => {
+            MultiOptInstance::from_opb_path(inst_path, opb_opts).map_err(|e| e.into())
+        }
     }
 }

@@ -1,0 +1,8 @@
+---
+source: src/instances/fio.rs
+expression: "format!(\"{}\", super::ParsingError\n{\n    message: String::from(\"parsing failed here\"), span: 23..30, input:\n    String::from(\"some string in which a failure occurred\"), line_start: 42,\n})"
+---
+error: parsing failed here
+   ╭▸ 
+42 │ some string in which a failure occurred
+   ╰╴                       ━━━━━━━ here

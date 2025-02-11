@@ -53,7 +53,7 @@
             let
               additionalSrcFilter =
                 path: _type:
-                builtins.match ".*(data.*|cp?p?|hp?p?|j2|CMakeLists.txt|VERSION|README.md)$" path != null;
+                builtins.match ".*(data.*|cp?p?|hp?p?|j2|snap|CMakeLists.txt|VERSION|README.md)$" path != null;
               allSrc = path: type: (additionalSrcFilter path type) || (craneLib.filterCargoSources path type);
             in
             lib.cleanSourceWith {
@@ -77,6 +77,7 @@
             LD_LIBRARY_PATH = lib.makeLibraryPath libs;
             CARGO_PROFILE = "";
             NEXTEST_PROFILE = "ci";
+            CI = "true";
           };
           cargoArtifacts = craneLib.buildDepsOnly (
             commonArgs
@@ -447,6 +448,7 @@
                   # keep-sorted start
                   cargo-deny
                   cargo-hack
+                  cargo-insta
                   cargo-llvm-cov
                   cargo-machete
                   cargo-nextest

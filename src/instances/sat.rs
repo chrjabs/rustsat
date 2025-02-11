@@ -1012,12 +1012,24 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
+    /// [`io::Error`] or if parsing fails.
     pub fn from_opb<R: io::BufRead>(
         reader: &mut R,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<Self> {
-        fio::opb::parse_sat(reader, opts)
+    ) -> Result<Self, fio::Error> {
+        let parser = fio::opb::Parser::new(reader, opts);
+        let mut inst = Self::new();
+        for data in parser {
+            match data? {
+                fio::opb::Data::Cmt(_) => {}
+                fio::opb::Data::Constr(constr) => inst.add_pb_constr(constr),
+                #[cfg(feature = "optimization")]
+                fio::opb::Data::Obj(_) => {
+                    return Err(fio::Error::ObjInSat);
+                }
+            }
+        }
+        Ok(inst)
     }
 
     /// Parses an OPB instance from a file path. For more details see
@@ -1026,10 +1038,12 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
-        let mut reader =
-            fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_opb_path<P: AsRef<Path>>(
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::Error> {
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Instance::from_opb(&mut reader, opts)
     }
 }
@@ -1056,6 +1070,32 @@ impl<VM: ManageVars + Default> FromIterator<Clause> for Instance<VM> {
 impl<VM: ManageVars + Default> FromIterator<CnfLine> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
         iter.into_iter().filter_map(CnfLine::clause).collect()
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<PbConstraint> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = PbConstraint>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        iter.into_iter()
+            .for_each(|constr| inst.add_pb_constr(constr));
+        inst
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<CardConstraint> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = CardConstraint>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        iter.into_iter()
+            .for_each(|constr| inst.add_card_constr(constr));
+        inst
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<fio::opb::Data> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = fio::opb::Data>>(iter: T) -> Self {
+        iter.into_iter()
+            .filter_map(fio::opb::Data::constraint)
+            .collect()
     }
 }
 

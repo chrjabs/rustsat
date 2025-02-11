@@ -413,12 +413,12 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
+    /// [`io::Error`] or if parsing fails.
     pub fn from_opb<R: io::BufRead>(
         reader: &mut R,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<Self> {
-        fio::opb::parse_multi_opt(reader, opts)
+    ) -> Result<Self, fio::Error> {
+        fio::opb::Parser::new(reader, opts).collect()
     }
 
     /// Parses an OPB instance from a file path. For more details see
@@ -427,8 +427,11 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_opb_path<P: AsRef<Path>>(
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(&mut reader, opts)
     }
@@ -445,7 +448,34 @@ impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
                     if oidx >= inst.objs.len() {
                         inst.objs.resize(oidx + 1, Objective::default());
                     }
+                    for l in &cl {
+                        inst.constraints_mut().var_manager_mut().mark_used(l.var());
+                    }
                     inst.objective_mut(oidx).add_soft_clause(w, cl);
+                }
+            }
+        }
+        inst
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<fio::opb::Data> for MultiOptInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = fio::opb::Data>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        for data in iter {
+            match data {
+                fio::opb::Data::Cmt(_) => {}
+                fio::opb::Data::Constr(constr) => inst.constraints_mut().add_pb_constr(constr),
+                fio::opb::Data::Obj(fio::opb::Objective { terms, offset }) => {
+                    for (_, lit) in &terms {
+                        inst.constraints_mut()
+                            .var_manager_mut()
+                            .mark_used(lit.var());
+                    }
+                    let mut obj: crate::instances::Objective =
+                        terms.into_iter().map(|(coeff, lit)| (lit, coeff)).collect();
+                    obj.increase_offset(offset);
+                    inst.objs.push(obj);
                 }
             }
         }

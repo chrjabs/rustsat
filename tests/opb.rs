@@ -48,7 +48,7 @@ fn opb_opt() {
 #[test]
 fn opb_multi_opt() {
     let inst: MultiOptInstance =
-        MultiOptInstance::from_opb_path("./data/tiny-opt.opb", Options::default()).unwrap();
+        MultiOptInstance::from_opb_path("./data/tiny-multiopt.opb", Options::default()).unwrap();
     let mut true_constr = SatInstance::new();
     true_constr.add_pb_constr(PbConstraint::new_lb([(lit![0], 5), (lit![1], -3)], 4));
     true_constr.add_pb_constr(PbConstraint::new_lb([(lit![2], 5), (lit![3], -3)], 2));

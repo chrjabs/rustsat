@@ -4,12 +4,14 @@
 //! through the interface of instance types rather than using these functions
 //! directly.
 
+use annotate_snippets::{AnnotationKind, Level, Snippet};
 use std::{
     fs::File,
     io::{self, BufRead},
     path::Path,
 };
 use thiserror::Error;
+use winnow::error::{ContextError, ParseError};
 
 use crate::{
     solvers::{SolverResult, SolverState},
@@ -24,6 +26,91 @@ pub mod opb;
 #[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
 #[error("the file only has {0} objectives")]
 pub struct ObjNoExist(usize);
+
+/// Errors occurring within the File IO module
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Error in parsing
+    #[error("Parsing error: {0}")]
+    Parsing(#[from] ParsingError),
+    /// Input-output error
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    /// Encountered an OPB objective line while parsing a decision instance
+    #[cfg(feature = "optimization")]
+    #[error("encountered an OPB objective line while parsing a decision instance")]
+    ObjInSat,
+    /// A single-objective OPB instance was found to not have an objective
+    #[cfg(feature = "optimization")]
+    #[error("single-objective OPB file does not have an objective")]
+    NoObjective,
+    /// A single-objective OPB instance was found to have more than one objective
+    #[cfg(feature = "optimization")]
+    #[error("single-objective OPB file has more than one objective")]
+    MultipleObjectives,
+}
+
+/// An error occurring during parsing
+#[derive(Clone, Debug, thiserror::Error)]
+pub struct ParsingError {
+    message: String,
+    span: std::ops::Range<usize>,
+    input: String,
+    line_start: usize,
+}
+
+impl ParsingError {
+    pub(crate) fn from_parse(
+        error: &ParseError<&str, ContextError>,
+        input: &str,
+        offset: usize,
+        line_start: usize,
+    ) -> Self {
+        let message = error.inner().to_string();
+        let input = input.to_owned();
+        let start = error.offset() + offset;
+        let end = (start + 1..=input.len())
+            .find(|e| input.is_char_boundary(*e))
+            .unwrap_or(start);
+        Self {
+            message,
+            span: start..end,
+            input,
+            line_start,
+        }
+    }
+
+    /// Provide a wider context and the offset of the old context in the new context
+    pub fn extend_context(&mut self, new_context: String, offset_of_old: usize) {
+        self.input = new_context;
+        self.span = self.span.start + offset_of_old..self.span.end + offset_of_old;
+    }
+
+    /// Renders the error with a given [`annotate_snippets::Renderer`]
+    #[must_use]
+    pub fn render(&self, renderer: &annotate_snippets::Renderer) -> String {
+        let report = &[Level::ERROR.primary_title(&self.message).element(
+            Snippet::source(&self.input)
+                .line_start(self.line_start)
+                .annotation(
+                    AnnotationKind::Primary
+                        .span(self.span.clone())
+                        .label("here"),
+                ),
+        )];
+        renderer.render(report)
+    }
+}
+
+impl std::fmt::Display for ParsingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.render(
+            &annotate_snippets::Renderer::plain()
+                .decor_style(annotate_snippets::renderer::DecorStyle::Unicode),
+        )
+        .fmt(f)
+    }
+}
 
 /// Opens a reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.
@@ -332,5 +419,18 @@ mod tests {
             parse_sat_solver_output(&mut reader).unwrap(),
             SolverOutput::Unsat
         );
+    }
+
+    #[test]
+    fn parsing_error_format() {
+        insta::assert_snapshot!(format!(
+            "{}",
+            super::ParsingError {
+                message: String::from("parsing failed here"),
+                span: 23..30,
+                input: String::from("some string in which a failure occurred"),
+                line_start: 42,
+            }
+        ));
     }
 }
