@@ -22,10 +22,10 @@ anyhow = "1.0.95"
 atty = "0.2.14"
 bindgen = "0.71.1"
 bzip2 = "0.5.0"
-cc = { version = "1.2.11", features = ["parallel"] }
+cc = { version = "1.2.13", features = ["parallel"] }
 chrono = "0.4.39"
-clap = { version = "4.5.27", features = ["derive", "cargo"] }
-cmake = "0.1.53"
+clap = { version = "4.5.28", features = ["derive", "cargo"] }
+cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
 flate2 = { version = "1.0.35", features = [
@@ -39,7 +39,7 @@ termcolor = "1.4.1"
 thiserror = "2.0.11"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
-rustc-hash = "2.1.0"
+rustc-hash = "2.1.1"
 rustsat = { version = "0.6.3", path = "./", default-features = false }
 rustsat-cadical = { version = "0.4.3", path = "./cadical" }
 rustsat-minisat = { version = "0.4.3", path = "./minisat" }
