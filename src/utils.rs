@@ -53,6 +53,20 @@ pub unsafe fn from_raw_parts_maybe_null<'a, T>(ptr: *const T, cnt: usize) -> &'a
     }
 }
 
+/// Computes the starting offset of `sub` in `parent`
+///
+/// Returns [`None`] if `sub` is not part of `parent`
+#[must_use]
+pub fn substr_offset(parent: &str, sub: &str) -> Option<usize> {
+    let parent_beg = parent.as_ptr() as usize;
+    let sub_beg = sub.as_ptr() as usize;
+    if sub_beg < parent_beg || sub_beg > parent_beg.wrapping_add(parent.len()) {
+        None
+    } else {
+        Some(sub_beg.wrapping_sub(parent_beg))
+    }
+}
+
 /// A wrapper around an iterator to only yield a limited number of elements and then stop
 ///
 /// As opposed to [`std::iter::Take`] this does not take ownership of the original iterator

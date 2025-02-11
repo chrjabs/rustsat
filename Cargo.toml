@@ -25,6 +25,7 @@ rust-version = "1.87.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 # keep-sorted start block=yes
+annotate-snippets = "0.12.10"
 anyhow = "1.0.100"
 bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
@@ -59,6 +60,7 @@ termcolor = "1.4.1"
 thiserror = "2.0.18"
 visibility = "0.1.1"
 web-time = "1.1.0"
+winnow = "0.7.14"
 xz2 = "0.1.7"
 # keep-sorted end
 
@@ -84,6 +86,7 @@ include = [
 
 [dependencies]
 # keep-sorted start
+annotate-snippets.workspace = true
 anyhow.workspace = true
 bzip2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
@@ -96,6 +99,7 @@ serde = { workspace = true, optional = true }
 tempfile.workspace = true
 thiserror.workspace = true
 visibility = { workspace = true, optional = true }
+winnow.workspace = true
 xz2 = { workspace = true, optional = true }
 # keep-sorted end
 
