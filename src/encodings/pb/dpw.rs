@@ -270,7 +270,11 @@ impl IterWeightedInputs for DynamicPolyWatchdog {
 
 impl EncodeIncremental for DynamicPolyWatchdog {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-        if self.structure.is_none() && !self.in_lits.is_empty() {
+        // Special case for a single input literal, don't need an encoding structure
+        if self.in_lits.len() <= 1 {
+            return;
+        }
+        if self.structure.is_none() {
             self.structure = Some(build_structure(
                 &mut self.weight_queue,
                 self.prec_div,
@@ -1390,5 +1394,19 @@ mod tests {
         let mut cnf = Cnf::new();
         dpw.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 23);
+    }
+
+    #[test]
+    fn reserve_with_single_input() {
+        let mut dpw: DynamicPolyWatchdog = [(lit![0], 96833)].into_iter().collect();
+        let mut var_manager = BasicVarManager::from_next_free(var![1]);
+        dpw.reserve(&mut var_manager);
+        let mut cnf = Cnf::new();
+        dpw.encode_ub_change(96832..=96832, &mut cnf, &mut var_manager)
+            .unwrap();
+        assert!(cnf.is_empty());
+        let assumps = dpw.enforce_ub(96832).unwrap();
+        assert_eq!(assumps.len(), 1);
+        assert_eq!(assumps[0], !lit![0]);
     }
 }
