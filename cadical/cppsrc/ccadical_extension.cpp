@@ -99,6 +99,7 @@ int ccadical_flippable(CCaDiCaL *wrapper, int lit) {
 }
 #endif
 
+#ifdef PYSAT_PROPCHECK
 int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
                        size_t assumps_len, int psaving,
                        void (*prop_cb)(void *, int), void *cb_data) {
@@ -113,4 +114,25 @@ int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
     return OUT_OF_MEM;
   }
 }
+#endif
+
+#ifdef PROPAGATE
+int ccadical_propagate(CCaDiCaL *wrapper) {
+  try {
+    return ((Wrapper *)wrapper)->solver->propagate();
+  } catch (std::bad_alloc &) {
+    return OUT_OF_MEM;
+  }
+}
+
+void ccadical_get_entrailed_literals(CCaDiCaL *wrapper,
+                                     void (*entrailed_cb)(void *, int),
+                                     void *cb_data) {
+  std::vector<int> entrailed{};
+  ((Wrapper *)wrapper)->solver->get_entrailed_literals(entrailed);
+  for (int lit : entrailed) {
+    entrailed_cb(cb_data, lit);
+  }
+}
+#endif
 }

@@ -125,6 +125,16 @@ if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
 cargo test --features=v2-1-1 &> v211-test.log
 echo "v2.1.1 test returned: $?"
 
+echo "Testing v2.1.2"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo test --features=v2-1-2 &> v212-test.log
+echo "v2.1.2 test returned: $?"
+
+echo "Testing v2.1.3"
+if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
+cargo test --features=v2-1-3 &> v213-test.log
+echo "v2.1.3 test returned: $?"
+
 echo "Testing quiet"
 if [ "$1" == "--clean" ]; then cargo clean -p rustsat-cadical > /dev/null; fi
 cargo test --features=quiet &> quiet-test.log

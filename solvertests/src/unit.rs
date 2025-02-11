@@ -231,6 +231,11 @@ pub fn propagate(slv: Type) -> TokenStream {
             solver.add_binary(!lit![1], lit![2]).unwrap();
             solver.add_binary(!lit![2], lit![3]).unwrap();
 
+            let res = solver.propagate(&[], false).unwrap();
+
+            assert!(!res.conflict);
+            assert!(res.propagated.is_empty());
+
             let res = solver.propagate(&[lit![0]], false).unwrap();
 
             assert!(!res.conflict);

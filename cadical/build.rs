@@ -37,13 +37,20 @@ enum Version {
     V195,
     V200,
     V210,
-    #[default]
     V211,
+    V212,
+    #[default]
+    V213,
+    // Don't forget to update the crate documentation when adding a newer version
 }
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v2-1-1") {
+        if cfg!(feature = "v2-1-3") {
+            Version::V213
+        } else if cfg!(feature = "v2-1-2") {
+            Version::V212
+        } else if cfg!(feature = "v2-1-1") {
             Version::V211
         } else if cfg!(feature = "v2-1-0") {
             Version::V210
@@ -123,6 +130,8 @@ impl Version {
             Version::V200 => "refs/tags/rel-2.0.0",
             Version::V210 => "refs/tags/rel-2.1.0",
             Version::V211 => "refs/tags/rel-2.1.1",
+            Version::V212 => "refs/tags/rel-2.1.2",
+            Version::V213 => "refs/tags/rel-2.1.3",
         }
     }
 
@@ -141,7 +150,8 @@ impl Version {
             V192 | V193 | V194 | V195 => "v192.patch",
             V200 => "v200.patch",
             V210 => "v210.patch",
-            V211 => "v211.patch",
+            V211 | V212 => "v211.patch",
+            V213 => "v213.patch",
         }
     }
 
@@ -159,6 +169,10 @@ impl Version {
 
     fn has_ipasir_up(self) -> bool {
         self >= Version::V160
+    }
+
+    fn has_propagate(self) -> bool {
+        self >= Version::V213
     }
 }
 
@@ -205,6 +219,17 @@ fn main() {
     let cadical_dir = get_cadical_dir(None);
 
     generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
+
+    // Set custom configs for features only present in some version
+    println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\"))");
+    if version.has_flip() {
+        println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
+    }
+    if version.has_propagate() {
+        println!("cargo:rustc-cfg=cadical_feature=\"propagate\"");
+    } else {
+        println!("cargo:rustc-cfg=cadical_feature=\"pysat-propcheck\"");
+    }
 }
 
 /// Generates Rust FFI bindings
@@ -230,6 +255,11 @@ fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
         bindings.clang_arg("-DFLIP")
     } else {
         bindings
+    };
+    let bindings = if version.has_propagate() {
+        bindings.clang_arg("-DPROPAGATE")
+    } else {
+        bindings.clang_arg("-DPYSAT_PROPCHECK")
     };
     let bindings = bindings
         .generate()
@@ -310,6 +340,11 @@ fn build(repo: &str, branch: &str, version: Version) {
     }
     if version.has_ipasir_up() {
         cadical_build.define("IPASIRUP", None);
+    }
+    if version.has_propagate() {
+        cadical_build.define("PROPAGATE", None);
+    } else {
+        cadical_build.define("PYSAT_PROPCHECK", None);
     }
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
