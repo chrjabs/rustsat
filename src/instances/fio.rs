@@ -4,12 +4,14 @@
 //! through the interface of instance types rather than using these functions
 //! directly.
 
+use annotate_snippets::{AnnotationKind, Level, Snippet};
 use std::{
     fs::File,
     io::{self, BufRead},
     path::Path,
 };
 use thiserror::Error;
+use winnow::error::{ContextError, ParseError};
 
 use crate::{
     solvers::{SolverResult, SolverState},
@@ -24,6 +26,70 @@ pub mod opb;
 #[derive(Error, Debug, PartialEq, Eq, Clone, Copy)]
 #[error("the file only has {0} objectives")]
 pub struct ObjNoExist(usize);
+
+/// Errors ocurring within the File IO module
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Error in parsing
+    #[error("Parsing error: {0}")]
+    Parsing(#[from] ParsingError),
+    /// Input-output error
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    /// A requested objective index does not exist
+    #[cfg(feature = "optimization")]
+    #[error("the file only has {0} objectives")]
+    ObjNoExist(usize),
+}
+
+/// An error uccuring during parsing
+#[derive(Clone, Debug, thiserror::Error)]
+pub struct ParsingError {
+    message: String,
+    span: std::ops::Range<usize>,
+    input: String,
+}
+
+impl ParsingError {
+    pub(crate) fn from_parse(error: ParseError<&str, ContextError>, input: &str) -> Self {
+        Self::from_parse_with_offset(error, input, 0)
+    }
+
+    pub(crate) fn from_parse_with_offset(
+        error: ParseError<&str, ContextError>,
+        input: &str,
+        offset: usize,
+    ) -> Self {
+        let message = error.inner().to_string();
+        let input = input.to_owned();
+        let start = error.offset() + offset;
+        let end = (start + 1..)
+            .find(|e| input.is_char_boundary(*e))
+            .unwrap_or(start);
+        Self {
+            message,
+            span: start..end,
+            input,
+        }
+    }
+
+    /// Provide a wider context and the offset of the old context in the new context
+    pub fn extend_context(&mut self, new_context: String, offset_of_old: usize) {
+        self.input = new_context;
+        self.span = self.span.start + offset_of_old..self.span.end + offset_of_old;
+    }
+}
+
+impl std::fmt::Display for ParsingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let report = &[Level::ERROR.primary_title(&self.message).element(
+            Snippet::source(&self.input)
+                .fold(true)
+                .annotation(AnnotationKind::Primary.span(self.span.clone())),
+        )];
+        annotate_snippets::Renderer::plain().render(report).fmt(f)
+    }
+}
 
 /// Opens a reader for the file at Path.
 /// With feature `compression` supports bzip2 and gzip compression.

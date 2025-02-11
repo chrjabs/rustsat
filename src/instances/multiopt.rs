@@ -413,11 +413,11 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
+    /// [`io::Error`] or if parsing fails.
     pub fn from_opb<R: io::BufRead>(
         reader: &mut R,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, fio::Error> {
         fio::opb::parse_multi_opt(reader, opts)
     }
 
@@ -427,8 +427,11 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_opb_path<P: AsRef<Path>>(path: P, opts: fio::opb::Options) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_opb_path<P: AsRef<Path>>(
+        path: P,
+        opts: fio::opb::Options,
+    ) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(&mut reader, opts)
     }

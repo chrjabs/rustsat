@@ -82,7 +82,7 @@ fn parse_instance(
                     if is_one_of!(ext, "cnf") {
                         SatInstance::from_dimacs_path(path)
                     } else if is_one_of!(ext, "opb", "pbmo", "mopb") {
-                        SatInstance::from_opb_path(path, opb_opts)
+                        SatInstance::from_opb_path(path, opb_opts).map_err(|e| e.into())
                     } else {
                         anyhow::bail!("unknown file extension")
                     }
@@ -100,13 +100,12 @@ fn parse_instance(
                 SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
             }
         }
-        InputFormat::Opb => {
-            if let Some(path) = path {
-                SatInstance::from_opb_path(path, opb_opts)
-            } else {
-                SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
-            }
+        InputFormat::Opb => if let Some(path) = path {
+            SatInstance::from_opb_path(path, opb_opts)
+        } else {
+            SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
         }
+        .map_err(|e| e.into()),
     }
 }
 
@@ -115,9 +114,7 @@ fn parse_assumps(strings: &[String], opb_opts: fio::opb::Options) -> anyhow::Res
         .iter()
         .map(|lit| {
             if lit.starts_with('x') || lit.starts_with("~x") || lit.starts_with("-x") {
-                return fio::opb::literal(lit, opb_opts)
-                    .map(|(_, l)| l)
-                    .map_err(nom::Err::<nom::error::Error<&str>>::to_owned)
+                return fio::opb::parse_lit(lit, opb_opts)
                     .with_context(|| format!("failed to parse assumption '{lit}' as OPB literal"));
             }
             fio::dimacs::parse_lit(lit)

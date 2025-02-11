@@ -570,6 +570,7 @@ fn parse_instance(
                     } else if is_one_of!(ext, "opb") {
                         OptInstance::from_opb_path(path, opb_opts)
                             .map(|inst| (inst, WriteFormat::Opb))
+                            .map_err(|e| e.into())
                     } else {
                         anyhow::bail!("unknown file extension")
                     }
@@ -588,14 +589,13 @@ fn parse_instance(
                     .map(|inst| (inst, WriteFormat::Mcnf))
             }
         }
-        InputFormat::Opb => {
-            if let Some(path) = path {
-                OptInstance::from_opb_path(path, opb_opts).map(|inst| (inst, WriteFormat::Opb))
-            } else {
-                OptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
-                    .map(|inst| (inst, WriteFormat::Opb))
-            }
+        InputFormat::Opb => if let Some(path) = path {
+            OptInstance::from_opb_path(path, opb_opts).map(|inst| (inst, WriteFormat::Opb))
+        } else {
+            OptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
+                .map(|inst| (inst, WriteFormat::Opb))
         }
+        .map_err(|e| e.into()),
     }
 }
 
