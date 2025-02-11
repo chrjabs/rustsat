@@ -21,10 +21,10 @@ edition = "2021"
 anyhow = "1.0.95"
 atty = "0.2.14"
 bindgen = "0.71.1"
-bzip2 = "0.5.0"
+bzip2 = "0.5.1"
 cc = { version = "1.2.13", features = ["parallel"] }
 chrono = "0.4.39"
-clap = { version = "4.5.28", features = ["derive", "cargo"] }
+clap = { version = "4.5.29", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
