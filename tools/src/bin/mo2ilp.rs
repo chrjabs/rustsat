@@ -152,7 +152,7 @@ fn parse_instance(
                 if is_one_of!(ext, "mcnf") {
                     MultiOptInstance::from_dimacs_path(path)
                 } else if is_one_of!(ext, "opb", "mopb", "pbmo") {
-                    MultiOptInstance::from_opb_path(path, opb_opts)
+                    MultiOptInstance::from_opb_path(path, opb_opts).map_err(|e| e.into())
                 } else {
                     anyhow::bail!("unknown file extension")
                 }
@@ -167,13 +167,12 @@ fn parse_instance(
                 MultiOptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
             }
         }
-        InputFormat::Opb => {
-            if let Some(path) = path {
-                MultiOptInstance::from_opb_path(path, opb_opts)
-            } else {
-                MultiOptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
-            }
+        InputFormat::Opb => if let Some(path) = path {
+            MultiOptInstance::from_opb_path(path, opb_opts)
+        } else {
+            MultiOptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
         }
+        .map_err(|e| e.into()),
     }
 }
 
