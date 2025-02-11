@@ -14,8 +14,12 @@ use thiserror::Error;
 
 pub mod constraints;
 pub use constraints::{Cl, Clause};
+use winnow::Parser;
 
-use crate::instances::fio::{self, SolverOutput};
+use crate::{
+    instances::fio::{self, ParsingError, SolverOutput},
+    utils,
+};
 
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
@@ -972,9 +976,15 @@ impl Assignment {
     fn extend_pb_comp_vline(&mut self, line: &str) -> anyhow::Result<()> {
         let line = &line[1..];
         for number in line.split_whitespace() {
-            let (_, lit) = fio::opb::literal(number, fio::opb::Options::default())
-                .map_err(nom::Err::<nom::error::Error<&str>>::to_owned)
-                .with_context(|| format!("failed to parse pb literal '{number}'"))?;
+            let lit = fio::opb::literal(fio::opb::Options::default())
+                .parse(number)
+                .map_err(|e| {
+                    ParsingError::from_parse_with_offset(
+                        e,
+                        line,
+                        utils::substr_offset(line, number).unwrap(),
+                    )
+                })?;
             let val = self.lit_value(lit);
             if val == TernaryVal::True && lit.is_neg() || val == TernaryVal::False && lit.is_pos() {
                 // Catch conflicting assignments

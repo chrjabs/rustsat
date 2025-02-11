@@ -8,6 +8,15 @@
 //!
 //! - [OPB](https://www.cril.univ-artois.fr/PB12/format.pdf)
 
+use std::io::{self, BufRead, Write};
+
+use winnow::{
+    ascii::{dec_int, dec_uint, line_ending, space0, space1, till_line_ending},
+    combinator::{alt, cut_err, dispatch, empty, eof, opt, preceded, repeat, seq},
+    error::{ContextError, ErrMode, StrContext},
+    ModalResult, Parser,
+};
+
 use crate::{
     instances::{ManageVars, SatInstance},
     types::{
@@ -15,26 +24,21 @@ use crate::{
         Cl, Clause, Lit, Var,
     },
 };
-use anyhow::Context;
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{anychar, i64, line_ending, space0, space1, u64},
-    combinator::{cut, eof, map, map_res, recognize},
-    error::Error as NomError,
-    multi::{many0, many1, many_till},
-    sequence::{pair, tuple},
-    IResult,
-};
-use std::{
-    io::{self, BufRead, Write},
-    num::TryFromIntError,
-};
 
 #[cfg(feature = "multiopt")]
 use crate::instances::MultiOptInstance;
 #[cfg(feature = "optimization")]
 use crate::instances::{Objective, OptInstance};
+
+use super::ParsingError;
+
+/// Trait for parsers used in this module
+pub(crate) trait OpbParser<'i, O>:
+    Parser<&'i str, O, ErrMode<ContextError<StrContext>>>
+{
+}
+
+impl<'i, P, O> OpbParser<'i, O> for P where P: Parser<&'i str, O, ErrMode<ContextError<StrContext>>> {}
 
 /// Options for reading and writing OPB files
 /// Possible relational operators
@@ -59,7 +63,7 @@ impl Default for Options {
 }
 
 /// Possible relational operators
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum OpbOperator {
     /// `<=`
     LE,
@@ -87,12 +91,20 @@ enum OpbData {
     ),
 }
 
+/// Parsing errors that can occurr
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+pub enum Error {
+    /// A variable index appearing in the parsed data is lower than the specified lowest index
+    #[error("found variable with index {0}, which is lower than lowest index {1}")]
+    VarIdxTooLow(u32, u32),
+}
+
 /// Parses the constraints from an OPB file as a [`SatInstance`]
 ///
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_sat<R, VM>(reader: &mut R, opts: Options) -> anyhow::Result<SatInstance<VM>>
+pub fn parse_sat<R, VM>(reader: &mut R, opts: Options) -> Result<SatInstance<VM>, super::Error>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -118,13 +130,11 @@ pub fn parse_opt_with_idx<R, VM>(
     reader: &mut R,
     obj_idx: usize,
     opts: Options,
-) -> anyhow::Result<OptInstance<VM>>
+) -> Result<OptInstance<VM>, super::Error>
 where
     R: BufRead,
     VM: ManageVars + Default,
 {
-    use super::ObjNoExist;
-
     let data = parse_opb_data(reader, opts)?;
     let mut sat_inst = SatInstance::<VM>::new();
     let mut obj_cnt = 0;
@@ -144,7 +154,7 @@ where
         }
     });
     if obj_cnt <= obj_idx {
-        Err(ObjNoExist(obj_cnt).into())
+        Err(super::Error::ObjNoExist(obj_cnt))
     } else {
         Ok(OptInstance::compose(sat_inst, obj))
     }
@@ -157,7 +167,10 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-pub fn parse_multi_opt<R, VM>(reader: &mut R, opts: Options) -> anyhow::Result<MultiOptInstance<VM>>
+pub fn parse_multi_opt<R, VM>(
+    reader: &mut R,
+    opts: Options,
+) -> Result<MultiOptInstance<VM>, super::Error>
 where
     R: BufRead,
     VM: ManageVars + Default,
@@ -174,186 +187,168 @@ where
 }
 
 /// Parses all OPB data of a reader
-fn parse_opb_data<R: BufRead>(reader: &mut R, opts: Options) -> anyhow::Result<Vec<OpbData>> {
+fn parse_opb_data<R: BufRead>(reader: &mut R, opts: Options) -> Result<Vec<OpbData>, super::Error> {
     let mut buf = String::new();
     let mut data = vec![];
     // TODO: consider not necessarily reading a full line
     while reader.read_line(&mut buf)? > 0 {
-        let (rem, new_data) = many0(|i| opb_data(i, opts))(&buf)
-            .map_err(nom::Err::<NomError<&str>>::to_owned)
-            .with_context(|| format!("failed to parse opb line '{buf}'"))?;
+        let new_data: Vec<_> = repeat(0.., opb_data(opts))
+            .parse(&buf)
+            .map_err(|e| ParsingError::from_parse(e, &buf))?;
         data.extend(new_data);
-        if rem.is_empty() {
-            buf.clear();
-        } else {
-            // continue with remainder, this allows for line breaks within constraints etc
-            // TODO: to work, this requires the opb_ending function to be adapted
-            buf = String::from(rem);
-        }
+        buf.clear();
+        // TODO: consider whether supporting data wrapping over a linebreak is worth it
     }
     Ok(data)
 }
 
 /// Matches an OPB comment
-fn comment(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
-        tag("*"),
-        alt((
-            recognize(many_till(anychar, line_ending)),
-            recognize(many0(anychar)),
-        )),
-    ))(input)
+fn comment<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    seq! { '*', till_line_ending, opt(line_ending) }
+        .take()
+        .parse_next(input)
 }
 
-/// Parses an OPB variable
-fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
-    let (input, _) = tag("x")(input)?;
-    map_res(u64, |idx| {
-        let idx = (TryInto::<u32>::try_into(idx)?) - opts.first_var_idx;
-        Ok::<Var, TryFromIntError>(Var::new(idx))
-    })(input)
-}
+/// Parser for variables with a given minimum variable index
+struct VarParser(u32);
 
-/// Parses a literal. The spec for linear OPB instances only allows for
-/// variables but we allow negated literals with `~` as in non-linear OPB
-/// instances.
-pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
-    match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
-        Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),
-        Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit()))(input),
+impl VarParser {
+    fn new(opts: Options) -> Self {
+        VarParser(opts.first_var_idx)
     }
 }
 
+impl<'i, E> Parser<&'i str, Var, E> for VarParser
+where
+    E: winnow::error::ParserError<&'i str>
+        + winnow::error::AddContext<&'i str, winnow::error::StrContext>
+        + winnow::error::FromExternalError<&'i str, Error>,
+{
+    fn parse_next(&mut self, input: &mut &'i str) -> winnow::Result<Var, E> {
+        preceded(
+            'x'.context(StrContext::Label("variable prefix")),
+            dec_uint::<&str, u32, _>.context(StrContext::Label("variable index")),
+        )
+        .try_map(|idx| {
+            if idx < self.0 {
+                return Err(Error::VarIdxTooLow(idx, self.0));
+            }
+            Ok(Var::new(idx - self.0))
+        })
+        .context(StrContext::Label("variable"))
+        .parse_next(input)
+    }
+}
+
+/// Generates a parser for literals with a given minimum variable index. The spec for linear OPB
+/// instances only allows for variables but we allow negated literals with `~` as in non-linear OPB
+/// instances.
+pub(crate) fn literal<'i>(opts: Options) -> impl OpbParser<'i, Lit> {
+    let neg = opt('~').map(|opt| opt.is_some());
+    (neg, VarParser::new(opts)).map(|(neg, var)| var.lit(neg))
+}
+
 /// Parses an OPB relational operator. We admit more operators than the spec.
-fn operator(input: &str) -> IResult<&str, OpbOperator> {
-    let (input, op_str) = alt((tag("<="), tag(">="), tag("<"), tag(">"), tag("=")))(input)?;
-    Ok((
-        input,
-        if op_str == "<=" {
-            OpbOperator::LE
-        } else if op_str == ">=" {
-            OpbOperator::GE
-        } else if op_str == "<" {
-            OpbOperator::LT
-        } else if op_str == ">" {
-            OpbOperator::GT
-        } else {
-            OpbOperator::EQ
-        },
-    ))
+fn operator(input: &mut &str) -> ModalResult<OpbOperator> {
+    dispatch! {alt(("<=", ">=", "<", ">", "="));
+        "<=" => empty.value(OpbOperator::LE),
+        ">=" => empty.value(OpbOperator::GE),
+        "<" => empty.value(OpbOperator::LT),
+        ">" => empty.value(OpbOperator::GT),
+        _ => empty.value(OpbOperator::EQ),
+    }
+    .parse_next(input)
 }
 
 /// Parses an OPB weight
-fn weight(input: &str) -> IResult<&str, isize> {
-    map_res(i64, TryInto::try_into)(input)
+fn coeff(input: &mut &str) -> ModalResult<isize> {
+    dec_int
+        .context(StrContext::Label("coefficient"))
+        .parse_next(input)
 }
 
 /// Parses an OPB weighted term
-fn weighted_literal(input: &str, opts: Options) -> IResult<&str, (Lit, isize)> {
-    map(
-        tuple((weight, cut(space1), cut(|i| literal(i, opts)), space0)),
-        |(w, _, l, _)| (l, w),
-    )(input)
+fn term<'i>(opts: Options) -> impl OpbParser<'i, (Lit, isize)> {
+    seq! { coeff, _: space1, literal(opts), _: space0 }.map(|(c, l)| (l, c))
 }
 
 /// Parses an OPB sum
-fn weighted_lit_sum(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
-    many1(|i| weighted_literal(i, opts))(input)
+fn term_sum<'i, Accumulator>(opts: Options) -> impl OpbParser<'i, Accumulator>
+where
+    Accumulator: winnow::stream::Accumulate<(Lit, isize)>,
+{
+    repeat(1.., term(opts))
 }
 
-#[cfg(feature = "optimization")]
 /// Parses a (potentially empty) OPB sum
-fn weighted_lit_sum0(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
-    many0(|i| weighted_literal(i, opts))(input)
+fn term_sum0<'i, Accumulator>(opts: Options) -> impl OpbParser<'i, Accumulator>
+where
+    Accumulator: winnow::stream::Accumulate<(Lit, isize)>,
+{
+    repeat(0.., term(opts))
 }
 
 /// Leniently parses OPB constraint or objective ending as ';' or a line ending
-fn opb_ending(input: &str) -> IResult<&str, &str> {
-    // TODO: potentially simplify with `cut`?
-    recognize(pair(
-        space0,
-        alt((
-            recognize(pair(
-                alt((
-                    recognize(tuple((tag(";"), space0, line_ending))),
-                    line_ending,
-                    tag(";"),
-                )),
-                space0,
-            )),
-            eof,
-        )),
-    ))(input)
+fn ending<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    (space0, opt(';'), space0, opt(alt((eof, line_ending))))
+        .verify(|p| p.1.is_some() || p.3.is_some())
+        .take()
+        .parse_next(input)
 }
 
 /// Parses an OPB constraint
-fn constraint(input: &str, opts: Options) -> IResult<&str, PbConstraint> {
-    map_res(
-        tuple((
-            |i| weighted_lit_sum(i, opts),
-            cut(operator),
-            space0,
-            cut(weight),
-            cut(opb_ending),
-        )),
-        |(wls, op, _, b, _)| {
-            let lits = wls.into_iter();
-            Ok::<_, ()>(match op {
-                OpbOperator::LE => PbConstraint::new_ub(lits, b),
-                OpbOperator::GE => PbConstraint::new_lb(lits, b),
-                OpbOperator::LT => PbConstraint::new_ub(lits, b + 1),
-                OpbOperator::GT => PbConstraint::new_lb(lits, b + 1),
-                OpbOperator::EQ => PbConstraint::new_eq(lits, b),
-            })
+fn constraint<'i>(opts: Options) -> impl OpbParser<'i, PbConstraint> {
+    seq! { term_sum::<Vec<(Lit, isize)>>(opts), cut_err(operator), _: space0, cut_err(coeff), _: ending }.map(
+        |(sum, opt, b)| match opt {
+            OpbOperator::LE => PbConstraint::new_ub(sum, b),
+            OpbOperator::GE => PbConstraint::new_lb(sum, b),
+            OpbOperator::LT => PbConstraint::new_ub(sum, b + 1),
+            OpbOperator::GT => PbConstraint::new_lb(sum, b + 1),
+            OpbOperator::EQ => PbConstraint::new_eq(sum, b),
         },
-    )(input)
+    )
 }
 
 #[cfg(feature = "optimization")]
 /// Parses an OPB objective
-fn objective(input: &str, opts: Options) -> IResult<&str, Objective> {
-    map_res(
-        tuple((
-            tag("min:"),
-            space0,
-            |i| weighted_lit_sum0(i, opts),
-            cut(opb_ending),
-        )),
-        |(_, _, wsl, _)| {
-            let mut obj = Objective::new();
-            wsl.into_iter()
-                .for_each(|(l, w)| obj.increase_soft_lit_int(w, l));
-            Ok::<_, ()>(obj)
-        },
-    )(input)
+fn objective<'i>(opts: Options) -> impl OpbParser<'i, Objective> {
+    seq! { _: "min:", _: space0, cut_err(term_sum0::<Objective>(opts)), _: cut_err(ending) }
+        .map(|(o,)| o)
+        .context(StrContext::Label("objective"))
 }
 
 #[cfg(not(feature = "optimization"))]
 /// Matches an OPB objective
-fn objective(input: &str, opts: Options) -> IResult<&str, &str> {
-    recognize(tuple((
-        tag("min:"),
+fn objective<'i>(opts: Options) -> impl OpbParser<'i, &'i str> {
+    (
+        "min:",
         space0,
-        |i| weighted_lit_sum(i, opts),
-        opb_ending,
-    )))(input)
+        cut_err(term_sum0::<()>(opts)),
+        cut_err(ending),
+    )
+        .take()
+        .context(StrContext::Label("objective"))
 }
 
 /// Top level string parser applied to lines
-fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
-    // remove leading spaces
-    let (input, _) = space0(input)?;
+fn opb_data<'i>(opts: Options) -> impl OpbParser<'i, OpbData> {
+    #[cfg(feature = "optimization")]
+    let parser = seq! {
+    _: space0,
     alt((
-        map(comment, |cmt| OpbData::Cmt(String::from(cmt))),
-        map(|i| constraint(i, opts), OpbData::Constr),
-        #[cfg(feature = "optimization")]
-        map(|i| objective(i, opts), OpbData::Obj),
-        #[cfg(not(feature = "optimization"))]
-        map(
-            |i| objective(i, opts),
-            |obj| OpbData::Obj(String::from(obj)),
-        ),
-    ))(input)
+        comment.map(|c| OpbData::Cmt(c.to_owned())),
+        constraint(opts).map(OpbData::Constr),
+        objective(opts).map(OpbData::Obj)
+    )).context(StrContext::Label("comment/constraint/objective")) };
+    #[cfg(not(feature = "optimization"))]
+    let parser = seq! {
+    _: space0,
+    alt((
+        comment.map(|c| OpbData::Cmt(c.to_owned())),
+        constraint(opts).map(OpbData::Constr),
+        objective(opts).map(|o| OpbData::Obj(o.to_owned()))
+    )).context(StrContext::Label("comment/constraint/objective")) };
+    parser.map(|(d,)| d)
 }
 
 /// Possible lines that can be written to OPB
@@ -850,8 +845,8 @@ mod test {
     use std::io::{Cursor, Seek};
 
     use super::{
-        comment, constraint, literal, objective, opb_ending, operator, variable, weight,
-        weighted_lit_sum, weighted_literal, write_clause, write_sat, OpbOperator, Options,
+        coeff, comment, constraint, ending, literal, objective, operator, term, term_sum, variable,
+        write_clause, write_sat, OpbOperator, Options,
     };
     use crate::{
         clause,
@@ -871,11 +866,11 @@ mod test {
 
     #[test]
     fn match_comment() {
-        assert_eq!(comment("* test\n"), Ok(("", "* test\n")));
-        assert_eq!(comment("* test"), Ok(("", "* test")));
-        assert_eq!(comment("*\n"), Ok(("", "*\n")));
+        assert_eq!(comment.parse_peek("* test\n"), Ok(("", "* test\n")));
+        assert_eq!(comment.parse_peek("* test"), Ok(("", "* test")));
+        assert_eq!(comment.parse_peek("*\n"), Ok(("", "*\n")));
         assert_eq!(
-            comment(" test\n"),
+            comment.parse_peek(" test\n"),
             Err(nom::Err::Error(NomError::new(" test\n", ErrorKind::Tag)))
         );
     }
@@ -883,25 +878,23 @@ mod test {
     #[test]
     fn parse_variable() {
         assert_eq!(
-            variable("x5 test", Options::default()),
+            variable(Options::default()).parse_peek("x5 test"),
             Ok((" test", var![4]))
         );
         assert_eq!(
-            variable(
-                "x5 test",
-                Options {
-                    first_var_idx: 0,
-                    no_negated_lits: true
-                }
-            ),
+            variable(Options {
+                first_var_idx: 0,
+                no_negated_lits: true
+            })
+            .peek("x5 test"),
             Ok((" test", var![5]))
         );
         assert_eq!(
-            variable("x2 test", Options::default()),
+            variable(Options::default()).parse_peek("x2 test"),
             Ok((" test", var![1]))
         );
         assert_eq!(
-            variable(" test\n", Options::default()),
+            variable(Options::default()).parse_peek(" test"),
             Err(nom::Err::Error(NomError::new(" test\n", ErrorKind::Tag)))
         );
     }
@@ -937,27 +930,27 @@ mod test {
 
     #[test]
     fn parse_weight() {
-        assert_eq!(weight("5 test"), Ok((" test", 5)));
-        assert_eq!(weight("+5 test"), Ok((" test", 5)));
-        assert_eq!(weight("-5 test"), Ok((" test", -5)));
+        assert_eq!(coeff("5 test"), Ok((" test", 5)));
+        assert_eq!(coeff("+5 test"), Ok((" test", 5)));
+        assert_eq!(coeff("-5 test"), Ok((" test", -5)));
     }
 
     #[test]
     fn parse_weighted_literal() {
         assert_eq!(
-            weighted_literal("5 x1 test", Options::default()),
+            term("5 x1 test", Options::default()),
             Ok(("test", (lit![0], 5)))
         );
         assert_eq!(
-            weighted_literal("-5  x1 test", Options::default()),
+            term("-5  x1 test", Options::default()),
             Ok(("test", (lit![0], -5)))
         );
         assert_eq!(
-            weighted_literal("5 ~x1  test", Options::default()),
+            term("5 ~x1  test", Options::default()),
             Ok(("test", (!lit![0], 5)))
         );
         assert_eq!(
-            weighted_literal("-5 ~x1 test", Options::default()),
+            term("-5 ~x1 test", Options::default()),
             Ok(("test", (!lit![0], -5)))
         );
     }
@@ -965,17 +958,17 @@ mod test {
     #[test]
     fn parse_weighted_lit_sum() {
         assert_eq!(
-            weighted_lit_sum("5  x1    -3 ~x2  test", Options::default()),
+            term_sum("5  x1    -3 ~x2  test", Options::default()),
             Ok(("test", vec![(lit![0], 5), (!lit![1], -3)]))
         );
     }
 
     #[test]
     fn parse_opb_ending() {
-        assert_eq!(opb_ending("   ; test"), Ok(("test", "   ; ")));
-        assert_eq!(opb_ending("   \n test"), Ok(("test", "   \n ")));
-        assert_eq!(opb_ending("  ; \n test"), Ok(("test", "  ; \n ")));
-        assert_eq!(opb_ending("  "), Ok(("", "  ")));
+        assert_eq!(ending("   ; test"), Ok(("test", "   ; ")));
+        assert_eq!(ending("   \n test"), Ok(("test", "   \n ")));
+        assert_eq!(ending("  ; \n test"), Ok(("test", "  ; \n ")));
+        assert_eq!(ending("  "), Ok(("", "  ")));
     }
 
     #[test]
