@@ -448,7 +448,29 @@ impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
                     if oidx >= inst.objs.len() {
                         inst.objs.resize(oidx + 1, Objective::default());
                     }
+                    for l in &cl {
+                        inst.constraints_mut().var_manager_mut().mark_used(l.var());
+                    }
                     inst.objective_mut(oidx).add_soft_clause(w, cl);
+                }
+            }
+        }
+        inst
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<fio::opb::Data> for MultiOptInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = fio::opb::Data>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        for data in iter {
+            match data {
+                fio::opb::Data::Cmt(_) => {}
+                fio::opb::Data::Constr(constr) => inst.constraints_mut().add_pb_constr(constr),
+                fio::opb::Data::Obj(objective) => {
+                    if let Some(max_var) = objective.max_var() {
+                        inst.constraints_mut().var_manager_mut().mark_used(max_var);
+                    }
+                    inst.objs.push(objective);
                 }
             }
         }

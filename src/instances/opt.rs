@@ -1435,22 +1435,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
         reader: &mut R,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::Error> {
-        Self::from_opb_with_idx(reader, 0, opts)
-    }
-
-    /// Parses an OPB instance from a reader object, selecting the objective
-    /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`Instance::from_opb`].
-    ///
-    /// # Errors
-    ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb_with_idx<R: io::BufRead>(
-        reader: &mut R,
-        obj_idx: usize,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::Error> {
-        fio::opb::parse_opt_with_idx(reader, obj_idx, opts)
+        fio::opb::parse_opt(reader, opts)
     }
 
     /// Parses an OPB instance from a file path. For more details see
@@ -1466,24 +1451,6 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(&mut reader, opts)
-    }
-
-    /// Parses an OPB instance from a file path, selecting the objective with
-    /// index `obj_idx` if multiple are available. The index starts at 0. For
-    /// more details see [`Instance::from_opb`]. With feature
-    /// `compression` supports bzip2 and gzip compression, detected by the file
-    /// extension.
-    ///
-    /// # Errors
-    ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb_path_with_idx<P: AsRef<Path>>(
-        path: P,
-        obj_idx: usize,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::Error> {
-        let mut reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_opb_with_idx(&mut reader, obj_idx, opts)
     }
 
     /// Solves the instance with a [`maxsat::Solve`] algorithm
