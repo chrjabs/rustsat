@@ -1,0 +1,8 @@
+---
+source: src/instances/fio/opb.rs
+expression: "* test\n5 x1 -3 x2 >= 4;\nmin: x1;"
+---
+Parsing error: error: invalid objective
+  ╭▸ 
+3 │ min: x1;
+  ╰╴     ━ here

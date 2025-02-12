@@ -1061,6 +1061,32 @@ impl<VM: ManageVars + Default> FromIterator<CnfLine> for Instance<VM> {
     }
 }
 
+impl<VM: ManageVars + Default> FromIterator<PbConstraint> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = PbConstraint>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        iter.into_iter()
+            .for_each(|constr| inst.add_pb_constr(constr));
+        inst
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<CardConstraint> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = CardConstraint>>(iter: T) -> Self {
+        let mut inst = Self::default();
+        iter.into_iter()
+            .for_each(|constr| inst.add_card_constr(constr));
+        inst
+    }
+}
+
+impl<VM: ManageVars + Default> FromIterator<fio::opb::Data> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = fio::opb::Data>>(iter: T) -> Self {
+        iter.into_iter()
+            .filter_map(fio::opb::Data::constraint)
+            .collect()
+    }
+}
+
 impl<VM: ManageVars + Default> From<Cnf> for Instance<VM> {
     fn from(value: Cnf) -> Self {
         let mut inst = Self {

@@ -77,6 +77,7 @@
             LD_LIBRARY_PATH = lib.makeLibraryPath libs;
             CARGO_PROFILE = "";
             NEXTEST_PROFILE = "ci";
+            CI = "true";
           };
           cargoArtifacts = craneLib.buildDepsOnly (
             commonArgs
@@ -447,6 +448,7 @@
                   # keep-sorted start
                   cargo-deny
                   cargo-hack
+                  cargo-insta
                   cargo-llvm-cov
                   cargo-machete
                   cargo-nextest

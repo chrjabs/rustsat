@@ -1025,10 +1025,11 @@ impl Assignment {
             let lit = fio::opb::literal(fio::opb::Options::default())
                 .parse(number)
                 .map_err(|e| {
-                    ParsingError::from_parse_with_offset(
+                    ParsingError::from_parse(
                         e,
                         line,
                         utils::substr_offset(line, number).unwrap(),
+                        1,
                     )
                 })?;
             let val = self.lit_value(lit);
