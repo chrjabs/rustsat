@@ -1316,7 +1316,6 @@ dependencies = [
  "gungraun",
  "insta",
  "itertools 0.14.0",
- "nom",
  "pigeons",
  "rand",
  "rustc-hash",

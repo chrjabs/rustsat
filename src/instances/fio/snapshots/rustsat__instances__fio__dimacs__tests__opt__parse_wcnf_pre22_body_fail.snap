@@ -1,0 +1,8 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "42 1 2 0\n10 -3 four 5 0\n"
+---
+Parsing error: error: invalid clause ending
+  ╭▸ 
+2 │ 10 -3 four 5 0
+  ╰╴      ━ here

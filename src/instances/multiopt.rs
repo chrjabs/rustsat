@@ -386,9 +386,27 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
-        fio::dimacs::parse_mcnf(reader)
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
+        let mut constrs = SatInstance::<VM>::default();
+        let mut objs = vec![];
+        for data in fio::dimacs::Parser::<fio::dimacs::Mcnf, _>::new(reader) {
+            match data? {
+                fio::dimacs::McnfData::HardClause(clause) => constrs.add_clause(clause),
+                fio::dimacs::McnfData::SoftClause {
+                    obj_idx,
+                    weight,
+                    clause,
+                } => {
+                    if obj_idx > objs.len() {
+                        objs.resize(obj_idx, Objective::new());
+                    }
+                    objs[obj_idx - 1].increase_soft_clause(weight, clause);
+                }
+                fio::dimacs::McnfData::Comment(_) => (),
+            }
+        }
+        Ok(Self::compose(constrs, objs))
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
@@ -396,8 +414,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(&mut reader)
     }

@@ -1,0 +1,8 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "c p cnf 5 2\n1 2 0\n-3 4 5 0\n"
+---
+Parsing error: error: invalid cnf p-line
+  ╭▸ 
+2 │ 1 2 0
+  ╰╴━ here

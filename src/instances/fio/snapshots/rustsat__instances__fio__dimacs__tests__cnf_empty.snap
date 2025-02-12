@@ -1,0 +1,8 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "c test\n"
+---
+Parsing error: error: missing CNF header
+  ╭▸ 
+2 │
+  ╰╴━ here

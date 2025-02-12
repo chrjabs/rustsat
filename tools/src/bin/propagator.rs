@@ -65,7 +65,7 @@ fn parse_instance(
     file_format: InputFormat,
     opb_opts: fio::opb::Options,
 ) -> anyhow::Result<SatInstance> {
-    match file_format {
+    Ok(match file_format {
         InputFormat::Infer => {
             if let Some(path) = path {
                 if let Some(ext) = path.extension() {
@@ -80,9 +80,9 @@ fn parse_instance(
                         ext
                     };
                     if is_one_of!(ext, "cnf") {
-                        SatInstance::from_dimacs_path(path)
+                        SatInstance::from_dimacs_path(path)?
                     } else if is_one_of!(ext, "opb", "pbmo", "mopb") {
-                        SatInstance::from_opb_path(path, opb_opts).map_err(|e| e.into())
+                        SatInstance::from_opb_path(path, opb_opts)?
                     } else {
                         anyhow::bail!("unknown file extension")
                     }
@@ -95,18 +95,19 @@ fn parse_instance(
         }
         InputFormat::Cnf => {
             if let Some(path) = path {
-                SatInstance::from_dimacs_path(path)
+                SatInstance::from_dimacs_path(path)?
             } else {
-                SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+                SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?
             }
         }
-        InputFormat::Opb => if let Some(path) = path {
-            SatInstance::from_opb_path(path, opb_opts)
-        } else {
-            SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
+        InputFormat::Opb => {
+            if let Some(path) = path {
+                SatInstance::from_opb_path(path, opb_opts)?
+            } else {
+                SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)?
+            }
         }
-        .map_err(|e| e.into()),
-    }
+    })
 }
 
 fn parse_assumps(strings: &[String], opb_opts: fio::opb::Options) -> anyhow::Result<Vec<Lit>> {
@@ -118,8 +119,6 @@ fn parse_assumps(strings: &[String], opb_opts: fio::opb::Options) -> anyhow::Res
                     .with_context(|| format!("failed to parse assumption '{lit}' as OPB literal"));
             }
             fio::dimacs::parse_lit(lit)
-                .map(|(_, l)| l)
-                .map_err(nom::Err::<nom::error::Error<&str>>::to_owned)
                 .with_context(|| format!("failed to parse assumption '{lit}' as DIMACS literal"))
         })
         .collect()

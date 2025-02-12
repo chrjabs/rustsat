@@ -20,8 +20,6 @@ use crate::{
     RequiresClausal,
 };
 
-use anyhow::Context;
-
 use super::{
     fio::{self, dimacs::CnfLine},
     BasicVarManager, ManageVars, ReindexVars,
@@ -333,12 +331,7 @@ impl FromIterator<Clause> for Cnf {
 
 impl FromIterator<CnfLine> for Cnf {
     fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        iter.into_iter()
-            .filter_map(|line| match line {
-                CnfLine::Comment(_) => None,
-                CnfLine::Clause(cl) => Some(cl),
-            })
-            .collect()
+        iter.into_iter().filter_map(CnfLine::clause).collect()
     }
 }
 
@@ -984,9 +977,20 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
-        fio::dimacs::parse_cnf(reader)
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
+        let header_data =
+            fio::dimacs::Parser::<fio::dimacs::CnfHeader, _>::new(reader).forward_to_body()?;
+        let mut inst = Self::default();
+        inst.var_manager_mut()
+            .increase_next_free(Var::new(header_data.n_vars));
+        for data in header_data.body_parser {
+            match data? {
+                fio::dimacs::CnfData::Clause(clause) => inst.add_clause(clause),
+                fio::dimacs::CnfData::Comment(_) => (),
+            }
+        }
+        Ok(inst)
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
@@ -995,10 +999,9 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let mut reader =
-            fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Instance::from_dimacs(&mut reader)
     }
 

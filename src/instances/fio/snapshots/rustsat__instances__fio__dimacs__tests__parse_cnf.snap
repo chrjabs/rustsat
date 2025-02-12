@@ -1,0 +1,18 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "p cnf 5 2\n1 2 0\n-3 4 5 0\n"
+---
+cnf:
+  clauses:
+    - lits:
+        - lidx: 0
+        - lidx: 2
+    - lits:
+        - lidx: 5
+        - lidx: 6
+        - lidx: 8
+cards: []
+pbs: []
+var_manager:
+  next_var:
+    idx: 5

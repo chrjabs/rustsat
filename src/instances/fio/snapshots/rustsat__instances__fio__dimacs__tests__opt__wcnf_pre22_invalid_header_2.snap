@@ -1,0 +1,8 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "p wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n"
+---
+Parsing error: error: invalid wcnf p-line
+  ╭▸ 
+1 │ p wcnf five 2 42
+  ╰╴       ━ here

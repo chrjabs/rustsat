@@ -1,0 +1,16 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "h 1 2 0\no2 10 -3 4 5 0\n"
+---
+- HardClause:
+    lits:
+      - lidx: 0
+      - lidx: 2
+- SoftClause:
+    obj_idx: 2
+    weight: 10
+    clause:
+      lits:
+        - lidx: 5
+        - lidx: 6
+        - lidx: 8

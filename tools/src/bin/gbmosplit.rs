@@ -566,11 +566,11 @@ fn parse_instance(
                         ext
                     };
                     if is_one_of!(ext, "wcnf") {
-                        OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
+                        Ok(OptInstance::from_dimacs_path(path)
+                            .map(|inst| (inst, WriteFormat::Mcnf))?)
                     } else if is_one_of!(ext, "opb") {
-                        OptInstance::from_opb_path(path, opb_opts)
-                            .map(|inst| (inst, WriteFormat::Opb))
-                            .map_err(|e| e.into())
+                        Ok(OptInstance::from_opb_path(path, opb_opts)
+                            .map(|inst| (inst, WriteFormat::Opb))?)
                     } else {
                         anyhow::bail!("unknown file extension")
                     }
@@ -581,21 +581,18 @@ fn parse_instance(
                 anyhow::bail!("cannot infer file format from stdin")
             }
         }
-        InputFormat::Wcnf => {
-            if let Some(path) = path {
-                OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
-            } else {
-                OptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
-                    .map(|inst| (inst, WriteFormat::Mcnf))
-            }
-        }
-        InputFormat::Opb => if let Some(path) = path {
+        InputFormat::Wcnf => Ok(if let Some(path) = path {
+            OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
+        } else {
+            OptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+                .map(|inst| (inst, WriteFormat::Mcnf))
+        }?),
+        InputFormat::Opb => Ok(if let Some(path) = path {
             OptInstance::from_opb_path(path, opb_opts).map(|inst| (inst, WriteFormat::Opb))
         } else {
             OptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
                 .map(|inst| (inst, WriteFormat::Opb))
-        }
-        .map_err(|e| e.into()),
+        }?),
     }
 }
 

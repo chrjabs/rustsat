@@ -92,7 +92,6 @@ anyhow.workspace = true
 bzip2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 itertools.workspace = true
-nom.workspace = true
 pigeons = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 rustc-hash = { workspace = true, optional = true }

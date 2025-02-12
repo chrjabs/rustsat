@@ -1002,7 +1002,7 @@ impl Assignment {
     ///
     /// # Errors
     ///
-    /// [`InvalidVLine`] or parsing error, or [`nom::error::Error`]
+    /// [`InvalidVLine`] or if parsing fails.
     pub fn from_vline(line: &str) -> anyhow::Result<Self> {
         let mut assignment = Assignment::default();
         assignment.extend_from_vline(line)?;

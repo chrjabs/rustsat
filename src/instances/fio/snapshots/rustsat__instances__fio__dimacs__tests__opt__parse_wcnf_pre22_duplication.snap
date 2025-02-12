@@ -1,0 +1,25 @@
+---
+source: src/instances/fio/dimacs.rs
+expression: "p wcnf 3 5 42\n1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\n42 -3 0\n"
+---
+constrs:
+  cnf:
+    clauses:
+      - lits:
+          - lidx: 5
+  cards: []
+  pbs: []
+  var_manager:
+    next_var:
+      idx: 3
+obj:
+  Weighted:
+    offset: 0
+    soft_lits:
+      ? lidx: 4
+      : 10
+    soft_clauses:
+      ? lits:
+          - lidx: 0
+          - lidx: 2
+      : 2

@@ -1075,7 +1075,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// Creates a new optimization instance from constraints and an objective
     pub fn compose(mut constraints: SatInstance<VM>, objective: Objective) -> Self {
         if let Some(mv) = objective.max_var() {
-            constraints.var_manager_mut().increase_next_free(mv);
+            constraints.var_manager_mut().increase_next_free(mv + 1);
         }
         Instance {
             constrs: constraints,
@@ -1344,23 +1344,45 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
-        Self::from_dimacs_with_idx(reader, 0)
-    }
-
-    /// Parses a DIMACS instance from a reader object, selecting the objective
-    /// with index `obj_idx` if multiple are available. The index starts at 0.
-    /// For more details see [`Instance::from_dimacs`].
-    ///
-    /// # Errors
-    ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_with_idx<R: io::BufRead>(
-        reader: &mut R,
-        obj_idx: usize,
-    ) -> anyhow::Result<Self> {
-        fio::dimacs::parse_wcnf_with_idx(reader, obj_idx)
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
+        let header_data =
+            fio::dimacs::Parser::<fio::dimacs::WcnfHeader, _>::new(reader).forward_to_body()?;
+        let mut constrs = SatInstance::<VM>::default();
+        let mut obj = Objective::default();
+        match header_data {
+            fio::dimacs::WcnfHeaderData::Pre22 {
+                n_vars,
+                body_parser,
+                ..
+            } => {
+                constrs
+                    .var_manager_mut()
+                    .increase_next_free(Var::new(n_vars));
+                for data in body_parser {
+                    match data? {
+                        fio::dimacs::WcnfData::HardClause(clause) => constrs.add_clause(clause),
+                        fio::dimacs::WcnfData::SoftClause { weight, clause } => {
+                            obj.increase_soft_clause(weight, clause);
+                        }
+                        fio::dimacs::WcnfData::Comment(_) => (),
+                    }
+                }
+            }
+            fio::dimacs::WcnfHeaderData::Post22(parser) => {
+                for data in parser {
+                    match data? {
+                        fio::dimacs::WcnfData::HardClause(clause) => constrs.add_clause(clause),
+                        fio::dimacs::WcnfData::SoftClause { weight, clause } => {
+                            obj.increase_soft_clause(weight, clause);
+                        }
+                        fio::dimacs::WcnfData::Comment(_) => (),
+                    }
+                }
+            }
+            fio::dimacs::WcnfHeaderData::Empty(_) => (),
+        }
+        Ok(Self::compose(constrs, obj))
     }
 
     /// Parses a DIMACS instance from a file path. For more details see
@@ -1369,25 +1391,10 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(&mut reader)
-    }
-
-    /// Parses a DIMACS instance from a file path. For more details see
-    /// [`Instance::from_dimacs_with_idx`]. With feature `compression` supports
-    /// bzip2 and gzip compression, detected by the file extension.
-    ///
-    /// # Errors
-    ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_path_with_idx<P: AsRef<Path>>(
-        path: P,
-        obj_idx: usize,
-    ) -> anyhow::Result<Self> {
-        let mut reader = fio::open_compressed_uncompressed_read(path)?;
-        Self::from_dimacs_with_idx(&mut reader, obj_idx)
     }
 
     /// Parses an OPB instance from a reader object.

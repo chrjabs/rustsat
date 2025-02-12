@@ -10,504 +10,800 @@
 //! - [DIMACS WCNF pre-22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post-22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
-use crate::{
-    instances::{Cnf, ManageVars, SatInstance},
-    types::{Cl, Clause, Lit, Var},
-};
-use anyhow::Context;
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{i32, line_ending, multispace0, multispace1, u32, u64},
-    combinator::{all_consuming, map, map_res, recognize, success},
-    error::{context, Error as NomError},
-    multi::separated_list0,
-    sequence::{pair, terminated, tuple},
-    IResult,
-};
-use std::{
-    convert::TryFrom,
-    io::{self, BufRead, Write},
-};
-use thiserror::Error;
+use std::io::{self, Write};
 
-#[cfg(feature = "multiopt")]
-use crate::instances::MultiOptInstance;
-#[cfg(feature = "optimization")]
-use crate::instances::{Objective, OptInstance};
+use winnow::{
+    ascii::{dec_int, dec_uint, line_ending, space0, space1, till_line_ending},
+    combinator::{alt, cut_err, eof, opt, separated, seq, terminated},
+    error::StrContext,
+    ModalResult, Parser as _,
+};
+
+use crate::{
+    instances::Cnf,
+    types::{Cl, Clause, Lit},
+    utils,
+};
+
+use super::ParsingError;
+
 #[cfg(feature = "optimization")]
 use crate::types::WClsIter;
-#[cfg(feature = "optimization")]
-use nom::sequence::separated_pair;
 
-#[cfg(feature = "optimization")]
-type BodyContent<VM> = (SatInstance<VM>, Vec<Objective>);
-#[cfg(not(feature = "optimization"))]
-type BodyContent<VM> = SatInstance<VM>;
-
-/// An error for when an invalid p line is encountered
-#[derive(Error, Debug, PartialEq, Eq, Clone)]
-#[error("invalid p line '{0}'")]
-pub struct InvalidPLine(String);
-
-/// Parses a CNF instance from a reader (typically a (compressed) file)
+/// The main OPB parser iterator
 ///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-pub fn parse_cnf<R, VM>(reader: &mut R) -> anyhow::Result<SatInstance<VM>>
-where
-    R: BufRead,
-    VM: ManageVars + Default,
-{
-    let content = parse_dimacs(reader)?;
-    #[cfg(not(feature = "optimization"))]
+/// Different parser variants are identified via the `Variant` generic type
+#[derive(Debug)]
+pub struct Parser<Variant, R> {
+    /// The parser variant
+    variant: Variant,
+    /// Where input data is coming from
+    reader: R,
+    /// Buffer of read data
+    buffer: String,
+    /// The current line number
+    line_num: usize,
+}
+
+impl<Variant, R> Parser<Variant, R> {
+    /// Creates a new parser iterator from a reader and parsing settings
+    pub fn new(reader: R) -> Self
+    where
+        Variant: Default,
+        R: io::BufRead,
     {
-        Ok(content)
+        Self {
+            variant: Variant::default(),
+            reader,
+            buffer: String::new(),
+            line_num: 0,
+        }
     }
-    #[cfg(feature = "optimization")]
+
+    /// Destroys the parser and gets back the reader
+    pub fn reader(self) -> R {
+        self.reader
+    }
+
+    /// Loads the next non-empty line into the buffer
+    fn read_line(&mut self) -> io::Result<bool>
+    where
+        R: io::BufRead,
     {
-        Ok(content.0)
+        debug_assert!(self.buffer.is_empty());
+        loop {
+            let read = self.reader.read_line(&mut self.buffer)?;
+            if read == 0 {
+                return Ok(true);
+            }
+            self.line_num += 1;
+            if !self.buffer.trim().is_empty() {
+                return Ok(false);
+            }
+            // tollerate empty lines
+            self.buffer.clear();
+        }
     }
 }
 
+/// Data returned at the transition from a CNF header to the body
+#[derive(Debug)]
+pub struct CnfHeaderData<R> {
+    /// The number of variables in the file, as specified by the file header
+    pub n_vars: u32,
+    /// The number of clauses in the file, as specified by the file header
+    pub n_clauses: usize,
+    /// The CNF body parser to parse the rest of the file
+    pub body_parser: Parser<CnfBody, R>,
+}
+
+/// Identifier type for the CNF header parser variant
+///
+/// This parser allows for iterating of all comment lines before the CNF header and then
+/// transitions to a [`Parser<CnfBody, R>`].
+#[derive(Debug, Default)]
+pub struct CnfHeader {
+    /// The data in the CNF header, if it has been encountered already
+    header_data: Option<(u32, usize)>,
+}
+
+impl<R> Parser<CnfHeader, R>
+where
+    R: io::BufRead,
+{
+    /// Transitions the parser to the CNF body
+    ///
+    /// If not all comment lines before the header have been iterated over, they will be silently
+    /// consumed
+    ///
+    /// # Errors
+    ///
+    /// If file access fails, the file ends before a CNF header is found, or an invalid header is
+    /// encountered.
+    #[expect(clippy::missing_panics_doc)]
+    pub fn forward_to_body(mut self) -> Result<CnfHeaderData<R>, super::Error> {
+        debug_assert!(self.buffer.is_empty());
+        if let Some((n_vars, n_clauses)) = self.variant.header_data {
+            return Ok(CnfHeaderData {
+                n_vars,
+                n_clauses,
+                body_parser: Parser {
+                    variant: CnfBody::default(),
+                    reader: self.reader,
+                    buffer: self.buffer,
+                    line_num: self.line_num,
+                },
+            });
+        }
+        let mut trimmed_line;
+        loop {
+            if self.read_line()? {
+                return Err(ParsingError::new(
+                    String::from("missing CNF header"),
+                    &self.buffer,
+                    self.buffer.len(),
+                    self.line_num + 1,
+                )
+                .into());
+            }
+            trimmed_line = self.buffer.trim();
+            if !trimmed_line.starts_with('c') {
+                break;
+            }
+            self.buffer.clear();
+        }
+        let (n_vars, n_clauses) = match cnf_p_line.parse(trimmed_line) {
+            Err(err) => {
+                return Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    // NOTE: `trimmed_line` is always part of `self.buffer`, so this will never
+                    // panic
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into());
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+        Ok(CnfHeaderData {
+            n_vars,
+            n_clauses,
+            body_parser: Parser {
+                variant: CnfBody::default(),
+                reader: self.reader,
+                buffer: self.buffer,
+                line_num: self.line_num,
+            },
+        })
+    }
+}
+
+#[derive(Debug)]
+enum CnfHeaderLine {
+    Comment(String),
+    Header(u32, usize),
+}
+
+impl<R> Iterator for Parser<CnfHeader, R>
+where
+    R: io::BufRead,
+{
+    type Item = Result<String, super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.variant.header_data.is_some() {
+            return None;
+        }
+        match self.read_line() {
+            Err(err) => return Some(Err(err.into())),
+            Ok(true) => return None,
+            Ok(_) => (),
+        }
+
+        let trimmed_line = self.buffer.trim();
+        let data = match alt((
+            comment.map(|c| CnfHeaderLine::Comment(c.to_owned())),
+            cnf_p_line.map(|(n_vars, n_clauses)| CnfHeaderLine::Header(n_vars, n_clauses)),
+        ))
+        .context(StrContext::Label("cnf header line"))
+        .parse(trimmed_line)
+        {
+            Err(err) => {
+                return Some(Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into()))
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+        match data {
+            CnfHeaderLine::Comment(comment) => Some(Ok(comment)),
+            CnfHeaderLine::Header(n_vars, n_clauses) => {
+                self.variant.header_data = Some((n_vars, n_clauses));
+                None
+            }
+        }
+    }
+}
+
+/// Data that can appear in a CNF file body
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum CnfData {
+    /// An input clause
+    Clause(Clause),
+    /// A comment line in the CNF body
+    Comment(String),
+}
+
+/// Identifier type for the CNF body parser variant
+#[derive(Debug, Default)]
+pub struct CnfBody();
+
+impl<R> Iterator for Parser<CnfBody, R>
+where
+    R: io::BufRead,
+{
+    type Item = Result<CnfData, super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.read_line() {
+            Err(err) => return Some(Err(err.into())),
+            Ok(true) => return None,
+            Ok(_) => (),
+        }
+
+        let trimmed_line = self.buffer.trim();
+        let data = match alt((
+            comment.map(|c| CnfData::Comment(c.to_owned())),
+            clause.map(CnfData::Clause),
+        ))
+        .context(StrContext::Label("cnf body line"))
+        .parse(trimmed_line)
+        {
+            Err(err) => {
+                return Some(Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into()))
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+
+        Some(Ok(data))
+    }
+}
+
+/// Data returned at the transition from a WCNF header to the body
 #[cfg(feature = "optimization")]
-/// Parses a WCNF instance (old or new format) from a reader (typically a
-/// (compressed) file). The objective with the index `obj_idx` is used.
-///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-pub fn parse_wcnf_with_idx<R, VM>(reader: &mut R, obj_idx: usize) -> anyhow::Result<OptInstance<VM>>
-where
-    R: BufRead,
-    VM: ManageVars + Default,
-{
-    use super::ObjNoExist;
-
-    let (constrs, mut objs) = parse_dimacs(reader)?;
-    if objs.is_empty() {
-        objs.push(Objective::default());
-    }
-    let objs_len = objs.len();
-    if let Some(obj) = objs.into_iter().nth(obj_idx) {
-        Ok(OptInstance::compose(constrs, obj))
-    } else {
-        anyhow::bail!(ObjNoExist(objs_len))
-    }
-}
-
-#[cfg(feature = "multiopt")]
-/// Parses a MCNF instance (old or new format) from a reader (typically a (compressed) file)
-///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-pub fn parse_mcnf<R, VM>(reader: &mut R) -> anyhow::Result<MultiOptInstance<VM>>
-where
-    R: BufRead,
-    VM: ManageVars + Default,
-{
-    let (constrs, objs) = parse_dimacs(reader)?;
-    Ok(MultiOptInstance::compose(constrs, objs))
-}
-
-/// Internal type of possible preambles
-#[derive(PartialEq, Debug)]
-enum Preamble {
-    Cnf {
+#[derive(Debug)]
+pub enum WcnfHeaderData<R> {
+    /// The file was determined to be in pre-2022 format
+    Pre22 {
+        /// The number of variables in the file, as specified by the file header
         n_vars: u32,
+        /// The number of clauses in the file, as specified by the file header
         n_clauses: usize,
+        /// The top value of the WCNF file
+        top: usize,
+        /// The WCNF body parser to parse the rest of the file
+        body_parser: Parser<WcnfPre22Body, R>,
     },
-    #[cfg(feature = "optimization")]
-    WcnfPre22 {
+    /// The file was determined to be in post-2022 format
+    Post22(Parser<WcnfPost22, R>),
+    /// Neither a pre-2022 header, nor a post-2022 clause was encountered before the file ended
+    Empty(R),
+}
+
+#[cfg(feature = "optimization")]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug)]
+enum WcnfInternalHeaderData {
+    Pre22 {
         n_vars: u32,
         n_clauses: usize,
         top: usize,
     },
-    #[cfg(feature = "optimization")]
-    NoPLine {
-        first_line: String,
-    },
+    Post22(WcnfData),
+    Empty,
 }
 
-/// Top level parser
+/// Identifier type for the WCNF header parser variant
 ///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-fn parse_dimacs<R, VM>(reader: &mut R) -> anyhow::Result<BodyContent<VM>>
+/// This parser allows for iterating of all comment lines before the CNF header and then
+/// transitions to either [`Parser<WcnfPre22Body, R>`] or [`Parser<WcnfPost22Body, R>`], where the
+/// file type variant is detected from the header.
+#[cfg(feature = "optimization")]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Default)]
+pub struct WcnfHeader {
+    /// The data in the CNF header, if it has been encountered already
+    header_data: Option<WcnfInternalHeaderData>,
+}
+
+#[cfg(feature = "optimization")]
+impl<R> Parser<WcnfHeader, R>
 where
-    R: BufRead,
-    VM: ManageVars + Default,
+    R: io::BufRead,
 {
-    let preamble = parse_preamble(reader)?;
-    let mut vm = VM::default();
-    let content = match preamble {
-        Preamble::Cnf {
-            n_vars,
-            n_clauses: _, // Intentionally ignored (lean acceptance)
-        } => {
-            vm.increase_next_free(Var::new(n_vars));
-            parse_cnf_body(reader, vm)
+    /// Transitions the parser to the CNF body
+    ///
+    /// If not all comment lines before the header have been iterated over, they will be silently
+    /// consumed
+    ///
+    /// # Errors
+    ///
+    /// If file access fails, the file ends before a CNF header is found, or an invalid header is
+    /// encountered.
+    #[expect(clippy::missing_panics_doc)]
+    pub fn forward_to_body(mut self) -> Result<WcnfHeaderData<R>, super::Error> {
+        debug_assert!(self.buffer.is_empty());
+        if let Some(header_data) = self.variant.header_data {
+            return Ok(match header_data {
+                WcnfInternalHeaderData::Pre22 {
+                    n_vars,
+                    n_clauses,
+                    top,
+                } => WcnfHeaderData::Pre22 {
+                    n_vars,
+                    n_clauses,
+                    top,
+                    body_parser: Parser {
+                        variant: WcnfPre22Body { top },
+                        reader: self.reader,
+                        buffer: self.buffer,
+                        line_num: self.line_num,
+                    },
+                },
+                WcnfInternalHeaderData::Post22(data) => WcnfHeaderData::Post22(Parser {
+                    variant: WcnfPost22(Some(data)),
+                    reader: self.reader,
+                    buffer: self.buffer,
+                    line_num: self.line_num,
+                }),
+                WcnfInternalHeaderData::Empty => WcnfHeaderData::Empty(self.reader),
+            });
         }
-        #[cfg(feature = "optimization")]
-        Preamble::WcnfPre22 {
+        let mut trimmed_line;
+        loop {
+            if self.read_line()? {
+                return Ok(WcnfHeaderData::Empty(self.reader));
+            }
+            trimmed_line = self.buffer.trim();
+            if !trimmed_line.starts_with('c') {
+                break;
+            }
+            self.buffer.clear();
+        }
+        let post22_data = alt((
+            hard_clause.map(WcnfData::HardClause),
+            soft_clause.map(|(weight, clause)| WcnfData::SoftClause { weight, clause }),
+        ))
+        .parse(trimmed_line)
+        .ok();
+        if let Some(data) = post22_data {
+            self.buffer.clear();
+            return Ok(WcnfHeaderData::Post22(Parser {
+                variant: WcnfPost22(Some(data)),
+                reader: self.reader,
+                buffer: self.buffer,
+                line_num: self.line_num,
+            }));
+        }
+        let (n_vars, n_clauses, top) = match wcnf_p_line.parse(trimmed_line) {
+            Err(err) => {
+                return Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    // NOTE: `trimmed_line` is always part of `self.buffer`, so this will never
+                    // panic
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into());
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+        Ok(WcnfHeaderData::Pre22 {
             n_vars,
-            n_clauses: _, // Intentionally ignored (lean acceptance)
+            n_clauses,
             top,
-        } => {
-            vm.increase_next_free(Var::new(n_vars));
-            parse_wcnf_pre22_body(reader, top, vm)
-        }
-        #[cfg(feature = "optimization")]
-        Preamble::NoPLine { first_line } => parse_no_pline_body(reader, &first_line, vm),
-    }?;
-    Ok(content)
-}
-
-/// Parses preamble and determines type of instance/file format
-///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-fn parse_preamble<R: BufRead>(reader: &mut R) -> anyhow::Result<Preamble> {
-    let mut buf = String::new();
-    while reader.read_line(&mut buf)? > 0 {
-        if buf.starts_with('c') || buf.trim().is_empty() {
-            buf.clear();
-            continue;
-        }
-        if buf.starts_with('p') {
-            let Ok((_, preamble)) = parse_p_line(&buf) else {
-                return Err(InvalidPLine(buf).into());
-            };
-            return Ok(preamble);
-        }
-        break;
-    }
-    #[cfg(feature = "optimization")]
-    {
-        Ok(Preamble::NoPLine { first_line: buf })
-    }
-    #[cfg(not(feature = "optimization"))]
-    {
-        Err(InvalidPLine(buf).into())
-    }
-}
-
-/// Main parser for CNF file
-///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-fn parse_cnf_body<R, VM>(reader: &mut R, vm: VM) -> anyhow::Result<BodyContent<VM>>
-where
-    R: BufRead,
-    VM: ManageVars + Default,
-{
-    let mut inst = SatInstance::new_with_manager(vm);
-    let mut buf = String::new();
-    while reader.read_line(&mut buf)? > 0 {
-        let (_, opt_clause) = parse_cnf_line(&buf)
-            .map_err(nom::Err::<NomError<&str>>::to_owned)
-            .with_context(|| format!("failed to parse cnf line '{buf}'"))?;
-        if let Some(clause) = opt_clause {
-            inst.add_clause(clause);
-        }
-        buf.clear();
-    }
-    #[cfg(feature = "optimization")]
-    {
-        Ok((inst, vec![]))
-    }
-    #[cfg(not(feature = "optimization"))]
-    {
-        Ok(inst)
-    }
-}
-
-#[cfg(feature = "optimization")]
-/// Main parser for WCNF pre-22 (with p line)
-///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-fn parse_wcnf_pre22_body<R, VM>(
-    reader: &mut R,
-    top: usize,
-    vm: VM,
-) -> anyhow::Result<BodyContent<VM>>
-where
-    R: BufRead,
-    VM: ManageVars + Default,
-{
-    let mut constrs = SatInstance::new_with_manager(vm);
-    let mut obj = Objective::new();
-    let mut buf = String::new();
-    while reader.read_line(&mut buf)? > 0 {
-        let (_, opt_wclause) = parse_wcnf_pre22_line(&buf)
-            .map_err(nom::Err::<NomError<&str>>::to_owned)
-            .with_context(|| format!("failed to parse old wcnf line '{buf}'"))?;
-        match opt_wclause {
-            None => (),
-            Some((w, clause)) => {
-                if w >= top {
-                    constrs.add_clause(clause);
-                } else {
-                    obj.increase_soft_clause(w, clause);
-                }
-            }
-        }
-        buf.clear();
-    }
-    Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }))
-}
-
-#[cfg(feature = "optimization")]
-/// Main parser for WCNF post 22 (without p line) and MCNF
-///
-/// # Errors
-///
-/// Parsing errors or [`io::Error`].
-fn parse_no_pline_body<R, VM>(
-    reader: &mut R,
-    first_line: &str,
-    vm: VM,
-) -> anyhow::Result<BodyContent<VM>>
-where
-    R: BufRead,
-    VM: ManageVars + Default,
-{
-    let mut constrs = SatInstance::new_with_manager(vm);
-    let mut objs = Vec::new();
-    let mut buf = first_line.to_string();
-    loop {
-        let (_, opt_wclause) = parse_mcnf_line(&buf)
-            .map_err(nom::Err::<NomError<&str>>::to_owned)
-            .with_context(|| format!("failed to parse new wcnf/mcnf line '{buf}'"))?;
-        if let Some((opt_iw, clause)) = opt_wclause {
-            match opt_iw {
-                Some((idx, w)) => {
-                    if idx > objs.len() {
-                        objs.resize(idx, Objective::new());
-                    }
-                    objs[idx - 1].increase_soft_clause(w, clause);
-                }
-                None => constrs.add_clause(clause),
-            }
-        }
-        buf.clear();
-        let len = reader.read_line(&mut buf)?;
-        if len == 0 {
-            return Ok((constrs, objs));
-        }
-    }
-}
-
-/// Parses p line and determine file format
-fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
-    let (input, _) = context(
-        "p line does not start with 'p'",
-        terminated::<_, _, _, NomError<_>, _, _>(tag("p"), multispace1),
-    )(input)?;
-    let (input, id_token) = context(
-        "invalid id token in p line",
-        alt((
-            terminated::<_, _, _, NomError<_>, _, _>(tag("cnf"), multispace1),
-            #[cfg(feature = "optimization")]
-            terminated(tag("wcnf"), multispace1),
-        )),
-    )(input)?;
-    //.with_context(|| format!("invalid id token in '{}'", input))?;
-    if id_token == "cnf" {
-        // Is CNF file
-        let (input, (n_vars, _, n_clauses)) = context(
-            "failed to parse number of variables and clauses",
-            tuple::<_, _, NomError<_>, _>((
-                context("number of vars does not fit usize", u32),
-                multispace1,
-                context(
-                    "number of clauses does not fit usize",
-                    map_res(u64, usize::try_from),
-                ),
-            )),
-        )(input)?;
-        return Ok((input, Preamble::Cnf { n_vars, n_clauses }));
-    }
-    #[cfg(feature = "optimization")]
-    if id_token == "wcnf" {
-        // Is WCNF file
-        let (input, (n_vars, _, n_clauses, _, top)) = context(
-            "failed to parse number of variables, clauses, and top",
-            tuple::<_, _, NomError<_>, _>((
-                context("number of vars does not fit usize", u32),
-                multispace1,
-                context(
-                    "number of clauses does not fit usize",
-                    map_res(u64, usize::try_from),
-                ),
-                multispace1,
-                context("top does not fit usize", map_res(u64, usize::try_from)),
-            )),
-        )(input)?;
-        return Ok((
-            input,
-            Preamble::WcnfPre22 {
-                n_vars,
-                n_clauses,
-                top,
+            body_parser: Parser {
+                variant: WcnfPre22Body { top },
+                reader: self.reader,
+                buffer: self.buffer,
+                line_num: self.line_num,
             },
-        ));
-    }
-    panic!("this should be impossible to reach")
-}
-
-/// Parses a CNF line, either a comment or a clause
-fn parse_cnf_line(input: &str) -> IResult<&str, Option<Clause>> {
-    let (input, _) = multispace0::<_, NomError<_>>(input)?;
-    if input.trim().is_empty() {
-        // Tolerate empty lines
-        return Ok((input, None));
-    }
-    if let Ok((input, _)) = tag::<&str, &str, NomError<&str>>("c")(input) {
-        Ok((input, None))
-    } else {
-        // Line is not a comment
-        let (input, clause) = parse_clause(input)?;
-        Ok((input, Some(clause)))
+        })
     }
 }
 
 #[cfg(feature = "optimization")]
-/// Parses a WCNF pre-22 line, either a comment or a clause
-fn parse_wcnf_pre22_line(input: &str) -> IResult<&str, Option<(usize, Clause)>> {
-    let (input, _) = multispace0::<_, NomError<_>>(input)?;
-    if input.trim().is_empty() {
-        // Tolerate empty lines
-        return Ok((input, None));
-    }
-    if let Ok((input, _)) = tag::<&str, &str, NomError<&str>>("c")(input) {
-        Ok((input, None))
-    } else {
-        // Line is not a comment
-        let (input, (weight, clause)) =
-            separated_pair(parse_weight, multispace1, parse_clause)(input)?;
-        Ok((input, Some((weight, clause))))
-    }
+#[derive(Debug)]
+enum WcnfHeaderLine {
+    Comment(String),
+    Header(u32, usize, usize),
+    HardClause(Clause),
+    SoftClause(usize, Clause),
 }
 
 #[cfg(feature = "optimization")]
-type McnfDataLine = Option<(Option<(usize, usize)>, Clause)>;
+impl<R> Iterator for Parser<WcnfHeader, R>
+where
+    R: io::BufRead,
+{
+    type Item = Result<String, super::Error>;
 
-#[cfg(feature = "optimization")]
-/// Parses a MCNF or WCNF post 22 line, either a comment or a clause with
-/// objective index. If a line does not explicitly specify an objective index,
-/// it is assumed to be 1. This enables for also parsing MCNF lines.
-fn parse_mcnf_line(input: &str) -> IResult<&str, McnfDataLine> {
-    let (input, _) = multispace0::<_, NomError<_>>(input)?;
-    if input.trim().is_empty() {
-        // Tolerate empty lines
-        return Ok((input, None));
-    }
-    match tag::<&str, &str, NomError<&str>>("c")(input) {
-        Ok((input, _)) => Ok((input, None)),
-        Err(_) =>
-        // Line is not a comment
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.variant.header_data.is_some() {
+            return None;
+        }
+        match self.read_line() {
+            Err(err) => return Some(Err(err.into())),
+            Ok(true) => {
+                self.variant.header_data = Some(WcnfInternalHeaderData::Empty);
+                return None;
+            }
+            Ok(_) => (),
+        }
+
+        let trimmed_line = self.buffer.trim();
+        // let data = match comment
+        //     .context(StrContext::Label("cnf pre-header comment"))
+        //     .parse(trimmed_line)
+        let data = match alt((
+            comment.map(|c| WcnfHeaderLine::Comment(c.to_owned())),
+            hard_clause.map(WcnfHeaderLine::HardClause),
+            soft_clause.map(|(weight, clause)| WcnfHeaderLine::SoftClause(weight, clause)),
+            wcnf_p_line
+                .map(|(n_vars, n_clauses, top)| WcnfHeaderLine::Header(n_vars, n_clauses, top)),
+        ))
+        .context(StrContext::Label("wcnf header line"))
+        .parse(trimmed_line)
         {
-            match terminated(tag::<_, _, NomError<_>>("h"), multispace1)(input) {
-                Ok((input, _)) => {
-                    // Hard clause
-                    let (input, clause) = parse_clause(input)?;
-                    Ok((input, Some((None, clause))))
-                }
-                Err(_) => {
-                    // Soft clause
-                    if let Ok((input, _)) = tag::<_, _, NomError<_>>("o")(input) {
-                        // MCNF soft (explicit obj index)
-                        let (input, (idx, _, weight, _, clause)) =
-                            tuple((
-                                parse_idx,
-                                multispace1,
-                                parse_weight,
-                                multispace1,
-                                parse_clause,
-                            ))(input)?;
-                        Ok((input, Some((Some((idx, weight)), clause))))
-                    } else {
-                        // WCNF soft (implicit obj index of 1)
-                        let (input, (weight, clause)) =
-                            separated_pair(parse_weight, multispace1, parse_clause)(input)?;
-                        Ok((input, Some((Some((1, weight)), clause))))
-                    }
-                }
+            Err(err) => {
+                return Some(Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into()))
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+
+        match data {
+            WcnfHeaderLine::Comment(comment) => Some(Ok(comment)),
+            WcnfHeaderLine::Header(n_vars, n_clauses, top) => {
+                self.variant.header_data = Some(WcnfInternalHeaderData::Pre22 {
+                    n_vars,
+                    n_clauses,
+                    top,
+                });
+                None
+            }
+            WcnfHeaderLine::HardClause(clause) => {
+                self.variant.header_data =
+                    Some(WcnfInternalHeaderData::Post22(WcnfData::HardClause(clause)));
+                None
+            }
+            WcnfHeaderLine::SoftClause(weight, clause) => {
+                self.variant.header_data =
+                    Some(WcnfInternalHeaderData::Post22(WcnfData::SoftClause {
+                        weight,
+                        clause,
+                    }));
+                None
             }
         }
     }
 }
 
-/// Nom-like parser for a clause
-fn parse_clause(input: &str) -> IResult<&str, Clause> {
-    context(
-        "failed to parse clause",
-        map(
-            terminated(separated_list0(multispace1, parse_lit), parse_clause_ending),
-            Clause::from_iter,
-        ),
-    )(input)
+/// Data that can appear in a WCNF file body
+#[cfg(feature = "optimization")]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum WcnfData {
+    /// A hard input clause
+    HardClause(Clause),
+    /// A soft input clause with a given weight
+    SoftClause {
+        /// The weight of the clause
+        weight: usize,
+        /// The clause itself
+        clause: Clause,
+    },
+    /// A comment line in the WCNF body
+    Comment(String),
+}
+
+/// Identifier type for the WCNF pre-2022 body parser variant
+#[cfg(feature = "optimization")]
+#[derive(Debug)]
+pub struct WcnfPre22Body {
+    top: usize,
 }
 
 #[cfg(feature = "optimization")]
-/// Nom-like parser for weight value
-fn parse_weight(input: &str) -> IResult<&str, usize> {
-    context(
-        "weight does not fit usize",
-        map_res(
-            context("expected number for weight", u64),
-            TryInto::try_into,
-        ),
-    )(input)
-}
+impl<R> Iterator for Parser<WcnfPre22Body, R>
+where
+    R: io::BufRead,
+{
+    type Item = Result<WcnfData, super::Error>;
 
-#[cfg(feature = "optimization")]
-/// Nom-like parser for objective index
-fn parse_idx(input: &str) -> IResult<&str, usize> {
-    context(
-        "invalid objective index (either 0 or does not fit usize)",
-        map_res(context("expected number for objective index", u64), |w| {
-            if w == 0 {
-                return Err(());
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.read_line() {
+            Err(err) => return Some(Err(err.into())),
+            Ok(true) => return None,
+            Ok(_) => (),
+        }
+
+        let trimmed_line = self.buffer.trim();
+        let data = match alt((
+            comment.map(|c| WcnfData::Comment(c.to_owned())),
+            soft_clause.map(|(weight, clause)| {
+                if weight >= self.variant.top {
+                    WcnfData::HardClause(clause)
+                } else {
+                    WcnfData::SoftClause { weight, clause }
+                }
+            }),
+        ))
+        .context(StrContext::Label("wcnf (pre22) body line"))
+        .parse(trimmed_line)
+        {
+            Err(err) => {
+                return Some(Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into()))
             }
-            w.try_into().map_err(|_| ())
-        }),
-    )(input)
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+
+        Some(Ok(data))
+    }
 }
 
-/// Nom-like parser for literal
+/// Identifier type for the WCNF Post 2022 body parser variant
+#[cfg(feature = "optimization")]
+#[derive(Debug, Default)]
+pub struct WcnfPost22(Option<WcnfData>);
+
+#[cfg(feature = "optimization")]
+impl<R> Iterator for Parser<WcnfPost22, R>
+where
+    R: io::BufRead,
+{
+    type Item = Result<WcnfData, super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(data) = self.variant.0.take() {
+            return Some(Ok(data));
+        }
+        match self.read_line() {
+            Err(err) => return Some(Err(err.into())),
+            Ok(true) => return None,
+            Ok(_) => (),
+        }
+
+        let trimmed_line = self.buffer.trim();
+        let data = match alt((
+            comment.map(|c| WcnfData::Comment(c.to_owned())),
+            hard_clause.map(WcnfData::HardClause),
+            soft_clause.map(|(weight, clause)| WcnfData::SoftClause { weight, clause }),
+        ))
+        .context(StrContext::Label("wcnf (post22) body line"))
+        .parse(trimmed_line)
+        {
+            Err(err) => {
+                return Some(Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into()))
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+
+        Some(Ok(data))
+    }
+}
+
+/// Data that can appear in a MCNF file body
+#[cfg(feature = "multiopt")]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq)]
+pub enum McnfData {
+    /// A hard input clause
+    HardClause(Clause),
+    /// A soft input clause with a given weight
+    SoftClause {
+        /// The index of the objective
+        obj_idx: usize,
+        /// The weight of the clause
+        weight: usize,
+        /// The clause itself
+        clause: Clause,
+    },
+    /// A comment line in the MCNF body
+    Comment(String),
+}
+
+/// Identifier type for the MCNF body parser variant
+#[cfg(feature = "multiopt")]
+#[derive(Debug, Default)]
+pub struct Mcnf();
+
+#[cfg(feature = "multiopt")]
+impl<R> Iterator for Parser<Mcnf, R>
+where
+    R: io::BufRead,
+{
+    type Item = Result<McnfData, super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.read_line() {
+            Err(err) => return Some(Err(err.into())),
+            Ok(true) => return None,
+            Ok(_) => (),
+        }
+
+        let trimmed_line = self.buffer.trim();
+        let data = match alt((
+            comment.map(|c| McnfData::Comment(c.to_owned())),
+            hard_clause.map(McnfData::HardClause),
+            mo_soft_clause.map(|(obj_idx, weight, clause)| McnfData::SoftClause {
+                obj_idx,
+                weight,
+                clause,
+            }),
+        ))
+        .context(StrContext::Label("mcnf body line"))
+        .parse(trimmed_line)
+        {
+            Err(err) => {
+                return Some(Err(ParsingError::from_parse(
+                    &err,
+                    &self.buffer,
+                    utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
+                    self.line_num,
+                )
+                .into()))
+            }
+            Ok(data) => data,
+        };
+        self.buffer.clear();
+
+        Some(Ok(data))
+    }
+}
+
+fn cnf_p_line(input: &mut &str) -> ModalResult<(u32, usize)> {
+    seq! { _: 'p', _: space1, _: cut_err("cnf"), _: space1, dec_uint, _: space1, dec_uint, _: space0 }
+        .context(StrContext::Label("cnf p-line"))
+        .parse_next(input)
+}
+
+#[cfg(feature = "optimization")]
+fn wcnf_p_line(input: &mut &str) -> ModalResult<(u32, usize, usize)> {
+    seq! { _: 'p', _: space1, _: cut_err("wcnf"), _: space1, dec_uint, _: space1, dec_uint, _: space1, dec_uint, _: space0 }
+        .context(StrContext::Label("wcnf p-line"))
+        .parse_next(input)
+}
+
+/// Matches a DIMACS comment
+fn comment<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    seq! { 'c', till_line_ending, opt(line_ending) }
+        .take()
+        .parse_next(input)
+}
+
+fn clause(input: &mut &str) -> ModalResult<Clause> {
+    terminated(separated(0.., lit, space1), clause_ending)
+        .context(StrContext::Label("clause"))
+        .parse_next(input)
+}
+
+#[cfg(feature = "optimization")]
+fn hard_clause(input: &mut &str) -> ModalResult<Clause> {
+    use winnow::combinator::cut_err;
+    seq! { _: 'h', _: cut_err(space1), cut_err(clause) }
+        .map(|(cl,)| cl)
+        .context(StrContext::Label("hard clause"))
+        .parse_next(input)
+}
+
+#[cfg(feature = "optimization")]
+fn soft_clause(input: &mut &str) -> ModalResult<(usize, Clause)> {
+    seq! { weight, _: space1, clause }
+        .context(StrContext::Label("soft clause"))
+        .parse_next(input)
+}
+
+#[cfg(feature = "multiopt")]
+fn mo_soft_clause(input: &mut &str) -> ModalResult<(usize, usize, Clause)> {
+    use winnow::combinator::cut_err;
+    seq! { _: 'o', cut_err(obj_idx), _: cut_err(space1), cut_err(weight), _: cut_err(space1), cut_err(clause) }
+        .context(StrContext::Label("MO soft clause"))
+        .parse_next(input)
+}
+
+#[cfg(feature = "optimization")]
+/// Parses a soft clause weight, intentionally accepting `+` signs
+fn weight(input: &mut &str) -> ModalResult<usize> {
+    use winnow::ascii::dec_uint;
+
+    dec_uint
+        .context(StrContext::Label("soft clause weight"))
+        .parse_next(input)
+}
+
+#[cfg(feature = "multiopt")]
+fn obj_idx(input: &mut &str) -> ModalResult<usize> {
+    use winnow::{ascii::digit0, token::one_of};
+
+    (one_of('1'..='9'), digit0)
+        .take()
+        .try_map(str::parse)
+        .context(StrContext::Label("objective index"))
+        .parse_next(input)
+}
+
+fn lit(input: &mut &str) -> ModalResult<Lit> {
+    dec_int::<&str, i32, _>
+        .try_map(Lit::from_ipasir)
+        .context(StrContext::Label("IPASIR literal"))
+        .parse_next(input)
+}
+
+/// Parses a single DIMACS literal string
 ///
 /// # Errors
 ///
 /// If parsing fails
-#[cfg_attr(feature = "_internals", visibility::make(pub))]
-fn parse_lit(input: &str) -> IResult<&str, Lit> {
-    context("invalid ipasir literal", map_res(i32, Lit::from_ipasir))(input)
+#[cfg(feature = "_internals")]
+pub fn parse_lit(input: &str) -> Result<Lit, ParsingError> {
+    lit.parse(input)
+        .map_err(|e| ParsingError::from_parse(&e, input, 0, 1))
 }
 
 /// Parses the end of a clause
 /// A '0' followed by a line-break, as well as a '0' followed by
 /// white-space or only a line-break are treated as valid clause endings.
-/// This is more lean than the file format spec.
-fn parse_clause_ending(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
-        multispace0,
-        alt((
-            recognize(all_consuming(success(""))),
-            recognize(all_consuming(tag("0"))),
-            recognize(terminated(tag("0"), line_ending)),
-            recognize(terminated(tag("0"), multispace1)),
-            recognize(line_ending),
-        )),
-    ))(input)
+/// This is more lenient than the file format spec.
+fn clause_ending<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    alt((
+        (space0, alt((line_ending, eof))).take(),
+        (
+            space0,
+            '0',
+            alt(((space0, alt((line_ending, eof))).take(), space1)),
+        )
+            .take(),
+    ))
+    .context(StrContext::Label("clause ending"))
+    .parse_next(input)
 }
 
 /// Writes a CNF to a DIMACS CNF file
@@ -529,6 +825,8 @@ pub fn write_cnf_annotated<W: Write>(
 /// Input data for writing a CNF instance
 #[derive(Debug)]
 pub enum CnfLine {
+    /// The CNF header with the number of variables and clauses
+    Header(u32, usize),
     /// A comment line
     Comment(String),
     /// A clause
@@ -540,8 +838,8 @@ impl CnfLine {
     #[must_use]
     pub fn clause(self) -> Option<Clause> {
         match self {
-            CnfLine::Comment(_) => None,
             CnfLine::Clause(cl) => Some(cl),
+            _ => None,
         }
     }
 }
@@ -556,6 +854,7 @@ pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
+        CnfLine::Header(n_vars, n_clauses) => writeln!(writer, "p {n_vars} {n_clauses}"),
         CnfLine::Comment(c) => write!(writer, "c {c}"),
         CnfLine::Clause(cl) => write_clause(writer, &cl),
     })
@@ -726,490 +1025,216 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        parse_clause_ending, parse_cnf_body, parse_cnf_line, parse_dimacs, parse_lit, parse_p_line,
-        parse_preamble, write_cnf_annotated, Preamble,
-    };
-    use crate::{
-        clause,
-        instances::{BasicVarManager, Cnf, SatInstance},
-        ipasir_lit,
-    };
-    use nom::error::Error as NomError;
     use std::io::{Cursor, Seek};
 
-    #[cfg(feature = "optimization")]
-    use super::{
-        parse_idx, parse_mcnf_line, parse_no_pline_body, parse_wcnf_pre22_body,
-        parse_wcnf_pre22_line, parse_weight, write_wcnf_annotated, Objective, OptInstance,
+    use winnow::Parser as _;
+
+    use crate::{
+        clause,
+        instances::{Cnf, SatInstance},
+        ipasir_lit,
     };
 
-    #[cfg(feature = "multiopt")]
-    use super::{write_mcnf_annotated, MultiOptInstance};
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_idx_pass() {
-        assert_eq!(parse_idx("15 "), Ok((" ", 15)));
-        assert_eq!(parse_idx("42 63"), Ok((" 63", 42)));
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_idx_fail() {
-        assert!(parse_idx("0 ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "0 ", .. }))));
-        assert!(parse_idx("-15 ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "-15 ", .. }))));
-        assert!(parse_idx("abc ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "abc ", .. }))));
-        assert!(parse_idx(" abc ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: " abc ", .. }))));
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_weight_pass() {
-        assert_eq!(parse_weight("15 "), Ok((" ", 15)));
-        assert_eq!(parse_weight("42 63"), Ok((" 63", 42)));
-        assert_eq!(parse_weight("0 "), Ok((" ", 0)));
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_weight_fail() {
-        assert!(parse_weight("-2 ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "-2 ", .. }))));
-        assert!(parse_weight("abc ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "abc ", .. }))));
-        assert!(parse_weight(" abc ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: " abc ", .. }))));
-    }
+    use super::{
+        clause_ending, cnf_p_line, lit, write_cnf_annotated, CnfBody, CnfData, CnfHeader,
+        CnfHeaderData, Parser,
+    };
 
     #[test]
     fn parse_lit_pass() {
-        assert_eq!(parse_lit("15 "), Ok((" ", ipasir_lit![15])));
-        assert_eq!(parse_lit("14 "), Ok((" ", ipasir_lit![14])));
-        assert_eq!(parse_lit("-42 "), Ok((" ", ipasir_lit![-42])));
-        assert_eq!(parse_lit("42 63"), Ok((" 63", ipasir_lit![42])));
+        assert_eq!(lit.parse_peek("15 "), Ok((" ", ipasir_lit![15])));
+        assert_eq!(lit.parse_peek("14 "), Ok((" ", ipasir_lit![14])));
+        assert_eq!(lit.parse_peek("-42 "), Ok((" ", ipasir_lit![-42])));
+        assert_eq!(lit.parse_peek("42 63"), Ok((" 63", ipasir_lit![42])));
     }
 
     #[test]
     fn parse_lit_fail() {
-        assert!(parse_lit("abc ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "abc ", .. }))));
-        assert!(parse_lit(" abc ")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: " abc ", .. }))));
+        assert!(lit.parse_peek("abc ").is_err());
+        assert!(lit.parse_peek(" abc ").is_err());
     }
 
     #[test]
-    fn parse_p_line_pass() {
-        assert_eq!(
-            parse_p_line("p cnf 23 42"),
-            Ok((
-                "",
-                Preamble::Cnf {
-                    n_vars: 23,
-                    n_clauses: 42
-                }
-            ))
-        );
-        #[cfg(feature = "optimization")]
-        assert_eq!(
-            parse_p_line("p wcnf 23 42 52"),
-            Ok((
-                "",
-                Preamble::WcnfPre22 {
-                    n_vars: 23,
-                    n_clauses: 42,
-                    top: 52
-                }
-            ))
-        );
+    fn parse_cnf_p_line_pass() {
+        assert_eq!(cnf_p_line.parse_peek("p cnf 23 42"), Ok(("", (23, 42))));
     }
 
     #[test]
-    fn parse_p_line_fail() {
-        assert!(parse_p_line("a cnf 23 42").is_err_and(|e| matches!(
-            e,
-            nom::Err::Error(NomError {
-                input: "a cnf 23 42",
-                ..
-            })
-        )));
-        assert!(parse_p_line("p abc 23 42 52").is_err_and(|e| matches!(
-            e,
-            nom::Err::Error(NomError {
-                input: "abc 23 42 52",
-                ..
-            })
-        )));
-        assert!(parse_p_line("p cnf ab")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "ab", .. }))));
-        assert!(parse_p_line("p wcnf ab")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "ab", .. }))));
-        #[cfg(not(feature = "optimization"))]
-        assert!(parse_p_line("p wcnf 23 42 52").is_err_and(|e| matches!(
-            e,
-            nom::Err::Error(NomError {
-                input: "wcnf 23 42 52",
-                ..
-            })
-        )));
+    fn parse_cnf_p_line_fail() {
+        assert!(cnf_p_line.parse_peek("a cnf 23 42").is_err());
+        assert!(cnf_p_line.parse_peek("p abc 23 42 52").is_err());
+        assert!(cnf_p_line.parse_peek("p wcnf 23 42 52").is_err());
+        assert!(cnf_p_line.parse_peek("p cnf ab").is_err());
+        assert!(cnf_p_line.parse_peek("p wcnf ab").is_err());
     }
 
     #[test]
     fn parse_clause_ending_pass() {
-        assert_eq!(parse_clause_ending("0"), Ok(("", "0")));
-        assert_eq!(parse_clause_ending("0 test"), Ok(("test", "0 ")));
-        assert_eq!(parse_clause_ending("0\n"), Ok(("", "0\n")));
-        assert_eq!(parse_clause_ending("\n"), Ok(("", "\n")));
+        assert_eq!(clause_ending.parse_peek("0"), Ok(("", "0")));
+        assert_eq!(clause_ending.parse_peek("0 test"), Ok(("test", "0 ")));
+        assert_eq!(clause_ending.parse_peek("0\n"), Ok(("", "0\n")));
+        assert_eq!(clause_ending.parse_peek("\n"), Ok(("", "\n")));
+        assert_eq!(clause_ending.parse_peek("0 \n"), Ok(("", "0 \n")));
+        assert_eq!(clause_ending.parse_peek(" \n"), Ok(("", " \n")));
+        assert_eq!(clause_ending.parse_peek(""), Ok(("", "")));
     }
 
     #[test]
     fn parse_clause_ending_fail() {
-        assert!(parse_clause_ending("test")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "test", .. }))));
-        assert!(parse_clause_ending("0test")
-            .is_err_and(|e| matches!(e, nom::Err::Error(NomError { input: "0test", .. }))));
+        assert!(clause_ending.parse_peek("test").is_err());
+        assert!(clause_ending.parse_peek("0test").is_err());
     }
 
     #[test]
     fn parse_cnf_line_pass() {
-        assert_eq!(parse_cnf_line("c test"), Ok((" test", None)));
-        assert_eq!(
-            parse_cnf_line("42 34 -16 0"),
-            Ok((
-                "",
-                Some(clause![ipasir_lit![42], ipasir_lit![34], ipasir_lit![-16]])
-            ))
-        );
-        assert_eq!(
-            parse_cnf_line("42 34 0 -16 0"),
-            Ok(("-16 0", Some(clause![ipasir_lit![42], ipasir_lit![34]])))
-        );
-        assert_eq!(
-            parse_cnf_line(" 42 34"),
-            Ok(("", Some(clause![ipasir_lit![42], ipasir_lit![34]])))
-        );
+        assert!(Parser::<CnfBody, _>::new(Cursor::new("c test"))
+            .next()
+            .is_some_and(
+                |res| res.is_ok_and(|parsed| parsed == CnfData::Comment(String::from("c test")))
+            ));
+        assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 -16 0"))
+            .next()
+            .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                == CnfData::Clause(clause![ipasir_lit![42], ipasir_lit![34], ipasir_lit![-16]]))));
+        assert!(Parser::<CnfBody, _>::new(Cursor::new(" 42 34"))
+            .next()
+            .is_some_and(|res| res.is_ok_and(
+                |parsed| parsed == CnfData::Clause(clause![ipasir_lit![42], ipasir_lit![34]])
+            )));
     }
 
     #[test]
     fn parse_cnf_line_fail() {
-        assert!(parse_cnf_line("42 34 a -16 0").is_err_and(|e| matches!(
-            e,
-            nom::Err::Error(NomError {
-                input: "a -16 0",
-                ..
-            })
-        )));
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_wcnf_pre22_line_pass() {
-        assert_eq!(parse_wcnf_pre22_line("c test"), Ok((" test", None)));
-        assert_eq!(
-            parse_wcnf_pre22_line("42 34 -16 0"),
-            Ok(("", Some((42, clause![ipasir_lit![34], ipasir_lit![-16]]))))
-        );
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_wcnf_post22_line_pass() {
-        assert_eq!(parse_mcnf_line("c test"), Ok((" test", None)));
-        assert_eq!(
-            parse_mcnf_line("42 34 -16 0"),
-            Ok((
-                "",
-                Some((Some((1, 42)), clause![ipasir_lit![34], ipasir_lit![-16]]))
-            ))
-        );
-        assert_eq!(
-            parse_mcnf_line("h 42 34 -16 0"),
-            Ok((
-                "",
-                Some((
-                    None,
-                    clause![ipasir_lit![42], ipasir_lit![34], ipasir_lit![-16]]
-                ))
-            ))
-        );
-    }
-
-    #[cfg(feature = "multiopt")]
-    #[test]
-    fn parse_mcnf_line_pass() {
-        assert_eq!(parse_mcnf_line("c test"), Ok((" test", None)));
-        assert_eq!(
-            parse_mcnf_line("o42 34 -16 0"),
-            Ok(("", Some((Some((42, 34)), clause![ipasir_lit![-16]]))))
-        );
-        assert_eq!(
-            parse_mcnf_line("h 42 34 -16 0"),
-            Ok((
-                "",
-                Some((
-                    None,
-                    clause![ipasir_lit![42], ipasir_lit![34], ipasir_lit![-16]]
-                ))
-            ))
-        );
+        assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 0 -16 0"))
+            .next()
+            .is_some_and(|res| res.is_err()));
+        assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 a -16 0"))
+            .next()
+            .is_some_and(|res| res.is_err()));
     }
 
     #[test]
     fn parse_cnf_preamble() {
-        let data = "c test\np cnf 5 2\n1 2 0";
-
-        assert_eq!(
-            parse_preamble(&mut Cursor::new(data)).unwrap(),
-            Preamble::Cnf {
+        assert!(matches!(
+            Parser::<CnfHeader, _>::new(Cursor::new("c test\np cnf 5 2\n1 2 0")).forward_to_body(),
+            Ok(CnfHeaderData {
                 n_vars: 5,
                 n_clauses: 2,
-            }
-        );
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_wcnf_pre22_preamble() {
-        let data = "c test\np wcnf 5 2 10\n1 2 0";
-
-        assert_eq!(
-            parse_preamble(&mut Cursor::new(data)).unwrap(),
-            Preamble::WcnfPre22 {
-                n_vars: 5,
-                n_clauses: 2,
-                top: 10,
-            }
-        );
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_wcnf_post22_preamble() {
-        let data = "c test\nh 5 2 0\n1 2 0";
-
-        assert_eq!(
-            parse_preamble(&mut Cursor::new(data)).unwrap(),
-            Preamble::NoPLine {
-                first_line: String::from("h 5 2 0\n"),
-            }
-        );
-    }
-
-    #[cfg(feature = "multiopt")]
-    #[test]
-    fn parse_mcnf_preamble() {
-        let data = "c test\no1 2 0\nh 5 2 0";
-
-        assert_eq!(
-            parse_preamble(&mut Cursor::new(data)).unwrap(),
-            Preamble::NoPLine {
-                first_line: String::from("o1 2 0\n")
-            }
-        );
+                body_parser: _
+            })
+        ));
     }
 
     #[test]
     fn parse_cnf_body_pass() {
-        let data = "1 2 0\n-3 4 5 0\n";
+        let input = "1 2 0\n-3 4 5 0\n";
 
-        let parsed_inst =
-            parse_cnf_body(&mut Cursor::new(data), BasicVarManager::default()).unwrap();
+        let parser = Parser::<CnfBody, _>::new(Cursor::new(input));
+        let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
-        let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        #[cfg(not(feature = "optimization"))]
-        assert_eq!(parsed_inst, true_inst);
-        #[cfg(feature = "optimization")]
-        assert_eq!(parsed_inst, (true_inst, vec![]));
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_wcnf_pre22_body_pass() {
-        let data = "42 1 2 0\n10 -3 4 5 0\n";
-
-        let parsed_inst =
-            parse_wcnf_pre22_body(&mut Cursor::new(data), 42, BasicVarManager::default()).unwrap();
-
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
-    }
-
-    #[cfg(feature = "optimization")]
-    #[test]
-    fn parse_wcnf_post22_body_pass() {
-        let data = "h 1 2 0\n10 -3 4 5 0\n";
-
-        let parsed_inst =
-            parse_no_pline_body(&mut Cursor::new(data), "c test", BasicVarManager::default())
-                .unwrap();
-
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
-    }
-
-    #[cfg(feature = "multiopt")]
-    #[test]
-    fn parse_mcnf_body_pass() {
-        let data = "h 1 2 0\no2 10 -3 4 5 0\n";
-
-        let parsed_inst = parse_no_pline_body(
-            &mut Cursor::new(data),
-            "c test\n",
-            BasicVarManager::default(),
-        )
-        .unwrap();
-
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
+        #[cfg(feature = "serde")]
+        insta::assert_yaml_snapshot!("cnf_body_pass", data, input);
+        #[cfg(not(feature = "serde"))]
         assert_eq!(
-            parsed_inst,
-            (true_constrs, vec![Objective::new(), true_obj])
+            data,
+            vec![
+                CnfData::Clause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                CnfData::Clause(clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]])
+            ]
         );
     }
 
     #[test]
+    fn parse_cnf_body_fail() {
+        let input = "1 2 0\n-3 four 5 0\n";
+
+        let parser = Parser::<CnfBody, _>::new(Cursor::new(input));
+        let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
+
+        insta::assert_snapshot!("parse_cnf_body_fail", format!("{err}"), input);
+    }
+
+    #[test]
     fn parse_cnf() {
-        let data = "p cnf 5 2\n1 2 0\n-3 4 5 0\n";
+        let input = "p cnf 5 2\n1 2 0\n\n-3 4 5 0\n";
 
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+        let data =
+            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
+                .unwrap();
 
-        let mut true_inst: SatInstance = SatInstance::new();
-        true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        #[cfg(feature = "serde")]
+        insta::assert_yaml_snapshot!("parse_cnf", data, input);
 
-        #[cfg(not(feature = "optimization"))]
-        assert_eq!(parsed_inst, true_inst);
-        #[cfg(feature = "optimization")]
-        assert_eq!(parsed_inst, (true_inst, vec![]));
+        #[cfg(not(feature = "serde"))]
+        {
+            let mut true_inst: SatInstance = SatInstance::new();
+            true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+            true_inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+            assert_eq!(data, true_inst);
+        }
     }
 
-    #[cfg(feature = "optimization")]
     #[test]
-    fn parse_wcnf_pre22() {
-        use crate::{instances::ManageVars, types::Var};
+    fn cnf_empty() {
+        let input = "c test\n";
 
-        let data = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
+        let err =
+            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
+                .unwrap_err();
 
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
-
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_constrs
-            .var_manager_mut()
-            .increase_next_free(Var::new(5));
-        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
+        insta::assert_snapshot!("cnf_empty", err, input);
     }
 
-    #[cfg(feature = "optimization")]
     #[test]
-    fn parse_wcnf_pre22_duplication() {
-        use crate::{instances::ManageVars, types::Var};
+    fn cnf_no_header() {
+        let input = "c p cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let data = "p wcnf 3 5 42\n1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\n42 -3 0\n";
+        let err =
+            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
+                .unwrap_err();
 
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
-
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![-3]]);
-        true_constrs
-            .var_manager_mut()
-            .increase_next_free(Var::new(3));
-        true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_lit(10, ipasir_lit![3]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
+        insta::assert_snapshot!("cnf_no_header", format!("{err}"), input);
     }
 
-    #[cfg(feature = "optimization")]
     #[test]
-    fn parse_wcnf_post22() {
-        let data = "h 1 2 0\n10 -3 4 5 0\n";
+    fn cnf_invalid_header() {
+        let input = "p cnf five 2\n1 2 0\n-3 4 5 0\n";
 
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+        let err =
+            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
+                .unwrap_err();
 
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
+        insta::assert_snapshot!("cnf_invalid_header", format!("{err}"), input);
     }
 
-    #[cfg(feature = "optimization")]
     #[test]
-    fn parse_wcnf_post22_duplication() {
-        let data = "1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\nh -3 0\n";
+    fn cnf_comments_before_header() {
+        let input = "c test\np cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+        let mut parser = Parser::<CnfHeader, _>::new(Cursor::new(input));
+        let comments = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap();
 
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![-3]]);
-        true_constrs.var_manager_mut();
-        true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_lit(10, ipasir_lit![3]);
+        assert_eq!(comments, vec!["c test"]);
 
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
+        assert!(matches!(
+            parser.forward_to_body(),
+            Ok(CnfHeaderData {
+                n_vars: 5,
+                n_clauses: 2,
+                body_parser: _
+            })
+        ));
     }
 
-    #[cfg(feature = "multiopt")]
     #[test]
-    fn parse_mcnf() {
-        let data = "c test\nh 1 2 0\no2 10 -3 4 5 0\no1 3 -1 0\n";
+    fn cnf_invalid_before_header() {
+        let input = "c test\nthis is an invalid line\np cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+        let mut parser = Parser::<CnfHeader, _>::new(Cursor::new(input));
+        let err = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap_err();
 
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj0 = Objective::new();
-        let mut true_obj1 = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
-        true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj0, true_obj1]));
-    }
-
-    #[cfg(feature = "multiopt")]
-    #[test]
-    fn parse_mcnf_duplication() {
-        let data = "c test\nh 1 2 0\no2 10 -3 4 5 0\no2 10 -3 4 5 0\no1 3 -1 0\no1 3 -1 0";
-
-        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
-
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj0 = Objective::new();
-        let mut true_obj1 = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj0.add_soft_lit(3, ipasir_lit![1]);
-        // increasing an existing soft literal or soft clause causes the instance to become weighted.
-        true_obj0.increase_soft_lit(3, ipasir_lit![1]);
-        true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-        true_obj1
-            .increase_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-
-        assert_eq!(parsed_inst, (true_constrs, vec![true_obj0, true_obj1]));
+        insta::assert_snapshot!("cnf_invalid_before_header", format!("{err}"), input);
     }
 
     #[test]
@@ -1224,71 +1249,602 @@ mod tests {
 
         cursor.rewind().unwrap();
 
-        let parsed_inst: SatInstance = super::parse_cnf(&mut cursor).unwrap();
+        let parsed_inst =
+            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut cursor).unwrap();
         let (parsed_cnf, _) = parsed_inst.into_cnf();
 
         assert_eq!(parsed_cnf, true_cnf);
     }
 
     #[cfg(feature = "optimization")]
-    #[test]
-    fn write_parse_wcnf() {
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-        let offset = true_obj.offset();
+    mod opt {
+        use std::io::{Cursor, Seek};
 
-        let mut cursor = Cursor::new(vec![]);
+        use winnow::Parser as _;
 
-        write_wcnf_annotated(
-            &mut cursor,
-            true_constrs.cnf(),
-            (true_obj.iter_soft_cls(), offset),
-            Some(5),
-        )
-        .unwrap();
+        use crate::{
+            clause,
+            instances::{Objective, OptInstance, SatInstance},
+            ipasir_lit,
+        };
 
-        cursor.rewind().unwrap();
+        use super::super::{
+            obj_idx, wcnf_p_line, weight, write_wcnf_annotated, Parser, WcnfData, WcnfHeader,
+            WcnfHeaderData, WcnfPost22, WcnfPre22Body,
+        };
 
-        let parsed_inst = super::parse_wcnf_with_idx(&mut cursor, 0).unwrap();
+        #[test]
+        fn parse_obj_idx_pass() {
+            assert_eq!(obj_idx.parse_peek("15 "), Ok((" ", 15)));
+            assert_eq!(obj_idx.parse_peek("42 63"), Ok((" 63", 42)));
+        }
 
-        assert_eq!(parsed_inst, OptInstance::compose(true_constrs, true_obj));
+        #[test]
+        fn parse_idx_fail() {
+            assert!(obj_idx.parse_peek("0 ").is_err());
+            assert!(obj_idx.parse_peek("-15 ").is_err());
+            assert!(obj_idx.parse_peek("abc ").is_err());
+            assert!(obj_idx.parse_peek(" abc ").is_err());
+        }
+
+        #[test]
+        fn parse_weight_pass() {
+            assert_eq!(weight.parse_peek("15 "), Ok((" ", 15)));
+            assert_eq!(weight.parse_peek("42 63"), Ok((" 63", 42)));
+            assert_eq!(weight.parse_peek("0 "), Ok((" ", 0)));
+        }
+
+        #[test]
+        fn parse_weight_fail() {
+            assert!(weight.parse_peek("-2 ").is_err());
+            assert!(weight.parse_peek("abc ").is_err());
+            assert!(weight.parse_peek(" abc ").is_err());
+        }
+
+        #[test]
+        fn parse_wcnf_p_line_pass() {
+            assert_eq!(
+                wcnf_p_line.parse_peek("p wcnf 23 42 52"),
+                Ok(("", (23, 42, 52)))
+            );
+        }
+
+        #[test]
+        fn parse_wcnf_p_line_fail() {
+            assert!(wcnf_p_line.parse_peek("a cnf 23 42").is_err());
+            assert!(wcnf_p_line.parse_peek("p abc 23 42 52").is_err());
+            assert!(wcnf_p_line.parse_peek("p cnf 23 42").is_err());
+            assert!(wcnf_p_line.parse_peek("p cnf ab").is_err());
+            assert!(wcnf_p_line.parse_peek("p wcnf ab").is_err());
+        }
+
+        #[test]
+        fn parse_wcnf_pre22_line_pass() {
+            assert!((Parser {
+                variant: WcnfPre22Body { top: 100 },
+                reader: Cursor::new("c test"),
+                buffer: String::new(),
+                line_num: 0,
+            })
+            .next()
+            .is_some_and(
+                |res| res.is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test")))
+            ));
+            assert!((Parser {
+                variant: WcnfPre22Body { top: 100 },
+                reader: Cursor::new("42 34 -16 0"),
+                buffer: String::new(),
+                line_num: 0,
+            })
+            .next()
+            .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                == WcnfData::SoftClause {
+                    weight: 42,
+                    clause: clause![ipasir_lit![34], ipasir_lit![-16]]
+                })));
+            assert!((Parser {
+                variant: WcnfPre22Body { top: 100 },
+                reader: Cursor::new("100 34 -16 0"),
+                buffer: String::new(),
+                line_num: 0,
+            })
+            .next()
+            .is_some_and(|res| res
+                .is_ok_and(|parsed| parsed
+                    == WcnfData::HardClause(clause![ipasir_lit![34], ipasir_lit![-16]]))));
+        }
+
+        #[test]
+        fn parse_wcnf_post22_line_pass() {
+            assert!(Parser::<WcnfPost22, _>::new(Cursor::new("c test"))
+                .next()
+                .is_some_and(|res| res
+                    .is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test")))));
+            assert!(Parser::<WcnfPost22, _>::new(Cursor::new("42 34 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == WcnfData::SoftClause {
+                        weight: 42,
+                        clause: clause![ipasir_lit![34], ipasir_lit![-16]]
+                    })));
+            assert!(Parser::<WcnfPost22, _>::new(Cursor::new("h 42 34 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == WcnfData::HardClause(clause![
+                        ipasir_lit![42],
+                        ipasir_lit![34],
+                        ipasir_lit![-16]
+                    ]))));
+        }
+
+        #[test]
+        fn parse_wcnf_pre22_preamble() {
+            assert!(matches!(
+                Parser::<WcnfHeader, _>::new(Cursor::new("c test\np wcnf 5 2 10\n1 2 0"))
+                    .forward_to_body(),
+                Ok(WcnfHeaderData::Pre22 {
+                    n_vars: 5,
+                    n_clauses: 2,
+                    top: 10,
+                    body_parser: _
+                })
+            ));
+        }
+
+        #[test]
+        fn parse_wcnf_post22_preamble() {
+            assert!(matches!(
+                Parser::<WcnfHeader, _>::new(Cursor::new("c test\nh 5 2 0\n1 2 0"))
+                    .forward_to_body(),
+                Ok(WcnfHeaderData::Post22(_))
+            ));
+            assert!(matches!(
+                Parser::<WcnfHeader, _>::new(Cursor::new("c test\n1 2 0\nh 5 2 0"))
+                    .forward_to_body(),
+                Ok(WcnfHeaderData::Post22(_))
+            ));
+            assert!(matches!(
+                Parser::<WcnfHeader, _>::new(Cursor::new("c test")).forward_to_body(),
+                Ok(WcnfHeaderData::Empty(_))
+            ));
+        }
+
+        #[test]
+        fn parse_wcnf_pre22_body_pass() {
+            let data = "42 1 2 0\n10 -3 4 5 0\n";
+
+            let parser = Parser {
+                variant: WcnfPre22Body { top: 42 },
+                reader: Cursor::new(data),
+                buffer: String::new(),
+                line_num: 0,
+            };
+            let clauses = parser.collect::<Result<Vec<_>, _>>().unwrap();
+
+            assert_eq!(
+                clauses,
+                vec![
+                    WcnfData::HardClause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                    WcnfData::SoftClause {
+                        weight: 10,
+                        clause: clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]]
+                    }
+                ]
+            );
+        }
+
+        #[test]
+        fn parse_wcnf_pre22_body_fail() {
+            let input = "42 1 2 0\n10 -3 four 5 0\n";
+
+            let parser = Parser {
+                variant: WcnfPre22Body { top: 42 },
+                reader: Cursor::new(input),
+                buffer: String::new(),
+                line_num: 0,
+            };
+            let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
+
+            insta::assert_snapshot!("parse_wcnf_pre22_body_fail", format!("{err}"), input);
+        }
+
+        #[test]
+        fn parse_wcnf_post22_body_pass() {
+            let data = "h 1 2 0\n10 -3 4 5 0\n";
+
+            let parser = Parser::<WcnfPost22, _>::new(Cursor::new(data));
+            let clauses = parser.collect::<Result<Vec<_>, _>>().unwrap();
+
+            assert_eq!(
+                clauses,
+                vec![
+                    WcnfData::HardClause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                    WcnfData::SoftClause {
+                        weight: 10,
+                        clause: clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]]
+                    }
+                ]
+            );
+        }
+
+        #[test]
+        fn parse_wcnf_post22_body_fail() {
+            let input = "h 1 2 0\n10 -3 four 5 0\n";
+
+            let parser = Parser::<WcnfPost22, _>::new(Cursor::new(input));
+            let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
+
+            insta::assert_snapshot!("parse_wcnf_post22_body_fail", format!("{err}"), input);
+        }
+
+        #[test]
+        fn parse_wcnf_pre22() {
+            let input = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
+
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("parse_wcnf_pre22", data, input);
+
+            #[cfg(not(feature = "serde"))]
+            {
+                use crate::{instances::ManageVars, types::Var};
+
+                let mut true_constrs: SatInstance = SatInstance::new();
+                let mut true_obj = Objective::new();
+                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_constrs
+                    .var_manager_mut()
+                    .increase_next_free(Var::new(5));
+                true_obj
+                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
+            }
+        }
+
+        #[test]
+        fn parse_wcnf_pre22_duplication() {
+            let input = "p wcnf 3 5 42\n1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\n42 -3 0\n";
+
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("parse_wcnf_pre22_duplication", data, input);
+
+            #[cfg(not(feature = "serde"))]
+            {
+                use crate::{instances::ManageVars, types::Var};
+
+                let mut true_constrs: SatInstance = SatInstance::new();
+                let mut true_obj = Objective::new();
+                true_constrs.add_clause(clause![ipasir_lit![-3]]);
+                true_constrs
+                    .var_manager_mut()
+                    .increase_next_free(Var::new(3));
+                true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj.add_soft_lit(10, ipasir_lit![3]);
+
+                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
+            }
+        }
+
+        #[test]
+        fn parse_wcnf_post22() {
+            let input = "h 1 2 0\n10 -3 4 5 0\n";
+
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("parse_wcnf_post22", data, input);
+
+            #[cfg(not(feature = "serde"))]
+            {
+                let mut true_constrs: SatInstance = SatInstance::new();
+                let mut true_obj = Objective::new();
+                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj
+                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
+            }
+        }
+        #[test]
+        fn parse_wcnf_post22_duplication() {
+            let input = "1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\nh -3 0\n";
+
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("parse_wcnf_post22_duplication", data, input);
+
+            #[cfg(not(feature = "serde"))]
+            {
+                let mut true_constrs: SatInstance = SatInstance::new();
+                let mut true_obj = Objective::new();
+                true_constrs.add_clause(clause![ipasir_lit![-3]]);
+                true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj.add_soft_lit(10, ipasir_lit![3]);
+
+                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
+            }
+        }
+
+        #[test]
+        fn wcnf_pre22_invalid_header() {
+            let input = "p wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n";
+
+            let parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
+
+            insta::assert_snapshot!("wcnf_pre22_invalid_header", format!("{err}"), input);
+        }
+
+        #[test]
+        fn wcnf_pre22_invalid_header_2() {
+            let input = "p wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n";
+
+            let err = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap_err();
+
+            insta::assert_snapshot!("wcnf_pre22_invalid_header_2", format!("{err}"), input);
+        }
+
+        #[test]
+        fn wcnf_pre22_comments_before_header() {
+            let input = "c test\np wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
+
+            let mut parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let comments = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap();
+
+            assert_eq!(comments, vec!["c test"]);
+
+            assert!(matches!(
+                parser.forward_to_body(),
+                Ok(WcnfHeaderData::Pre22 {
+                    n_vars: 5,
+                    n_clauses: 2,
+                    top: 42,
+                    body_parser: _
+                })
+            ));
+        }
+
+        #[test]
+        fn wcnf_post22_comments_before_header() {
+            let input = "c test\nh 1 2 0\n10 -3 4 5 0\n";
+
+            let mut parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let comments = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap();
+
+            assert_eq!(comments, vec!["c test"]);
+
+            assert!(matches!(
+                parser.forward_to_body(),
+                Ok(WcnfHeaderData::Post22(_))
+            ));
+        }
+
+        #[test]
+        fn wcnf_invalid_before_header() {
+            let input =
+                "c test\nthis is an invalid line\np wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n";
+
+            let mut parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let err = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap_err();
+
+            insta::assert_snapshot!("wcnf_invalid_before_header", format!("{err}"), input);
+        }
+
+        #[test]
+        fn write_parse_wcnf() {
+            let mut true_constrs: SatInstance = SatInstance::new();
+            let mut true_obj = Objective::new();
+            true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+            true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+            let offset = true_obj.offset();
+
+            let mut cursor = Cursor::new(vec![]);
+
+            write_wcnf_annotated(
+                &mut cursor,
+                true_constrs.cnf(),
+                (true_obj.iter_soft_cls(), offset),
+                Some(5),
+            )
+            .unwrap();
+
+            cursor.rewind().unwrap();
+
+            let parsed_inst =
+                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut cursor).unwrap();
+
+            assert_eq!(parsed_inst, OptInstance::compose(true_constrs, true_obj));
+        }
     }
 
     #[cfg(feature = "multiopt")]
-    #[test]
-    fn write_parse_mcnf() {
-        let mut true_constrs: SatInstance = SatInstance::new();
-        let mut true_obj0 = Objective::new();
-        let mut true_obj1 = Objective::new();
-        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
-        let offset0 = true_obj0.offset();
-        true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-        let offset1 = true_obj1.offset();
+    mod multiopt {
+        use std::io::{Cursor, Seek};
 
-        let mut cursor = Cursor::new(vec![]);
+        use crate::{
+            clause,
+            instances::{MultiOptInstance, Objective, SatInstance},
+            ipasir_lit,
+        };
 
-        write_mcnf_annotated(
-            &mut cursor,
-            true_constrs.cnf(),
-            vec![
-                (true_obj0.iter_soft_cls(), offset0),
-                (true_obj1.iter_soft_cls(), offset1),
-            ]
-            .into_iter(),
-            Some(5),
-        )
-        .unwrap();
+        use super::super::{write_mcnf_annotated, Mcnf, McnfData, Parser};
 
-        cursor.rewind().unwrap();
+        #[test]
+        fn parse_mcnf_line_pass() {
+            assert!(Parser::<Mcnf, _>::new(Cursor::new("c test"))
+                .next()
+                .is_some_and(|res| res
+                    .is_ok_and(|parsed| parsed == McnfData::Comment(String::from("c test")))));
+            assert!(Parser::<Mcnf, _>::new(Cursor::new("o42 34 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == McnfData::SoftClause {
+                        obj_idx: 42,
+                        weight: 34,
+                        clause: clause![ipasir_lit![-16]]
+                    })));
+            assert!(Parser::<Mcnf, _>::new(Cursor::new("h 42 34 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == McnfData::HardClause(clause![
+                        ipasir_lit![42],
+                        ipasir_lit![34],
+                        ipasir_lit![-16]
+                    ]))));
+        }
 
-        let parsed_inst = super::parse_mcnf(&mut cursor).unwrap();
+        #[test]
+        fn parse_mcnf_body_pass() {
+            let input = "h 1 2 0\no2 10 -3 4 5 0\n";
 
-        assert_eq!(
-            parsed_inst,
-            MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
-        );
+            let parser = Parser::<Mcnf, _>::new(Cursor::new(input));
+            let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("mcnf_body_pass", data, input);
+            #[cfg(not(feature = "serde"))]
+            assert_eq!(
+                data,
+                vec![
+                    McnfData::HardClause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                    McnfData::SoftClause {
+                        obj_idx: 2,
+                        weight: 10,
+                        clause: clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]]
+                    }
+                ]
+            );
+        }
+
+        #[test]
+        fn parse_mcnf_body_fail() {
+            let input = "h 1 2 0\no2 10 -3 four 5 0\n";
+
+            let parser = Parser::<Mcnf, _>::new(Cursor::new(input));
+            let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
+
+            insta::assert_snapshot!("parse_mcnf_body_fail", format!("{err}"), input);
+        }
+
+        #[test]
+        fn parse_mcnf() {
+            let input = "c test\nh 1 2 0\no2 10 -3 4 5 0\no1 3 -1 0\n";
+
+            let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("parse_mcnf", data, input);
+
+            #[cfg(not(feature = "serde"))]
+            {
+                let mut true_constrs: SatInstance = SatInstance::new();
+                let mut true_obj0 = Objective::new();
+                let mut true_obj1 = Objective::new();
+                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
+                true_obj1
+                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+                assert_eq!(
+                    data,
+                    MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
+                );
+            }
+        }
+
+        #[test]
+        fn parse_mcnf_duplication() {
+            let input = "c test\nh 1 2 0\no2 10 -3 4 5 0\no2 10 -3 4 5 0\no1 3 -1 0\no1 3 -1 0";
+
+            let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                &mut Cursor::new(input),
+            )
+            .unwrap();
+
+            #[cfg(feature = "serde")]
+            insta::assert_yaml_snapshot!("parse_mcnf_duplication", data, input);
+
+            #[cfg(not(feature = "serde"))]
+            {
+                let mut true_constrs: SatInstance = SatInstance::new();
+                let mut true_obj0 = Objective::new();
+                let mut true_obj1 = Objective::new();
+                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj0.add_soft_lit(3, ipasir_lit![1]);
+                // increasing an existing soft literal or soft clause causes the instance to become weighted.
+                true_obj0.increase_soft_lit(3, ipasir_lit![1]);
+                true_obj1
+                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+                true_obj1.increase_soft_clause(
+                    10,
+                    clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]],
+                );
+
+                assert_eq!(
+                    data,
+                    MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
+                );
+            }
+        }
+
+        #[test]
+        fn write_parse_mcnf() {
+            let mut true_constrs: SatInstance = SatInstance::new();
+            let mut true_obj0 = Objective::new();
+            let mut true_obj1 = Objective::new();
+            true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+            true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
+            let offset0 = true_obj0.offset();
+            true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+            let offset1 = true_obj1.offset();
+
+            let mut cursor = Cursor::new(vec![]);
+
+            write_mcnf_annotated(
+                &mut cursor,
+                true_constrs.cnf(),
+                vec![
+                    (true_obj0.iter_soft_cls(), offset0),
+                    (true_obj1.iter_soft_cls(), offset1),
+                ]
+                .into_iter(),
+                Some(5),
+            )
+            .unwrap();
+
+            cursor.rewind().unwrap();
+
+            let parsed_inst =
+                MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut cursor)
+                    .unwrap();
+
+            assert_eq!(
+                parsed_inst,
+                MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
+            );
+        }
     }
 }
