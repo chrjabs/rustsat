@@ -10,10 +10,12 @@
 //! - [DIMACS WCNF pre-22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post-22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
-use crate::{
-    instances::{Cnf, ManageVars, SatInstance},
-    types::{Cl, Clause, Lit},
+use std::{
+    convert::TryFrom,
+    fmt,
+    io::{self, BufRead, Write},
 };
+
 use anyhow::Context;
 use nom::{
     branch::alt,
@@ -25,11 +27,24 @@ use nom::{
     sequence::{pair, terminated, tuple},
     IResult,
 };
-use std::{
-    convert::TryFrom,
-    io::{self, BufRead, Write},
-};
 use thiserror::Error;
+use winnow::{
+    ascii::{
+        dec_int, dec_uint, line_ending as wline_ending, multispace0 as wmultispace0,
+        multispace1 as wmultispace1, space1, till_line_ending,
+    },
+    combinator::{alt as walt, cut_err, eof, opt, separated, seq, terminated as wterminated},
+    error::StrContext,
+    ModalResult, Parser as WParser,
+};
+
+use crate::{
+    instances::{Cnf, ManageVars, SatInstance},
+    types::{Cl, Clause, Lit},
+    utils,
+};
+
+use super::ParsingError;
 
 #[cfg(feature = "multiopt")]
 use crate::instances::MultiOptInstance;
@@ -49,6 +64,173 @@ type BodyContent<VM> = SatInstance<VM>;
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
 #[error("invalid p line '{0}'")]
 pub struct InvalidPLine(String);
+
+/// DIMACS file type
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Dialect {
+    /// Automatically determine the file type while parsing
+    Determine,
+    /// DIMACS CNF
+    Cnf,
+    /// DIMACS WCNF, automatically detect variant
+    #[cfg(feature = "optimization")]
+    WcnfDetermine,
+    /// DIMACS WCNF of MSE before 2022
+    #[cfg(feature = "optimization")]
+    WcnfPre22,
+    /// DIMACS WCNF of MSE from 2022 onwards
+    #[cfg(feature = "optimization")]
+    Wcnf,
+    /// Multi-objective MCNF format
+    #[cfg(feature = "multiopt")]
+    Mncf,
+}
+
+impl fmt::Display for Dialect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Dialect::Determine => write!(f, "undetermined"),
+            Dialect::Cnf => write!(f, "cnf"),
+            #[cfg(feature = "optimization")]
+            Dialect::WcnfDetermine => write!(f, "wcnf-undetermined"),
+            #[cfg(feature = "optimization")]
+            Dialect::WcnfPre22 => write!(f, "wcnf-pre-22"),
+            #[cfg(feature = "optimization")]
+            Dialect::Wcnf => write!(f, "wcnf"),
+            #[cfg(feature = "multiopt")]
+            Dialect::Mncf => write!(f, "mcnf"),
+        }
+    }
+}
+
+/// A DIMACS parser as an iterator over [`OpbData`] in a given file
+pub struct Parser<R> {
+    reader: io::BufReader<R>,
+    buffer: String,
+    dialect: Dialect,
+    in_body: bool,
+}
+
+impl<R: io::Read> Parser<R> {
+    /// Create a parser from a reader
+    pub fn new(reader: R, file_type: Dialect) -> Self {
+        Parser {
+            reader: io::BufReader::new(reader),
+            buffer: String::new(),
+            dialect: file_type,
+            in_body: false,
+        }
+    }
+
+    /// Create a parser from an existing [`io::BufReader`]
+    pub fn new_pre_buffered(reader: io::BufReader<R>, file_type: Dialect) -> Self {
+        Parser {
+            reader,
+            buffer: String::new(),
+            dialect: file_type,
+            in_body: false,
+        }
+    }
+
+    /// Unwraps this parser, returning the underlying reader
+    pub fn into_inner(self) -> R {
+        self.reader.into_inner()
+    }
+
+    /// Unwraps this parser, returning the underlying buffered reader
+    pub fn into_buffered_inner(self) -> io::BufReader<R> {
+        self.reader
+    }
+}
+
+impl<R: io::Read> Iterator for Parser<R> {
+    type Item = Result<Data, super::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buffer.is_empty() {
+            match self.reader.read_line(&mut self.buffer) {
+                Err(e) => return Some(Err(super::Error::Io(e))),
+                Ok(0) => return None,
+                Ok(_) => {}
+            }
+        }
+        let mut stream = self.buffer.as_str();
+        // TODO: if dialect is specified, immediately parse only that dialect
+        let res = 'res: {
+            if !self.in_body {
+                match opt(comment).parse_next(&mut stream) {
+                    Err(e) => {
+                        return Some(Err(super::Error::Parsing(ParsingError::from_err_mode(
+                            e,
+                            &self.buffer,
+                            utils::substr_offset(&self.buffer, stream).unwrap(),
+                        ))));
+                    }
+                    Ok(Some(cmt)) => break 'res Data::Comment(cmt.to_owned()),
+                    _ => {}
+                }
+                match opt(p_line).parse_next(&mut stream) {
+                    Err(e) => {
+                        return Some(Err(super::Error::Parsing(ParsingError::from_err_mode(
+                            e,
+                            &self.buffer,
+                            utils::substr_offset(&self.buffer, stream).unwrap(),
+                        ))));
+                    }
+                    Ok(Some(p_line)) => {
+                        match p_line {
+                            PLine::Cnf(_, _) => match self.dialect {
+                                Dialect::Determine => self.dialect = Dialect::Cnf,
+                                Dialect::Cnf => {}
+                                o => {
+                                    return Some(Err(super::Error::WrongDimacsDialect(
+                                        Dialect::Cnf,
+                                        o,
+                                    )))
+                                }
+                            },
+                            PLine::Wcnf(_, _, _) => todo!(),
+                        };
+                        self.in_body = true;
+                        break 'res Data::PLine(p_line);
+                    }
+                    _ => {}
+                }
+                // only possibilities here are lines from formats that do not have a p-line
+                let data = match walt((
+                    hard_clause.map(Data::Clause),
+                    soft_clause.map(|(w, cl)| Data::SoftClause(0, w, cl)),
+                    mo_soft_clause.map(|(idx, w, cl)| Data::SoftClause(idx, w, cl)),
+                ))
+                .parse_next(&mut stream)
+                {
+                    Err(e) => {
+                        return Some(Err(super::Error::Parsing(ParsingError::from_err_mode(
+                            e,
+                            &self.buffer,
+                            utils::substr_offset(&self.buffer, stream).unwrap(),
+                        ))))
+                    }
+                    Ok(data) => data,
+                };
+                self.in_body = true;
+                data
+            } else {
+                todo!()
+            }
+        };
+        self.buffer
+            .drain(..utils::substr_offset(&self.buffer, stream).unwrap());
+        return Some(Ok(res));
+    }
+}
+
+pub enum Data {
+    PLine(PLine),
+    Comment(String),
+    Clause(Clause),
+    SoftClause(usize, usize, Clause),
+}
 
 /// Parses a CNF instance from a reader (typically a (compressed) file)
 ///
@@ -290,6 +472,19 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PLine {
+    Cnf(u32, usize),
+    Wcnf(u32, usize, usize),
+}
+
+fn p_line(input: &mut &str) -> ModalResult<PLine> {
+    seq! { _: 'p', _: space1, walt((
+            seq! { _: "cnf", _: space1, dec_uint, _: space1, dec_uint }.map(|(nv, nc)| PLine::Cnf(nv, nc)),
+            seq! { _: "wcnf", _: space1, dec_uint, _: space1, dec_uint, _: space1, dec_uint }.map(|(nv, nc, top)| PLine::Wcnf(nv, nc, top)),
+    )), _: wmultispace0}.map(|(p,)| p).context(StrContext::Label("p-line")).parse_next(input)
+}
+
 /// Parses p line and determine file format
 fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
     let (input, _) = context(
@@ -352,6 +547,21 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
         ));
     }
     panic!("this should be impossible to reach")
+}
+
+fn cnf_line(input: &mut &str) -> ModalResult<Option<CnfLine>> {
+    *input = input.trim_start();
+    if input.is_empty() {
+        // tolerate empty lines
+        return Ok(None);
+    }
+    walt((
+        comment.map(|c| CnfLine::Comment(c.to_owned())),
+        clause.map(CnfLine::Clause),
+    ))
+    .map(Option::Some)
+    .context(StrContext::Label("header/comment/clause"))
+    .parse_next(input)
 }
 
 /// Parses a CNF line, either a comment or a clause
@@ -448,6 +658,38 @@ fn parse_clause(input: &str) -> IResult<&str, Clause> {
     )(input)
 }
 
+/// Matches a DIMACS comment
+fn comment<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    seq! { 'c', till_line_ending, opt(wline_ending) }
+        .take()
+        .parse_next(input)
+}
+
+fn clause(input: &mut &str) -> ModalResult<Clause> {
+    wterminated(separated(0.., lit, wmultispace1), clause_ending)
+        .context(StrContext::Label("clause"))
+        .parse_next(input)
+}
+
+fn hard_clause(input: &mut &str) -> ModalResult<Clause> {
+    seq! { _: 'h', _: cut_err(space1), cut_err(clause) }
+        .map(|(cl,)| cl)
+        .context(StrContext::Label("hard clause"))
+        .parse_next(input)
+}
+
+fn soft_clause(input: &mut &str) -> ModalResult<(usize, Clause)> {
+    seq! { weight, _: space1, clause }
+        .context(StrContext::Label("soft clause"))
+        .parse_next(input)
+}
+
+fn mo_soft_clause(input: &mut &str) -> ModalResult<(usize, usize, Clause)> {
+    seq! { _: 'o', cut_err(obj_idx), _: cut_err(space1), cut_err(weight), _: cut_err(space1), cut_err(clause) }
+        .context(StrContext::Label("MO soft clause"))
+        .parse_next(input)
+}
+
 #[cfg(feature = "optimization")]
 /// Nom-like parser for weight value
 fn parse_weight(input: &str) -> IResult<&str, usize> {
@@ -458,6 +700,16 @@ fn parse_weight(input: &str) -> IResult<&str, usize> {
             TryInto::try_into,
         ),
     )(input)
+}
+
+#[cfg(feature = "optimization")]
+/// Parses a soft clause weight, intentionally accepting `+` signs
+fn weight(input: &mut &str) -> ModalResult<usize> {
+    use winnow::ascii::dec_uint;
+
+    dec_uint
+        .context(StrContext::Label("soft clause weight"))
+        .parse_next(input)
 }
 
 #[cfg(feature = "optimization")]
@@ -474,9 +726,43 @@ fn parse_idx(input: &str) -> IResult<&str, usize> {
     )(input)
 }
 
+#[cfg(feature = "optimization")]
+fn obj_idx(input: &mut &str) -> ModalResult<usize> {
+    use winnow::{ascii::digit0, token::one_of};
+
+    (one_of('1'..='9'), digit0)
+        .take()
+        .try_map(str::parse)
+        .context(StrContext::Label("objective index"))
+        .parse_next(input)
+}
+
+fn lit(input: &mut &str) -> ModalResult<Lit> {
+    dec_int::<&str, i32, _>
+        .try_map(Lit::from_ipasir)
+        .context(StrContext::Label("IPASIR literal"))
+        .parse_next(input)
+}
+
 /// Nom-like parser for literal
 fn parse_lit(input: &str) -> IResult<&str, Lit> {
     context("invalid ipasir literal", map_res(i32, Lit::from_ipasir))(input)
+}
+
+/// Parses the end of a clause
+/// A '0' followed by a line-break, as well as a '0' followed by
+/// white-space or only a line-break are treated as valid clause endings.
+/// This is more leanient than the file format spec.
+fn clause_ending<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    (
+        wmultispace0,
+        opt('0'),
+        opt(wmultispace0),
+        walt((wline_ending, eof)),
+    )
+        .take()
+        .context(StrContext::Label("clause ending"))
+        .parse_next(input)
 }
 
 /// Parses the end of a clause
@@ -514,6 +800,8 @@ pub fn write_cnf_annotated<W: Write>(
 
 /// Input data for writing a CNF instance
 pub enum CnfLine {
+    /// The CNF header with the number of variables and clauses
+    Header(u32, usize),
     /// A comment line
     Comment(String),
     /// A clause
@@ -525,8 +813,8 @@ impl CnfLine {
     #[must_use]
     pub fn clause(self) -> Option<Clause> {
         match self {
-            CnfLine::Comment(_) => None,
             CnfLine::Clause(cl) => Some(cl),
+            _ => None,
         }
     }
 }
@@ -541,6 +829,7 @@ pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
+        CnfLine::Header(n_vars, n_clauses) => writeln!(writer, "p {n_vars} {n_clauses}"),
         CnfLine::Comment(c) => write!(writer, "c {c}"),
         CnfLine::Clause(cl) => write_clause(writer, &cl),
     })

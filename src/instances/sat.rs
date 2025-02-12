@@ -339,12 +339,7 @@ impl FromIterator<Clause> for Cnf {
 
 impl FromIterator<CnfLine> for Cnf {
     fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        iter.into_iter()
-            .filter_map(|line| match line {
-                CnfLine::Comment(_) => None,
-                CnfLine::Clause(cl) => Some(cl),
-            })
-            .collect()
+        iter.into_iter().filter_map(CnfLine::clause).collect()
     }
 }
 

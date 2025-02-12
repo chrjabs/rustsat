@@ -39,6 +39,10 @@ pub enum Error {
     #[cfg(feature = "optimization")]
     #[error("the file only has {0} objectives")]
     ObjNoExist(usize),
+    // TODO: does it make sense to have this error here even though it can only happen for DIMACS?
+    /// Expected different file dialect
+    #[error("expected a different DIMACS dialect from what was encountered")]
+    WrongDimacsDialect(dimacs::Dialect, dimacs::Dialect),
 }
 
 /// An error uccuring during parsing
