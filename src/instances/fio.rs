@@ -80,6 +80,19 @@ impl ParsingError {
         }
     }
 
+    pub(crate) fn new(message: String, input: &str, offset: usize, line_start: usize) -> Self {
+        let input = input.to_owned();
+        let end = (offset + 1..=input.len())
+            .find(|e| input.is_char_boundary(*e))
+            .unwrap_or(offset);
+        Self {
+            message,
+            span: offset..end,
+            input,
+            line_start,
+        }
+    }
+
     /// Provide a wider context and the offset of the old context in the new context
     pub fn extend_context(&mut self, new_context: String, offset_of_old: usize) {
         self.input = new_context;

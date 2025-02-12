@@ -277,6 +277,20 @@ impl FromIterator<Lit> for Clause {
     }
 }
 
+impl winnow::stream::Accumulate<Lit> for Clause {
+    fn initial(capacity: Option<usize>) -> Self {
+        if let Some(capacity) = capacity {
+            Self::with_capacity(capacity)
+        } else {
+            Self::new()
+        }
+    }
+
+    fn accumulate(&mut self, acc: Lit) {
+        self.add(acc);
+    }
+}
+
 impl<'a> IntoIterator for &'a Clause {
     type Item = &'a Lit;
 
