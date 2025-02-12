@@ -10,7 +10,7 @@ use std::{
     path::Path,
 };
 use thiserror::Error;
-use winnow::error::{ContextError, ParseError};
+use winnow::error::{ContextError, ErrMode, ParseError};
 
 use crate::{
     solvers::{SolverResult, SolverState},
@@ -50,11 +50,7 @@ pub struct ParsingError {
 }
 
 impl ParsingError {
-    pub(crate) fn from_parse(error: ParseError<&str, ContextError>, input: &str) -> Self {
-        Self::from_parse_with_offset(error, input, 0)
-    }
-
-    pub(crate) fn from_parse_with_offset(
+    pub(crate) fn from_parse(
         error: ParseError<&str, ContextError>,
         input: &str,
         offset: usize,
@@ -62,7 +58,23 @@ impl ParsingError {
         let message = error.inner().to_string();
         let input = input.to_owned();
         let start = error.offset() + offset;
-        let end = (start + 1..)
+        let end = (start + 1..=input.len())
+            .find(|e| input.is_char_boundary(*e))
+            .unwrap_or(start);
+        Self {
+            message,
+            span: start..end,
+            input,
+        }
+    }
+
+    pub(crate) fn from_err_mode(error: ErrMode<ContextError>, input: &str, start: usize) -> Self {
+        let message = match error.into_inner() {
+            Ok(e) => e.to_string(),
+            Err(_) => String::from("requested more input"),
+        };
+        let input = input.to_owned();
+        let end = (start + 1..=input.len())
             .find(|e| input.is_char_boundary(*e))
             .unwrap_or(start);
         Self {

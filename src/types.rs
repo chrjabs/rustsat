@@ -967,11 +967,7 @@ impl Assignment {
             let lit = fio::opb::literal(fio::opb::Options::default())
                 .parse(number)
                 .map_err(|e| {
-                    ParsingError::from_parse_with_offset(
-                        e,
-                        line,
-                        utils::substr_offset(line, number).unwrap(),
-                    )
+                    ParsingError::from_parse(e, line, utils::substr_offset(line, number).unwrap())
                 })?;
             let val = self.lit_value(lit);
             if val == TernaryVal::True && lit.is_neg() || val == TernaryVal::False && lit.is_pos() {
