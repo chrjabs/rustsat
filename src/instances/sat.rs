@@ -20,8 +20,6 @@ use crate::{
     RequiresClausal,
 };
 
-use anyhow::Context;
-
 use super::{
     fio::{self, dimacs::CnfLine},
     BasicVarManager, ManageVars, ReindexVars,
@@ -333,12 +331,7 @@ impl FromIterator<Clause> for Cnf {
 
 impl FromIterator<CnfLine> for Cnf {
     fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        iter.into_iter()
-            .filter_map(|line| match line {
-                CnfLine::Comment(_) => None,
-                CnfLine::Clause(cl) => Some(cl),
-            })
-            .collect()
+        iter.into_iter().filter_map(CnfLine::clause).collect()
     }
 }
 
@@ -984,8 +977,8 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
         fio::dimacs::parse_cnf(reader)
     }
 
@@ -995,10 +988,9 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let mut reader =
-            fio::open_compressed_uncompressed_read(path).context("failed to open reader")?;
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
+        let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Instance::from_dimacs(&mut reader)
     }
 

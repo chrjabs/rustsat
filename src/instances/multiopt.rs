@@ -386,8 +386,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
         fio::dimacs::parse_mcnf(reader)
     }
 
@@ -396,8 +396,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// Parsing errors from [`nom`] or [`io::Error`].
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+    /// [`io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(&mut reader)
     }

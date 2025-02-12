@@ -104,7 +104,7 @@ fn parse_instance(
     file_format: FileFormat,
     opb_opts: fio::opb::Options,
 ) -> anyhow::Result<MultiOptInstance> {
-    match file_format {
+    Ok(match file_format {
         FileFormat::Infer => {
             if let Some(ext) = inst_path.extension() {
                 let path_without_compr = inst_path.with_extension("");
@@ -117,7 +117,7 @@ fn parse_instance(
                 } else {
                     ext
                 };
-                let inst = if is_one_of!(ext, "cnf", "dimacs") {
+                if is_one_of!(ext, "cnf", "dimacs") {
                     let inst = SatInstance::from_dimacs_path(inst_path)?;
                     MultiOptInstance::compose(inst, vec![])
                 } else if is_one_of!(ext, "wcnf") {
@@ -129,23 +129,20 @@ fn parse_instance(
                     MultiOptInstance::from_opb_path(inst_path, opb_opts)?
                 } else {
                     anyhow::bail!("unknown file extension")
-                };
-                Ok(inst)
+                }
             } else {
                 anyhow::bail!("no file extension")
             }
         }
         FileFormat::Cnf => {
             let inst = SatInstance::from_dimacs_path(inst_path)?;
-            Ok(MultiOptInstance::compose(inst, vec![]))
+            MultiOptInstance::compose(inst, vec![])
         }
         FileFormat::Wcnf => {
             let (inst, obj) = OptInstance::from_dimacs_path(inst_path)?.decompose();
-            Ok(MultiOptInstance::compose(inst, vec![obj]))
+            MultiOptInstance::compose(inst, vec![obj])
         }
-        FileFormat::Mcnf => MultiOptInstance::from_dimacs_path(inst_path),
-        FileFormat::Opb => {
-            MultiOptInstance::from_opb_path(inst_path, opb_opts).map_err(|e| e.into())
-        }
-    }
+        FileFormat::Mcnf => MultiOptInstance::from_dimacs_path(inst_path)?,
+        FileFormat::Opb => MultiOptInstance::from_opb_path(inst_path, opb_opts)?,
+    })
 }
