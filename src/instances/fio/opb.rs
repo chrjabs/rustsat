@@ -11,9 +11,10 @@
 use std::io::{self, BufRead, Write};
 
 use winnow::{
-    ascii::{dec_int, dec_uint, line_ending, space0, space1, till_line_ending},
+    ascii::{dec_int, digit0, line_ending, space0, space1, till_line_ending},
     combinator::{alt, cut_err, dispatch, empty, eof, opt, preceded, repeat, seq},
     error::{ContextError, ErrMode, StrContext},
+    token::one_of,
     ModalResult, Parser as WParser,
 };
 
@@ -266,13 +267,19 @@ impl<'i, E> WParser<&'i str, Var, E> for VarParser
 where
     E: winnow::error::ParserError<&'i str>
         + winnow::error::AddContext<&'i str, winnow::error::StrContext>
-        + winnow::error::FromExternalError<&'i str, Error>,
+        + winnow::error::FromExternalError<&'i str, Error>
+        + winnow::error::FromExternalError<&'i str, <u32 as std::str::FromStr>::Err>,
 {
     fn parse_next(&mut self, input: &mut &'i str) -> winnow::Result<Var, E> {
+        // NOTE: manual implementation for the index following `dec_uint` in order to not allow
+        // signs
         preceded(
             'x'.context(StrContext::Label("variable prefix")),
-            dec_uint::<&str, u32, _>.context(StrContext::Label("variable index")),
+            alt(((one_of('1'..='9'), digit0).void(), '0'.void())),
         )
+        .take()
+        .try_map(str::parse)
+        .context(StrContext::Label("variable index"))
         .try_map(|idx| {
             if idx < self.0 {
                 return Err(Error::VarIdxTooLow(idx, self.0));
@@ -943,6 +950,10 @@ mod test {
         let mut parser = VarParser(Options::default().first_var_idx);
         assert!(
             <VarParser as WParser<&str, Var, ContextError<_>>>::parse_peek(&mut parser, " test")
+                .is_err()
+        );
+        assert!(
+            <VarParser as WParser<&str, Var, ContextError<_>>>::parse_peek(&mut parser, "x+1 test")
                 .is_err()
         );
     }
