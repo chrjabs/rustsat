@@ -24,6 +24,7 @@ use super::{
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
 #[derive(Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
 }

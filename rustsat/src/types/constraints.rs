@@ -19,6 +19,7 @@ use crate::RequiresClausal;
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Clause {
     lits: Vec<Lit>,
 }
@@ -497,6 +498,7 @@ impl CardConstraint {
 
 /// An upper bound cardinality constraint (`sum of lits <= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CardUBConstr {
     lits: Vec<Lit>,
     b: usize,
@@ -531,6 +533,7 @@ impl CardUBConstr {
 
 /// A lower bound cardinality constraint (`sum of lits >= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CardLBConstr {
     lits: Vec<Lit>,
     b: usize,
@@ -570,6 +573,7 @@ impl CardLBConstr {
 
 /// An equality cardinality constraint (`sum of lits = b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CardEQConstr {
     lits: Vec<Lit>,
     b: usize,
@@ -943,6 +947,7 @@ impl PBConstraint {
 
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PBUBConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
@@ -1018,6 +1023,7 @@ impl PBUBConstr {
 
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PBLBConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
@@ -1094,6 +1100,7 @@ impl PBLBConstr {
 
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PBEQConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,

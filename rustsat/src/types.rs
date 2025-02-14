@@ -44,6 +44,7 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 /// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
 #[repr(transparent)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Var {
     idx: u32,
 }
@@ -244,6 +245,7 @@ macro_rules! var {
 /// being close together.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
 #[repr(transparent)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Lit {
     lidx: u32,
 }
@@ -522,6 +524,7 @@ macro_rules! ipasir_lit {
 /// Ternary value assigned to a literal or variable, including possible "don't care"
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TernaryVal {
     /// Positive assignment.
     True,
@@ -614,6 +617,7 @@ pub enum InvalidVLine {
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Assignment {
     assignment: Vec<TernaryVal>,
 }
