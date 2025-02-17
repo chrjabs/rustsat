@@ -24,7 +24,7 @@ bindgen = "0.71.1"
 bzip2 = "0.5.1"
 cc = { version = "1.2.14", features = ["parallel"] }
 chrono = "0.4.39"
-clap = { version = "4.5.29", features = ["derive", "cargo"] }
+clap = { version = "4.5.30", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
@@ -45,7 +45,7 @@ rustsat-cadical = { version = "0.4.3", path = "./cadical" }
 rustsat-minisat = { version = "0.4.3", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 signal-hook = "0.3.17"
-tempfile = "3.17.0"
+tempfile = "3.17.1"
 visibility = "0.1.1"
 xz2 = "0.1.7"
 
