@@ -39,9 +39,9 @@ thiserror = "2.0.11"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 rustc-hash = "2.1.1"
-rustsat = { version = "0.6.3", path = "./", default-features = false }
-rustsat-cadical = { version = "0.4.3", path = "./cadical" }
-rustsat-minisat = { version = "0.4.3", path = "./minisat" }
+rustsat = { version = "0.6.4", path = "./", default-features = false }
+rustsat-cadical = { version = "0.4.4", path = "./cadical" }
+rustsat-minisat = { version = "0.4.4", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.217", features = ["derive"] }
 signal-hook = "0.3.17"
@@ -51,7 +51,7 @@ xz2 = "0.1.7"
 
 [package]
 name = "rustsat"
-version = "0.6.3"
+version = "0.6.4"
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
