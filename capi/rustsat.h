@@ -6,10 +6,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#define RUSTSAT_VERSION 0.6.3
+#define RUSTSAT_VERSION 0.6.4
 #define RUSTSAT_VERSION_MAJOR 0
 #define RUSTSAT_VERSION_MINOR 6
-#define RUSTSAT_VERSION_PATCH 3
+#define RUSTSAT_VERSION_PATCH 4
 
 #ifdef __cplusplus
 namespace RustSAT {
