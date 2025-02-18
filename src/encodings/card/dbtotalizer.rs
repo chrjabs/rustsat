@@ -35,6 +35,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
 ///     Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
     lit_buffer: Vec<Lit>,
@@ -218,6 +219,7 @@ impl Extend<Lit> for DbTotalizer {
 
 /// A totalizer adder node
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 #[cfg(not(feature = "internals"))]
 pub struct Node(pub(in crate::encodings) INode);
@@ -226,6 +228,7 @@ pub struct Node(pub(in crate::encodings) INode);
 ///
 /// The internal node [`INode`] representation is only accessible on crate feature `internals`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 #[cfg(feature = "internals")]
 pub struct Node(pub INode);
@@ -239,6 +242,7 @@ impl From<INode> for Node {
 /// The internal totalizer node type
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(in crate::encodings) enum INode {
     /// An input literal, i.e., a leaf of the tree
     Leaf(Lit),
@@ -468,6 +472,7 @@ impl Index<usize> for Node {
 
 /// An internal node of the totalizer
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UnitNode {
     pub(crate) lits: Vec<LitData>,
     pub(crate) depth: usize,
@@ -514,6 +519,7 @@ impl Index<usize> for UnitNode {
 
 /// An internal _general_ (weighted) node
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GeneralNode {
     pub(crate) lits: BTreeMap<usize, LitData>,
     pub(crate) depth: usize,
@@ -563,6 +569,7 @@ impl GeneralNode {
 
 /// Data associated with an output literal in a [`Node`]
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum LitData {
     #[default]
     None,
@@ -603,6 +610,7 @@ impl LitData {
 #[derive(Default, Clone)]
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(in crate::encodings) struct TotDb {
     /// The node database of the totalizer
     nodes: Vec<Node>,

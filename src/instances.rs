@@ -88,6 +88,7 @@ pub trait ReindexVars: ManageVars {
 
 /// Simple counting variable manager
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicVarManager {
     next_var: Var,
 }
@@ -148,6 +149,7 @@ impl Default for BasicVarManager {
 
 /// Manager for re-indexing an existing instance
 #[derive(PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReindexingVarManager {
     next_var: Var,
     in_map: RsHashMap<Var, Var>,
@@ -320,6 +322,7 @@ impl ManageVars for ObjectVarManager {
 #[cfg(feature = "rand")]
 /// Manager for randomly re-indexing an instance
 #[derive(PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RandReindVarManager {
     next_var: Var,
     in_map: Vec<Var>,

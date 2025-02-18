@@ -21,6 +21,7 @@ use crate::{
 
 /// Internal objective type for not exposing variants
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IntObj {
     Weighted {
         offset: isize,
@@ -44,6 +45,7 @@ use super::{
 /// This type currently supports soft clauses and soft literals.
 /// All objectives are considered minimization objectives.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Objective(IntObj);
 
 impl From<IntObj> for Objective {
@@ -1090,6 +1092,7 @@ impl FromIterator<(Clause, usize)> for Objective {
 /// Type representing an optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Instance<VM: ManageVars = BasicVarManager> {
     pub(super) constrs: SatInstance<VM>,
     pub(super) obj: Objective,

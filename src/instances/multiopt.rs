@@ -19,6 +19,7 @@ use super::{
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiOptInstance<VM: ManageVars = BasicVarManager> {
     pub(super) constrs: SatInstance<VM>,
     pub(super) objs: Vec<Objective>,
