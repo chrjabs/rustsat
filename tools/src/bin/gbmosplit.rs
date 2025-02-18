@@ -18,7 +18,7 @@ use rustsat::{
 use std::{
     collections::BTreeSet,
     fmt,
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     path::PathBuf,
 };
 use termcolor::{Buffer, BufferWriter, Color, ColorSpec, WriteColor};
@@ -55,7 +55,7 @@ impl Cli {
                 concolor_clap::ColorChoice::Always => termcolor::ColorChoice::Always,
                 concolor_clap::ColorChoice::Never => termcolor::ColorChoice::Never,
                 concolor_clap::ColorChoice::Auto => {
-                    if atty::is(atty::Stream::Stdout) {
+                    if io::stdout().is_terminal() {
                         termcolor::ColorChoice::Auto
                     } else {
                         termcolor::ColorChoice::Never
@@ -66,7 +66,7 @@ impl Cli {
                 concolor_clap::ColorChoice::Always => termcolor::ColorChoice::Always,
                 concolor_clap::ColorChoice::Never => termcolor::ColorChoice::Never,
                 concolor_clap::ColorChoice::Auto => {
-                    if atty::is(atty::Stream::Stderr) {
+                    if io::stderr().is_terminal() {
                         termcolor::ColorChoice::Auto
                     } else {
                         termcolor::ColorChoice::Never

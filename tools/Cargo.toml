@@ -8,13 +8,13 @@ description = "Tools and examples built on the RustSAT library"
 keywords = ["rustsat", "sat", "satisfiability"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
+rust-version = "1.70.0"
 include = ["LICENSE", "CHANGELOG.md", "README.md", "/src/"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow.workspace = true
-atty.workspace = true
 clap.workspace = true
 concolor-clap.workspace = true
 itertools.workspace = true
