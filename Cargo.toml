@@ -44,6 +44,7 @@ rustsat = { version = "0.6.3", path = "./", default-features = false }
 rustsat-cadical = { version = "0.4.3", path = "./cadical" }
 rustsat-minisat = { version = "0.4.3", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
+serde = { version = "1.0.217", features = ["derive"] }
 signal-hook = "0.3.17"
 tempfile = "3.17.1"
 visibility = "0.1.1"
@@ -80,6 +81,7 @@ flate2 = { workspace = true, optional = true }
 itertools.workspace = true
 rand = { workspace = true, optional = true }
 rustc-hash = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 tempfile.workspace = true
 xz2 = { workspace = true, optional = true }
 
@@ -98,7 +100,8 @@ compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
 ipasir-display = []
-all = ["multiopt", "compression", "rand", "fxhash"]
+serde = ["dep:serde"]
+all = ["multiopt", "compression", "rand", "fxhash", "serde"]
 
 [package.metadata.docs.rs]
 features = ["all", "internals"]

@@ -20,6 +20,7 @@ use crate::{
 /// - Steven D. Prestwich: _Negative Effects of Modeling Techniques on Search Performance_, in
 ///   Trends in Constraint Programming 2007.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Bitwise {
     /// Input literals
     in_lits: Vec<Lit>,

@@ -43,6 +43,7 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct Var {
     idx: u32,
@@ -293,6 +294,7 @@ macro_rules! var {
 /// be used to index data structures with the two literals of a variable
 /// being close together.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct Lit {
     lidx: u32,
@@ -628,6 +630,7 @@ macro_rules! ipasir_lit {
 
 /// Ternary value assigned to a literal or variable, including possible "don't care"
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
 pub enum TernaryVal {
     /// Positive assignment.
@@ -749,6 +752,7 @@ enum VLineFormat {
 
 /// Type representing an assignment of variables.
 #[derive(Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct Assignment {
     assignment: Vec<TernaryVal>,

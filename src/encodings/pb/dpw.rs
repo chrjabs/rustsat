@@ -62,6 +62,7 @@ pub enum PrecisionError {
 /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DynamicPolyWatchdog {
     /// Input literals and weights for the encoding
     in_lits: RsHashMap<Lit, usize>,
@@ -227,6 +228,7 @@ impl DynamicPolyWatchdog {
 /// Type containing information about the DPW encoding structure
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone)]
 pub(crate) struct Structure {
     /// The bottom buckets of the encoding. The first one of them is the root of the encoding.

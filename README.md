@@ -60,6 +60,7 @@ To install the binary tools in `rustsat-tools` run `cargo install rustsat-tools`
 | `fxhash` | Use the faster firefox hash function from `rustc-hash` in RustSAT. |
 | `rand` | Enable randomization features. (Shuffling clauses etc.) |
 | `ipasir-display` | Changes `Display` trait for `Lit` and `Var` types to follow IPASIR variables indexing. |
+| `serde` | Add implementations for [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for many library types |
 | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
 | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
 

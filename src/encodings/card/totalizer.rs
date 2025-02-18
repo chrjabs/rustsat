@@ -36,6 +36,7 @@ use std::{
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Totalizer {
     /// Input literals to the totalizer
     in_lits: Vec<Lit>,
@@ -343,6 +344,7 @@ pub(super) type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
 /// accessed but only through [`Totalizer`].
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Node {
     /// An input literal, i.e., a leaf node of the tree
     Leaf {

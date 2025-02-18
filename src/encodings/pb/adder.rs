@@ -39,6 +39,7 @@ use super::{
 /// - \[2\] Niklas Eén and Niklas Sörensson: _Translating Pseudo-Boolean Constraints into SAT_,
 ///     JSAT 2006.
 #[derive(Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BinaryAdder {
     /// Input literals and weights for the encoding
     lit_buffer: RsHashMap<Lit, usize>,
@@ -57,6 +58,7 @@ pub struct BinaryAdder {
 /// The structure of a binary adder encoding
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 struct Structure {
     /// The output bits of the structure
@@ -437,6 +439,7 @@ impl Extend<(Lit, usize)> for BinaryAdder {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Node {
     Full {
         a: Connection,
@@ -496,6 +499,7 @@ impl Node {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Connection {
     Input(Lit),
     Sum(usize),
@@ -503,6 +507,7 @@ enum Connection {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct Output {
     bit: Lit,
     enc_if: bool,

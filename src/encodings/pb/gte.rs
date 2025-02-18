@@ -31,6 +31,7 @@ use std::{
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GeneralizedTotalizer {
     /// Input literals and weights for the encoding
     in_lits: RsHashMap<Lit, usize>,
@@ -342,6 +343,7 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
 /// [`super::InvertedGeneralizedTotalizer`] structs.
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Node {
     /// A weighted input literal, i.e., a leaf node of the tree
     Leaf {
