@@ -2,8 +2,9 @@
 //!
 //! ## References
 //!
-//! - Steven D. Prestwich: _Negative Effects of Modeling Techniques on Search Performance_, in
-//!   Trends in Constraint Programming 2007.
+//! - Steven D. Prestwich: _Finding large Cliques using SAT Local Search_, in Trends in Constraint
+//!   Programming 2007.
+//! - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 
 use super::Encode;
 use crate::{
@@ -17,8 +18,9 @@ use crate::{
 ///
 /// # References
 ///
-/// - Steven D. Prestwich: _Negative Effects of Modeling Techniques on Search Performance_, in
-///   Trends in Constraint Programming 2007.
+/// - Steven D. Prestwich: _Finding large Cliques using SAT Local Search_, in Trends in Constraint
+///   Programming 2007.
+/// - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 #[derive(Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Bitwise {
