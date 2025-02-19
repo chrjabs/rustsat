@@ -4,6 +4,7 @@ doc-valid-idents = [
   "MaxSAT",
   "BatSat",
   "AllDifferent",
+  "ModRef",
   "..",
 ]
 avoid-breaking-exported-api = false
