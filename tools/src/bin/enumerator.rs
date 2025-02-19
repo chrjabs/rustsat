@@ -20,6 +20,9 @@ struct Args {
     /// The file format of the input
     #[arg(long, default_value_t = InputFormat::default())]
     input_format: InputFormat,
+    /// The maximum number of solutions to enumerate. Enumerates all by default.
+    #[arg(short, long)]
+    enumerate_until: Option<usize>,
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 1)]
     opb_first_var_idx: u32,
@@ -160,6 +163,13 @@ fn main() -> anyhow::Result<()> {
 
     let enumerator = Enumerator { solver, max_var };
 
-    enumerator.for_each(|sol| println!("v {}", sol));
+    let mut cnt = 0;
+    for sol in enumerator {
+        println!("v {}", sol);
+        cnt += 1;
+        if args.enumerate_until.is_some_and(|max| cnt >= max) {
+            break;
+        }
+    }
     Ok(())
 }
