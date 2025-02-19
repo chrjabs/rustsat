@@ -83,7 +83,7 @@ mod parsing {
         bytes::complete::tag,
         character::complete::{space0, u32},
         error::Error as NomErr,
-        sequence::tuple,
+        Parser,
     };
 
     use crate::parsing::{callback_list, single_value};
@@ -106,16 +106,19 @@ mod parsing {
     pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
         let line = next_non_comment_line!(reader)
             .context("file ended before number of objectives line")?;
-        let (_, n_obj) = single_value(u32, "#")(&line)
+        let (_, n_obj) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
         let line =
             next_non_comment_line!(reader).context("file ended before number of items line")?;
-        let (_, n_items) = single_value(u32, "#")(&line)
+        let (_, n_items) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of items line '{line}'"))?;
         let line = next_non_comment_line!(reader).context("file ended before capacity line")?;
-        let (_, capacity) = single_value(u32, "#")(&line)
+        let (_, capacity) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse capacity line '{line}'"))?;
         let mut inst = super::Knapsack {
@@ -151,10 +154,11 @@ mod parsing {
                 item_idx += 1;
                 Ok(())
             })?;
-            match tuple::<_, _, NomErr<_>, _>((space0, tag(","), space0))(remain) {
+            match (space0::<_, NomErr<_>>, tag(","), space0).parse(remain) {
                 Ok(_) => (),
                 Err(_) => {
-                    tuple::<_, _, NomErr<_>, _>((space0, tag("]")))(remain)
+                    (space0::<_, NomErr<_>>, tag("]"))
+                        .parse(remain)
                         .map_err(|e| e.to_owned())
                         .context("failed to find closing delimiter for value list")?;
                     ended = true;
@@ -187,15 +191,18 @@ mod parsing {
     pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
         let line =
             next_non_comment_line!(reader).context("file ended before number of items line")?;
-        let (_, n_items) = single_value(u32, "#")(&line)
+        let (_, n_items) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of items line '{line}'"))?;
         let line = next_non_comment_line!(reader)
             .context("file ended before number of objectives line")?;
-        let (_, n_obj) = single_value(u32, "#")(&line)
+        let (_, n_obj) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
-        let _ = single_value(u32, "#")(&line)
+        let _ = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of constraints line '{line}'"))?;
         let mut inst = super::Knapsack {
@@ -213,7 +220,8 @@ mod parsing {
                 let line = next_non_comment_line!(reader).with_context(|| {
                     format!("file ended before {item_idx} value of objective {obj_idx}")
                 })?;
-                let (_, value) = single_value(u32, "#")(&line)
+                let (_, value) = single_value(u32, "#")
+                    .parse(&line)
                     .map_err(|e| e.to_owned())
                     .with_context(|| {
                         format!("failed to parse {item_idx} value of objective {obj_idx} '{line}'")
@@ -224,7 +232,8 @@ mod parsing {
         for item_idx in 0..n_items {
             let line = next_non_comment_line!(reader)
                 .with_context(|| format!("file ended before weight of item {item_idx}"))?;
-            let (_, weight) = single_value(u32, "#")(&line)
+            let (_, weight) = single_value(u32, "#")
+                .parse(&line)
                 .map_err(|e| e.to_owned())
                 .with_context(|| format!("failed to parse weight of item {item_idx} '{line}'"))?;
             inst.items[item_idx as usize].weight = weight as usize;

@@ -23,8 +23,7 @@ use nom::{
     combinator::{cut, eof, map, map_res, recognize},
     error::Error as NomError,
     multi::{many0, many1, many_till},
-    sequence::{pair, tuple},
-    IResult,
+    IResult, Parser,
 };
 use std::{
     io::{self, BufRead, Write},
@@ -179,7 +178,8 @@ fn parse_opb_data<R: BufRead>(reader: &mut R, opts: Options) -> anyhow::Result<V
     let mut data = vec![];
     // TODO: consider not necessarily reading a full line
     while reader.read_line(&mut buf)? > 0 {
-        let (rem, new_data) = many0(|i| opb_data(i, opts))(&buf)
+        let (rem, new_data) = many0(|i| opb_data(i, opts))
+            .parse(&buf)
             .map_err(nom::Err::<NomError<&str>>::to_owned)
             .with_context(|| format!("failed to parse opb line '{buf}'"))?;
         data.extend(new_data);
@@ -196,13 +196,14 @@ fn parse_opb_data<R: BufRead>(reader: &mut R, opts: Options) -> anyhow::Result<V
 
 /// Matches an OPB comment
 fn comment(input: &str) -> IResult<&str, &str> {
-    recognize(pair(
+    recognize((
         tag("*"),
         alt((
             recognize(many_till(anychar, line_ending)),
             recognize(many0(anychar)),
         )),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 /// Parses an OPB variable
@@ -211,22 +212,23 @@ fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
     map_res(u64, |idx| {
         let idx = (TryInto::<u32>::try_into(idx)?) - opts.first_var_idx;
         Ok::<Var, TryFromIntError>(Var::new(idx))
-    })(input)
+    })
+    .parse(input)
 }
 
 /// Parses a literal. The spec for linear OPB instances only allows for
 /// variables but we allow negated literals with `~` as in non-linear OPB
 /// instances.
 pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
-    match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
-        Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),
-        Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit()))(input),
+    match alt((tag::<_, _, NomError<&str>>("~"), tag("-"))).parse(input) {
+        Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit())).parse(input),
+        Err(_) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.pos_lit())).parse(input),
     }
 }
 
 /// Parses an OPB relational operator. We admit more operators than the spec.
 fn operator(input: &str) -> IResult<&str, OpbOperator> {
-    let (input, op_str) = alt((tag("<="), tag(">="), tag("<"), tag(">"), tag("=")))(input)?;
+    let (input, op_str) = alt((tag("<="), tag(">="), tag("<"), tag(">"), tag("="))).parse(input)?;
     Ok((
         input,
         if op_str == "<=" {
@@ -245,37 +247,38 @@ fn operator(input: &str) -> IResult<&str, OpbOperator> {
 
 /// Parses an OPB weight
 fn weight(input: &str) -> IResult<&str, isize> {
-    map_res(i64, TryInto::try_into)(input)
+    map_res(i64, TryInto::try_into).parse(input)
 }
 
 /// Parses an OPB weighted term
 fn weighted_literal(input: &str, opts: Options) -> IResult<&str, (Lit, isize)> {
     map(
-        tuple((weight, cut(space1), cut(|i| literal(i, opts)), space0)),
+        (weight, cut(space1), cut(|i| literal(i, opts)), space0),
         |(w, _, l, _)| (l, w),
-    )(input)
+    )
+    .parse(input)
 }
 
 /// Parses an OPB sum
 fn weighted_lit_sum(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
-    many1(|i| weighted_literal(i, opts))(input)
+    many1(|i| weighted_literal(i, opts)).parse(input)
 }
 
 #[cfg(feature = "optimization")]
 /// Parses a (potentially empty) OPB sum
 fn weighted_lit_sum0(input: &str, opts: Options) -> IResult<&str, Vec<(Lit, isize)>> {
-    many0(|i| weighted_literal(i, opts))(input)
+    many0(|i| weighted_literal(i, opts)).parse(input)
 }
 
 /// Leniently parses OPB constraint or objective ending as ';' or a line ending
 fn opb_ending(input: &str) -> IResult<&str, &str> {
     // TODO: potentially simplify with `cut`?
-    recognize(pair(
+    recognize((
         space0,
         alt((
-            recognize(pair(
+            recognize((
                 alt((
-                    recognize(tuple((tag(";"), space0, line_ending))),
+                    recognize((tag(";"), space0, line_ending)),
                     line_ending,
                     tag(";"),
                 )),
@@ -283,19 +286,20 @@ fn opb_ending(input: &str) -> IResult<&str, &str> {
             )),
             eof,
         )),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 /// Parses an OPB constraint
 fn constraint(input: &str, opts: Options) -> IResult<&str, PbConstraint> {
     map_res(
-        tuple((
+        (
             |i| weighted_lit_sum(i, opts),
             cut(operator),
             space0,
             cut(weight),
             cut(opb_ending),
-        )),
+        ),
         |(wls, op, _, b, _)| {
             let lits = wls.into_iter();
             Ok::<_, ()>(match op {
@@ -306,37 +310,40 @@ fn constraint(input: &str, opts: Options) -> IResult<&str, PbConstraint> {
                 OpbOperator::EQ => PbConstraint::new_eq(lits, b),
             })
         },
-    )(input)
+    )
+    .parse(input)
 }
 
 #[cfg(feature = "optimization")]
 /// Parses an OPB objective
 fn objective(input: &str, opts: Options) -> IResult<&str, Objective> {
     map_res(
-        tuple((
+        (
             tag("min:"),
             space0,
             |i| weighted_lit_sum0(i, opts),
             cut(opb_ending),
-        )),
+        ),
         |(_, _, wsl, _)| {
             let mut obj = Objective::new();
             wsl.into_iter()
                 .for_each(|(l, w)| obj.increase_soft_lit_int(w, l));
             Ok::<_, ()>(obj)
         },
-    )(input)
+    )
+    .parse(input)
 }
 
 #[cfg(not(feature = "optimization"))]
 /// Matches an OPB objective
 fn objective(input: &str, opts: Options) -> IResult<&str, &str> {
-    recognize(tuple((
+    recognize((
         tag("min:"),
         space0,
         |i| weighted_lit_sum(i, opts),
         opb_ending,
-    )))(input)
+    ))
+    .parse(input)
 }
 
 /// Top level string parser applied to lines
@@ -353,7 +360,8 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
             |i| objective(i, opts),
             |obj| OpbData::Obj(String::from(obj)),
         ),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 /// Possible lines that can be written to OPB

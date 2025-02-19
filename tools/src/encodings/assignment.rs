@@ -47,7 +47,7 @@ mod parsing {
     use std::io;
 
     use anyhow::Context;
-    use nom::character::complete::u32;
+    use nom::{character::complete::u32, Parser};
 
     use crate::parsing::{callback_list, single_value};
 
@@ -69,12 +69,14 @@ mod parsing {
     pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Assignment> {
         let line = next_non_comment_line!(reader)
             .context("file ended before number of objectives line")?;
-        let (_, n_objs) = single_value(u32, "#")(&line)
+        let (_, n_objs) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
         let line =
             next_non_comment_line!(reader).context("file ended before number of tasks line")?;
-        let (_, n_tasks) = single_value(u32, "#")(&line)
+        let (_, n_tasks) = single_value(u32, "#")
+            .parse(&line)
             .map_err(|e| e.to_owned())
             .with_context(|| format!("failed to parse number of tasks line '{line}'"))?;
         let mut inst = super::Assignment::empty(n_tasks as usize, n_objs as usize);
