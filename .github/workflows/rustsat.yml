@@ -21,8 +21,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,8 +64,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
       - name: Cargo kani
         uses: model-checking/kani-github-action@v1
         with:
