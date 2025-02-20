@@ -909,7 +909,7 @@ impl Propagate for CaDiCaL<'_, '_> {
         self.state = InternalSolverState::Input;
         // Propagate with cadical backend
         let assumps: Vec<_> = assumps.iter().map(|l| l.to_ipasir()).collect();
-        let assump_ptr: *const c_int = &assumps[0];
+        let assump_ptr: *const c_int = assumps.as_ptr().cast();
         let mut props = Vec::new();
         let prop_ptr: *mut Vec<Lit> = &mut props;
         let res = handle_oom!(unsafe {
