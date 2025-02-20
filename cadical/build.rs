@@ -44,6 +44,40 @@ enum Version {
     // Don't forget to update the crate documentation when adding a newer version
 }
 
+/// Checks if the version was set manually via a feature
+macro_rules! version_set_manually {
+    () => {
+        cfg!(any(
+            feature = "v2-1-3",
+            feature = "v2-1-2",
+            feature = "v2-1-1",
+            feature = "v2-1-0",
+            feature = "v2-0-0",
+            feature = "v1-9-5",
+            feature = "v1-9-4",
+            feature = "v1-9-3",
+            feature = "v1-9-2",
+            feature = "v1-9-1",
+            feature = "v1-9-0",
+            feature = "v1-8-0",
+            feature = "v1-7-5",
+            feature = "v1-7-4",
+            feature = "v1-7-3",
+            feature = "v1-7-2",
+            feature = "v1-7-1",
+            feature = "v1-7-0",
+            feature = "v1-6-0",
+            feature = "v1-5-6",
+            feature = "v1-5-5",
+            feature = "v1-5-4",
+            feature = "v1-5-3",
+            feature = "v1-5-2",
+            feature = "v1-5-1",
+            feature = "v1-5-0",
+        ))
+    };
+}
+
 impl Version {
     fn determine() -> Self {
         if cfg!(feature = "v2-1-3") {
@@ -181,13 +215,6 @@ fn main() {
 
     let version = Version::determine();
 
-    if std::env::var("DOCS_RS").is_ok() {
-        // don't build c++ library on docs.rs due to network restrictions
-        // instead, only generate bindings from included header file
-        generate_bindings("cpp-extension/dummy-ccadical.h", version, &out_dir);
-        return;
-    }
-
     #[cfg(all(feature = "quiet", feature = "logging"))]
     compile_error!("cannot combine cadical features quiet and logging");
 
@@ -216,7 +243,7 @@ fn main() {
         }
     }
 
-    let cadical_dir = get_cadical_dir(None);
+    let cadical_dir = get_cadical_dir(version, None);
 
     generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
 
@@ -269,26 +296,36 @@ fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
         .expect("Could not write ffi bindings");
 }
 
-fn get_cadical_dir(remote: Option<(&str, &str, Version)>) -> String {
-    std::env::var("CADICAL_SRC_DIR").unwrap_or_else(|_| {
-        let out_dir = env::var("OUT_DIR").unwrap();
-        let mut tmp = out_dir.clone();
-        tmp.push_str("/cadical");
-        if let Some((repo, branch, version)) = remote {
-            update_repo(
-                Path::new(&tmp),
-                repo,
-                branch,
-                version.reference(),
-                Path::new("patches").join(version.patch()),
-            );
+fn get_cadical_dir(version: Version, remote: Option<(&str, &str)>) -> String {
+    if let Ok(src_dir) = std::env::var("CADICAL_SRC_DIR") {
+        if version_set_manually!() {
+            println!("cargo:warning=Both version feature and CADICAL_SRC_DIR. It is your responsibility to ensure that they make sense together.");
         }
-        tmp
-    })
+        return src_dir;
+    }
+
+    if version == Version::default() {
+        // the sources for the default version are included with the crate and do not need to be
+        // cloned
+        return String::from("cppsrc");
+    }
+
+    let mut src_dir = env::var("OUT_DIR").unwrap();
+    src_dir.push_str("/cadical");
+    if let Some((repo, branch)) = remote {
+        update_repo(
+            Path::new(&src_dir),
+            repo,
+            branch,
+            version.reference(),
+            Path::new("patches").join(version.patch()),
+        );
+    }
+    src_dir
 }
 
 fn build(repo: &str, branch: &str, version: Version) {
-    let cadical_dir_str = get_cadical_dir(Some((repo, branch, version)));
+    let cadical_dir_str = get_cadical_dir(version, Some((repo, branch)));
     let cadical_dir = Path::new(&cadical_dir_str);
     // We specify the build manually here instead of calling make for better portability
     let src_files = glob(&format!("{cadical_dir_str}/src/*.cpp"))
@@ -313,13 +350,13 @@ fn build(repo: &str, branch: &str, version: Version) {
             .opt_level(0)
             .define("DEBUG", None)
             .warnings(true)
-            .debug(true)
-            .define("NCONTRACTS", None) // --no-contracts
-            .define("NTRACING", None); // --no-tracing
+            .debug(true);
     } else {
         cadical_build
             .opt_level(3)
             .define("NDEBUG", None)
+            .define("NCONTRACTS", None) // --no-contracts
+            .define("NTRACING", None) // --no-tracing
             .warnings(false);
     }
     #[cfg(feature = "quiet")]

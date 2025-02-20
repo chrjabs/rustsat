@@ -16,6 +16,10 @@ include = [
   "/patches/",
   "/examples/",
   "/cpp-extension/",
+  "/cppsrc/src/",
+  "/cppsrc/README.md",
+  "/cppsrc/LICENSE",
+  "/cppsrc/VERSION",
 ]
 
 build = "build.rs"
