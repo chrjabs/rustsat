@@ -940,6 +940,8 @@ public:
   //
   static void build (FILE *file, const char *prefix = "c ");
 
+#include "cadical_extension.hpp"
+
 private:
   //==== start of state ====================================================
 

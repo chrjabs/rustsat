@@ -186,3 +186,5 @@ void ccadical_conclude (CCaDiCaL *ptr) {
   ((Wrapper *) ptr)->solver->conclude ();
 }
 }
+
+#include "ccadical_extension.cpp"

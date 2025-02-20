@@ -1740,3 +1740,5 @@ void Solver::error (const char *fmt, ...) {
 }
 
 } // namespace CaDiCaL
+
+#include "solver_extension.cpp"

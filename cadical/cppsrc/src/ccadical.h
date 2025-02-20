@@ -60,6 +60,8 @@ int ccadical_simplify (CCaDiCaL *);
 #define ccadical_sat ccadical_solve
 #define ccadical_deref ccadical_val
 
+#include "ccadical_extension.h"
+
 /*------------------------------------------------------------------------*/
 #ifdef __cplusplus
 }
