@@ -184,7 +184,7 @@ fn main() {
     if std::env::var("DOCS_RS").is_ok() {
         // don't build c++ library on docs.rs due to network restrictions
         // instead, only generate bindings from included header file
-        generate_bindings("cppsrc/dummy-ccadical.h", version, &out_dir);
+        generate_bindings("cpp-extension/dummy-ccadical.h", version, &out_dir);
         return;
     }
 
@@ -211,7 +211,7 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=stdc++");
 
     for ext in ["h", "cpp"] {
-        for file in glob(&format!("cppsrc/*.{ext}")).unwrap() {
+        for file in glob(&format!("cpp-extension/*.{ext}")).unwrap() {
             println!("cargo:rerun-if-changed={}", file.unwrap().display());
         }
     }
@@ -236,10 +236,10 @@ fn main() {
 fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
     let bindings = bindgen::Builder::default()
         .rust_target("1.66.1".parse().unwrap()) // Set MSRV of RustSAT
-        .clang_arg("-Icppsrc")
+        .clang_arg("-Icpp-extension")
         .header(header_path)
         .allowlist_file(header_path)
-        .allowlist_file("cppsrc/ccadical_extension.h")
+        .allowlist_file("cpp-extension/ccadical_extension.h")
         .blocklist_item("FILE")
         .blocklist_function("ccadical_add")
         .blocklist_function("ccadical_assume")
@@ -366,7 +366,7 @@ fn build(repo: &str, branch: &str, version: Version) {
     cadical_build
         .include(out_dir)
         .include(cadical_dir.join("src"))
-        .include("cppsrc")
+        .include("cpp-extension")
         .warnings(false)
         .files(src_files)
         .compile("cadical");

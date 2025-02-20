@@ -15,7 +15,7 @@ include = [
   "/src/",
   "/patches/",
   "/examples/",
-  "/cppsrc/",
+  "/cpp-extension/",
 ]
 
 build = "build.rs"
