@@ -18,7 +18,7 @@ license = "MIT"
 edition = "2021"
 
 [workspace.dependencies]
-anyhow = "1.0.95"
+anyhow = "1.0.96"
 bindgen = "0.71.1"
 bzip2 = "0.5.1"
 cc = { version = "1.2.14", features = ["parallel"] }
@@ -43,7 +43,7 @@ rustsat = { version = "0.6.4", path = "./", default-features = false }
 rustsat-cadical = { version = "0.4.4", path = "./cadical" }
 rustsat-minisat = { version = "0.4.4", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
-serde = { version = "1.0.217", features = ["derive"] }
+serde = { version = "1.0.218", features = ["derive"] }
 signal-hook = "0.3.17"
 tempfile = "3.17.1"
 visibility = "0.1.1"
