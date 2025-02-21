@@ -44,6 +44,40 @@
       default = let
         pkgs = pkgsFor.${system};
         libs = with pkgs; [openssl xz bzip2];
+        git-subtree-cmd =
+          pkgs.writeShellScriptBin "git-subtree"
+          /*
+          bash
+          */
+          ''
+            SUBTREE="$1"
+            CMD="$2"
+            REF="$3"
+
+            declare -A prefixes
+            prefixes=(
+              ["minisat"]="minisat/cppsrc"
+              ["glucose"]="glucose/cppsrc"
+              ["cadical"]="cadical/cppsrc"
+              ["kissat"]="kissat/csrc"
+            )
+
+            case $CMD in
+              pull)
+                echo "Pulling subtree $SUBTREE from ref $REF"
+                git subtree pull --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF" --squash -m "chore($SUBTREE): update subtree"
+                ;;
+
+              push)
+                echo "Pushing subtree $SUBTREE to ref $REF"
+                git subtree push --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF"
+                ;;
+
+              *)
+                2>&1 echo "Unknown command $CMD"
+                2>&1 echo "Usage: git-subtree <subtree> <command> <ref>"
+            esac
+          '';
       in
         pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} rec {
           inherit (self.checks.${system}.pre-commit-check) shellHook;
@@ -60,6 +94,7 @@
               jq
               maturin
               kani
+              git-subtree-cmd
             ]
             ++ self.checks.${system}.pre-commit-check.enabledPackages;
           buildInputs = libs;
