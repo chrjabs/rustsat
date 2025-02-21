@@ -530,6 +530,3 @@ bool Solver::simplifyAll()
 
     return true;
 }
-
-
-

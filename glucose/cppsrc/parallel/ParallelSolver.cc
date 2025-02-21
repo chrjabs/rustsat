@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -76,13 +76,13 @@ ParallelSolver::ParallelSolver(int threadId) :
 , goodlimitlbd(7)
 , goodlimitsize(25)
 , purgatory(true)
-, shareAfterProbation(!opt_plingeling) // only share clauses after probation 
+, shareAfterProbation(!opt_plingeling) // only share clauses after probation
 , plingeling(opt_plingeling)
 , nbTimesSeenBeforeExport(2)
 , firstSharing(5000) // Strong limit : do not share anything (except unary clauses) before this number of conflicts
 , limitSharingByGoodLBD(true) // Moving limit of what a good LBD is (median value of last learnt clauses set)
 , limitSharingByFixedLimitLBD(0) // No fixed bound (like 8 in plingeling)
-, limitSharingByFixedLimitSize(0) // No fixed boud (like 40 in plingeling) 
+, limitSharingByFixedLimitSize(0) // No fixed boud (like 40 in plingeling)
 , dontExportDirectReusedClauses(opt_dontExportDirectReusedClauses)
 , nbNotExportedBecauseDirectlyReused(0)
 {
@@ -98,23 +98,23 @@ ParallelSolver::~ParallelSolver() {
     fflush(stdout);
 }
 
-ParallelSolver::ParallelSolver(const ParallelSolver &s) : 
+ParallelSolver::ParallelSolver(const ParallelSolver &s) :
     SimpSolver(s)
     , sharedcomp(s.sharedcomp)
 , goodlimitlbd(s.goodlimitlbd)
 , goodlimitsize(s.goodlimitsize)
 , purgatory(s.purgatory)
-, shareAfterProbation(s.shareAfterProbation) // only share clauses after probation 
+, shareAfterProbation(s.shareAfterProbation) // only share clauses after probation
 , plingeling(s.plingeling)
 ,nbTimesSeenBeforeExport(2)
 , firstSharing(s.firstSharing) // Strong limit : do not share anything (except unary clauses) before this number of conflicts
 , limitSharingByGoodLBD(s.limitSharingByGoodLBD) // Moving limit of what a good LBD is (median value of last learnt clauses set)
 , limitSharingByFixedLimitLBD(s.limitSharingByFixedLimitLBD) // No fixed bound (like 8 in plingeling)
-, limitSharingByFixedLimitSize(s.limitSharingByFixedLimitSize) // No fixed boud (like 40 in plingeling) 
+, limitSharingByFixedLimitSize(s.limitSharingByFixedLimitSize) // No fixed boud (like 40 in plingeling)
 , dontExportDirectReusedClauses(s.dontExportDirectReusedClauses)
-, nbNotExportedBecauseDirectlyReused(s.nbNotExportedBecauseDirectlyReused) 
+, nbNotExportedBecauseDirectlyReused(s.nbNotExportedBecauseDirectlyReused)
 {
-    s.goodImportsFromThreads.memCopyTo(goodImportsFromThreads);   
+    s.goodImportsFromThreads.memCopyTo(goodImportsFromThreads);
     useUnaryWatched = s.useUnaryWatched;
     s.stats.copyTo(stats);
     s.elimclauses.copyTo(elimclauses); // This should be done more efficiently some day
@@ -147,7 +147,7 @@ struct reduceDB_oneWatched_lt {
         return ca[x].activity() < ca[y].activity();
         //return x->size() < y->size();
 
-        //return ca[x].size() > 2 && (ca[y].size() == 2 || ca[x].activity() < ca[y].activity()); } 
+        //return ca[x].size() > 2 && (ca[y].size() == 2 || ca[x].activity() < ca[y].activity()); }
     }
 };
 
@@ -156,7 +156,7 @@ void ParallelSolver::reduceDB() {
 
     int i, j;
     stats[nbReduceDB]++;
-    
+
     int limit;
 
     if (!chanseokStrategy) { // We will use the LBD, but keep 10% of the best active clauses
@@ -169,7 +169,7 @@ void ParallelSolver::reduceDB() {
 
   if (chanseokStrategy)
       sort(learnts, reduceDBAct_lt(ca));
-  else 
+  else
       sort(learnts, reduceDB_lt(ca));
 
   if (!chanseokStrategy && !panicModeIsEnabled()) {
@@ -242,7 +242,7 @@ void ParallelSolver::reduceDB() {
 /*_________________________________________________________________________________________________
 |
 |  parallelImportClauseDuringConflictAnalysis : (Clause &c,CRef confl)   ->  [void]
-|  
+|
 |  Description:
 |    Verify if the clause using during conflict analysis is good for export
 |    @see : analyze
@@ -256,7 +256,7 @@ void ParallelSolver::parallelImportClauseDuringConflictAnalysis(Clause &c,CRef c
         nbNotExportedBecauseDirectlyReused++;
     } else if (shareAfterProbation && c.getExported() != nbTimesSeenBeforeExport && conflicts > firstSharing) {
         c.setExported(c.getExported() + 1);
-        if (!c.wasImported() && c.getExported() == nbTimesSeenBeforeExport) { // It's a new interesting clause: 
+        if (!c.wasImported() && c.getExported() == nbTimesSeenBeforeExport) { // It's a new interesting clause:
             if (c.lbd() == 2 || (c.size() < goodlimitsize && c.lbd() <= goodlimitlbd)) {
                 shareClause(c);
             }
@@ -286,15 +286,15 @@ void ParallelSolver::reportProgressArrayImports(vec<unsigned int> &totalColumns)
     printf(" | %8d\n", totalImports);
 
 }
- 
+
 
 
 /*_________________________________________________________________________________________________
 |
 |  shareClause : (Clause &c)   ->  [bool]
-|  
+|
 |  Description:
-|  share a clause to other cores  
+|  share a clause to other cores
 | @see : analyze
 |  Output: true if the clause is indeed sent
 |________________________________________________________________________________________________@*/
@@ -309,7 +309,7 @@ bool ParallelSolver::shareClause(Clause & c) {
 /*_________________________________________________________________________________________________
 |
 |  panicModeIsEnabled : ()   ->  [bool]
-|  
+|
 |  Description:
 |  is panic mode (save memory) is enabled ?
 |________________________________________________________________________________________________@*/
@@ -321,7 +321,7 @@ bool ParallelSolver::panicModeIsEnabled() {
 /*_________________________________________________________________________________________________
 |
 |  parallelImportUnaryClauses : ()   ->  [void]
-|  
+|
 |  Description:
 |  import all unary clauses from other cores
 |________________________________________________________________________________________________@*/
@@ -339,7 +339,7 @@ void ParallelSolver::parallelImportUnaryClauses() {
 /*_________________________________________________________________________________________________
 |
 |  parallelImportClauses : ()   ->  [bool]
-|  
+|
 |  Description:
 |  import all clauses from other cores
 |  Output : if there is a final conflict
@@ -370,16 +370,16 @@ bool ParallelSolver::parallelImportClauses() {
         ca[cr].setImportedFrom(importedFromThread);
         if(useUnaryWatched)
             unaryWatchedClauses.push(cr);
-        else 
+        else
             learnts.push(cr);
-        
+
         if (plingeling || ca[cr].size() <= 2) {//|| importedRoute == 0) { // importedRoute == 0 means a glue clause in another thread (or any very good clause)
             ca[cr].setOneWatched(false); // Warning: those clauses will never be promoted by a conflict clause (or rarely: they are propagated!)
             attachClause(cr);
             stats[nbImportedGoodClauses]++;
         } else {
             if(useUnaryWatched) {
-                attachClausePurgatory(cr); // 
+                attachClausePurgatory(cr); //
                 ca[cr].setOneWatched(true);
             } else {
                 attachClause(cr);
@@ -397,7 +397,7 @@ bool ParallelSolver::parallelImportClauses() {
 /*_________________________________________________________________________________________________
 |
 |  parallelExportUnaryClause : (Lit p)   ->  [void]
-|  
+|
 |  Description:
 |  export unary clauses to other cores
 |________________________________________________________________________________________________@*/
@@ -412,11 +412,11 @@ void ParallelSolver::parallelExportUnaryClause(Lit p) {
 /*_________________________________________________________________________________________________
 |
 |  parallelExportClauseDuringSearch : (Clause &c)   ->  [void]
-|  
+|
 |  Description:
 |  Verify if a new learnt clause is useful for export
 |  @see search
-|  
+|
 |________________________________________________________________________________________________@*/
 
 void ParallelSolver::parallelExportClauseDuringSearch(Clause &c) {
@@ -435,13 +435,13 @@ void ParallelSolver::parallelExportClauseDuringSearch(Clause &c) {
 /*_________________________________________________________________________________________________
 |
 |  parallelJobIsFinished : ()   ->  [bool]
-|  
+|
 |  Description:
 |  Is a core already finish the search
-|  
+|
 |________________________________________________________________________________________________@*/
 
-bool ParallelSolver::parallelJobIsFinished() { 
+bool ParallelSolver::parallelJobIsFinished() {
     // Parallel: another job has finished let's quit
     return (sharedcomp->jobFinished());
 }
@@ -494,7 +494,7 @@ lbool ParallelSolver::solve_(bool do_simp, bool turn_off_simp) {
         for (int i = 0; i < extra_frozen.size(); i++)
             setFrozen(extra_frozen[i], false);
 */
-    
+
     bool firstToFinish = false;
     if (status != l_Undef)
         firstToFinish = sharedcomp->IFinished(this);
@@ -502,7 +502,7 @@ lbool ParallelSolver::solve_(bool do_simp, bool turn_off_simp) {
         printf("c Thread %d is 100%% pure glucose! First thread to finish! (%s answer).\n", threadNumber(), status == l_True ? "SAT" : status == l_False ? "UNSAT" : "UNKOWN");
         sharedcomp->jobStatus = status;
     }
-    
+
     if (firstToFinish && status == l_True) {
         extendModel();
 

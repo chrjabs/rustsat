@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -96,7 +96,7 @@ int main(int argc, char** argv)
     try {
         setUsageHelp("c USAGE: %s [options] <input-file> <result-output-file>\n\n  where input may be either in plain or gzipped DIMACS.\n");
         // printf("This is MiniSat 2.0 beta\n");
-        
+
 #if defined(__linux__)
         fpu_control_t oldcw, newcw;
         _FPU_GETCW(oldcw); newcw = (oldcw & ~_FPU_EXTENDED) | _FPU_DOUBLE; _FPU_SETCW(newcw);
@@ -111,7 +111,7 @@ int main(int argc, char** argv)
 
         IntOption    cpu_lim("MAIN", "cpu-lim","Limit on CPU time allowed in seconds.\n", INT32_MAX, IntRange(0, INT32_MAX));
         IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", INT32_MAX, IntRange(0, INT32_MAX));
-        
+
         parseOptions(argc, argv, true);
 
 	MultiSolvers msolver;
@@ -147,43 +147,43 @@ int main(int argc, char** argv)
                 if (setrlimit(RLIMIT_AS, &rl) == -1)
                     printf("c WARNING! Could not set resource limit: Virtual memory.\n");
             } }
-        
+
         if (argc == 1)
             printf("c Reading from standard input... Use '--help' for help.\n");
-        
+
         gzFile in = (argc == 1) ? gzdopen(0, "rb") : gzopen(argv[1], "rb");
         if (in == NULL)
             printf("c ERROR! Could not open file: %s\n", argc == 1 ? "<stdin>" : argv[1]), exit(1);
-        
+
         if (msolver.verbosity() > 0){
             printf("c ========================================[ Problem Statistics ]===========================================\n");
             printf("c |                                                                                                       |\n"); }
-        
+
         parse_DIMACS(in, msolver);
         gzclose(in);
-        
 
-	
+
+
         FILE* res = (argc >= 3) ? fopen(argv[argc-1], "wb") : NULL;
 
         if (msolver.verbosity() > 0){
             printf("c |  Number of variables:  %12d                                                                   |\n", msolver.nVars());
             printf("c |  Number of clauses:    %12d                                                                   |\n", msolver.nClauses()); }
-        
+
         double parsed_time = cpuTime();
         if (msolver.verbosity() > 0){
             printf("c |  Parse time:           %12.2f s                                                                 |\n", parsed_time - initial_time);
             printf("c |                                                                                                       |\n"); }
- 
+
         // Change to signal-handlers that will only notify the solver and allow it to terminate
         // voluntarily:
         //signal(SIGINT, SIGINT_interrupt);
         //signal(SIGXCPU,SIGINT_interrupt);
- 
-        
-	int ret2 = msolver.simplify();   
-        msolver.use_simplification = pre; 	
-        if(ret2) 
+
+
+	int ret2 = msolver.simplify();
+        msolver.use_simplification = pre;
+        if(ret2)
             msolver.eliminate();
         if(pre) {
             double simplified_time = cpuTime();
@@ -191,13 +191,13 @@ int main(int argc, char** argv)
                 printf("c |  Simplification time:  %12.2f s                                                                 |\n", simplified_time - parsed_time);
                 printf("c |                                                                                                       |\n"); }
         }
-        
+
         if (!ret2 || !msolver.okay()){
             //if (S.certifiedOutput != NULL) fprintf(S.certifiedOutput, "0\n"), fclose(S.certifiedOutput);
             if (res != NULL) fprintf(res, "UNSAT\n"), fclose(res);
             if (msolver.verbosity() > 0){
 	        printf("c =========================================================================================================\n");
-                printf("Solved by unit propagation\n"); 
+                printf("Solved by unit propagation\n");
 		printf("c real time : %g s\n", realTime() - realTimeStart);
 		printf("c cpu time  : %g s\n", cpuTime());
                 printf("\n"); }
@@ -207,8 +207,8 @@ int main(int argc, char** argv)
 
       //  vec<Lit> dummy;
         lbool ret = msolver.solve();
-	
-	
+
+
         printf("c\n");
     	printf("c real time : %g s\n", realTime() - realTimeStart);
 	printf("c cpu time  : %g s\n", cpuTime());
@@ -218,7 +218,7 @@ int main(int argc, char** argv)
 
 	//-------------- Result is put in a external file
      	/* I must admit I have to print the model of one thread... But which one? FIXME !!
-	  if (res != NULL){  
+	  if (res != NULL){
 	  if (ret == l_True){
 	    fprintf(res, "SAT\n");
 	    for (int i = 0; i < S.nVars(); i++)
@@ -230,12 +230,12 @@ int main(int argc, char** argv)
 	  else
 	    fprintf(res, "INDET\n");
 	  fclose(res);
-	
+
 	//-------------- Want certified output
-        } else { 
+        } else {
 	*/
 	  printf(ret == l_True ? "s SATISFIABLE\n" : ret == l_False ? "s UNSATISFIABLE\n" : "s INDETERMINATE\n");
-	  
+
 	  if(msolver.getShowModel() && ret==l_True) {
 	    printf("v ");
 	    for (int i = 0; i < msolver.model.size() ; i++) {
@@ -246,8 +246,8 @@ int main(int argc, char** argv)
 	    printf(" 0\n");
 	  }
 
-     
-    
+
+
 #ifdef NDEBUG
         exit(ret == l_True ? 10 : ret == l_False ? 20 : 0);     // (faster than "return", which will invoke the destructor for 'Solver')
 #else

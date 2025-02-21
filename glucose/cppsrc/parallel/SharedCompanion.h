@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -63,7 +63,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 namespace Glucose {
 
-    
+
 class SharedCompanion : public SolverCompanion {
     friend class MultiSolvers;
     friend class ParallelSolver;
@@ -75,11 +75,11 @@ public:
 
 	bool jobFinished();                // True if the job is over
 	bool IFinished(ParallelSolver *s); // returns true if you are the first solver to finish
-	bool addSolver(ParallelSolver*);   // attach a solver to accompany 
+	bool addSolver(ParallelSolver*);   // attach a solver to accompany
 	void addLearnt(ParallelSolver *s,Lit unary);   // Add a unary clause to share
 	bool addLearnt(ParallelSolver *s, Clause & c); // Add a clause to the shared companion, as a database manager
 
-	bool getNewClause(ParallelSolver *s, int &th, vec<Lit> & nc); // gets a new interesting clause for solver s 
+	bool getNewClause(ParallelSolver *s, int &th, vec<Lit> & nc); // gets a new interesting clause for solver s
 	Lit getUnary(ParallelSolver *s);                              // Gets a new unary literal
 	inline ParallelSolver* winner(){return jobFinishedBy;}        // Gets the first solver that called IFinished()
 
@@ -87,11 +87,11 @@ public:
 
 	ClausesBuffer clausesBuffer; // A big blackboard for all threads sharing non unary clauses
 	int nbThreads;               // Number of threads
-	
+
 	// A set of mutex variables
 	pthread_mutex_t mutexSharedCompanion; // mutex for any high level sync between all threads (like reportf)
 	pthread_mutex_t mutexSharedClauseCompanion; // mutex for reading/writing clauses on the blackboard
-	pthread_mutex_t mutexSharedUnitCompanion; // mutex for reading/writing unit clauses on the blackboard 
+	pthread_mutex_t mutexSharedUnitCompanion; // mutex for reading/writing unit clauses on the blackboard
         pthread_mutex_t mutexJobFinished;
 
 	bool bjobFinished;
@@ -101,9 +101,9 @@ public:
 
         // Shared clauses are a queue of lits...
 	//	friend class wholearnt;
-	vec<int> nextUnit; // indice of next unit clause to retrieve for solver number i 
+	vec<int> nextUnit; // indice of next unit clause to retrieve for solver number i
 	vec<Lit> unitLit;  // Set of unit literals found so far
-        vec<lbool> isUnary; // sign of the unary var (if proved, or l_Undef if not)	
+        vec<lbool> isUnary; // sign of the unary var (if proved, or l_Undef if not)
 	double    random_seed;
 
 	// Returns a random float 0 <= x < 1. Seed must never be 0.

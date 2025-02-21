@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -68,17 +68,17 @@ class bqueue {
 	bool expComputed;
 	double exp,value;
 public:
- bqueue(void) : first(0), last(0), sumofqueue(0), maxsize(0), queuesize(0),expComputed(false) { } 
-	
+ bqueue(void) : first(0), last(0), sumofqueue(0), maxsize(0), queuesize(0),expComputed(false) { }
+
 	void initSize(int size) {growTo(size);exp = 2.0/(size+1);} // Init size of bounded size queue
-	
+
 	void push(T x) {
 	  expComputed = false;
 		if (queuesize==maxsize) {
 			assert(last==first); // The queue is full, next value to enter will replace oldest one
 			sumofqueue -= elems[last];
 			if ((++last) == maxsize) last = 0;
-		} else 
+		} else
 			queuesize++;
 		sumofqueue += x;
 		elems[first] = x;
@@ -87,7 +87,7 @@ public:
 
 	T peek() { assert(queuesize>0); return elems[last]; }
 	void pop() {sumofqueue-=elems[last]; queuesize--; if ((++last) == maxsize) last = 0;}
-	
+
 	unsigned long long getsum() const {return sumofqueue;}
 	unsigned int getavg() const {return (unsigned int)(sumofqueue/((unsigned long long)queuesize));}
 	int maxSize() const {return maxsize;}
@@ -99,13 +99,13 @@ public:
 	  return tmp/elems.size();
 	}
 	int isvalid() const {return (queuesize==maxsize);}
-	
+
 	void growTo(int size) {
-		elems.growTo(size); 
+		elems.growTo(size);
 		first=0; maxsize=size; queuesize = 0;last = 0;
-		for(int i=0;i<size;i++) elems[i]=0; 
+		for(int i=0;i<size;i++) elems[i]=0;
 	}
-	
+
 	double getAvgExp() {
 	  if(expComputed) return value;
 	  double a=exp;
@@ -121,11 +121,11 @@ public:
 	  value = value*(1-exp)/(1-a);
 	  expComputed = true;
 	  return value;
-	  
+
 
 	}
 	void fastclear() {first = 0; last = 0; queuesize=0; sumofqueue=0;} // to be called after restarts... Discard the queue
-	
+
     int  size(void)    { return queuesize; }
 
     void clear(bool dealloc = false)   { elems.clear(dealloc); first = 0; maxsize=0; queuesize=0;sumofqueue=0;}
@@ -138,7 +138,7 @@ public:
         dest.expComputed = expComputed;
         dest.exp = exp;
         dest.value = value;
-        dest.first = first;        
+        dest.first = first;
         elems.copyTo(dest.elems);
     }
 };

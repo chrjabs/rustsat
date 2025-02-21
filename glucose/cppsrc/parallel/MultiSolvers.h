@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -54,7 +54,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 namespace Glucose {
     class SolverConfiguration;
-    
+
 class MultiSolvers {
     friend class SolverConfiguration;
 
@@ -62,8 +62,8 @@ public:
   MultiSolvers(ParallelSolver *s);
   MultiSolvers();
   ~MultiSolvers();
- 
-  void printFinalStats(); 
+
+  void printFinalStats();
 
   void setVerbosity(int i);
   int verbosity();
@@ -74,16 +74,16 @@ public:
   //
   Var     newVar    (bool polarity = true, bool dvar = true); // Add a new variable with parameters specifying variable mode.
   bool    addClause (const vec<Lit>& ps);                           // Add a clause to the solver. NOTE! 'ps' may be shrunk by this method!
-  bool    addClause_(      vec<Lit>& ps);       
-  
+  bool    addClause_(      vec<Lit>& ps);
+
   bool    simplify     ();                        // Removes already satisfied clauses.
-  
+
   int     nVars      ()      const;       // The current number of variables.
   int     nClauses      ()      const;       // The current number of variables.
   ParallelSolver *getPrimarySolver();
-  
+
   void generateAllSolvers();
-  
+
   // Solving:
   //
   lbool    solve        ();                        // Search without assumptions.
@@ -101,23 +101,23 @@ public:
 	}
     }
     return true;
- 
+
   }
 
   bool use_simplification;
 
-  
+
  protected:
 	friend class ParallelSolver;
 	friend class SolverCompanion;
-	
+
 struct Stats {
     uint64_t min, max, avg, std, med;
-    Stats(uint64_t _min = 0,uint64_t _max = 0,uint64_t  _avg = 0,uint64_t  _std = 0,uint64_t  _med = 0) : 
-	min(_min), max(_max), avg(_avg), std(_std), med(_med) {} 
+    Stats(uint64_t _min = 0,uint64_t _max = 0,uint64_t  _avg = 0,uint64_t  _std = 0,uint64_t  _med = 0) :
+	min(_min), max(_max), avg(_avg), std(_std), med(_med) {}
 };
 
-	void printStats(); 
+	void printStats();
 	int ok;
 	lbool result;
 	int maxnbthreads; // Maximal number of threads
@@ -132,11 +132,11 @@ struct Stats {
 	int winner;
 
     vec<Lit>            add_tmp;
- 	
+
     double    var_decay;          // Inverse of the variable activity decay factor.                                            (default 1 / 0.95)
     double    clause_decay;       // Inverse of the clause activity decay factor.                                              (1 / 0.999)
     double    cla_inc;          // Amount to bump next clause with.
-    double    var_inc;          // Amount to bump next variable with.	
+    double    var_inc;          // Amount to bump next variable with.
     double    random_var_freq;    // The frequency with which the decision heuristic tries to choose a random variable.        (default 0.02)
     int       restart_first;      // The initial restart limit.                                                                (default 100)
     double    restart_inc;        // The factor with which the restart limit is multiplied in each restart.                    (default 1.5)
@@ -146,7 +146,7 @@ struct Stats {
     int       polarity_mode;      // Controls which polarity the decision heuristic chooses. See enum below for allowed modes. (default polarity_false)
     unsigned int maxmemory;
     unsigned int maxnbsolvers;
-    int verb; 
+    int verb;
     int verbEveryConflicts;
     int numvar; // Number of variables
     int numclauses; // Number of clauses
@@ -162,7 +162,7 @@ struct Stats {
     pthread_mutex_t m; // mutex for any high level sync between all threads (like reportf)
     pthread_mutex_t mfinished; // mutex on which main process may wait for... As soon as one process finishes it release the mutex
     pthread_cond_t cfinished; // condition variable that says that a thread has finished
-	
+
     vec<ParallelSolver*> solvers; // set of plain solvers
     vec<SolverCompanion*> solvercompanions; // set of companion solvers
     vec<pthread_t*> threads; // all threads of this process
@@ -182,4 +182,3 @@ inline ParallelSolver* MultiSolvers::getPrimarySolver() {return solvers[0];}
 
 }
 #endif
-

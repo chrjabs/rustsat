@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -70,7 +70,7 @@ void SolverConfiguration::configure(MultiSolvers *ms, int nbsolvers) {
 
 }
 
-        
+
 void SolverConfiguration::configureSAT15Adapt(MultiSolvers *ms, int nbsolvers) {
     for(int i = 1;i<nbsolvers;i++) { // Configuration for the sat race 2015
         ms->solvers[i]->randomizeFirstDescent = true;
@@ -86,11 +86,11 @@ void SolverConfiguration::configureSAT15Adapt(MultiSolvers *ms, int nbsolvers) {
 
 
 void SolverConfiguration::configureSAT15Default(MultiSolvers *ms, int nbsolvers) {
-    for(int i = 1;i<nbsolvers;i++) 
+    for(int i = 1;i<nbsolvers;i++)
 	ms->solvers[i]->randomizeFirstDescent = true;
 
     if (nbsolvers > 8) { // configuration for the second phase of the sat race 2015
-	for(int i=0;i<nbsolvers;i++) { 
+	for(int i=0;i<nbsolvers;i++) {
 	    ms->solvers[i]->goodlimitlbd = 5;
 	    ms->solvers[i]->goodlimitsize = 15;
 
@@ -100,7 +100,7 @@ void SolverConfiguration::configureSAT15Default(MultiSolvers *ms, int nbsolvers)
 }
 
 void SolverConfiguration::configureSAT14(MultiSolvers *ms, int nbsolvers) {
-    
+
    if (nbsolvers < 2 ) return;
 
    ms->solvers[1]->var_decay = 0.94;
@@ -143,7 +143,7 @@ void SolverConfiguration::configureSAT14(MultiSolvers *ms, int nbsolvers) {
    ms->solvers[6]->max_var_decay = 0.94;
    ms->solvers[6]->firstReduceDB=2000;
 
-   if (nbsolvers < 8 ) return; 
+   if (nbsolvers < 8 ) return;
 
    ms->solvers[7]->var_decay = 0.94;
    ms->solvers[7]->max_var_decay = 0.96;

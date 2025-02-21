@@ -50,7 +50,7 @@ static double parseDouble(B& in) { // only in the form X.XXXXXe-XX
 	double accu = 0.0;
 	double currentExponent = 1;
 	int exponent;
-	
+
     skipWhitespace(in);
     if(*in == EOF) return 0;
     if      (*in == '-') neg = true, ++in;
@@ -98,7 +98,7 @@ static bool match(B& in, const char* str) {
 
     in += i;
 
-    return true; 
+    return true;
 }
 
 // String matching: consumes characters eagerly, but does not require random access iterator.

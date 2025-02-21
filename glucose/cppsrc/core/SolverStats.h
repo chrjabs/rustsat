@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -68,7 +68,7 @@ namespace Glucose {
             for(int i = 0;i<sz;i++)
                 addStat(names[i]);
         }
-        
+
         void addStat(std::string name) {
             map.insert(name, 0);
         }
@@ -84,16 +84,15 @@ namespace Glucose {
         void maximize(const std::string name,uint64_t val) {
             if(val > map[name])
                 map[name] = val;
-        } 
-         
+        }
+
         void minimize(const std::string name,uint64_t val) {
             if(val < map[name])
                 map[name] = val;
-        } 
+        }
 
 };
 
 }
 
 #endif	/* SOLVERSTATS_H */
-

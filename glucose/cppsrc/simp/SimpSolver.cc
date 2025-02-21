@@ -15,13 +15,13 @@ is based on. (see below).
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -131,8 +131,8 @@ SimpSolver::SimpSolver(const SimpSolver &s) : Solver(s)
     ca.extra_clause_field = true; // NOTE: must happen before allocating the dummy clause below.
     bwdsub_tmpunit        = ca.alloc(dummy);
     remove_satisfied      = false;
-    //End TODO  
-    
+    //End TODO
+
 
     s.elimclauses.memCopyTo(elimclauses);
     s.touched.memCopyTo(touched);
@@ -585,7 +585,7 @@ bool SimpSolver::eliminateVar(Var v)
 
     for (int i = 0; i < pos.size(); i++)
         for (int j = 0; j < neg.size(); j++)
-            if (merge(ca[pos[i]], ca[neg[j]], v, clause_size) && 
+            if (merge(ca[pos[i]], ca[neg[j]], v, clause_size) &&
                 (++cnt > cls.size() + grow || (clause_lim != -1 && clause_size > clause_lim)))
                 return true;
 
@@ -637,7 +637,7 @@ bool SimpSolver::substitute(Var v, Lit x)
     eliminated[v] = true;
     setDecisionVar(v, false);
     const vec<CRef>& cls = occurs.lookup(v);
-    
+
     vec<Lit>& subst_clause = add_tmp;
     for (int i = 0; i < cls.size(); i++){
         Clause& c = ca[cls[i]];
@@ -648,12 +648,12 @@ bool SimpSolver::substitute(Var v, Lit x)
             subst_clause.push(var(p) == v ? x ^ sign(p) : p);
         }
 
- 
+
         if (!addClause_(subst_clause))
             return ok = false;
 
        removeClause(cls[i]);
- 
+
    }
 
     return true;
@@ -692,7 +692,7 @@ bool SimpSolver::eliminate(bool turn_off_elim)
     //
 
     int toPerform = clauses.size()<=4800000;
-    
+
     if(!toPerform) {
       printf("c Too many clauses... No preprocessing\n");
     }
@@ -701,7 +701,7 @@ bool SimpSolver::eliminate(bool turn_off_elim)
 
         gatherTouchedClauses();
         // printf("  ## (time = %6.2f s) BWD-SUB: queue = %d, trail = %d\n", cpuTime(), subsumption_queue.size(), trail.size() - bwdsub_assigns);
-        if ((subsumption_queue.size() > 0 || bwdsub_assigns < trail.size()) && 
+        if ((subsumption_queue.size() > 0 || bwdsub_assigns < trail.size()) &&
             !backwardSubsumptionCheck(true)){
             ok = false; goto cleanup; }
 
@@ -716,7 +716,7 @@ bool SimpSolver::eliminate(bool turn_off_elim)
         // printf("  ## (time = %6.2f s) ELIM: vars = %d\n", cpuTime(), elim_heap.size());
         for (int cnt = 0; !elim_heap.empty(); cnt++){
             Var elim = elim_heap.removeMin();
-            
+
             if (asynch_interrupt) break;
 
             if (isEliminated(elim) || value(elim) != l_Undef) continue;
@@ -766,13 +766,13 @@ bool SimpSolver::eliminate(bool turn_off_elim)
     }
 
     if (verbosity >= 0 && elimclauses.size() > 0)
-        printf("c |  Eliminated clauses:     %10.2f Mb                                                                |\n", 
+        printf("c |  Eliminated clauses:     %10.2f Mb                                                                |\n",
                double(elimclauses.size() * sizeof(uint32_t)) / (1024*1024));
 
-               
+
     return ok;
 
-    
+
 }
 
 
@@ -818,14 +818,14 @@ void SimpSolver::garbageCollect()
 {
     // Initialize the next region to a size corresponding to the estimated utilization degree. This
     // is not precise but should avoid some unnecessary reallocations for the new region:
-    ClauseAllocator to(ca.size() - ca.wasted()); 
+    ClauseAllocator to(ca.size() - ca.wasted());
 
     cleanUpClauses();
     to.extra_clause_field = ca.extra_clause_field; // NOTE: this is important to keep (or lose) the extra fields.
     relocAll(to);
     Solver::relocAll(to);
     if (verbosity >= 2)
-        printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n", 
+        printf("|  Garbage collection:   %12d bytes => %12d bytes             |\n",
                ca.size()*ClauseAllocator::Unit_Size, to.size()*ClauseAllocator::Unit_Size);
     to.moveTo(ca);
 }

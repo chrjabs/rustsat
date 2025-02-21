@@ -9,19 +9,19 @@
                                 Labri - Univ. Bordeaux, France
 
 Glucose sources are based on MiniSat (see below MiniSat copyrights). Permissions and copyrights of
-Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it 
+Glucose (sources until 2013, Glucose 3.0, single core) are exactly the same as Minisat on which it
 is based on. (see below).
 
 Glucose-Syrup sources are based on another copyright. Permissions and copyrights for the parallel
 version of Glucose-Syrup (the "Software") are granted, free of charge, to deal with the Software
 without restriction, including the rights to use, copy, modify, merge, publish, distribute,
-sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is 
+sublicence, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 - The above and below copyrights notices and this permission notice shall be included in all
 copies or substantial portions of the Software;
 - The parallel version of Glucose (all files modified since Glucose 3.0 releases, 2013) cannot
-be used in any competitive event (sat competitions/evaluations) without the express permission of 
+be used in any competitive event (sat competitions/evaluations) without the express permission of
 the authors (Gilles Audemard / Laurent Simon). This is also the case for any competitive event
 using Glucose Parallel as an embedded SAT engine (single core or not).
 
@@ -57,7 +57,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 using namespace Glucose;
 
 SharedCompanion::SharedCompanion(int _nbThreads) :
-    nbThreads(_nbThreads), 
+    nbThreads(_nbThreads),
     bjobFinished(false),
     jobFinishedBy(NULL),
     panicMode(false), // The bug in the SAT2014 competition :)
@@ -77,7 +77,7 @@ SharedCompanion::SharedCompanion(int _nbThreads) :
 
 void SharedCompanion::setNbThreads(int _nbThreads) {
    nbThreads = _nbThreads;
-   clausesBuffer.setNbThreads(_nbThreads); 
+   clausesBuffer.setNbThreads(_nbThreads);
 }
 
 void SharedCompanion::printStats() {
@@ -102,7 +102,7 @@ void SharedCompanion::addLearnt(ParallelSolver *s,Lit unary) {
   if (isUnary[var(unary)]==l_Undef) {
       unitLit.push(unary);
       isUnary[var(unary)] = sign(unary)?l_False:l_True;
-  } 
+  }
   pthread_mutex_unlock(&mutexSharedUnitCompanion);
 }
 
@@ -120,7 +120,7 @@ Lit SharedCompanion::getUnary(ParallelSolver *s) {
 // Specialized functions for this companion
 // must be multithread safe
 // Add a clause to the threads-wide clause database (all clauses, through)
-bool SharedCompanion::addLearnt(ParallelSolver *s, Clause & c) { 
+bool SharedCompanion::addLearnt(ParallelSolver *s, Clause & c) {
   int sn = s->thn; // thread number of the solver
   bool ret = false;
   assert(watchedSolvers.size()>sn);
@@ -132,14 +132,14 @@ bool SharedCompanion::addLearnt(ParallelSolver *s, Clause & c) {
 }
 
 
-bool SharedCompanion::getNewClause(ParallelSolver *s, int & threadOrigin, vec<Lit>& newclause) { // gets a new interesting clause for solver s 
+bool SharedCompanion::getNewClause(ParallelSolver *s, int & threadOrigin, vec<Lit>& newclause) { // gets a new interesting clause for solver s
   int sn = s->thn;
-  
+
     // First, let's get the clauses on the big blackboard
     pthread_mutex_lock(&mutexSharedClauseCompanion);
     bool b = clausesBuffer.getClause(sn, threadOrigin, newclause);
     pthread_mutex_unlock(&mutexSharedClauseCompanion);
- 
+
   return b;
 }
 
@@ -162,6 +162,3 @@ bool SharedCompanion::IFinished(ParallelSolver *s) {
     pthread_mutex_unlock(&mutexJobFinished);
     return ret;
 }
-
-
-

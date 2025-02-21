@@ -1300,7 +1300,7 @@ void Solver::reduceDB() {
     // Don't delete binary or locked clauses. From the rest, delete clauses from the first half
     // Keep clauses which seem to be usefull (their lbd was reduce during this sequence)
 
-    int limit = (learnts.size() / 2); // 
+    int limit = (learnts.size() / 2); //
 
     for(i = j = 0; i < learnts.size(); i++) {
         Clause &c = ca[learnts[i]];
