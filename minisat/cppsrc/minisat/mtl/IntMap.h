@@ -26,14 +26,14 @@ namespace Minisat {
     template<class T> struct MkIndexDefault {
         typename vec<T>::Size operator()(T t) const { return (typename vec<T>::Size)t; }
     };
-    
+
     template<class K, class V, class MkIndex = MkIndexDefault<K> >
     class IntMap {
         vec<V>   map;
         MkIndex  index;
     public:
         explicit IntMap(MkIndex _index = MkIndex()) : index(_index){}
-        
+
         bool     has       (K k) const { return index(k) < map.size(); }
 
         const V& operator[](K k) const { assert(has(k)); return map[index(k)]; }
@@ -60,13 +60,13 @@ namespace Minisat {
     {
         IntMap<K, char, MkIndex> in_set;
         vec<K>                   xs;
-        
+
     public:
         // Size operations:
         int      size        (void)      const  { return xs.size(); }
         void     clear       (bool free = false){
             if (free)
-                in_set.clear(true); 
+                in_set.clear(true);
             else
                 for (int i = 0; i < xs.size(); i++)
                     in_set[xs[i]] = 0;
@@ -76,11 +76,11 @@ namespace Minisat {
         // Allow inspecting the internal vector:
         const vec<K>&
                  toVec       ()          const  { return xs; }
-        
+
         // Vector interface:
         K        operator [] (int index) const  { return xs[index]; }
-        
-        
+
+
         void     insert      (K k) { in_set.reserve(k, 0); if (!in_set[k]) { in_set[k] = 1; xs.push(k); } }
         bool     has         (K k) { in_set.reserve(k, 0); return in_set[k]; }
     };
@@ -93,7 +93,7 @@ namespace Minisat {
 
     public:
         IntMap(){}
-        
+
         void     reserve(K);
         V&       find   (K);
         const V& operator[](K k) const;

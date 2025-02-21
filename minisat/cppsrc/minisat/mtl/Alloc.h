@@ -56,7 +56,7 @@ class RegionAllocator
     uint32_t size      () const      { return sz; }
     uint32_t wasted    () const      { return wasted_; }
 
-    Ref      alloc     (int size); 
+    Ref      alloc     (int size);
     void     free      (int size)    { wasted_ += size; }
 
     // Deref, Load Effective Address (LEA), Inverse of LEA (AEL):
@@ -109,14 +109,14 @@ void RegionAllocator<T>::capacity(uint32_t min_cap)
 template<class T>
 typename RegionAllocator<T>::Ref
 RegionAllocator<T>::alloc(int size)
-{ 
+{
     // printf("ALLOC called (this = %p, size = %d)\n", this, size); fflush(stdout);
     assert(size > 0);
     capacity(sz + size);
 
     uint32_t prev_sz = sz;
     sz += size;
-    
+
     // Handle overflow:
     if (sz < prev_sz)
         throw OutOfMemoryException();

@@ -71,7 +71,7 @@ static inline int memReadPeak(void)
 }
 
 double Minisat::memUsed() { return (double)memReadStat(0) * (double)getpagesize() / (1024*1024); }
-double Minisat::memUsedPeak(bool strictlyPeak) { 
+double Minisat::memUsedPeak(bool strictlyPeak) {
     double peak = memReadPeak() / (double)1024;
     return peak == 0 && !strictlyPeak ? memUsed() : peak; }
 

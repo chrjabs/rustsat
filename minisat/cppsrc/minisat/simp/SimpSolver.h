@@ -46,12 +46,12 @@ class SimpSolver : public Solver {
     bool    addClause (Lit p);               // Add a unit clause to the solver.
     bool    addClause (Lit p, Lit q);        // Add a binary clause to the solver.
     bool    addClause (Lit p, Lit q, Lit r); // Add a ternary clause to the solver.
-    bool    addClause (Lit p, Lit q, Lit r, Lit s); // Add a quaternary clause to the solver. 
+    bool    addClause (Lit p, Lit q, Lit r, Lit s); // Add a quaternary clause to the solver.
     bool    addClause_(      vec<Lit>& ps);
     bool    substitute(Var v, Lit x);  // Replace all occurences of v with x (may cause a contradiction).
 
     // Variable mode:
-    // 
+    //
     void    setFrozen (Var v, bool b); // If a variable is frozen it will not be eliminated.
     bool    isFrozen(Var v);
     bool    isEliminated(Var v) const;
@@ -66,10 +66,10 @@ class SimpSolver : public Solver {
     bool    solve       (const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
     lbool   solveLimited(const vec<Lit>& assumps, bool do_simp = true, bool turn_off_simp = false);
     bool    solve       (                     bool do_simp = true, bool turn_off_simp = false);
-    bool    solve       (Lit p       ,        bool do_simp = true, bool turn_off_simp = false);       
+    bool    solve       (Lit p       ,        bool do_simp = true, bool turn_off_simp = false);
     bool    solve       (Lit p, Lit q,        bool do_simp = true, bool turn_off_simp = false);
     bool    solve       (Lit p, Lit q, Lit r, bool do_simp = true, bool turn_off_simp = false);
-    bool    eliminate   (bool turn_off_elim = false);  // Perform variable elimination based simplification. 
+    bool    eliminate   (bool turn_off_elim = false);  // Perform variable elimination based simplification.
 
     // Memory managment:
     //
@@ -117,9 +117,9 @@ class SimpSolver : public Solver {
         // 32-bit implementation instead then, but this will have to do for now.
         uint64_t cost  (Var x)        const { return (uint64_t)n_occ[mkLit(x)] * (uint64_t)n_occ[~mkLit(x)]; }
         bool operator()(Var x, Var y) const { return cost(x) < cost(y); }
-        
+
         // TODO: investigate this order alternative more.
-        // bool operator()(Var x, Var y) const { 
+        // bool operator()(Var x, Var y) const {
         //     int c_x = cost(x);
         //     int c_y = cost(y);
         //     return c_x < c_y || c_x == c_y && x < y; }
@@ -196,7 +196,7 @@ inline bool SimpSolver::isFrozen     (Var v) { return frozen[v]; }
 inline void SimpSolver::freezeVar(Var v){
     if (!frozen[v]){
         frozen[v] = 1;
-        frozen_vars.push(v); 
+        frozen_vars.push(v);
     } }
 
 inline void SimpSolver::thaw(){
@@ -212,10 +212,10 @@ inline bool SimpSolver::solve        (                     bool do_simp, bool tu
 inline bool SimpSolver::solve        (Lit p       ,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); return solve_(do_simp, turn_off_simp) == l_True; }
 inline bool SimpSolver::solve        (Lit p, Lit q,        bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); return solve_(do_simp, turn_off_simp) == l_True; }
 inline bool SimpSolver::solve        (Lit p, Lit q, Lit r, bool do_simp, bool turn_off_simp)  { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_(do_simp, turn_off_simp) == l_True; }
-inline bool SimpSolver::solve        (const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){ 
+inline bool SimpSolver::solve        (const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){
     budgetOff(); assumps.copyTo(assumptions); return solve_(do_simp, turn_off_simp) == l_True; }
 
-inline lbool SimpSolver::solveLimited (const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){ 
+inline lbool SimpSolver::solveLimited (const vec<Lit>& assumps, bool do_simp, bool turn_off_simp){
     assumps.copyTo(assumptions); return solve_(do_simp, turn_off_simp); }
 
 //=================================================================================================

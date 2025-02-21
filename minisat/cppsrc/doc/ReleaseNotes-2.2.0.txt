@@ -55,15 +55,15 @@ Changes since version 2.0:
  * General clean-up and various minor bug-fixes.
 
  * Changed implementation of variable-elimination/model-extension:
-    
+
      - The interface is changed so that arbitrary remembering is no longer
        possible. If you need to mention some variable again in the future,
        this variable has to be frozen.
-    
+
      - When eliminating a variable, only clauses that contain the variable
        with one sign is necessary to store. Thereby making the other sign
        a "default" value when extending models.
-    
+
      - The memory consumption for eliminated clauses is further improved
        by storing all eliminated clauses in a single contiguous vector.
 

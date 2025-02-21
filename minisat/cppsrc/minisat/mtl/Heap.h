@@ -46,7 +46,7 @@ class Heap {
     {
         K   x  = heap[i];
         int p  = parent(i);
-        
+
         while (i != 0 && lt(x, heap[p])){
             heap[i]          = heap[p];
             indices[heap[p]] = i;
@@ -132,7 +132,7 @@ class Heap {
         indices[x]       = -1;
         heap.pop();
         if (heap.size() > 1) percolateDown(0);
-        return x; 
+        return x;
     }
 
 
@@ -152,12 +152,12 @@ class Heap {
             percolateDown(i);
     }
 
-    void clear(bool dispose = false) 
-    { 
+    void clear(bool dispose = false)
+    {
         // TODO: shouldn't the 'indices' map also be dispose-cleared?
         for (int i = 0; i < heap.size(); i++)
             indices[heap[i]] = -1;
-        heap.clear(dispose); 
+        heap.clear(dispose);
     }
 };
 
