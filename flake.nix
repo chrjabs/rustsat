@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    systems.url = "github:nix-systems/default-linux";
+    systems.url = "github:nix-systems/default";
 
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
@@ -13,6 +13,9 @@
 
     git-hooks.url = "github:chrjabs/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
+
+    nix-github-actions.url = "github:nix-community/nix-github-actions";
+    nix-github-actions.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {
@@ -22,6 +25,7 @@
     rust-overlay,
     nix-tools,
     git-hooks,
+    nix-github-actions,
   }: let
     lib = nixpkgs.lib;
     forAllSystems = lib.genAttrs (import systems);
@@ -164,5 +168,9 @@
           };
         };
     });
+
+    githubActions = nix-github-actions.lib.mkGithubMatrix {
+      checks = self.checks // self.packages;
+    };
   };
 }
