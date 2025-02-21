@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # Builder container
 # -----------------------------------------------------------------------------
-FROM ubuntu:22.04 as builder
+FROM ubuntu:24.04 as builder
 
 ENV DEBIAN_FRONTEND "noninteractive"
 ENV TZ "Europe/Berlin"
@@ -21,7 +21,7 @@ RUN ./configure \
 # Runtime container
 # -----------------------------------------------------------------------------
 
-FROM ubuntu:22.04 as runner
+FROM ubuntu:24.04 as runner
 
 ENV DEBIAN_FRONTEND "noninteractive"
 ENV TZ "Europe/Berlin"
