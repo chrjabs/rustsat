@@ -36,5 +36,6 @@ jobs:
       - name: Lints
         uses: giraffate/clippy-action@v1
         with:
+          clippy_flags: --workspace
           reporter: 'github-pr-review'
           github_token: ${{ secrets.GITHUB_TOKEN }}
