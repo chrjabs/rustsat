@@ -80,7 +80,10 @@ where
 }
 
 impl<const N: usize, Sub> IterInputs for Commander<N, Sub> {
-    type Iter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>> where Sub: 'a;
+    type Iter<'a>
+        = std::iter::Copied<std::slice::Iter<'a, Lit>>
+    where
+        Sub: 'a;
 
     fn iter(&self) -> Self::Iter<'_> {
         self.in_lits.iter().copied()
