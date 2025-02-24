@@ -1295,6 +1295,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustsat-cryptominisat"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bindgen",
+ "clap",
+ "cmake",
+ "cpu-time",
+ "rustsat",
+ "rustsat-solvertests",
+ "signal-hook",
+ "thiserror",
+]
+
+[[package]]
 name = "rustsat-glucose"
 version = "0.3.6"
 dependencies = [

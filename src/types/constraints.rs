@@ -6,6 +6,7 @@
 
 use core::slice;
 use std::{
+    cmp,
     collections::TryReserveError,
     fmt,
     ops::{self, Not, RangeBounds},
@@ -14,7 +15,7 @@ use std::{
 use itertools::Itertools;
 use thiserror::Error;
 
-use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
+use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, Var, WLitIter};
 
 use crate::RequiresClausal;
 
@@ -442,6 +443,19 @@ impl Cl {
     #[must_use]
     pub fn is_binary(&self) -> bool {
         self.lits.len() == 2
+    }
+
+    /// Gets the highest variable in the clause
+    #[must_use]
+    pub fn max_var(&self) -> Option<Var> {
+        if self.is_empty() {
+            return None;
+        }
+        Some(
+            self.lits
+                .iter()
+                .fold(Var::new(0), |max, lit| cmp::max(max, lit.var())),
+        )
     }
 }
 
@@ -1524,7 +1538,7 @@ impl PbUbConstr {
         let min_coeff: usize = self
             .lits
             .iter()
-            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+            .fold(usize::MAX, |min, (_, coeff)| cmp::min(min, *coeff));
         // absolute is safe since is not unsat
         min_coeff > self.b.unsigned_abs()
     }
@@ -1557,7 +1571,7 @@ impl PbUbConstr {
         let min_coeff: usize = self
             .lits
             .iter()
-            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+            .fold(usize::MAX, |min, (_, coeff)| cmp::min(min, *coeff));
         // self.b >= 0 since not unsat
         self.weight_sum <= self.b.unsigned_abs() + min_coeff
             && self.weight_sum > self.b.unsigned_abs()
@@ -1622,7 +1636,7 @@ impl PbLbConstr {
         let min_coeff: usize = self
             .lits
             .iter()
-            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+            .fold(usize::MAX, |min, (_, coeff)| cmp::min(min, *coeff));
         // note: self.b <= self.weight_sum is checked in is_unsat
         self.b.unsigned_abs() + min_coeff > self.weight_sum
     }
@@ -1655,7 +1669,7 @@ impl PbLbConstr {
         let min_coeff: usize = self
             .lits
             .iter()
-            .fold(usize::MAX, |min, (_, coeff)| std::cmp::min(min, *coeff));
+            .fold(usize::MAX, |min, (_, coeff)| cmp::min(min, *coeff));
         // self.b > 0 because is not tautology
         self.b.unsigned_abs() <= min_coeff
     }

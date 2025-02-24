@@ -1,0 +1,45 @@
+[package]
+name = "rustsat-cryptominisat"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+license.workspace = true
+description = "Interface to the SAT solver CryptoMiniSat for the RustSAT library."
+keywords = ["sat-solver", "rustsat"]
+repository = "https://github.com/chrjabs/rustsat"
+readme = "README.md"
+include = [
+  "build.rs",
+  "CHANGELOG.md",
+  "README.md",
+  "/src/",
+  "/examples/",
+  "/cppsrc/src/",
+  "/cppsrc/README.markdown",
+  "/cppsrc/LICENSE.txt",
+  "/cppsrc/AUTHORS",
+  "/cppsrc/CMakeLists.txt",
+  "/cppsrc/cryptominisat5Config.cmake.in",
+]
+
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+debug = []
+
+[dependencies]
+anyhow.workspace = true
+cpu-time.workspace = true
+thiserror.workspace = true
+rustsat.workspace = true
+
+[build-dependencies]
+bindgen.workspace = true
+cmake.workspace = true
+
+[dev-dependencies]
+clap.workspace = true
+signal-hook.workspace = true
+rustsat-solvertests.workspace = true
