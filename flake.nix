@@ -82,6 +82,43 @@
                 2>&1 echo "Usage: git-subtree <subtree> <command> <ref>"
             esac
           '';
+        pr-merge-ff-cmd =
+          pkgs.writeShellScriptBin "pr-merge-ff"
+          /*
+          bash
+          */
+          ''
+            set -e
+
+            if ! ${lib.getExe pkgs.gh} pr checks ; then
+              2>&1 echo "PR checks have not (yet) passed"
+              exit 1
+            fi
+
+            BASE=main
+            DELETE=false
+
+            case "$1" in
+              "-d")
+                DELETE=true
+                ;;
+
+              *)
+                echo "setting base branch to $1"
+                BASE="$1"
+            esac
+
+            BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+            git switch "$BASE"
+            git merge --ff-only "$BRANCH"
+
+            if $DELETE ; then
+              git branch -d "$BRANCH"
+            fi
+
+            git push
+          '';
       in
         pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} rec {
           inherit (self.checks.${system}.pre-commit-check) shellHook;
@@ -99,6 +136,7 @@
               maturin
               kani
               git-subtree-cmd
+              pr-merge-ff-cmd
             ]
             ++ self.checks.${system}.pre-commit-check.enabledPackages;
           buildInputs = libs;
