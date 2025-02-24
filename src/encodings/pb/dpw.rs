@@ -130,7 +130,7 @@ impl DynamicPolyWatchdog {
     ///
     /// Returns an error if the divisor value is not a power of 2 or was increased.
     pub fn set_precision(&mut self, divisor: usize) -> Result<(), PrecisionError> {
-        if !(divisor <= 1 || (divisor & (divisor - 1)) == 0) {
+        if !(divisor <= 1 || divisor.is_power_of_two()) {
             return Err(PrecisionError::NotPow2);
         }
         if self.structure.is_some() && divisor > self.prec_div {
@@ -310,32 +310,28 @@ impl BoundUpper for DynamicPolyWatchdog {
         if self.weight_sum() <= ub && self.prec_div <= 1 {
             return Ok(vec![]);
         }
-        match &self.structure {
-            Some(structure) => {
-                if !self.weight_queue.is_empty()
-                    && self.weight_queue.iter().next_back().unwrap().0 >= &self.prec_div
-                {
-                    return Err(Error::NotEncoded);
-                }
-                debug_assert!(structure.prec_div >= self.prec_div);
-                let ub = ub
-                    / 2_usize.pow(
-                        utils::digits(structure.prec_div, 2) - utils::digits(self.prec_div, 2),
-                    );
-                enforce_ub(structure, ub, &self.db)
+        if let Some(structure) = &self.structure {
+            if !self.weight_queue.is_empty()
+                && self.weight_queue.iter().next_back().unwrap().0 >= &self.prec_div
+            {
+                return Err(Error::NotEncoded);
             }
-            None => {
-                if self.in_lits.len() > 1 {
-                    return Err(Error::NotEncoded);
-                }
-                debug_assert_eq!(self.in_lits.len(), 1);
-                let (l, w) = self.in_lits.iter().next().unwrap();
-                Ok(if *w <= ub * std::cmp::min(self.prec_div, 1) {
-                    vec![]
-                } else {
-                    vec![-(*l)]
-                })
+            debug_assert!(structure.prec_div >= self.prec_div);
+            let ub = ub
+                / 2_usize
+                    .pow(utils::digits(structure.prec_div, 2) - utils::digits(self.prec_div, 2));
+            enforce_ub(structure, ub, &self.db)
+        } else {
+            if self.in_lits.len() > 1 {
+                return Err(Error::NotEncoded);
             }
+            debug_assert_eq!(self.in_lits.len(), 1);
+            let (l, w) = self.in_lits.iter().next().unwrap();
+            Ok(if *w <= ub * std::cmp::min(self.prec_div, 1) {
+                vec![]
+            } else {
+                vec![-(*l)]
+            })
         }
     }
 
@@ -383,33 +379,29 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
                 var_manager,
             ));
         }
-        match &mut self.structure {
-            Some(structure) => {
-                let n_clauses_before = collector.n_clauses();
-                if !fresh
-                    && !self.weight_queue.is_empty()
-                    && self.weight_queue.iter().next_back().unwrap().0 >= &self.prec_div
-                {
-                    // precision has been increased, need to extend encoding
-                    let new_struct = build_structure(
-                        &mut self.weight_queue,
-                        self.prec_div,
-                        false,
-                        &mut self.db,
-                        var_manager,
-                    );
-                    merge_structures(structure, new_struct, &mut self.db, collector, var_manager)?;
-                }
-                let output_weight = 1 << (structure.output_power());
-                let output_range =
-                    (range.start / output_weight)..=((range.end - 1) / output_weight);
-                for oidx in output_range {
-                    encode_output(structure, oidx, &mut self.db, collector, var_manager)?;
-                }
-                self.n_clauses += collector.n_clauses() - n_clauses_before;
-                self.n_vars += var_manager.n_used() - n_vars_before;
+        if let Some(structure) = &mut self.structure {
+            let n_clauses_before = collector.n_clauses();
+            if !fresh
+                && !self.weight_queue.is_empty()
+                && self.weight_queue.iter().next_back().unwrap().0 >= &self.prec_div
+            {
+                // precision has been increased, need to extend encoding
+                let new_struct = build_structure(
+                    &mut self.weight_queue,
+                    self.prec_div,
+                    false,
+                    &mut self.db,
+                    var_manager,
+                );
+                merge_structures(structure, new_struct, &mut self.db, collector, var_manager)?;
             }
-            None => (),
+            let output_weight = 1 << (structure.output_power());
+            let output_range = (range.start / output_weight)..=((range.end - 1) / output_weight);
+            for oidx in output_range {
+                encode_output(structure, oidx, &mut self.db, collector, var_manager)?;
+            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         };
         Ok(())
     }
@@ -715,7 +707,7 @@ fn build_structure(
     var_manager: &mut dyn ManageVars,
 ) -> Structure {
     // prec_div has to be a power of 2
-    debug_assert!(prec_div <= 1 || (prec_div & (prec_div - 1)) == 0);
+    debug_assert!(prec_div <= 1 || prec_div.is_power_of_two());
     let skipped_levels = utils::digits(prec_div, 2) as usize - 1;
 
     let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;

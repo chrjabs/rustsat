@@ -113,7 +113,7 @@ impl<'a> VarManager<'a> {
     }
 }
 
-impl<'a> ManageVars for VarManager<'a> {
+impl ManageVars for VarManager<'_> {
     fn new_var(&mut self) -> Var {
         let var = Var::new(*self.n_vars_used);
         *self.n_vars_used += 1;

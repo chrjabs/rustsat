@@ -42,7 +42,7 @@ pub fn callback_list<'input, T, P>(
     input: &'input str,
     mut parse: P,
     mut callback: impl FnMut(T) -> anyhow::Result<()>,
-) -> anyhow::Result<&str>
+) -> anyhow::Result<&'input str>
 where
     P: FnMut(&'input str) -> nom::IResult<&'input str, T>,
 {
@@ -74,7 +74,7 @@ pub fn callback_separated<'input, T, P>(
     input: &'input str,
     mut parse: P,
     mut callback: impl FnMut(T) -> anyhow::Result<()>,
-) -> anyhow::Result<&str>
+) -> anyhow::Result<&'input str>
 where
     P: FnMut(&'input str) -> nom::IResult<&'input str, T>,
 {

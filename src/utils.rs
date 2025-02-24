@@ -18,8 +18,8 @@ pub(crate) fn digits(mut number: usize, mut basis: u8) -> u32 {
             .expect("number of digits does not fit in u32");
     }
     let mut digits = 0;
-    if (basis & (basis - 1)) == 0 {
-        // Base is a power of 2. Optimized version using shift operations.
+    if basis.is_power_of_two() {
+        // optimized version using shift operations
         let mut pow: u8 = 0;
         basis >>= 1;
         while basis > 0 {

@@ -479,13 +479,8 @@ impl Node {
                                 *out_lits.get(&sum_val).unwrap(),
                             ))
                         };
-                    let right_min = |range_start, left_val| {
-                        if range_start > left_val {
-                            range_start - left_val
-                        } else {
-                            0
-                        }
-                    };
+                    let right_min =
+                        |range_start: usize, left_val| range_start.saturating_sub(left_val);
                     let clause_iter =
                         left_lits
                             .range(1..range.end - 1)
