@@ -30,7 +30,7 @@ use rustsat_tools::encodings::{
     assignment,
     cnf::{
         self,
-        clustering::{self, saturating_map, scaling_map, Encoding, Variant},
+        clustering::{self, saturating_map, scaling_map, Encoding},
     },
     facilitylocation, knapsack, pb,
 };
@@ -97,9 +97,6 @@ struct ClusteringArgs {
     /// form `[nodeA] [nodeB] [similarity value]`. Reads from `stdin` if not
     /// given.
     in_path: Option<PathBuf>,
-    /// The encoding variant
-    #[arg(long, default_value_t = Variant::default())]
-    variant: Variant,
     /// Instead of outputting a multi-objective MCNF file, output the
     /// single-objective MaxSAT encoding.
     #[arg(long)]
@@ -211,19 +208,15 @@ struct RandomKnapsackArgs {
 
 fn clustering(args: ClusteringArgs) -> anyhow::Result<impl Iterator<Item = dimacs::McnfLine>> {
     if let Some(in_path) = args.in_path {
-        clustering::Encoding::new(
-            io::BufReader::new(File::open(in_path)?),
-            args.variant,
-            |sim| {
-                saturating_map(
-                    scaling_map(sim, args.multiplier) - args.offset,
-                    args.dont_care,
-                    args.hard_threshold,
-                )
-            },
-        )
+        clustering::Encoding::new(io::BufReader::new(File::open(in_path)?), |sim| {
+            saturating_map(
+                scaling_map(sim, args.multiplier) - args.offset,
+                args.dont_care,
+                args.hard_threshold,
+            )
+        })
     } else {
-        Encoding::new(io::BufReader::new(io::stdin()), args.variant, |sim| {
+        Encoding::new(io::BufReader::new(io::stdin()), |sim| {
             saturating_map(
                 scaling_map(sim, args.multiplier) - args.offset,
                 args.dont_care,
