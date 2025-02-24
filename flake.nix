@@ -165,6 +165,7 @@
               excludes = [".+\\.(patch|log)$" "cadical/cppsrc/.+" "kissat/csrc/.+"];
             };
             check-symlinks.enable = true;
+            no-commit-to-branch.enable = true;
           };
         };
     });
