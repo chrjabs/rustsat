@@ -27,7 +27,7 @@ clap = { version = "4.5.30", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
-flate2 = { version = "1.0.35", features = [
+flate2 = { version = "1.1.0", features = [
   "zlib-ng",
 ], default-features = false }
 git2 = "0.20.0"
