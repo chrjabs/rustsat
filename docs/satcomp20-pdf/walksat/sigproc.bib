@@ -1,0 +1,468 @@
+@InProceedings{stamping,
+author="Heule, Marijn J. H.
+and J{\"a}rvisalo, Matti
+and Biere, Armin",
+editor="Sakallah, Karem A.
+and Simon, Laurent",
+title="Efficient {CNF} Simplification Based on Binary Implication Graphs",
+booktitle="Theory and Applications of Satisfiability Testing - SAT 2011",
+year="2011",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="201--215",
+abstract="This paper develops techniques for efficiently detecting redundancies in CNF formulas. We introduce the concept of hidden literals, resulting in the novel technique of hidden literal elimination. We develop a practical simplification algorithm that enables ``Unhiding'' various redundancies in a unified framework. Based on time stamping literals in the binary implication graph, the algorithm applies various binary clause based simplifications, including techniques that, when run repeatedly until fixpoint, can be too costly. Unhiding can also be applied during search, taking learnt clauses into account. We show that Unhiding gives performance improvements on real-world SAT competition benchmarks.",
+isbn="978-3-642-21581-0"
+}
+
+@inproceedings{TACAS-2010-JarvisaloBH,
+	author        = "Matti Järvisalo and Armin Biere and Marijn Heule",
+	booktitle     = "{Proceedings of the 16th International Conference on Tools and Algorithms for the Construction and Analysis of Systems}",
+	doi           = "10.1007/978-3-642-12002-2_10",
+	pages         = "129--144",
+	publisher     = "{Springer International Publishing}",
+	series        = "{Lecture Notes in Computer Science}",
+	title         = "{Blocked Clause Elimination}",
+	volume        = 6015,
+	year          = 2010,
+}
+
+@InProceedings{probsat,
+author="Balint, Adrian
+and Sch{\"o}ning, Uwe",
+editor="Cimatti, Alessandro
+and Sebastiani, Roberto",
+title="Choosing Probability Distributions for Stochastic Local Search and the Role of Make versus Break",
+booktitle="Theory and Applications of Satisfiability Testing -- SAT 2012",
+year="2012",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="16--29",
+abstract="Stochastic local search solvers for SAT made a large progress with the introduction of probability distributions like the ones used by the SAT Competition 2011 winners Sparrow2010 and EagleUp. These solvers though used a relatively complex decision heuristic, where probability distributions played a marginal role.",
+isbn="978-3-642-31612-8"
+}
+
+@InProceedings{balint-improving-sls,
+author="Balint, Adrian
+and Biere, Armin
+and Fr{\"o}hlich, Andreas
+and Sch{\"o}ning, Uwe",
+editor="Sinz, Carsten
+and Egly, Uwe",
+title="Improving Implementation of {SLS} Solvers for {SAT} and New Heuristics for {k-SAT} with Long Clauses",
+booktitle="Theory and Applications of Satisfiability Testing -- SAT 2014",
+year="2014",
+publisher="Springer International Publishing",
+address="Cham",
+pages="302--316",
+abstract="Stochastic Local Search (SLS) solvers are considered one of the best solving technique for randomly generated problems and more recently also have shown great promise for several types of hard combinatorial problems. Within this work, we provide a thorough analysis of different implementation variants of SLS solvers on random and on hard combinatorial problems. By analyzing existing SLS implementations, we are able to discover new improvements inspired by CDCL solvers, which can speed up the search of all types of SLS solvers. Further, our analysis reveals that the multilevel break values of variables can be easily computed and used within the decision heuristic. By augmenting the probSAT solver with the new heuristic, we are able to reach new state-of-the-art performance on several types of SAT problems, especially on those with long clauses. We further provide a detailed analysis of the clause selection policy used in focused search SLS solvers.",
+isbn="978-3-319-09284-3"
+}
+
+
+
+@inproceedings{DBLP:conf/ictai/LynceS03,
+  author    = {In{\^{e}}s Lynce and
+               Jo{\~{a}}o P. Marques Silva},
+  title     = {Probing-Based Preprocessing Techniques for Propositional Satisfiability},
+  booktitle = {15th {IEEE} International Conference on Tools with Artificial Intelligence
+               {(ICTAI} 2003), 3-5 November 2003, Sacramento, California, {USA}},
+  pages     = {105},
+  year      = {2003},
+  crossref  = {DBLP:conf/ictai/2003},
+  url       = {https://doi.org/10.1109/TAI.2003.1250177},
+  doi       = {10.1109/TAI.2003.1250177},
+  timestamp = {Fri, 02 Nov 2018 09:48:27 +0100},
+  biburl    = {https://dblp.org/rec/bib/conf/ictai/LynceS03},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@proceedings{DBLP:conf/ictai/2003,
+  title     = {15th {IEEE} International Conference on Tools with Artificial Intelligence
+               {(ICTAI} 2003), 3-5 November 2003, Sacramento, California, {USA}},
+  publisher = {{IEEE} Computer Society},
+  year      = {2003},
+  url       = {http://ieeexplore.ieee.org/xpl/mostRecentIssue.jsp?punumber=8840},
+  isbn      = {0-7695-2038-3},
+  timestamp = {Thu, 18 Dec 2014 16:57:40 +0100},
+  biburl    = {https://dblp.org/rec/bib/conf/ictai/2003},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@InProceedings{chronobt,
+author="Nadel, Alexander
+and Ryvchin, Vadim",
+editor="Beyersdorff, Olaf
+and Wintersteiger, Christoph M.",
+title="Chronological Backtracking",
+booktitle="Theory and Applications of Satisfiability Testing -- {SAT} 2018",
+year="2018",
+publisher="Springer International Publishing",
+address="Cham",
+pages="111--121",
+abstract="Non-Chronological Backtracking (NCB) has been implemented in every modern CDCL SAT solver since the original CDCL solver GRASP. NCB's importance has never been questioned. This paper argues that NCB is not always helpful. We show how one can implement the alternative to NCB--Chronological Backtracking (CB)--in a modern SAT solver. We demonstrate that CB improves the performance of the winner of the latest SAT Competition, Maple{\_}LCM{\_}Dist, and the winner of the latest MaxSAT Evaluation Open-WBO.",
+isbn="978-3-319-94144-8"
+}
+
+@inproceedings{smith94phase,
+    author = "Barbara Smith",
+    title = "The Phase Transition in Constraint Satisfaction Problems: {A} {CL}oser Look at the Mushy Region",
+    booktitle = {{ECAI}'94},
+    year = "1994"
+}
+
+@inproceedings{swdia,
+    author = "Chanseok Oh",
+    title = "{MiniSat HACK 999ED, MiniSat HACK 1430ED and SWDiA5BY}",
+    booktitle = "SAT Competition 2014 Booklet",
+    year = "201",
+}
+
+@inproceedings{lingeling,
+    author = "Armin Biere",
+    title = "Yet another Local Search Solver and Lingeling and Friends Entering the SAT Competition 2014",
+    booktitle = "SAT Competition 2014 Booklet",
+    year = "2014",
+}
+
+@inproceedings{maple,
+    author="Tomas Balyo and Marijn J. H. Heule and Matti Jarvisalo",
+    title="{MapleLRB\_LCM, Maple\_LCM, Maple\_LCM\_Dist, MapleLRB\_LCMoccRestart and Glucose-3.0+width in SAT Competition 2017}",
+    booktitle = "Proceedings of SAT Competition 2017",
+    year="2018"
+}
+
+@inproceedings{sat-comp-2014-armin,
+    author="Belov Anton and Diepold Daniel and Marijn J. H. Heule and Matti Jarvisalo",
+    title="{Yet another Local Search Solver and Lingeling and Friends Entering the SAT Competition 2014}",
+    booktitle = "Proceedings of SAT Competition 2014",
+    year="2014"
+}
+
+@misc {nscc,
+  author="ASTAR and NTU and NUS and SUTD",
+  title="{National Supercomputing Centre (NSCC)} {S}ingapore",
+  url="https://www.nscc.sg/about-nscc/overview/",
+  year="2018"
+}
+
+@misc {CMS,
+  author="Mate Soos",
+  title="{CryptoMiniSat SAT solver GitHub page}",
+  url="https://github.com/msoos/cryptominisat",
+  year="2018"
+}
+
+@misc {cadical,
+	author="Armin Biere",
+	title="{CaDiCaL SAT solver GitHub page}",
+	url="https://github.com/arminbiere/cadical",
+	year="2020"
+}
+
+@inproceedings{DBLP:conf/sat/CaiLS15,
+
+	author    = {Shaowei Cai and
+Chuan Luo and
+Kaile Su},
+
+	title     = {CCAnr: {A} Configuration Checking Based Local Search Solver for Non-random
+ Satisfiability},
+
+	booktitle = {{SAT} 2015},
+
+	year      = {2015},
+
+	crossref  = {DBLP:conf/sat/2015},
+
+	doi       = {10.1007/978-3-319-24318-4\_1},
+
+}
+
+
+@proceedings{DBLP:conf/sat/2015,
+
+	editor    = {Marijn Heule and
+Sean A. Weaver},
+
+	title     = {{SAT} 2015},
+
+	series    = {LNCS},
+
+	volume    = {9340},
+
+	publisher = {Springer},
+
+	year      = {2015},
+
+	doi       = {10.1007/978-3-319-24318-4},
+
+	isbn      = {978-3-319-24317-7},
+
+}
+
+
+@inproceedings{cheeseman91where,
+    author = "Peter Cheeseman and Bob Kanefsky and William M. Taylor",
+    title = "Where the Really Hard Problems Are",
+    booktitle = "IJCAI-91",
+    pages = "331--337",
+    year = "1991",
+}
+
+@InProceedings{BVA,
+author="Manthey, Norbert
+and Heule, Marijn J. H.
+and Biere, Armin",
+editor="Biere, Armin
+and Nahir, Amir
+and Vos, Tanja",
+title="Automated Reencoding of Boolean Formulas",
+booktitle="Hardware and Software: Verification and Testing",
+year="2013",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="102--117",
+abstract="We present a novel preprocessing technique to automatically reduce the size of Boolean formulas. This technique, called Bounded Variable Addition (BVA), exchanges clauses for variables. Similar to other preprocessing techniques, BVA greedily lowers the sum of variables and clauses, a rough measure for the hardness to solve a formula. We show that cardinality constraints (CCs) can efficiently be reencoded: from a naive CC encoding, BVA automatically generates a compact encoding, which is smaller than sophisticated encodings. Experimental results show that applying BVA can improve SAT solving performance.",
+isbn="978-3-642-39611-3"
+}
+
+@InProceedings{BVE,
+author="E{\'e}n, Niklas
+and Biere, Armin",
+editor="Bacchus, Fahiem
+and Walsh, Toby",
+title="Effective Preprocessing in {SAT} Through Variable and Clause Elimination",
+booktitle="Theory and Applications of Satisfiability Testing",
+year="2005",
+publisher="Springer Berlin Heidelberg",
+address="Berlin, Heidelberg",
+pages="61--75",
+abstract="Preprocessing SAT instances can reduce their size considerably. We combine variable elimination with subsumption and self-subsuming resolution, and show that these techniques not only shrink the formula further than previous preprocessing efforts based on variable elimination, but also decrease runtime of SAT solvers substantially for typical industrial SAT problems. We discuss critical implementation details that make the reduction procedure fast enough to be practical.",
+isbn="978-3-540-31679-4"
+}
+
+@INPROCEEDINGS{Selman95localsearch,
+    author = {Bart Selman and Henry Kautz and Bram Cohen},
+    title = {Local Search Strategies for Satisfiability Testing},
+    booktitle = {{DIMACS} Series in Discrete Mathematics and Theoretical Computer Science},
+    year = {1995},
+    pages = {521--532},
+    publisher = {}
+}
+
+@INPROCEEDINGS{birdtwo,
+    author = {Mate Soos and Stephan Gocht and Kuldeep S Meel},
+    title = {Accelerating Approximate Techniques for Counting and Sampling Models Through Refined {CNF-XOR} Solving},
+    booktitle = {CAV 2020},
+    year = {2020},
+    publisher = {}
+}
+
+
+
+
+@inproceedings{DBLP:conf/sat/Devriendt0B17,
+
+    author    = {Jo Devriendt and
+
+    Bart Bogaerts and
+
+    Maurice Bruynooghe},
+
+    title     = {Symmetric Explanation Learning: Effective Dynamic Symmetry Handling
+
+    for {SAT}},
+
+    booktitle = {{SAT} 2017},
+
+    pages     = {83--100},
+
+    year      = {2017},
+
+    crossref  = {DBLP:conf/sat/2017},
+
+}
+
+
+@proceedings{DBLP:conf/sat/2017,
+
+    editor    = {Serge Gaspers and
+
+    Toby Walsh},
+
+    title     = {{SAT} 2017},
+
+    series    = {LNCS},
+
+    volume    = {10491},
+
+    publisher = {Springer},
+
+    year      = {2017},
+}
+
+
+
+
+
+
+@inproceedings{DBLP:conf/alenex/JunttilaK07,
+
+    author    = {Tommi A. Junttila and
+
+    Petteri Kaski},
+
+    title     = {Engineering an Efficient Canonical Labeling Tool for Large and Sparse
+
+    Graphs},
+
+    booktitle     = {{ALENEX} 2007},
+
+    year      = {2007},
+
+    crossref  = {DBLP:conf/alenex/2007},
+
+}
+
+
+@proceedings{DBLP:conf/alenex/2007,
+
+    title     = {
+{ALENEX} 2007},
+
+    publisher = {{SIAM}},
+
+    year      = {2007},
+
+    isbn      = {978-1-61197-287-0},
+
+}
+
+
+
+
+
+
+
+@inproceedings{DBLP:conf/aaai/KautzS96,
+  author    = {Henry A. Kautz and
+               Bart Selman},
+  title     = {Pushing the Envelope: Planning, Propositional Logic and Stochastic
+               Search},
+  booktitle = {Proceedings of the Thirteenth National Conference on Artificial Intelligence
+               and Eighth Innovative Applications of Artificial Intelligence Conference,
+               {AAAI} 96, {IAAI} 96, Portland, Oregon, USA, August 4-8, 1996, Volume
+               2.},
+  pages     = {1194--1201},
+  year      = {1996},
+  crossref  = {DBLP:conf/aaai/1996-2},
+  url       = {http://www.aaai.org/Library/AAAI/1996/aaai96-177.php},
+  timestamp = {Tue, 19 Jun 2018 18:21:36 +0200},
+  biburl    = {https://dblp.org/rec/bib/conf/aaai/KautzS96},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@proceedings{DBLP:conf/aaai/1996-2,
+  editor    = {William J. Clancey and
+               Daniel S. Weld},
+  title     = {Proceedings of the Thirteenth National Conference on Artificial Intelligence
+               and Eighth Innovative Applications of Artificial Intelligence Conference,
+               {AAAI} 96, {IAAI} 96, Portland, Oregon, USA, August 4-8, 1996, Volume
+               2},
+  publisher = {{AAAI} Press / The {MIT} Press},
+  year      = {1996},
+  url       = {http://www.aaai.org/Conferences/AAAI/aaai96.php},
+  timestamp = {Tue, 19 Jun 2018 18:21:36 +0200},
+  biburl    = {https://dblp.org/rec/bib/conf/aaai/1996-2},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+
+
+@inproceedings{DBLP:conf/aaai/Hoos02,
+  author    = {Holger H. Hoos},
+  title     = {An Adaptive Noise Mechanism for {WalkSAT}},
+  booktitle = {Proceedings of the Eighteenth National Conference on Artificial Intelligence
+               and Fourteenth Conference on Innovative Applications of Artificial
+               Intelligence, July 28 - August 1, 2002, Edmonton, Alberta, Canada.},
+  pages     = {655--660},
+  year      = {2002},
+  crossref  = {DBLP:conf/aaai/2002},
+  url       = {http://www.aaai.org/Library/AAAI/2002/aaai02-098.php},
+  timestamp = {Mon, 26 Feb 2018 07:08:45 +0100},
+  biburl    = {https://dblp.org/rec/bib/conf/aaai/Hoos02},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@proceedings{DBLP:conf/aaai/2002,
+  editor    = {Rina Dechter and
+               Michael J. Kearns and
+               Richard S. Sutton},
+  title     = {Proceedings of the Eighteenth National Conference on Artificial Intelligence
+               and Fourteenth Conference on Innovative Applications of Artificial
+               Intelligence, July 28 - August 1, 2002, Edmonton, Alberta, Canada},
+  publisher = {{AAAI} Press / The {MIT} Press},
+  year      = {2002},
+  url       = {http://www.aaai.org/Conferences/AAAI/aaai02.php},
+  timestamp = {Mon, 26 Feb 2018 07:08:45 +0100},
+  biburl    = {https://dblp.org/rec/bib/conf/aaai/2002},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@InProceedings{breakid2016,
+author="Devriendt, Jo
+and Bogaerts, Bart
+and Bruynooghe, Maurice
+and Denecker, Marc",
+editor="Creignou, Nadia
+and Le Berre, Daniel",
+title="Improved Static Symmetry Breaking for {SAT}",
+booktitle="Theory and Applications of Satisfiability Testing -- SAT 2016",
+year="2016",
+publisher="Springer International Publishing",
+address="Cham",
+pages="104--122",
+abstract="An effective SAT preprocessing technique is the construction of symmetry breaking formulas: auxiliary clauses that guide a SAT solver away from needless exploration of symmetric subproblems. However, during the past decade, state-of-the-art SAT solvers rarely incorporated symmetry breaking. This suggests that the reduction of the search space does not outweigh the overhead incurred by detecting symmetry and constructing symmetry breaking formulas. We investigate three methods to construct more effective symmetry breaking formulas. The first method simply improves the encoding of symmetry breaking formulas. The second detects special symmetry subgroups, for which complete symmetry breaking formulas exist. The third infers binary symmetry breaking clauses for a symmetry group as a whole rather than longer clauses for individual symmetries. We implement these methods in a symmetry breaking preprocessor, and verify their effectiveness on both hand-picked problems as well as the 2014 SAT competition benchmark set. Our experiments indicate that our symmetry breaking preprocessor improves the current state-of-the-art in static symmetry breaking for SAT and has a sufficiently low overhead to improve the performance of modern SAT solvers on hard combinatorial instances.",
+isbn="978-3-319-40970-2",
+doi="10.1007/978-3-319-40970-2\_8",
+url="https://bitbucket.org/krr/breakid"
+}
+
+@article{shatter2006,
+author = {Aloul, Fadi A. and Sakallah, Karem A. and Markov, Igor L.},
+title = {Efficient Symmetry Breaking for {B}oolean Satisfiability},
+year = {2006},
+issue_date = {May 2006},
+publisher = {IEEE Computer Society},
+address = {USA},
+volume = {55},
+number = {5},
+issn = {0018-9340},
+url = {https://doi.org/10.1109/TC.2006.75},
+doi = {10.1109/TC.2006.75},
+journal = {IEEE Trans. Comput.},
+month = may,
+pages = {549–558},
+numpages = {10},
+keywords = {graph automorphism, clause learning, conjunctive normal form (CNF), satisfiability (SAT), symmetries., Backtrack Search}
+}
+
+@article{DBLP:journals/ai/LiXLMLL20,
+  author    = {Chu{-}Min Li and
+               Fan Xiao and
+               Mao Luo and
+               Felip Many{\`{a}} and
+               Zhipeng L{\"{u}} and
+               Yu Li},
+  title     = {Clause vivification by unit propagation in {CDCL} {SAT} solvers},
+  journal   = {Artif. Intell.},
+  volume    = {279},
+  year      = {2020},
+}
+
+@inproceedings{shaw2020designing,
+    title={Designing new Phase Selection Heuristics},
+    author={Shaw, Arijit and Meel, Kuldeep S},
+    booktitle={SAT 2020},
+    year={2020}
+}

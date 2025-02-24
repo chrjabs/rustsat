@@ -1,0 +1,91 @@
+name: binary build
+
+on:
+  push:
+    branches:
+      - master
+
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally
+    # well on Windows or Mac.  You can convert this to a matrix build if you need
+    # cross-platform coverage.
+    # See: https://docs.github.com/en/actions/configuring-and-managing-workflows/configuring-a-workflow#configuring-a-build-matrix
+    runs-on: ${{ matrix.os }}
+
+
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2022, macos-13]
+        build_type: ['Release']
+        staticcompile: ['ON', 'OFF']
+
+    steps:
+    - uses: actions/checkout@v4.1.1
+    
+    # install dependencies
+    - name: Install boost & help2man for Linux
+      if: matrix.os == 'ubuntu-20.04'
+      run: sudo apt-get update && sudo apt-get install -yq libboost-dev libboost-serialization-dev libboost-program-options-dev help2man
+
+    - name: Installing Numpy
+      run: |
+        pip install pip --upgrade
+        pip install numpy lit
+    
+    - name: Add git submodules for Linux only (not needed for non-testing)
+      if: matrix.os == 'ubuntu-20.04'
+      run: git submodule update --init
+
+    - name: Configure CMake for linux
+      if: matrix.os == 'ubuntu-20.04'
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      #working-directory: ${{runner.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DENABLE_TESTING=ON  -DSTATICCOMPILE=${{ matrix.staticcompile }}
+    
+    - name: Configure CMake for non-linux
+      if: matrix.os != 'ubuntu-20.04'
+      # Use a bash shell so we can use the same syntax for environment variable
+      # access regardless of the host operating system
+      #working-directory: ${{runner.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DENABLE_TESTING=OFF -DSTATICCOMPILE=${{ matrix.staticcompile }}
+
+    - name: Build
+      #working-directory: ${{runner.workspace}}/build
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: cmake --build . --config ${{ matrix.build_type }}
+
+    - name: Test
+      #working-directory: ${{runner.workspace}}/build
+      # Execute tests defined by the CMake configuration.  
+      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+      run: ctest -C ${{ matrix.build_type }}
+      
+    - name: Upload Artifact - Linux
+      if: matrix.os == 'ubuntu-20.04' && matrix.staticcompile == 'ON'
+      uses: actions/upload-artifact@v3
+      with:
+        name: cryptominisat5-linux-amd64
+        path: cryptominisat5
+    
+    - name: Upload Artifact - Mac
+      if: matrix.os == 'macos-13' && matrix.staticcompile == 'ON'
+      uses: actions/upload-artifact@v3
+      with:
+        name: cryptominisat5-mac-amd64
+        path: cryptominisat5
+
+    - name: Upload Artifact - Windows
+      if: matrix.os == 'windows-2022' && matrix.staticcompile == 'ON'
+      uses: actions/upload-artifact@v3
+      with:
+        name: cryptominisat5-win64.exe
+        path: Release\cryptominisat5.exe
