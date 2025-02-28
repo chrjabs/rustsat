@@ -20,8 +20,8 @@ edition = "2021"
 [workspace.dependencies]
 anyhow = "1.0.96"
 bindgen = "0.71.1"
-bzip2 = "0.5.1"
-cc = { version = "1.2.15", features = ["parallel"] }
+bzip2 = "0.5.2"
+cc = { version = "1.2.16", features = ["parallel"] }
 chrono = "0.4.40"
 clap = { version = "4.5.31", features = ["derive", "cargo"] }
 cmake = "0.1.54"
