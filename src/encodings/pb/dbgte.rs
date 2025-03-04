@@ -381,6 +381,69 @@ impl super::cert::BoundUpper for DbGte {
         self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change_cert(range, collector, var_manager, proof)
     }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        use pigeons::{OperationSequence, VarLike};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, mut id) = constr;
+        let (lits, ub) = constr.decompose();
+        anyhow::ensure!(ub >= 0, Error::Unsat);
+        let ub = ub.unsigned_abs();
+        let mut enc = Self::from_iter(lits);
+        enc.encode_ub_cert(ub..=ub, collector, var_manager, proof)?;
+        let mut val = enc.next_higher(ub);
+        for unit in enc
+            .enforce_ub(ub)
+            .expect("should have caught special case before here")
+        {
+            let (olit, sem_defs) = enc.output_proof_details(val)?;
+            let unit_cl = crate::clause![unit];
+            let unit_id = if unit.var() < olit.var() {
+                // input literal with weight larger than bound
+                let weight = *enc.lit_buffer.get(&!unit).unwrap();
+                let unit_id = proof.reverse_unit_prop(&unit_cl, [id.into()])?;
+                // simplify main constraint
+                #[cfg(feature = "verbose-proofs")]
+                proof.comment(&"rewritten main constraint")?;
+                id = proof.operations(
+                    &(OperationSequence::<Var>::from(unit.var().axiom(!unit.is_neg())) * weight
+                        + id),
+                )?;
+                unit_id
+            } else {
+                // output literal
+                // NOTE: by the time we're here, all buffered literals have been removed from `id`
+                debug_assert_eq!(!unit, olit);
+                let unit_id = proof.operations(
+                    &((OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()) / val),
+                )?;
+                #[cfg(feature = "verbose-proofs")]
+                proof.equals(&unit_cl, Some(unit_id.into()))?;
+                val = enc.next_higher(val);
+                unit_id
+            };
+            collector.add_cert_clause(unit_cl, unit_id)?;
+        }
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
 }
 
 #[cfg(feature = "proof-logging")]
@@ -910,5 +973,83 @@ mod tests {
         let mut cnf = Cnf::new();
         gte.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 24);
+    }
+
+    #[cfg(feature = "proof-logging")]
+    mod proofs {
+        use std::{
+            fs::File,
+            io::{BufRead, BufReader},
+            path::Path,
+            process::Command,
+        };
+
+        use crate::{
+            encodings::pb::cert::BoundUpper,
+            instances::{Cnf, SatInstance},
+            types::{constraints::PbConstraint, Var},
+        };
+
+        fn print_file<P: AsRef<Path>>(path: P) {
+            println!();
+            for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+                println!("{}", line.unwrap());
+            }
+            println!();
+        }
+
+        fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+            if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
+                println!("start checking proof");
+                let out = Command::new(veripb)
+                    .arg(instance.as_ref())
+                    .arg(proof.as_ref())
+                    .output()
+                    .expect("failed to run veripb");
+                print_file(proof);
+                if out.status.success() {
+                    return;
+                }
+                panic!("verification failed: {out:?}")
+            } else {
+                println!("`$VERIPB_CHECKER` not set, omitting proof checking");
+            }
+        }
+
+        fn new_proof(
+            num_constraints: usize,
+            optimization: bool,
+        ) -> pigeons::Proof<tempfile::NamedTempFile> {
+            let file =
+                tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
+            pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+        }
+
+        #[test]
+        fn constraint() {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let inst_path = format!("{manifest}/data/single-ub.opb");
+            let constr: SatInstance =
+                SatInstance::from_opb_path(&inst_path, Default::default()).unwrap();
+            let (constr, mut vm) = constr.into_pbs();
+            assert_eq!(constr.len(), 1);
+            let Some(PbConstraint::Lb(constr)) = constr.into_iter().next() else {
+                panic!()
+            };
+            let constr = constr.invert();
+            let mut cnf = Cnf::new();
+            let mut proof = new_proof(1, false);
+            super::DbGte::encode_ub_constr_cert(
+                (constr, pigeons::AbsConstraintId::new(1)),
+                &mut cnf,
+                &mut vm,
+                &mut proof,
+            )
+            .unwrap();
+            let proof_file = proof
+                .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+                .unwrap();
+            verify_proof(&inst_path, proof_file.path());
+        }
     }
 }

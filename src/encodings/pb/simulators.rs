@@ -160,6 +160,50 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<PBE> super::cert::BoundUpper for Inverted<PBE>
+where
+    PBE: super::cert::BoundLower + FromIterator<(Lit, usize)>,
+{
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.pb_enc.encode_lb_cert(
+            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            collector,
+            var_manager,
+            proof,
+        )
+    }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        let constr = (constr.0.invert(), constr.1);
+        PBE::encode_lb_constr_cert(constr, collector, var_manager, proof)
+    }
+}
+
 impl<PBE> BoundLower for Inverted<PBE>
 where
     PBE: BoundUpper,
@@ -191,6 +235,50 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<PBE> super::cert::BoundLower for Inverted<PBE>
+where
+    PBE: super::cert::BoundUpper + FromIterator<(Lit, usize)>,
+{
+    fn encode_lb_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.pb_enc.encode_ub_cert(
+            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            collector,
+            var_manager,
+            proof,
+        )
+    }
+
+    fn encode_lb_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbLbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        let constr = (constr.0.invert(), constr.1);
+        PBE::encode_ub_constr_cert(constr, collector, var_manager, proof)
+    }
+}
+
 impl<PBE> BoundUpperIncremental for Inverted<PBE>
 where
     PBE: BoundLowerIncremental,
@@ -213,6 +301,32 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<PBE> super::cert::BoundUpperIncremental for Inverted<PBE>
+where
+    PBE: super::cert::BoundLowerIncremental + FromIterator<(Lit, usize)>,
+{
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.pb_enc.encode_lb_change_cert(
+            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            collector,
+            var_manager,
+            proof,
+        )
+    }
+}
+
 impl<PBE> BoundLowerIncremental for Inverted<PBE>
 where
     PBE: BoundUpperIncremental,
@@ -231,6 +345,32 @@ where
             self.convert_encoding_range(super::prepare_lb_range(self, range)),
             collector,
             var_manager,
+        )
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl<PBE> super::cert::BoundLowerIncremental for Inverted<PBE>
+where
+    PBE: super::cert::BoundUpperIncremental + FromIterator<(Lit, usize)>,
+{
+    fn encode_lb_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.pb_enc.encode_ub_change_cert(
+            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            collector,
+            var_manager,
+            proof,
         )
     }
 }
@@ -379,6 +519,46 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<UBE, LBE> super::cert::BoundUpper for Double<UBE, LBE>
+where
+    UBE: super::cert::BoundUpper + FromIterator<(Lit, usize)>,
+    LBE: super::cert::BoundLower + FromIterator<(Lit, usize)>,
+{
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.ub_enc
+            .encode_ub_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        UBE::encode_ub_constr_cert(constr, collector, var_manager, proof)
+    }
+}
+
 impl<UBE, LBE> BoundLower for Double<UBE, LBE>
 where
     UBE: BoundUpper,
@@ -402,6 +582,46 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<UBE, LBE> super::cert::BoundLower for Double<UBE, LBE>
+where
+    UBE: super::cert::BoundUpper + FromIterator<(Lit, usize)>,
+    LBE: super::cert::BoundLower + FromIterator<(Lit, usize)>,
+{
+    fn encode_lb_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.lb_enc
+            .encode_lb_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_lb_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbLbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        LBE::encode_lb_constr_cert(constr, collector, var_manager, proof)
+    }
+}
+
 impl<UBE, LBE> BoundUpperIncremental for Double<UBE, LBE>
 where
     UBE: BoundUpperIncremental,
@@ -421,6 +641,29 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<UBE, LBE> super::cert::BoundUpperIncremental for Double<UBE, LBE>
+where
+    UBE: super::cert::BoundUpperIncremental + BoundUpperIncremental + FromIterator<(Lit, usize)>,
+    LBE: super::cert::BoundLowerIncremental + BoundLowerIncremental + FromIterator<(Lit, usize)>,
+{
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.ub_enc
+            .encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+}
+
 impl<UBE, LBE> BoundLowerIncremental for Double<UBE, LBE>
 where
     UBE: BoundUpperIncremental,
@@ -437,6 +680,29 @@ where
         R: RangeBounds<usize>,
     {
         self.lb_enc.encode_lb_change(range, collector, var_manager)
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl<UBE, LBE> super::cert::BoundLowerIncremental for Double<UBE, LBE>
+where
+    UBE: super::cert::BoundUpperIncremental + BoundUpperIncremental + FromIterator<(Lit, usize)>,
+    LBE: super::cert::BoundLowerIncremental + BoundLowerIncremental + FromIterator<(Lit, usize)>,
+{
+    fn encode_lb_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.lb_enc
+            .encode_lb_change_cert(range, collector, var_manager, proof)
     }
 }
 
@@ -574,6 +840,47 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<CE> super::cert::BoundUpper for Card<CE>
+where
+    CE: card::cert::BoundUpper + FromIterator<Lit>,
+{
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.card_enc
+            .encode_ub_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        let (constr, id) = constr;
+        let constr = constr.extend_to_card_constr();
+        CE::encode_ub_constr_cert((constr, id), collector, var_manager, proof)
+    }
+}
+
 impl<CE> BoundLower for Card<CE>
 where
     CE: card::BoundLower,
@@ -596,6 +903,47 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<CE> super::cert::BoundLower for Card<CE>
+where
+    CE: card::cert::BoundLower + FromIterator<Lit>,
+{
+    fn encode_lb_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.card_enc
+            .encode_lb_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_lb_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbLbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        let (constr, id) = constr;
+        let constr = constr.extend_to_card_constr();
+        CE::encode_lb_constr_cert((constr, id), collector, var_manager, proof)
+    }
+}
+
 impl<CE> BoundUpperIncremental for Card<CE>
 where
     CE: card::BoundUpperIncremental,
@@ -615,6 +963,28 @@ where
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl<CE> super::cert::BoundUpperIncremental for Card<CE>
+where
+    CE: card::cert::BoundUpperIncremental + FromIterator<Lit>,
+{
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.card_enc
+            .encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+}
+
 impl<CE> BoundLowerIncremental for Card<CE>
 where
     CE: card::BoundLowerIncremental,
@@ -631,6 +1001,28 @@ where
     {
         self.card_enc
             .encode_lb_change(range, collector, var_manager)
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl<CE> super::cert::BoundLowerIncremental for Card<CE>
+where
+    CE: card::cert::BoundLowerIncremental + FromIterator<Lit>,
+{
+    fn encode_lb_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        self.card_enc
+            .encode_lb_change_cert(range, collector, var_manager, proof)
     }
 }
 

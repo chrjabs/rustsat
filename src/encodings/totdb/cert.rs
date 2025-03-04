@@ -374,6 +374,25 @@ impl super::Db {
         Ok(unreachable_none!(self.semantic_defs.get(&def_id).copied()))
     }
 
+    /// Deletes all semantic definitions from the proof
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails, returns [`std::io::Error`]
+    pub fn delete_semantics<W>(&mut self, proof: &mut pigeons::Proof<W>) -> std::io::Result<()>
+    where
+        W: std::io::Write,
+    {
+        let iter = self
+            .semantic_defs
+            .iter()
+            .flat_map(|(_, def)| def.iter())
+            .map(Into::into);
+        proof.delete_ids::<Var, crate::types::Clause, _, _>(iter, None)?;
+        self.semantic_defs.clear();
+        Ok(())
+    }
+
     /// Generates the encoding to define the positive output literal with value `val`, if it is not
     /// already defined. The derivation of the generated clauses is certified in the provided
     /// proof. Recurses down the tree. The returned literal is the output literal and the encoding
@@ -1185,6 +1204,10 @@ impl SemDefs {
             SemDefTyp::If => self.if_def.unwrap(),
             SemDefTyp::OnlyIf => self.only_if_def.unwrap(),
         }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = AbsConstraintId> {
+        self.if_def.into_iter().chain(self.only_if_def)
     }
 }
 
