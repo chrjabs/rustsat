@@ -1445,7 +1445,8 @@ impl PbConstraint {
         self.into_card_constr()
     }
 
-    /// Converts the pseudo-boolean constraint into a cardinality constraint, if possible
+    /// Converts the pseudo-boolean constraint into a cardinality constraint, only if the
+    /// constraint is already a cardinality
     ///
     /// # Errors
     ///
@@ -1502,6 +1503,21 @@ impl PbConstraint {
                 }
             }
         })
+    }
+
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is UNSAT or a tautology
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardConstraint {
+        match self {
+            PbConstraint::Ub(constr) => CardConstraint::Ub(constr.extend_to_card_constr()),
+            PbConstraint::Lb(constr) => CardConstraint::Lb(constr.extend_to_card_constr()),
+            PbConstraint::Eq(constr) => CardConstraint::Eq(constr.extend_to_card_constr()),
+        }
     }
 
     /// Converts the constraint into a clause, if possible
@@ -1765,6 +1781,24 @@ impl PbUbConstr {
         }
     }
 
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is UNSAT
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardUbConstr {
+        CardUbConstr {
+            lits: self
+                .lits
+                .into_iter()
+                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .collect(),
+            b: self.b.unsigned_abs(),
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1882,6 +1916,24 @@ impl PbLbConstr {
         }
     }
 
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is a tautology
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardLbConstr {
+        CardLbConstr {
+            lits: self
+                .lits
+                .into_iter()
+                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .collect(),
+            b: self.b.unsigned_abs(),
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1994,6 +2046,24 @@ impl PbEqConstr {
                 b: self.b,
             },
         )
+    }
+
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is UNSAT
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardEqConstr {
+        CardEqConstr {
+            lits: self
+                .lits
+                .into_iter()
+                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .collect(),
+            b: self.b.unsigned_abs(),
+        }
     }
 
     /// Checks if the constraint is unsatisfiable
