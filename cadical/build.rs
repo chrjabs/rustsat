@@ -160,6 +160,10 @@ impl Version {
     fn has_ipasir_up(self) -> bool {
         self >= Version::V160
     }
+
+    fn has_tracer(self) -> bool {
+        self >= Version::V200
+    }
 }
 
 fn main() {
@@ -204,14 +208,16 @@ fn main() {
 
     let cadical_dir = get_cadical_dir(None);
 
-    generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
+    generate_bindings(&cadical_dir, version, &out_dir);
 }
 
 /// Generates Rust FFI bindings
-fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
+fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
+    let header_path = &format!("{cadical_dir}/src/ccadical.h");
     let bindings = bindgen::Builder::default()
-        .rust_target("1.66.1".parse().unwrap()) // Set MSRV of RustSAT
+        .rust_target("1.70.0".parse().unwrap()) // Set MSRV of RustSAT
         .clang_arg("-Icppsrc")
+        .clang_arg(format!("-I{cadical_dir}/src"))
         .header(header_path)
         .allowlist_file(header_path)
         .allowlist_file("cppsrc/ccadical_extension.h")
@@ -228,6 +234,13 @@ fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
         .blocklist_function("ccadical_simplify");
     let bindings = if version.has_flip() {
         bindings.clang_arg("-DFLIP")
+    } else {
+        bindings
+    };
+    let bindings = if version.has_tracer() {
+        bindings
+            .header("cppsrc/ctracer.h")
+            .allowlist_file("cppsrc/ctracer.h")
     } else {
         bindings
     };
@@ -310,6 +323,9 @@ fn build(repo: &str, branch: &str, version: Version) {
     }
     if version.has_ipasir_up() {
         cadical_build.define("IPASIRUP", None);
+    }
+    if version.has_tracer() {
+        cadical_build.define("TRACER", None);
     }
 
     let out_dir = std::env::var("OUT_DIR").unwrap();

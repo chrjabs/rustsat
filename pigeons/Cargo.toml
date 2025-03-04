@@ -1,0 +1,17 @@
+[package]
+name = "pigeons"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
+description = "A library for writing VeriPB proofs"
+keywords = ["sat", "satisfiability", "encodings", "proof-logging"]
+repository = "https://github.com/chrjabs/rustsat"
+readme = "README.md"
+
+[dependencies]
+itertools.workspace = true
+rustc-hash.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

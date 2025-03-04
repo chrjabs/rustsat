@@ -408,28 +408,23 @@ impl Objective {
                         return Some(unreachable_none!(*unit_weight));
                     }
                     None
-                } else {
-                    match unit_weight {
-                        Some(unit_weight) => {
-                            if w == *unit_weight {
-                                if soft_lits.iter().any(|l2| l2 == &l) {
-                                    return Some(*unit_weight);
-                                }
-                                soft_lits.push(l);
-                                None
-                            } else {
-                                // Type changes from unweighted to weighted
-                                self.unweighted_2_weighted();
-                                // Add literal to new weighted objective
-                                self.add_soft_lit(w, l)
-                            }
+                } else if let Some(unit_weight) = unit_weight {
+                    if w == *unit_weight {
+                        if soft_lits.iter().any(|l2| l2 == &l) {
+                            return Some(*unit_weight);
                         }
-                        None => {
-                            soft_lits.push(l);
-                            *unit_weight = Some(w);
-                            None
-                        }
+                        soft_lits.push(l);
+                        None
+                    } else {
+                        // Type changes from unweighted to weighted
+                        self.unweighted_2_weighted();
+                        // Add literal to new weighted objective
+                        self.add_soft_lit(w, l)
                     }
+                } else {
+                    soft_lits.push(l);
+                    *unit_weight = Some(w);
+                    None
                 }
             }
         }
@@ -497,28 +492,23 @@ impl Objective {
                         return Some(unreachable_none!(*unit_weight));
                     }
                     None
-                } else {
-                    match unit_weight {
-                        Some(unit_weight) => {
-                            if w == *unit_weight {
-                                if soft_clauses.iter().any(|cl2| cl2 == &cl) {
-                                    return Some(*unit_weight);
-                                }
-                                soft_clauses.push(cl);
-                                None
-                            } else {
-                                // Type changes from unweighted to weighted
-                                self.unweighted_2_weighted();
-                                // Add literal to new weighted objective
-                                self.add_soft_clause(w, cl)
-                            }
+                } else if let Some(unit_weight) = unit_weight {
+                    if w == *unit_weight {
+                        if soft_clauses.iter().any(|cl2| cl2 == &cl) {
+                            return Some(*unit_weight);
                         }
-                        None => {
-                            soft_clauses.push(cl);
-                            *unit_weight = Some(w);
-                            None
-                        }
+                        soft_clauses.push(cl);
+                        None
+                    } else {
+                        // Type changes from unweighted to weighted
+                        self.unweighted_2_weighted();
+                        // Add literal to new weighted objective
+                        self.add_soft_clause(w, cl)
                     }
+                } else {
+                    soft_clauses.push(cl);
+                    *unit_weight = Some(w);
+                    None
                 }
             }
         }
@@ -1007,6 +997,25 @@ impl Objective {
                 unit_weight.unwrap_or(0),
             ),
         }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ObjectiveLike<crate::types::Var> for Objective {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        self.iter_soft_lits()
+            .expect("objective for proof logging cannot have soft clauses")
+            .into_iter()
+            .map(|(l, w)| {
+                (
+                    isize::try_from(w).expect("can only handle coefficients up to `isize::MAX`"),
+                    pigeons::Axiom::from(l),
+                )
+            })
+    }
+
+    fn offset(&self) -> isize {
+        self.offset()
     }
 }
 
@@ -1612,5 +1621,32 @@ impl<VM: ManageVars + Default> FromIterator<WcnfLine> for Instance<VM> {
             }
         }
         inst
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_obj() {
+        use itertools::Itertools;
+        use pigeons::ObjectiveLike;
+
+        use crate::lit;
+
+        let mut obj = super::Objective::default();
+        obj.add_soft_lit(5, lit![3]);
+        obj.increase_soft_lit_int(-5, lit![42]);
+        let truth = "5 x4 5 ~x43 -5";
+
+        assert_eq!(
+            &format!(
+                "{} {}",
+                obj.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                <super::Objective as ObjectiveLike<super::Var>>::offset(&obj)
+            ),
+            truth
+        );
     }
 }
