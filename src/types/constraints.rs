@@ -939,6 +939,19 @@ impl CardUbConstr {
         (&self.lits, &self.b)
     }
 
+    /// Converts the upper bound constraint into an equivalent lower bound constraint
+    #[must_use]
+    pub fn invert(mut self) -> CardLbConstr {
+        self.lits.iter_mut().for_each(|l| {
+            *l = !*l;
+        });
+        let length = self.lits.len();
+        CardLbConstr {
+            lits: self.lits,
+            b: length - self.b,
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -989,6 +1002,19 @@ impl CardLbConstr {
     /// Get references to the constraints internals
     pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
+    }
+
+    /// Converts the lower bound constraint into an equivalent upper bound constraint
+    #[must_use]
+    pub fn invert(mut self) -> CardUbConstr {
+        self.lits.iter_mut().for_each(|l| {
+            *l = !*l;
+        });
+        let length = self.lits.len();
+        CardUbConstr {
+            lits: self.lits,
+            b: length - self.b,
+        }
     }
 
     /// Checks if the constraint is always satisfied
@@ -1047,6 +1073,21 @@ impl CardEqConstr {
     /// Get references to the constraints internals
     pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
+    }
+
+    /// Splits the equality constraint into a lower bound and an upper bound constraint
+    #[must_use]
+    pub fn split(self) -> (CardLbConstr, CardUbConstr) {
+        (
+            CardLbConstr {
+                lits: self.lits.clone(),
+                b: self.b,
+            },
+            CardUbConstr {
+                lits: self.lits,
+                b: self.b,
+            },
+        )
     }
 
     /// Checks if the constraint is unsatisfiable
@@ -1705,6 +1746,25 @@ impl PbUbConstr {
         (&self.lits, &self.b)
     }
 
+    /// Converts the upper bound constraint into an equivalent lower bound constraint
+    ///
+    /// # Panics
+    ///
+    /// If the sum of weights is larger than [`isize::MAX`]
+    #[must_use]
+    pub fn invert(mut self) -> PbLbConstr {
+        self.lits.iter_mut().for_each(|(l, _)| {
+            *l = !*l;
+        });
+        PbLbConstr {
+            lits: self.lits,
+            weight_sum: self.weight_sum,
+            b: -self.b
+                + isize::try_from(self.weight_sum)
+                    .expect("cannot handle weight sum larger than `isize::MAX`"),
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1803,6 +1863,25 @@ impl PbLbConstr {
         (&self.lits, &self.b)
     }
 
+    /// Converts the lower bound constraint into an equivalent upper bound constraint
+    ///
+    /// # Panics
+    ///
+    /// If the sum of weights is larger than [`isize::MAX`]
+    #[must_use]
+    pub fn invert(mut self) -> PbUbConstr {
+        self.lits.iter_mut().for_each(|(l, _)| {
+            *l = !*l;
+        });
+        PbUbConstr {
+            lits: self.lits,
+            weight_sum: self.weight_sum,
+            b: -self.b
+                + isize::try_from(self.weight_sum)
+                    .expect("cannot handle weight sum larger than `isize::MAX`"),
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1898,6 +1977,23 @@ impl PbEqConstr {
     /// Gets references to the constraints internals
     pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
         (&self.lits, &self.b)
+    }
+
+    /// Splits the equality constraint into a lower bound and an upper bound constraint
+    #[must_use]
+    pub fn split(self) -> (PbLbConstr, PbUbConstr) {
+        (
+            PbLbConstr {
+                lits: self.lits.clone(),
+                weight_sum: self.weight_sum,
+                b: self.b,
+            },
+            PbUbConstr {
+                lits: self.lits,
+                weight_sum: self.weight_sum,
+                b: self.b,
+            },
+        )
     }
 
     /// Checks if the constraint is unsatisfiable
