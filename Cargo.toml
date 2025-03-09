@@ -43,7 +43,7 @@ rustsat = { version = "0.6.4", path = "./", default-features = false }
 rustsat-cadical = { version = "0.4.4", path = "./cadical" }
 rustsat-minisat = { version = "0.4.4", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
-serde = { version = "1.0.218", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
 tempfile = "3.18.0"
 visibility = "0.1.1"
