@@ -9,8 +9,10 @@ use std::{
 };
 
 use crate::{
+    algs::maxsat,
     clause,
     encodings::{card, pb},
+    solvers::{SolveIncremental, SolveStats},
     types::{
         constraints::{CardConstraint, PbConstraint},
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
@@ -472,7 +474,15 @@ impl Objective {
 
     /// Adds a soft clause or updates its weight. Returns the old weight, if
     /// the clause was already in the objective.
+    ///
+    /// # Panics
+    ///
+    /// If the clause is empty and `w` is larger than [`isize::MAX`]
     pub fn add_soft_clause(&mut self, w: usize, cl: Clause) -> Option<usize> {
+        if cl.is_empty() {
+            self.increase_offset(isize::try_from(w).expect("weight overflow"));
+            return None;
+        }
         if cl.len() == 1 {
             return self.add_soft_lit(w, !cl[0]);
         }
@@ -1589,6 +1599,26 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ) -> anyhow::Result<Self> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb_with_idx(&mut reader, obj_idx, opts)
+    }
+
+    /// Find the optimal solution to this instance with solution improving search as implemented in
+    /// [`crate::algs::maxsat::solution_improving_search`]
+    ///
+    /// # Panics
+    ///
+    /// - If any interaction with the solver errors
+    /// - If the objective value overflows [`isize::MAX`]
+    pub fn solution_improving_search<S, PBE>(self) -> Option<(Assignment, isize)>
+    where
+        S: Default + SolveIncremental + SolveStats,
+        PBE: FromIterator<(Lit, usize)> + pb::BoundUpperIncremental,
+    {
+        let mut solver = S::default();
+        let (cnf, _) = self.constrs.into_cnf();
+        solver
+            .add_cnf(cnf)
+            .expect("failed adding clauses to solver");
+        maxsat::solution_improving_search::<S, PBE>(&mut solver, &self.obj)
     }
 }
 
