@@ -5,8 +5,8 @@ use pyo3::prelude::*;
 use rustsat::{
     encodings::{
         am1::{
-            Bitwise as RsBitwise, Commander as RsCommander, Encode, Ladder as RsLadder,
-            Pairwise as RsPairwise,
+            Bimander as RsBimander, Bitwise as RsBitwise, Commander as RsCommander, Encode,
+            Ladder as RsLadder, Pairwise as RsPairwise,
         },
         EncodeStats,
     },
@@ -67,6 +67,20 @@ macro_rules! implement_pyapi {
         }
     };
 }
+
+/// Implementation of the bimander at-most-1 encoding.
+///
+/// The sub encoding is fixed to [`Pairwise`] and the size of the splits to 4.
+///
+/// # References
+///
+/// - Van-Hau Nguyen and Son Thay Mai: _A New Method to Encode the At-Most-One Constraint into SAT,
+///   SOICT 2015.
+#[pyclass]
+#[repr(transparent)]
+pub struct Bimander(RsBimander);
+
+implement_pyapi!(Bimander, RsBimander);
 
 /// Implementations of the bitwise at-most-1 encoding.
 ///
