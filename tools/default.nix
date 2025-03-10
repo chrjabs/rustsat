@@ -30,6 +30,8 @@ in
           ../cadical/src
           ../cadical/cppsrc
           ../cadical/cpp-extension
+          ../cryptominisat/Cargo.toml
+          ../cryptominisat/src
           ../glucose/Cargo.toml
           ../glucose/src
           ../ipasir/Cargo.toml
