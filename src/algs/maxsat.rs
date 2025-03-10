@@ -73,7 +73,7 @@ where
             match solver.solve().expect("solver error while solving") {
                 SolverResult::Sat => {
                     let assign = solver.solution(max_var).expect("failed getting solution");
-                    let val = objective_value(&objective, &assign);
+                    let val = objective_value(objective, &assign);
                     sol = Some((assign, val));
                     if val == 0 {
                         return sol;
