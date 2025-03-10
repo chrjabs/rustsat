@@ -1,0 +1,88 @@
+\documentclass[final]{ieee}
+
+\usepackage{microtype} %This gives MUCH better PDF results!
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{fnbreak} %warn for split footnotes
+\usepackage{url}
+\usepackage[utf8]{inputenc} % allows to write Faugere correctly
+\usepackage[bookmarks=true, citecolor=black, linkcolor=black, colorlinks=true]{hyperref}
+\hypersetup{
+pdfauthor = {Mate Soos, Shaowei Cai},
+pdftitle = {CryptoMiniSat + CCAnr},
+pdfsubject = {SAT Competition 2020},
+pdfkeywords = {SAT Solver, DPLL, SLS}}
+%\usepackage{butterma}
+
+%\usepackage{pstricks}
+\usepackage{graphicx,epsfig,xcolor}
+
+\begin{document}
+\title{CryptoMiniSat with CCAnr at the SAT Competition 2020}
+\author{Mate Soos (National University of Singapore)\\
+Shaowei Cai (State Key Laboratory of Computer Science,\\
+Institute of Software, Chinese Academy of Sciences)\\
+Jo Devriendt, Stephan Gocht (Lund University \& University of Copenhagen)\\
+Arijit Shaw, Kuldeep S. Meel (National University of Singapore)}
+
+\maketitle
+\thispagestyle{empty}
+\pagestyle{empty}
+
+\section{Introduction}
+This paper presents the conflict-driven clause-learning (CLDL) SAT solver CryptoMiniSat (\emph{CMS}) augmented with the Stochastic Local Search (SLS)~\cite{DBLP:conf/sat/CaiLS15} solver CCAnr as submitted to SAT Competition 2020.
+
+CryptoMiniSat aims to be a modern, open source SAT solver using inprocessing techniques, optimized data structures and finely-tuned timeouts to have good control over both memory and time usage of inprocessing steps. CryptoMiniSat is authored by Mate Soos.
+
+CCAnr~\cite{DBLP:conf/sat/CaiLS15} is a stochastic local search (SLS) solver for SAT, which is based on the configuration checking strategy and has good performance on non-random SAT instances. CCAnr switches between two modes: it flips a variable according to the CCA (configuration checking with aspiration) heuristic if any; otherwise, it flips a variable in a random unsatisfied clause (which we refer to as the focused local search mode). The main novelty of CCAnr lies on the greedy heuristic in the focused local search mode, which contributes significantly to its good performance on structured instances
+
+\section{Composing the Two Solvers}
+The two solvers are composed together in a way that does \emph{not} resemble portfolio solvers. The system runs the CDCL solver CryptoMiniSat, along with its periodic inprocessing, by default. However, at every 2nd inprocessing step, CryptoMiniSat's irredundant clauses are pushed into CCAnr (in case the predicted memory use is not too high). CCAnr is then allowed to run for a predefined number of steps. This in total leads to about 1\% of all solving time dedicated to CCAnr. In case CCAnr finds a satisfying assignment, this is given back to the CDCL solver, which then performs all the necessary extension to the solution (e.g. for Bounded Variable Elimination, BVE~\cite{BVE}) and outputs the final solution.
+
+In case CCAnr does not find a satisfying assignment, the following takes place. Firstly, the best variable setting found by CCAnr as measured by the number of satisfied clauses, is assigned as the polarity of the variables in the CDCL SAT solver. This idea has been taken from the solver CaDiCaL~\cite{cadical} as submitted to the 2019 SAT Race by Armin Biere.
+%
+Secondly, after every successful execution of CCAnr, 100 variables' VSIDS are bumped in the following way. CCAnr uses a clause weighting technique and clauses with greater weight can be considered more difficult to satisfy. Once CCAnr finishes, CCAnr's clauses are sorted according to their weights. Then, these clauses' variables' VSIDS are bumped, from hardest-to-easiest clause order, until 100 variables' VSIDS have been bumped.
+% 
+This shows clear improvement in the combined solver's performance. We believe these two integrations point to potential tighter, as-yet unexplored integration opportunities of the two solvers.
+
+Note that the inclusion of the SLS solver is full in the sense that assumptions-based solving, library-based solver use, and all other uses of the SAT solver is fully supported with SLS solving enabled. Hence, this is not some form of portfolio where a simple shell script determines which solver to run and then runs that solver. Instead, the SLS solver is a full member of the solver, much like any other inprocessing system, and works in tandem with it. For example, in case an inprocessing step has reduced the number of variables through BVE or increased it through BVA~\cite{BVA}, the SLS solver will then try to solve the problem thus modified. In case the SLS solver finds a solution, the main solver will then correctly manipulate it to fit the needs of the ``outside world'', i.e. the caller.
+
+As the two solvers are well-coupled, the combination of the two solvers can solve problems that neither system can solve on its own. Hence, \emph{the system is more than just a union of its parts} which is not the case for traditional portfolio solvers.
+
+\section{Gauss-Jordan Elimination}
+As per the upcoming paper~\cite{birdtwo}, the Gauss-Jordan elimination of CryptoMiniSat has been significantly improved. The average speed increase for moderately sized matrices is approx 3-6x, allowing the system to be ran at all times even when the matrix is not contributing as much to the overall solving. Hence, for the first time in CryptoMiniSat's 10 year history, Gauss-Jordan elimination is turned on by default for the NoLimits track.
+
+
+\section{Symmetry Breaking using BreakID and Bliss}
+The BreakID~\cite{breakid2016} system is a cost-effective symmetry breaking preprocessor for SAT.
+Classic SAT symmetry preprocessing~\cite{shatter2006} detects symmetry by converting the input formula to a graph and computing generators for this graph's automorphism group, and adds symmetry breaking clauses on a generator-by-generator basis.
+On top of this, BreakID heuristically searches for structure in the automorphism group, detecting \emph{row interchangeability symmetry} (such as in the pigeonhole problem) and computing binary symmetry breaking clauses from orbits arising from the symmetry group.
+The resulting symmetry breaking clauses are more effective at reducing symmetrical assignments from the search space, both from a theory point of view as well as in practical experiments.
+
+BreakID has been modified to work as a library. It can receive the clauses on-the-fly from the SAT solver, and produce the breaking clauses as a function return value. Various small bugs have also be fixed, such as memory leaks, which were not an issue when ran as a single executable, but created isses when ran as a library. Furthermore, the underlying highly sophisticated graph automorphism detection system, Bliss~\cite{DBLP:conf/alenex/JunttilaK07}, has been slightly improved to allow for time-outs and it, too, has been fixed not to leak memory. BreakID is fully integrated into CryptoMiniSat by calling it on every 5th inprocessing iteration, and asked to contribute breaking clauses. These are always added with an assumption literal, so they can be removed when the solving finishes. Hence, symmetry breaking also works when CryptoMiniSat is used as a library.
+
+
+\section{Phase Selection using LSIDS}
+LSIDS is a literal activity-based phase selection heuristic~\cite{shaw2020designing}. LSIDS activity is maintained for each literal, and the activity for a literal is updated in a manner similar to VSIDS. Phase selection is made based on LSIDS activity only if the last backtrack is chronological. The LSIDS based phase selection heuristic looks at the activity of both the literals of a given variable and selects the literal with higher activity.
+
+
+\section{Further Improvements Relative to SAT Race 2019}
+Many of the inprocessing parameters have been tuned. A few bugs related to clause activities have been fixed. Clause distillation (or clause vivification)~\cite{DBLP:journals/ai/LiXLMLL20} is now used a lot more, similarly to the previous years' winning solvers. The VSIDS and Maple decay factors are now iteratively changed between 0.70 and 0.90 for Maple and 0.92 and 0.99 for VSIDS. Between each iteration there is an inprocessing step, as before. This seems to add heterogeneity and avoids having to tune these parameters to a ``single best'' value. Polarity caching is still used, but once in a while, so-called ``stable'' polarities are used, as per CaDiCaL~\cite{cadical} in the SAT Race of 2019. Ternary resolution is also used at every inprocessing step, thanks to the suggestion by Armin Biere.
+
+
+\section{Thanks}
+Kuldeep S Meel, Arijit Shaw, and Mate Soos were supported in part by the National Research Foundation Singapore under its NRF Fellowship Programme[NRF-NRFFAI1-2019-0004 ] and AI Singapore Programme [AISG-RP-2018-005],  and NUS ODPRT Grant [R-252-000-685-13].
+
+Shaowei Cai was supported  by Beijing Academy of Artificial Intelligence (BAAI), and Youth Innovation Pro-motion Association, Chinese Academy of Sciences [No. 2017150].
+
+Stephan Gocht was funded by the Swedish Research Council (VR) grant \mbox{2016-00782}.
+
+The computational work for this article was performed on resources of the National Supercomputing Center, Singapore\cite{nscc}. Mate Soos would also like to thank all the users of CryptoMiniSat who have submitted over 600 issues and pull requests to the GitHub CMS repository\cite{CMS}.
+
+\bibliographystyle{splncs03}
+\bibliography{sigproc}
+
+\vfill
+\pagebreak
+
+\end{document}
