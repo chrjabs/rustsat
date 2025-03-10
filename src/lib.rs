@@ -74,6 +74,7 @@ use std::collections::TryReserveError;
 
 use thiserror::Error;
 
+pub mod algs;
 pub mod encodings;
 pub mod instances;
 pub mod solvers;
