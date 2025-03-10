@@ -12,7 +12,7 @@ use crate::{
     algs::maxsat,
     clause,
     encodings::{card, pb},
-    solvers::{SolveIncremental, SolveStats},
+    solvers::Solve,
     types::{
         constraints::{CardConstraint, PbConstraint},
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
@@ -1601,24 +1601,48 @@ impl<VM: ManageVars + Default> Instance<VM> {
         Self::from_opb_with_idx(&mut reader, obj_idx, opts)
     }
 
-    /// Find the optimal solution to this instance with solution improving search as implemented in
-    /// [`crate::algs::maxsat::solution_improving_search`]
+    /// Solves the instance with a [`maxsat::Solve`] algorithm
     ///
     /// # Panics
     ///
     /// - If any interaction with the solver errors
     /// - If the objective value overflows [`isize::MAX`]
-    pub fn solution_improving_search<S, PBE>(self) -> Option<(Assignment, isize)>
+    pub fn solve_maxsat<Alg>(self) -> Option<(Assignment, isize)>
     where
-        S: Default + SolveIncremental + SolveStats,
-        PBE: FromIterator<(Lit, usize)> + pb::BoundUpperIncremental,
+        Alg: maxsat::Solve,
+        Alg::Solver: Default,
     {
-        let mut solver = S::default();
-        let (cnf, _) = self.constrs.into_cnf();
+        let mut solver = Alg::Solver::default();
+        let (cnf, vm) = self.constrs.into_cnf();
+        let mut vm = if let Some(max_var) = cmp::max(vm.max_var(), self.obj.max_var()) {
+            BasicVarManager::from_next_free(max_var + 1)
+        } else {
+            BasicVarManager::default()
+        };
         solver
             .add_cnf(cnf)
             .expect("failed adding clauses to solver");
-        maxsat::solution_improving_search::<S, PBE>(&mut solver, &self.obj)
+        let handle_soft_cls = |(mut cl, weight): (Clause, usize)| {
+            debug_assert!(!cl.is_empty());
+            if cl.len() == 1 {
+                return (!cl[0], weight);
+            }
+            let blit = vm.new_lit();
+            cl.add(!blit);
+            solver
+                .add_clause(cl)
+                .expect("failed adding clause to solver");
+            (blit, weight)
+        };
+        let (iter, offset) = self.obj.into_soft_cls();
+        let obj: Vec<_> = iter.into_iter().map(handle_soft_cls).collect();
+        let (sol, cost) = Alg::solve(&mut solver, &obj)?;
+        Some((
+            sol,
+            offset
+                .checked_add_unsigned(cost)
+                .expect("objective value overflow"),
+        ))
     }
 }
 
