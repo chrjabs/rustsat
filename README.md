@@ -73,6 +73,11 @@ solver](https://github.com/chrjabs/scuttle).
 
 <!-- cargo-rdme end -->
 
+## Main Branch Documentation
+
+The API documentation of the main branch can be found
+[here](https://christophjabs.info/rustsat/main/rustsat/).
+
 ## Python Bindings
 
 This library also comes with experimental Python bindings to use its encodings
