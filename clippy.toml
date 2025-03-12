@@ -1,6 +1,7 @@
 doc-valid-idents = [
   "RustSAT",
   "CaDiCaL",
+  "CryptoMiniSat",
   "MaxSAT",
   "BatSat",
   "AllDifferent",

@@ -64,6 +64,7 @@
               ["glucose"]="glucose/cppsrc"
               ["cadical"]="cadical/cppsrc"
               ["kissat"]="kissat/csrc"
+              ["cryptominisat"]="cryptominisat/csrc"
             )
 
             case $CMD in
@@ -196,11 +197,11 @@
             check-added-large-files.enable = true;
             end-of-file-fixer = {
               enable = true;
-              excludes = [".+\\.(patch|log)$" "cadical/cppsrc/.+" "kissat/csrc/.+"];
+              excludes = [".+\\.(patch|log)$" "cadical/cppsrc/.+" "kissat/csrc/.+" "cryptominisat/cppsrc/.+"];
             };
             trim-trailing-whitespace = {
               enable = true;
-              excludes = [".+\\.(patch|log)$" "cadical/cppsrc/.+" "kissat/csrc/.+"];
+              excludes = [".+\\.(patch|log)$" "cadical/cppsrc/.+" "kissat/csrc/.+" "cryptominisat/cppsrc/.+"];
             };
             check-symlinks.enable = true;
             no-commit-to-branch.enable = true;
