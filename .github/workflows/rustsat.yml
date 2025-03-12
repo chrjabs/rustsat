@@ -15,8 +15,8 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # 1.66.1 is the MSRV
-        rust-version: ["1.66.1", stable]
+        # 1.70.0 is the MSRV
+        rust-version: ["1.70.0", stable]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources

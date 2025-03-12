@@ -27,9 +27,7 @@ clap = { version = "4.5.31", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
-flate2 = { version = "1.1.0", features = [
-  "zlib-ng",
-], default-features = false }
+flate2 = { version = "1.1.0", features = ["zlib-ng"], default-features = false }
 git2 = "0.20.0"
 glob = "0.3.2"
 itertools = "0.14.0"
@@ -59,7 +57,7 @@ description = "This library aims to provide implementations of elements commonly
 keywords = ["sat", "satisfiability", "encodings"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
-rust-version = "1.66.1"
+rust-version = "1.70.0"
 include = [
   "LICENSE",
   "CHANGELOG.md",
