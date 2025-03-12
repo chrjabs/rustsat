@@ -29,10 +29,11 @@
   }: let
     lib = nixpkgs.lib;
     forAllSystems = lib.genAttrs (import systems);
-    pkgsFor = lib.genAttrs (import systems) (system: (import nixpkgs {
-      inherit system;
-      overlays = [(import rust-overlay) nix-tools.overlays.default rust-toolchain-overlay];
-    }));
+    pkgsFor = rust-overlay-fn:
+      lib.genAttrs (import systems) (system: (import nixpkgs {
+        inherit system;
+        overlays = [(import rust-overlay) nix-tools.overlays.default rust-overlay-fn];
+      }));
     rust-toolchain-overlay = _: super: {
       rust-toolchain = super.symlinkJoin {
         name = "rust-toolchain";
@@ -43,116 +44,128 @@
         '';
       };
     };
+    rust-nightly-overlay = _: super: {
+      rust-toolchain = super.symlinkJoin {
+        name = "rust-toolchain";
+        paths = [(super.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))];
+        buildInputs = [super.makeWrapper];
+        postBuild = ''
+          wrapProgram $out/bin/cargo --set LIBCLANG_PATH ${super.libclang.lib}/lib
+        '';
+      };
+    };
+    devShellSystemRustOverlay = system: rust-overlay-fn: let
+      pkgs = (pkgsFor rust-overlay-fn).${system};
+      libs = with pkgs; [openssl xz bzip2];
+      git-subtree-cmd =
+        pkgs.writeShellScriptBin "git-subtree"
+        /*
+        bash
+        */
+        ''
+          SUBTREE="$1"
+          CMD="$2"
+          REF="$3"
+
+          declare -A prefixes
+          prefixes=(
+            ["minisat"]="minisat/cppsrc"
+            ["glucose"]="glucose/cppsrc"
+            ["cadical"]="cadical/cppsrc"
+            ["kissat"]="kissat/csrc"
+          )
+
+          case $CMD in
+            pull)
+              echo "Pulling subtree $SUBTREE from ref $REF"
+              git subtree pull --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF" --squash -m "chore($SUBTREE): update subtree"
+              ;;
+
+            push)
+              echo "Pushing subtree $SUBTREE to ref $REF"
+              git subtree push --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF"
+              ;;
+
+            *)
+              2>&1 echo "Unknown command $CMD"
+              2>&1 echo "Usage: git-subtree <subtree> <command> <ref>"
+          esac
+        '';
+      pr-merge-ff-cmd =
+        pkgs.writeShellScriptBin "pr-merge-ff"
+        /*
+        bash
+        */
+        ''
+          set -e
+
+          if ! ${lib.getExe pkgs.gh} pr checks ; then
+            2>&1 echo "PR checks have not (yet) passed"
+            exit 1
+          fi
+
+          BASE=main
+          DELETE=false
+
+          case "$1" in
+            "-d")
+              DELETE=true
+              ;;
+
+            *)
+              echo "setting base branch to $1"
+              BASE="$1"
+          esac
+
+          BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+          git switch "$BASE"
+          git merge --ff-only "$BRANCH"
+
+          if $DELETE ; then
+            git branch -d "$BRANCH"
+          fi
+
+          git push
+        '';
+    in
+      pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} rec {
+        inherit (self.checks.${system}.pre-commit-check) shellHook;
+        nativeBuildInputs = with pkgs;
+          [
+            llvmPackages_12.bintools
+            pkg-config
+            clang
+            cmake
+            rust-toolchain
+            cargo-rdme
+            cargo-nextest
+            release-plz
+            jq
+            maturin
+            kani
+            git-subtree-cmd
+            pr-merge-ff-cmd
+          ]
+          ++ self.checks.${system}.pre-commit-check.enabledPackages;
+        buildInputs = libs;
+        LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+        LD_LIBRARY_PATH = lib.makeLibraryPath libs;
+        PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig/";
+      };
   in {
     devShells = forAllSystems (system: {
-      default = let
-        pkgs = pkgsFor.${system};
-        libs = with pkgs; [openssl xz bzip2];
-        git-subtree-cmd =
-          pkgs.writeShellScriptBin "git-subtree"
-          /*
-          bash
-          */
-          ''
-            SUBTREE="$1"
-            CMD="$2"
-            REF="$3"
-
-            declare -A prefixes
-            prefixes=(
-              ["minisat"]="minisat/cppsrc"
-              ["glucose"]="glucose/cppsrc"
-              ["cadical"]="cadical/cppsrc"
-              ["kissat"]="kissat/csrc"
-            )
-
-            case $CMD in
-              pull)
-                echo "Pulling subtree $SUBTREE from ref $REF"
-                git subtree pull --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF" --squash -m "chore($SUBTREE): update subtree"
-                ;;
-
-              push)
-                echo "Pushing subtree $SUBTREE to ref $REF"
-                git subtree push --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF"
-                ;;
-
-              *)
-                2>&1 echo "Unknown command $CMD"
-                2>&1 echo "Usage: git-subtree <subtree> <command> <ref>"
-            esac
-          '';
-        pr-merge-ff-cmd =
-          pkgs.writeShellScriptBin "pr-merge-ff"
-          /*
-          bash
-          */
-          ''
-            set -e
-
-            if ! ${lib.getExe pkgs.gh} pr checks ; then
-              2>&1 echo "PR checks have not (yet) passed"
-              exit 1
-            fi
-
-            BASE=main
-            DELETE=false
-
-            case "$1" in
-              "-d")
-                DELETE=true
-                ;;
-
-              *)
-                echo "setting base branch to $1"
-                BASE="$1"
-            esac
-
-            BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-            git switch "$BASE"
-            git merge --ff-only "$BRANCH"
-
-            if $DELETE ; then
-              git branch -d "$BRANCH"
-            fi
-
-            git push
-          '';
-      in
-        pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} rec {
-          inherit (self.checks.${system}.pre-commit-check) shellHook;
-          nativeBuildInputs = with pkgs;
-            [
-              llvmPackages_12.bintools
-              pkg-config
-              clang
-              cmake
-              rust-toolchain
-              cargo-rdme
-              cargo-nextest
-              release-plz
-              jq
-              maturin
-              kani
-              git-subtree-cmd
-              pr-merge-ff-cmd
-            ]
-            ++ self.checks.${system}.pre-commit-check.enabledPackages;
-          buildInputs = libs;
-          LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-          LD_LIBRARY_PATH = lib.makeLibraryPath libs;
-          PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig/";
-        };
+      default = devShellSystemRustOverlay system rust-toolchain-overlay;
+      nightly = devShellSystemRustOverlay system rust-nightly-overlay;
     });
 
     packages = forAllSystems (system: {
-      tools = pkgsFor.${system}.callPackage ./tools {};
+      tools = (pkgsFor rust-toolchain-overlay).${system}.callPackage ./tools {};
     });
 
     checks = forAllSystems (system: {
       pre-commit-check = let
-        pkgs = pkgsFor.${system};
+        pkgs = (pkgsFor rust-toolchain-overlay).${system};
       in
         git-hooks.lib.${system}.run {
           src = ./.;
