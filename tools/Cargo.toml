@@ -35,33 +35,3 @@ rustsat-minisat = { workspace = true, optional = true }
 default = ["minisat"]
 minisat = ["dep:rustsat-minisat"]
 cadical = ["dep:rustsat-cadical"]
-
-[[bin]]
-name = "enumerator"
-
-[[bin]]
-name = "cnf2opb"
-
-[[bin]]
-name = "opb2cnf"
-
-[[bin]]
-name = "wcnf2opb"
-
-[[bin]]
-name = "opb2wcnf"
-
-[[bin]]
-name = "mcnf2opb"
-
-[[bin]]
-name = "opb2mcnf"
-
-[[bin]]
-name = "shuffledimacs"
-
-[[bin]]
-name = "gbmosplit"
-
-[[bin]]
-name = "encodings"

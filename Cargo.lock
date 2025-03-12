@@ -1238,6 +1238,8 @@ version = "0.6.4"
 dependencies = [
  "anyhow",
  "bzip2",
+ "clap",
+ "concolor-clap",
  "cpu-time",
  "flate2",
  "itertools 0.14.0",
@@ -1249,6 +1251,7 @@ dependencies = [
  "rustsat-tools",
  "serde",
  "tempfile",
+ "termcolor",
  "thiserror",
  "visibility",
  "xz2",

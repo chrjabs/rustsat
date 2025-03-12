@@ -84,9 +84,12 @@ tempfile.workspace = true
 xz2 = { workspace = true, optional = true }
 
 [dev-dependencies]
-rustsat-minisat = { path = "./minisat" }
+clap.workspace = true
+concolor-clap.workspace = true
+rustsat-minisat.workspace = true
 rustsat-solvertests.workspace = true
 rustsat-tools = { path = "./tools" }
+termcolor.workspace = true
 
 [features]
 default = ["optimization", "fxhash"]
@@ -104,12 +107,62 @@ all = ["multiopt", "compression", "rand", "fxhash", "serde"]
 [package.metadata.docs.rs]
 features = ["all", "internals"]
 rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[[example]]
+name = "check-solution"
+doc-scrape-examples = true
+required-features = ["optimization", "multiopt"]
+
+[[example]]
+name = "cnf2opb"
+doc-scrape-examples = true
+
+[[example]]
+name = "enumerator"
+doc-scrape-examples = true
+
+[[example]]
+name = "gbmosplit"
+doc-scrape-examples = true
+required-features = ["optimization"]
+
+[[example]]
+name = "mcnf2opb"
+doc-scrape-examples = true
+required-features = ["multiopt"]
+
+[[example]]
+name = "opb2cnf"
+doc-scrape-examples = true
+
+[[example]]
+name = "opb2mcnf"
+doc-scrape-examples = true
+required-features = ["multiopt"]
+
+[[example]]
+name = "opb2wcnf"
+doc-scrape-examples = true
+required-features = ["optimization"]
 
 [[example]]
 name = "profiling"
+doc-scrape-examples = true
 
 [[example]]
 name = "print-lits"
+doc-scrape-examples = true
+
+[[example]]
+name = "shuffledimacs"
+doc-scrape-examples = true
+required-features = ["optimization", "multiopt"]
+
+[[example]]
+name = "wcnf2opb"
+doc-scrape-examples = true
+required-features = ["optimization"]
 
 [profile.profiling]
 inherits = "release"

@@ -1,0 +1,1 @@
+../tools/src/bin/check-solution.rs
