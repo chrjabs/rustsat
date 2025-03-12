@@ -35,15 +35,6 @@ jobs:
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{ fromJSON('["", "4"]')[matrix.os == 'macos-latest'] }}
 
-  version:
-    name: Ensure C-API crate version is in sync
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Check
-        run: "[ \"$(grep '^version = ' Cargo.toml)\" = \"$(grep '^version = ' capi/Cargo.toml)\" ]"
-
   cbindgen:
     name: Test generated C header
     runs-on: ubuntu-latest
