@@ -208,6 +208,35 @@ impl Version {
     fn has_propagate(self) -> bool {
         self >= Version::V213
     }
+
+    fn set_defines(self, build: &mut cc::Build) {
+        if !has_cpp_feature(CppFeature::FlexibleArrayMembers) {
+            build.define("NFLEXIBLE", None);
+        }
+        if !has_cpp_feature(CppFeature::UnlockedIo) {
+            build.define("NUNLOCKED", None);
+        }
+        if self >= Version::V211 && !has_cpp_feature(CppFeature::Closefrom) {
+            build.define("NCLOSEFROM", None);
+        }
+        if self.has_flip() {
+            build.define("FLIP", None);
+        }
+        if self.has_ilb() {
+            build.define("ILB", None);
+        }
+        if self.has_reimply() {
+            build.define("REIMPLY", None);
+        }
+        if self.has_ipasir_up() {
+            build.define("IPASIRUP", None);
+        }
+        if self.has_propagate() {
+            build.define("PROPAGATE", None);
+        } else {
+            build.define("PYSAT_PROPCHECK", None);
+        }
+    }
 }
 
 fn main() {
@@ -343,8 +372,7 @@ fn build(repo: &str, branch: &str, version: Version) {
             }
         });
     // Setup build configuration
-    let mut cadical_build = cc::Build::new();
-    cadical_build.cpp(true).std("c++11");
+    let mut cadical_build = default_build();
     if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
         cadical_build
             .opt_level(0)
@@ -363,26 +391,7 @@ fn build(repo: &str, branch: &str, version: Version) {
     cadical_build.define("QUIET", None); // --quiet
     #[cfg(feature = "logging")]
     cadical_build.define("LOGGING", None); // --log
-    if version >= Version::V211 && cfg!(target_os = "macos") {
-        cadical_build.define("NCLOSEFROM", None);
-    }
-    if version.has_flip() {
-        cadical_build.define("FLIP", None);
-    }
-    if version.has_ilb() {
-        cadical_build.define("ILB", None);
-    }
-    if version.has_reimply() {
-        cadical_build.define("REIMPLY", None);
-    }
-    if version.has_ipasir_up() {
-        cadical_build.define("IPASIRUP", None);
-    }
-    if version.has_propagate() {
-        cadical_build.define("PROPAGATE", None);
-    } else {
-        cadical_build.define("PYSAT_PROPCHECK", None);
-    }
+    version.set_defines(&mut cadical_build);
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
@@ -404,7 +413,6 @@ fn build(repo: &str, branch: &str, version: Version) {
         .include(out_dir)
         .include(cadical_dir.join("src"))
         .include("cpp-extension")
-        .warnings(false)
         .files(src_files)
         .compile("cadical");
 }
@@ -495,4 +503,99 @@ fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
         compiler_version,
         String::from(compiler_flags.to_str().unwrap()),
     )
+}
+
+/// Gets a [`cc::Build`] with the default configuration applied
+/// (used in main build and when checking C++ features)
+fn default_build() -> cc::Build {
+    let mut build = cc::Build::new();
+    build.cpp(true).std("c++11");
+    build
+}
+
+#[derive(Clone, Copy, Debug)]
+enum CppFeature {
+    FlexibleArrayMembers,
+    UnlockedIo,
+    Closefrom,
+}
+
+const FLEXIBLE_ARRAY_MEMBERS_TEST: &str = r"
+#include <cstdlib>
+struct S {
+  int size;
+  int flexible_array_member[];
+};
+int main () {
+  struct S * s = (struct S*) malloc (12);
+  s->size = 2;
+  s->flexible_array_member[0] = 1;
+  s->flexible_array_member[1] = -1;
+  int res = 0;
+  for (int i = 0; i != s->size; i++)
+    res += s->flexible_array_member[i];
+  return res;
+}
+";
+
+const UNLOCKED_IO_TEST: &str = r#"
+#include <cstdio>
+int main () {
+  FILE * file = stdout;
+  if (!file) return 1;
+  if (putc_unlocked (42, file) != 42) return 1;
+  if (fclose (file)) return 1;
+  file = fopen (path, "r");
+  if (!file) return 1;
+  if (getc_unlocked (file) != 42) return 1;
+  if (fclose (file)) return 1;
+  return 0;
+}
+"#;
+
+const CLOSEFROM_TEST: &str = r#"
+extern "C" {
+#include <unistd.h>
+};
+int main () {
+  closefrom (0);
+  return 0;
+}
+"#;
+
+/// Checks whether a C++ feature is available
+///
+/// The actual checks are taken from CaDiCaL's `configure` script
+fn has_cpp_feature(feature: CppFeature) -> bool {
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let (name, content) = match feature {
+        CppFeature::FlexibleArrayMembers => {
+            ("has-flexible-array-members", FLEXIBLE_ARRAY_MEMBERS_TEST)
+        }
+        CppFeature::UnlockedIo => ("has-unlocked-io", UNLOCKED_IO_TEST),
+        CppFeature::Closefrom => ("has-closefrom", CLOSEFROM_TEST),
+    };
+
+    // write test to file
+    let test_file = format!("{out_dir}/{name}.cpp");
+    {
+        let mut test_file = fs::File::create(&test_file).expect("cannot open test file");
+        write!(test_file, "{content}").expect("failed to write test file");
+    }
+
+    // compile and run test
+    let out_file = format!("{out_dir}/{name}.out");
+    let mut compile = default_build().get_compiler().to_command();
+    let compile = compile
+        .current_dir(out_dir)
+        .args([&test_file, "-o", &out_file])
+        .output()
+        .expect("failed to run test compilation");
+    if !compile.status.success() {
+        return false;
+    }
+    let output = Command::new(out_file)
+        .output()
+        .expect("failed to execute compiled test");
+    output.status.success()
 }
