@@ -4,7 +4,6 @@ use rustsat::{
 };
 
 use rustsat::instances::MultiOptInstance;
-use rustsat::types::RsHashMap;
 use rustsat::{
     instances::{Objective, OptInstance},
     lit,
