@@ -484,6 +484,11 @@ fn parse_idx(input: &str) -> IResult<&str, usize> {
 }
 
 /// Nom-like parser for literal
+///
+/// # Errors
+///
+/// If parsing fails
+#[cfg_attr(feature = "internals", visibility::make(pub))]
 fn parse_lit(input: &str) -> IResult<&str, Lit> {
     context("invalid ipasir literal", map_res(i32, Lit::from_ipasir))(input)
 }
