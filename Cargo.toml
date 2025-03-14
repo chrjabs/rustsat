@@ -44,7 +44,7 @@ rustsat-minisat = { version = "0.4.4", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
-tempfile = "3.18.0"
+tempfile = "3.19.0"
 visibility = "0.1.1"
 xz2 = "0.1.7"
 
