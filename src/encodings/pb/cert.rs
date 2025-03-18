@@ -348,7 +348,7 @@ pub fn encode_pb_constraint<
     var_manager: &mut dyn ManageVars,
     proof: &mut pigeons::Proof<W>,
 ) -> anyhow::Result<()> {
-    let (constr, id) = constr;
+    let (constr, mut id) = constr;
     if constr.is_tautology() {
         return Ok(());
     }
@@ -367,6 +367,9 @@ pub fn encode_pb_constraint<
         return Ok(());
     }
     if constr.is_negative_assignment() {
+        if matches!(constr, PbConstraint::Eq(_)) {
+            id += 1;
+        }
         for (lit, _) in constr.into_lits() {
             let unit = clause![!lit];
             let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
