@@ -26,7 +26,8 @@ use crate::{
 };
 
 use super::{
-    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental,
 };
 
 /// Implementation of the binary adder encoding first described in \[1\].
@@ -385,6 +386,25 @@ impl BoundLowerIncremental for BinaryAdder {
         Ok(())
     }
 }
+
+impl BoundBoth for BinaryAdder {
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: std::ops::RangeBounds<usize> + Clone,
+    {
+        self.encode_ub_change(range.clone(), collector, var_manager)?;
+        self.encode_lb_change(range, collector, var_manager)?;
+        Ok(())
+    }
+}
+
+impl BoundBothIncremental for BinaryAdder {}
 
 impl EncodeIncremental for BinaryAdder {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {

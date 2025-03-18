@@ -15,7 +15,8 @@ use crate::{
 };
 
 use super::{
-    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental,
 };
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
@@ -294,6 +295,25 @@ impl BoundLowerIncremental for DbTotalizer {
         Ok(())
     }
 }
+
+impl BoundBoth for DbTotalizer {
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.encode_ub_change(range.clone(), collector, var_manager)?;
+        self.encode_lb_change(range, collector, var_manager)?;
+        Ok(())
+    }
+}
+
+impl BoundBothIncremental for DbTotalizer {}
 
 impl EncodeStats for DbTotalizer {
     fn n_clauses(&self) -> usize {

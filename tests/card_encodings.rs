@@ -553,3 +553,8 @@ fn invtot_both_exhaustive() {
 fn dbtot_ub_exhaustive() {
     test_ub_exhaustive::<DbTotalizer>()
 }
+
+#[test]
+fn dbtot_both_exhaustive() {
+    test_both_exhaustive::<DbTotalizer>()
+}

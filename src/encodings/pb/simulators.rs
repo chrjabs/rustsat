@@ -10,7 +10,8 @@
 use std::ops::{Range, RangeBounds};
 
 use super::{
-    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
     encodings::{card, CollectClauses, EncodeStats, Error, IterInputs, IterWeightedInputs},
@@ -191,6 +192,37 @@ where
     }
 }
 
+impl<PBE> BoundBoth for Inverted<PBE>
+where
+    PBE: BoundBoth,
+{
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.pb_enc.encode_both(
+            self.convert_encoding_range(super::prepare_both_range(self, range)),
+            collector,
+            var_manager,
+        )
+    }
+
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+        let b = if self.weight_sum >= b {
+            self.weight_sum - b
+        } else {
+            return Err(Error::Unsat);
+        };
+        self.pb_enc.enforce_eq(b)
+    }
+}
+
 impl<PBE> BoundUpperIncremental for Inverted<PBE>
 where
     PBE: BoundLowerIncremental,
@@ -229,6 +261,28 @@ where
     {
         self.pb_enc.encode_ub_change(
             self.convert_encoding_range(super::prepare_lb_range(self, range)),
+            collector,
+            var_manager,
+        )
+    }
+}
+
+impl<PBE> BoundBothIncremental for Inverted<PBE>
+where
+    PBE: BoundBothIncremental,
+{
+    fn encode_both_change<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.pb_enc.encode_both_change(
+            self.convert_encoding_range(super::prepare_both_range(self, range)),
             collector,
             var_manager,
         )
@@ -402,6 +456,13 @@ where
     }
 }
 
+impl<UBE, LBE> BoundBoth for Double<UBE, LBE>
+where
+    UBE: BoundUpper,
+    LBE: BoundLower,
+{
+}
+
 impl<UBE, LBE> BoundUpperIncremental for Double<UBE, LBE>
 where
     UBE: BoundUpperIncremental,
@@ -438,6 +499,13 @@ where
     {
         self.lb_enc.encode_lb_change(range, collector, var_manager)
     }
+}
+
+impl<UBE, LBE> BoundBothIncremental for Double<UBE, LBE>
+where
+    UBE: BoundUpperIncremental,
+    LBE: BoundLowerIncremental,
+{
 }
 
 impl<UBE, LBE> EncodeStats for Double<UBE, LBE>
@@ -596,6 +664,30 @@ where
     }
 }
 
+impl<CE> BoundBoth for Card<CE>
+where
+    CE: card::BoundBoth,
+{
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.card_enc
+            .encode_both(range.clone(), collector, var_manager)?;
+        Ok(())
+    }
+
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+        self.card_enc.enforce_eq(b)
+    }
+}
+
 impl<CE> BoundUpperIncremental for Card<CE>
 where
     CE: card::BoundUpperIncremental,
@@ -631,6 +723,25 @@ where
     {
         self.card_enc
             .encode_lb_change(range, collector, var_manager)
+    }
+}
+
+impl<CE> BoundBothIncremental for Card<CE>
+where
+    CE: card::BoundBothIncremental,
+{
+    fn encode_both_change<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.card_enc
+            .encode_both_change(range, collector, var_manager)
     }
 }
 
