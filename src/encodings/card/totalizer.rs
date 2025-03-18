@@ -13,8 +13,8 @@
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 
 use super::{
-    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode,
-    EncodeIncremental, Error,
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental, Error,
 };
 use crate::{
     encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
@@ -295,6 +295,25 @@ impl BoundLowerIncremental for Totalizer {
         Ok(())
     }
 }
+
+impl BoundBoth for Totalizer {
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.encode_ub_change(range.clone(), collector, var_manager)?;
+        self.encode_lb_change(range, collector, var_manager)?;
+        Ok(())
+    }
+}
+
+impl BoundBothIncremental for Totalizer {}
 
 impl EncodeStats for Totalizer {
     fn n_clauses(&self) -> usize {

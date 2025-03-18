@@ -46,3 +46,8 @@ git_release_enable = false
 name = "rustsat-pyapi"
 release = false
 git_release_enable = false
+
+[[package]]
+name = "pigeons"
+release = false
+git_release_enable = false

@@ -50,6 +50,9 @@ pub mod simulators;
 pub mod dbtotalizer;
 pub use dbtotalizer::DbTotalizer;
 
+#[cfg(feature = "proof-logging")]
+pub mod cert;
+
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait Encode {
     /// Gets the number of input literals in the encoding
@@ -113,7 +116,7 @@ pub trait BoundUpper: Encode {
 }
 
 /// Trait for cardinality encodings that allow upper bounding of the form `sum
-/// of lits <= ub`
+/// of lits >= lb`
 pub trait BoundLower: Encode {
     /// Lazily builds the cardinality encoding to enable lower bounds in a given
     /// range. `var_manager` is the variable manager to use for tracking new
@@ -253,10 +256,6 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     }
 }
 
-/// Default implementation of [`BoundBoth`] for every encoding that does upper
-/// and lower bounding
-impl<CE> BoundBoth for CE where CE: BoundUpper + BoundLower {}
-
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait EncodeIncremental: Encode {
     /// Reserves all variables this encoding might need
@@ -287,7 +286,7 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
-/// form `sum of lits <= ub`
+/// form `sum of lits >= lb`
 pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// Lazily builds the _change in_ cardinality encoding to enable lower
     /// bounds in a given range. `var_manager` is the variable manager to use
@@ -309,7 +308,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
-pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + BoundBoth {
     /// Lazily builds the _change in_ cardinality encoding to enable both bounds
     /// in a given range. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore the lower or
@@ -333,22 +332,18 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     }
 }
 
-/// Default implementation of [`BoundBothIncremental`] for every encoding that
-/// does incremental upper and lower bounding
-impl<CE> BoundBothIncremental for CE where CE: BoundUpperIncremental + BoundLowerIncremental {}
-
-/// The default upper bound encoding. For now this is a [`Totalizer`].
-pub type DefUpperBounding = Totalizer;
-/// The default lower bound encoding. For now this is a [`Totalizer`].
-pub type DefLowerBounding = Totalizer;
-/// The default encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefBothBounding = Totalizer;
-/// The default incremental upper bound encoding. For now this is a [`Totalizer`].
-pub type DefIncUpperBounding = Totalizer;
-/// The default incremental lower bound encoding. For now this is a [`Totalizer`].
-pub type DefIncLowerBounding = Totalizer;
-/// The default incremental encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefIncBothBounding = Totalizer;
+/// The default upper bound encoding. For now this is a [`DbTotalizer`].
+pub type DefUpperBounding = DbTotalizer;
+/// The default lower bound encoding. For now this is a [`DbTotalizer`].
+pub type DefLowerBounding = DbTotalizer;
+/// The default encoding for both bounds. For now this is a [`DbTotalizer`].
+pub type DefBothBounding = DbTotalizer;
+/// The default incremental upper bound encoding. For now this is a [`DbTotalizer`].
+pub type DefIncUpperBounding = DbTotalizer;
+/// The default incremental lower bound encoding. For now this is a [`DbTotalizer`].
+pub type DefIncLowerBounding = DbTotalizer;
+/// The default incremental encoding for both bounds. For now this is a [`DbTotalizer`].
+pub type DefIncBothBounding = DbTotalizer;
 
 /// Constructs a default upper bounding cardinality encoding.
 #[must_use]
@@ -447,6 +442,18 @@ fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> 
     (match range.start_bound() {
         Bound::Included(b) => cmp::max(*b, 1),
         Bound::Excluded(b) => cmp::max(b + 1, 1),
+        Bound::Unbounded => 1,
+    })..match range.end_bound() {
+        Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),
+        Bound::Excluded(b) => cmp::min(*b, enc.n_lits() + 1),
+        Bound::Unbounded => enc.n_lits() + 1,
+    }
+}
+
+fn prepare_both_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+    (match range.start_bound() {
+        Bound::Included(b) => *b,
+        Bound::Excluded(b) => b + 1,
         Bound::Unbounded => 1,
     })..match range.end_bound() {
         Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),

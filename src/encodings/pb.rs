@@ -53,10 +53,9 @@ pub use gte::GeneralizedTotalizer;
 
 pub mod simulators;
 /// Inverted generalized totalizer that can be used for lower bounding PB expressions
-pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
+pub type InvertedGeneralizedTotalizer = simulators::Inverted<DbGte>;
 /// Double generalized totalizer that can be used for upper and lower bounding PB expressions
-pub type DoubleGeneralizedTotalizer =
-    simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
+pub type DoubleGeneralizedTotalizer = simulators::Double<DbGte, InvertedGeneralizedTotalizer>;
 
 pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
@@ -66,6 +65,9 @@ pub use dbgte::DbGte;
 
 pub mod adder;
 pub use adder::BinaryAdder;
+
+#[cfg(feature = "proof-logging")]
+pub mod cert;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode {
@@ -300,10 +302,6 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     }
 }
 
-/// Default implementation of [`BoundBoth`] for every encoding that does upper
-/// and lower bounding
-impl<PBE> BoundBoth for PBE where PBE: BoundUpper + BoundLower {}
-
 /// Trait for all pseudo-boolean encodings of form `sum of lits <> rhs`
 pub trait EncodeIncremental: Encode {
     /// Reserves all variables this encoding might need
@@ -356,7 +354,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
-pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + BoundBoth {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable both
     /// bounds from `min_b` to `max_b`. `var_manager` is the variable manager to
     /// use for tracking new variables. A specific encoding might ignore the
@@ -381,18 +379,14 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     }
 }
 
-/// Default implementation of [`BoundBothIncremental`] for every encoding that
-/// does incremental upper and lower bounding
-impl<PBE> BoundBothIncremental for PBE where PBE: BoundUpperIncremental + BoundLowerIncremental {}
-
-/// The default upper bound encoding. For now this is a [`GeneralizedTotalizer`].
-pub type DefUpperBounding = GeneralizedTotalizer;
+/// The default upper bound encoding. For now this is a [`DbGte`].
+pub type DefUpperBounding = DbGte;
 /// The default lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
 pub type DefLowerBounding = InvertedGeneralizedTotalizer;
 /// The default encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
 pub type DefBothBounding = DoubleGeneralizedTotalizer;
-/// The default incremental upper bound encoding. For now this is a [`GeneralizedTotalizer`].
-pub type DefIncUpperBounding = GeneralizedTotalizer;
+/// The default incremental upper bound encoding. For now this is a [`DbGte`].
+pub type DefIncUpperBounding = DbGte;
 /// The default incremental lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
 pub type DefIncLowerBounding = InvertedGeneralizedTotalizer;
 /// The default incremental encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
@@ -502,6 +496,18 @@ fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> 
     (match range.start_bound() {
         Bound::Included(b) => cmp::max(*b, 1),
         Bound::Excluded(b) => cmp::max(b + 1, 1),
+        Bound::Unbounded => 1,
+    })..match range.end_bound() {
+        Bound::Included(b) => cmp::min(b + 1, enc.weight_sum() + 1),
+        Bound::Excluded(b) => cmp::min(*b, enc.weight_sum() + 1),
+        Bound::Unbounded => enc.weight_sum() + 1,
+    }
+}
+
+fn prepare_both_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+    (match range.start_bound() {
+        Bound::Included(b) => *b,
+        Bound::Excluded(b) => b + 1,
         Bound::Unbounded => 1,
     })..match range.end_bound() {
         Bound::Included(b) => cmp::min(b + 1, enc.weight_sum() + 1),

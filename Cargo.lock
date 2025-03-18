@@ -1008,6 +1008,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pigeons"
+version = "0.1.0"
+dependencies = [
+ "itertools 0.14.0",
+ "rustc-hash",
+ "tempfile",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1254,6 +1263,7 @@ dependencies = [
  "flate2",
  "itertools 0.14.0",
  "nom",
+ "pigeons",
  "rand",
  "rustc-hash",
  "rustsat-minisat",
@@ -1289,6 +1299,7 @@ dependencies = [
  "cpu-time",
  "git2",
  "glob",
+ "pigeons",
  "rustsat",
  "rustsat-solvertests",
  "signal-hook",
