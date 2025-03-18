@@ -3,7 +3,7 @@ use rustsat::{
     encodings::{
         card::Totalizer,
         pb::{
-            simulators::Card, BinaryAdder, BoundBoth, BoundBothIncremental, BoundLower, BoundUpper,
+            simulators::Card, BinaryAdder, BoundBothIncremental, BoundLower, BoundUpper,
             BoundUpperIncremental, DbGte, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
             GeneralizedTotalizer, InvertedGeneralizedTotalizer,
         },
