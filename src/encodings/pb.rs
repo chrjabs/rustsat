@@ -53,10 +53,9 @@ pub use gte::GeneralizedTotalizer;
 
 pub mod simulators;
 /// Inverted generalized totalizer that can be used for lower bounding PB expressions
-pub type InvertedGeneralizedTotalizer = simulators::Inverted<GeneralizedTotalizer>;
+pub type InvertedGeneralizedTotalizer = simulators::Inverted<DbGte>;
 /// Double generalized totalizer that can be used for upper and lower bounding PB expressions
-pub type DoubleGeneralizedTotalizer =
-    simulators::Double<GeneralizedTotalizer, InvertedGeneralizedTotalizer>;
+pub type DoubleGeneralizedTotalizer = simulators::Double<DbGte, InvertedGeneralizedTotalizer>;
 
 pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
@@ -380,14 +379,14 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     }
 }
 
-/// The default upper bound encoding. For now this is a [`GeneralizedTotalizer`].
-pub type DefUpperBounding = GeneralizedTotalizer;
+/// The default upper bound encoding. For now this is a [`DbGte`].
+pub type DefUpperBounding = DbGte;
 /// The default lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
 pub type DefLowerBounding = InvertedGeneralizedTotalizer;
 /// The default encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
 pub type DefBothBounding = DoubleGeneralizedTotalizer;
-/// The default incremental upper bound encoding. For now this is a [`GeneralizedTotalizer`].
-pub type DefIncUpperBounding = GeneralizedTotalizer;
+/// The default incremental upper bound encoding. For now this is a [`DbGte`].
+pub type DefIncUpperBounding = DbGte;
 /// The default incremental lower bound encoding. For now this is a [`InvertedGeneralizedTotalizer`].
 pub type DefIncLowerBounding = InvertedGeneralizedTotalizer;
 /// The default incremental encoding for both bounds. For now this is a [`DoubleGeneralizedTotalizer`].
