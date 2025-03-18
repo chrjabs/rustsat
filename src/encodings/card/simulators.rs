@@ -8,7 +8,8 @@
 use std::ops::{Not, Range, RangeBounds};
 
 use super::{
-    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
     encodings::{CollectClauses, EncodeStats, Error, IterInputs},
@@ -242,7 +243,7 @@ where
         W: std::io::Write,
     {
         self.card_enc.encode_ub_cert(
-            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            self.convert_encoding_range(super::prepare_lb_range(self, range)),
             collector,
             var_manager,
             proof,
@@ -265,6 +266,63 @@ where
     {
         let constr = (constr.0.invert(), constr.1);
         CE::encode_ub_constr_cert(constr, collector, var_manager, proof)
+    }
+}
+
+impl<CE> BoundBoth for Inverted<CE>
+where
+    CE: BoundBoth,
+{
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.card_enc.encode_both(
+            self.convert_encoding_range(super::prepare_both_range(self, range)),
+            collector,
+            var_manager,
+        )
+    }
+
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+        let b = if self.n_lits >= b {
+            self.n_lits - b
+        } else {
+            return Err(Error::Unsat);
+        };
+        self.card_enc.enforce_eq(b)
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl<CE> super::cert::BoundBoth for Inverted<CE>
+where
+    CE: super::cert::BoundBoth + FromIterator<Lit>,
+{
+    fn encode_both_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize> + Clone,
+        W: std::io::Write,
+    {
+        self.card_enc.encode_both_cert(
+            self.convert_encoding_range(super::prepare_both_range(self, range)),
+            collector,
+            var_manager,
+            proof,
+        )
     }
 }
 
@@ -356,7 +414,55 @@ where
         W: std::io::Write,
     {
         self.card_enc.encode_ub_change_cert(
-            self.convert_encoding_range(super::prepare_ub_range(self, range)),
+            self.convert_encoding_range(super::prepare_lb_range(self, range)),
+            collector,
+            var_manager,
+            proof,
+        )
+    }
+}
+
+impl<CE> BoundBothIncremental for Inverted<CE>
+where
+    CE: BoundBothIncremental,
+{
+    fn encode_both_change<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.card_enc.encode_both_change(
+            self.convert_encoding_range(super::prepare_both_range(self, range)),
+            collector,
+            var_manager,
+        )
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl<CE> super::cert::BoundBothIncremental for Inverted<CE>
+where
+    CE: super::cert::BoundBothIncremental + FromIterator<Lit>,
+{
+    fn encode_both_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize> + Clone,
+        W: std::io::Write,
+    {
+        self.card_enc.encode_both_change_cert(
+            self.convert_encoding_range(super::prepare_both_range(self, range)),
             collector,
             var_manager,
             proof,
@@ -600,6 +706,21 @@ where
     }
 }
 
+impl<UBE, LBE> BoundBoth for Double<UBE, LBE>
+where
+    UBE: BoundUpper,
+    LBE: BoundLower,
+{
+}
+
+#[cfg(feature = "proof-logging")]
+impl<UBE, LBE> super::cert::BoundBoth for Double<UBE, LBE>
+where
+    UBE: super::cert::BoundUpper + FromIterator<Lit>,
+    LBE: super::cert::BoundLower + FromIterator<Lit>,
+{
+}
+
 impl<UBE, LBE> BoundUpperIncremental for Double<UBE, LBE>
 where
     UBE: BoundUpperIncremental,
@@ -682,6 +803,21 @@ where
         self.lb_enc
             .encode_lb_change_cert(range, collector, var_manager, proof)
     }
+}
+
+impl<UBE, LBE> BoundBothIncremental for Double<UBE, LBE>
+where
+    UBE: BoundUpperIncremental,
+    LBE: BoundLowerIncremental,
+{
+}
+
+#[cfg(feature = "proof-logging")]
+impl<UBE, LBE> super::cert::BoundBothIncremental for Double<UBE, LBE>
+where
+    UBE: super::cert::BoundUpperIncremental + BoundUpperIncremental + FromIterator<Lit>,
+    LBE: super::cert::BoundLowerIncremental + BoundLowerIncremental + FromIterator<Lit>,
+{
 }
 
 impl<UBE, LBE> EncodeStats for Double<UBE, LBE>

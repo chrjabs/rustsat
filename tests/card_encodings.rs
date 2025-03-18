@@ -585,10 +585,7 @@ mod cert {
 
     use rustsat::{
         clause,
-        encodings::card::{
-            cert::{BoundBoth, BoundBothIncremental},
-            BoundBoth as BoundBothBasic, DbTotalizer,
-        },
+        encodings::card::{cert::BoundBothIncremental, DbTotalizer},
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         solvers::{

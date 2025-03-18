@@ -102,7 +102,7 @@ pub trait BoundLower: super::Encode + super::BoundLower {
 }
 
 /// Trait for certified cardinality encodings that allow upper and lower bounding
-pub trait BoundBoth: BoundUpper + BoundLower {
+pub trait BoundBoth: BoundUpper + BoundLower + super::BoundBoth {
     /// Lazily builds the certified cardinality encoding to enable both bounds in a given range.
     /// `var_manager` is the variable manager to use for tracking new variables. A specific
     /// encoding might ignore the lower or upper end of the range. The derivation of the encoding
@@ -149,8 +149,8 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         // Assume the two constraints have ID as given and +1
         let (constr, id) = constr;
         let (lb_c, ub_c) = constr.split();
-        Self::encode_lb_constr_cert((lb_c, id), collector, var_manager, proof)?;
         Self::encode_ub_constr_cert((ub_c, id + 1), collector, var_manager, proof)?;
+        Self::encode_lb_constr_cert((lb_c, id), collector, var_manager, proof)?;
         Ok(())
     }
 
@@ -185,10 +185,6 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         }
     }
 }
-
-/// Default implementation of [`BoundBoth`] for every encoding that does upper
-/// and lower bounding
-impl<CE> BoundBoth for CE where CE: BoundUpper + BoundLower {}
 
 /// Trait for incremental certified cardinality encodings that allow upper bounding of the form
 /// `sum of lits <= ub`
@@ -243,7 +239,7 @@ pub trait BoundLowerIncremental: BoundLower + super::EncodeIncremental {
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
-pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + BoundBoth {
     /// Lazily builds the _change in_ the certified cardinality encoding to enable both bounds in a
     /// given range. `var_manager` is the variable manager to use for tracking new variables. A
     /// specific encoding might ignore the lower or upper end of the range. The derivation of the
@@ -270,10 +266,6 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
         Ok(())
     }
 }
-
-/// Default implementation of [`BoundBothIncremental`] for every encoding that
-/// does incremental upper and lower bounding
-impl<CE> BoundBothIncremental for CE where CE: BoundUpperIncremental + BoundLowerIncremental {}
 
 /// The default upper bound encoding. For now this is a [`DbTotalizer`].
 pub type DefUpperBounding = DbTotalizer;

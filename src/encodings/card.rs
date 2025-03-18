@@ -256,10 +256,6 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     }
 }
 
-/// Default implementation of [`BoundBoth`] for every encoding that does upper
-/// and lower bounding
-impl<CE> BoundBoth for CE where CE: BoundUpper + BoundLower {}
-
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait EncodeIncremental: Encode {
     /// Reserves all variables this encoding might need
@@ -312,7 +308,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
-pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + BoundBoth {
     /// Lazily builds the _change in_ cardinality encoding to enable both bounds
     /// in a given range. `var_manager` is the variable manager to use for
     /// tracking new variables. A specific encoding might ignore the lower or
@@ -335,10 +331,6 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
         self.encode_lb_change(range, collector, var_manager)
     }
 }
-
-/// Default implementation of [`BoundBothIncremental`] for every encoding that
-/// does incremental upper and lower bounding
-impl<CE> BoundBothIncremental for CE where CE: BoundUpperIncremental + BoundLowerIncremental {}
 
 /// The default upper bound encoding. For now this is a [`Totalizer`].
 pub type DefUpperBounding = Totalizer;
@@ -450,6 +442,18 @@ fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> 
     (match range.start_bound() {
         Bound::Included(b) => cmp::max(*b, 1),
         Bound::Excluded(b) => cmp::max(b + 1, 1),
+        Bound::Unbounded => 1,
+    })..match range.end_bound() {
+        Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),
+        Bound::Excluded(b) => cmp::min(*b, enc.n_lits() + 1),
+        Bound::Unbounded => enc.n_lits() + 1,
+    }
+}
+
+fn prepare_both_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+    (match range.start_bound() {
+        Bound::Included(b) => *b,
+        Bound::Excluded(b) => b + 1,
         Bound::Unbounded => 1,
     })..match range.end_bound() {
         Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),

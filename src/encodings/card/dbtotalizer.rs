@@ -15,7 +15,8 @@ use crate::{
 };
 
 use super::{
-    BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental,
 };
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
@@ -312,6 +313,25 @@ impl BoundLowerIncremental for DbTotalizer {
     }
 }
 
+impl BoundBoth for DbTotalizer {
+    fn encode_both<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize> + Clone,
+    {
+        self.encode_ub_change(range.clone(), collector, var_manager)?;
+        self.encode_lb_change(range, collector, var_manager)?;
+        Ok(())
+    }
+}
+
+impl BoundBothIncremental for DbTotalizer {}
+
 impl EncodeStats for DbTotalizer {
     fn n_clauses(&self) -> usize {
         self.n_clauses
@@ -387,7 +407,7 @@ impl super::cert::BoundUpper for DbTotalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::OperationSequence;
+        use pigeons::{OperationLike, OperationSequence};
 
         use crate::types::Var;
 
@@ -399,7 +419,7 @@ impl super::cert::BoundUpper for DbTotalizer {
         enc.encode_ub_cert(ub..=ub, collector, var_manager, proof)?;
         let (olit, sem_defs) = enc.output_proof_details(ub + 1)?;
         let unit_id = proof.operations(
-            &((OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()) / (ub + 1)),
+            &(OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()).saturate(),
         )?;
         let unit_cl = crate::clause![!olit];
         #[cfg(feature = "verbose-proofs")]
@@ -486,19 +506,19 @@ impl super::cert::BoundLower for DbTotalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::OperationSequence;
+        use pigeons::{OperationLike, OperationSequence};
 
         use crate::types::Var;
 
         // TODO: properly take care of constraints where no structure is built
 
         let (constr, id) = constr;
-        let (lits, ub) = constr.decompose();
+        let (lits, lb) = constr.decompose();
         let mut enc = Self::from_iter(lits);
-        enc.encode_lb_cert(ub..=ub, collector, var_manager, proof)?;
-        let (olit, sem_defs) = enc.output_proof_details(ub)?;
+        enc.encode_lb_cert(lb..=lb, collector, var_manager, proof)?;
+        let (olit, sem_defs) = enc.output_proof_details(lb)?;
         let unit_id = proof.operations(
-            &((OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()) / (ub + 1)),
+            &(OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate(),
         )?;
         let unit_cl = crate::clause![olit];
         #[cfg(feature = "verbose-proofs")]
@@ -551,6 +571,77 @@ impl super::cert::BoundLowerIncremental for DbTotalizer {
         Ok(())
     }
 }
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundBoth for DbTotalizer {
+    fn encode_both_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize> + Clone,
+        W: std::io::Write,
+    {
+        use super::cert::{BoundLowerIncremental, BoundUpperIncremental};
+
+        self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
+        self.encode_lb_change_cert(range, collector, var_manager, proof)?;
+        Ok(())
+    }
+
+    fn encode_eq_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardEQConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
+    {
+        use pigeons::{OperationLike, OperationSequence};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, b) = constr.decompose();
+        let mut enc = Self::from_iter(lits);
+        enc.encode_both_cert(b..=b, collector, var_manager, proof)?;
+        // UB
+        let (olit, sem_defs) = enc.output_proof_details(b + 1)?;
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id + 1) + sem_defs.only_if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![!olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        // LB
+        let (olit, sem_defs) = enc.output_proof_details(b)?;
+        let unit_id = proof.operations(
+            &((OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate()),
+        )?;
+        let unit_cl = crate::clause![olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundBothIncremental for DbTotalizer {}
 
 /// Totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "internals")]
