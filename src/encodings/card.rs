@@ -332,18 +332,18 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     }
 }
 
-/// The default upper bound encoding. For now this is a [`Totalizer`].
-pub type DefUpperBounding = Totalizer;
-/// The default lower bound encoding. For now this is a [`Totalizer`].
-pub type DefLowerBounding = Totalizer;
-/// The default encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefBothBounding = Totalizer;
-/// The default incremental upper bound encoding. For now this is a [`Totalizer`].
-pub type DefIncUpperBounding = Totalizer;
-/// The default incremental lower bound encoding. For now this is a [`Totalizer`].
-pub type DefIncLowerBounding = Totalizer;
-/// The default incremental encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefIncBothBounding = Totalizer;
+/// The default upper bound encoding. For now this is a [`DbTotalizer`].
+pub type DefUpperBounding = DbTotalizer;
+/// The default lower bound encoding. For now this is a [`DbTotalizer`].
+pub type DefLowerBounding = DbTotalizer;
+/// The default encoding for both bounds. For now this is a [`DbTotalizer`].
+pub type DefBothBounding = DbTotalizer;
+/// The default incremental upper bound encoding. For now this is a [`DbTotalizer`].
+pub type DefIncUpperBounding = DbTotalizer;
+/// The default incremental lower bound encoding. For now this is a [`DbTotalizer`].
+pub type DefIncLowerBounding = DbTotalizer;
+/// The default incremental encoding for both bounds. For now this is a [`DbTotalizer`].
+pub type DefIncBothBounding = DbTotalizer;
 
 /// Constructs a default upper bounding cardinality encoding.
 #[must_use]
