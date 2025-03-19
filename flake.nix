@@ -2,7 +2,7 @@
   description = "Rust library for tools and encodings related to SAT solving library";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     systems.url = "github:nix-systems/default";
 
     rust-overlay.url = "github:oxalica/rust-overlay";
@@ -122,11 +122,11 @@
           git switch "$BASE"
           git merge --ff-only "$BRANCH"
 
+          git push
+
           if $DELETE ; then
             git branch -d "$BRANCH"
           fi
-
-          git push
         '';
     in
       pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} rec {
@@ -140,6 +140,7 @@
             rust-toolchain
             cargo-rdme
             cargo-nextest
+            cargo-semver-checks
             release-plz
             jq
             maturin
