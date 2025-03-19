@@ -12,13 +12,13 @@
 
 use crate::{
     instances::{Cnf, ManageVars, SatInstance},
-    types::{Cl, Clause, Lit},
+    types::{Cl, Clause, Lit, Var},
 };
 use anyhow::Context;
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{i32, line_ending, multispace0, multispace1, u64},
+    character::complete::{i32, line_ending, multispace0, multispace1, u32, u64},
     combinator::{all_consuming, map, map_res, recognize, success},
     error::{context, Error as NomError},
     multi::separated_list0,
@@ -116,12 +116,12 @@ where
 #[derive(PartialEq, Debug)]
 enum Preamble {
     Cnf {
-        n_vars: usize,
+        n_vars: u32,
         n_clauses: usize,
     },
     #[cfg(feature = "optimization")]
     WcnfPre22 {
-        n_vars: usize,
+        n_vars: u32,
         n_clauses: usize,
         top: usize,
     },
@@ -142,19 +142,26 @@ where
     VM: ManageVars + Default,
 {
     let preamble = parse_preamble(reader)?;
+    let mut vm = VM::default();
     let content = match preamble {
         Preamble::Cnf {
-            n_vars: _,    // Intentionally ignored (lean acceptance)
+            n_vars,
             n_clauses: _, // Intentionally ignored (lean acceptance)
-        } => parse_cnf_body(reader),
+        } => {
+            vm.increase_next_free(Var::new(n_vars));
+            parse_cnf_body(reader, vm)
+        }
         #[cfg(feature = "optimization")]
         Preamble::WcnfPre22 {
-            n_vars: _,    // Intentionally ignored (lean acceptance)
+            n_vars,
             n_clauses: _, // Intentionally ignored (lean acceptance)
             top,
-        } => parse_wcnf_pre22_body(reader, top),
+        } => {
+            vm.increase_next_free(Var::new(n_vars));
+            parse_wcnf_pre22_body(reader, top, vm)
+        }
         #[cfg(feature = "optimization")]
-        Preamble::NoPLine { first_line } => parse_no_pline_body(reader, &first_line),
+        Preamble::NoPLine { first_line } => parse_no_pline_body(reader, &first_line, vm),
     }?;
     Ok(content)
 }
@@ -194,12 +201,12 @@ fn parse_preamble<R: BufRead>(reader: &mut R) -> anyhow::Result<Preamble> {
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_cnf_body<R, VM>(reader: &mut R) -> anyhow::Result<BodyContent<VM>>
+fn parse_cnf_body<R, VM>(reader: &mut R, vm: VM) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
 {
-    let mut inst = SatInstance::<VM>::new();
+    let mut inst = SatInstance::new_with_manager(vm);
     let mut buf = String::new();
     while reader.read_line(&mut buf)? > 0 {
         let (_, opt_clause) = parse_cnf_line(&buf)
@@ -226,12 +233,16 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_wcnf_pre22_body<R, VM>(reader: &mut R, top: usize) -> anyhow::Result<BodyContent<VM>>
+fn parse_wcnf_pre22_body<R, VM>(
+    reader: &mut R,
+    top: usize,
+    vm: VM,
+) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
 {
-    let mut constrs = SatInstance::<VM>::new();
+    let mut constrs = SatInstance::new_with_manager(vm);
     let mut obj = Objective::new();
     let mut buf = String::new();
     while reader.read_line(&mut buf)? > 0 {
@@ -259,12 +270,16 @@ where
 /// # Errors
 ///
 /// Parsing errors or [`io::Error`].
-fn parse_no_pline_body<R, VM>(reader: &mut R, first_line: &str) -> anyhow::Result<BodyContent<VM>>
+fn parse_no_pline_body<R, VM>(
+    reader: &mut R,
+    first_line: &str,
+    vm: VM,
+) -> anyhow::Result<BodyContent<VM>>
 where
     R: BufRead,
     VM: ManageVars + Default,
 {
-    let mut constrs = SatInstance::<VM>::new();
+    let mut constrs = SatInstance::new_with_manager(vm);
     let mut objs = Vec::new();
     let mut buf = first_line.to_string();
     loop {
@@ -310,10 +325,7 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
         let (input, (n_vars, _, n_clauses)) = context(
             "failed to parse number of variables and clauses",
             tuple::<_, _, NomError<_>, _>((
-                context(
-                    "number of vars does not fit usize",
-                    map_res(u64, usize::try_from),
-                ),
+                context("number of vars does not fit usize", u32),
                 multispace1,
                 context(
                     "number of clauses does not fit usize",
@@ -329,10 +341,7 @@ fn parse_p_line(input: &str) -> IResult<&str, Preamble> {
         let (input, (n_vars, _, n_clauses, _, top)) = context(
             "failed to parse number of variables, clauses, and top",
             tuple::<_, _, NomError<_>, _>((
-                context(
-                    "number of vars does not fit usize",
-                    map_res(u64, usize::try_from),
-                ),
+                context("number of vars does not fit usize", u32),
                 multispace1,
                 context(
                     "number of clauses does not fit usize",
@@ -715,7 +724,7 @@ mod tests {
     };
     use crate::{
         clause,
-        instances::{Cnf, SatInstance},
+        instances::{BasicVarManager, Cnf, SatInstance},
         ipasir_lit,
     };
     use nom::error::Error as NomError;
@@ -999,7 +1008,8 @@ mod tests {
     fn parse_cnf_body_pass() {
         let data = "1 2 0\n-3 4 5 0\n";
 
-        let parsed_inst = parse_cnf_body(&mut Cursor::new(data)).unwrap();
+        let parsed_inst =
+            parse_cnf_body(&mut Cursor::new(data), BasicVarManager::default()).unwrap();
 
         let mut true_inst: SatInstance = SatInstance::new();
         true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
@@ -1016,7 +1026,8 @@ mod tests {
     fn parse_wcnf_pre22_body_pass() {
         let data = "42 1 2 0\n10 -3 4 5 0\n";
 
-        let parsed_inst = parse_wcnf_pre22_body(&mut Cursor::new(data), 42).unwrap();
+        let parsed_inst =
+            parse_wcnf_pre22_body(&mut Cursor::new(data), 42, BasicVarManager::default()).unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1031,7 +1042,9 @@ mod tests {
     fn parse_wcnf_post22_body_pass() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
 
-        let parsed_inst = parse_no_pline_body(&mut Cursor::new(data), "c test").unwrap();
+        let parsed_inst =
+            parse_no_pline_body(&mut Cursor::new(data), "c test", BasicVarManager::default())
+                .unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1046,7 +1059,12 @@ mod tests {
     fn parse_mcnf_body_pass() {
         let data = "h 1 2 0\no2 10 -3 4 5 0\n";
 
-        let parsed_inst = parse_no_pline_body(&mut Cursor::new(data), "c test\n").unwrap();
+        let parsed_inst = parse_no_pline_body(
+            &mut Cursor::new(data),
+            "c test\n",
+            BasicVarManager::default(),
+        )
+        .unwrap();
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
@@ -1078,6 +1096,8 @@ mod tests {
     #[cfg(feature = "optimization")]
     #[test]
     fn parse_wcnf_pre22() {
+        use crate::{instances::ManageVars, types::Var};
+
         let data = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
         let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
@@ -1085,6 +1105,9 @@ mod tests {
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_constrs
+            .var_manager_mut()
+            .increase_next_free(Var::new(5));
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
