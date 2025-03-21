@@ -83,6 +83,8 @@ jobs:
             scripts/update-capi-header-version.sh
 
             git commit -am "chore(capi): update version in header"
+
+            git push
           fi
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}

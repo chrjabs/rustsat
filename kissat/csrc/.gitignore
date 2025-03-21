@@ -10,3 +10,4 @@ tissat
 *.gcov
 gmon.out
 *~
+!test/**/makefile
