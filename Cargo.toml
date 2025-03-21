@@ -170,3 +170,7 @@ debug = 1
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
+# temporary workaround for https://github.com/obi1kenobi/cargo-semver-checks/issues/1200
+[package.metadata.cargo-semver-checks.lints]
+trait_newly_sealed = { level = "allow" }
