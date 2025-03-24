@@ -1,4 +1,3 @@
-[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/batsat.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/batsat.yml)
 [![crates.io](https://img.shields.io/crates/v/rustsat-batsat)](https://crates.io/crates/rustsat-batsat)
 [![docs.rs](https://img.shields.io/docsrs/rustsat-batsat)](https://docs.rs/rustsat-batsat)
 [![License](https://img.shields.io/crates/l/rustsat-batsat)](../LICENSE)

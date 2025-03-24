@@ -1,4 +1,3 @@
-[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/ipasir.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/ipasir.yml)
 [![crates.io](https://img.shields.io/crates/v/rustsat-ipasir)](https://crates.io/crates/rustsat-ipasir)
 [![docs.rs](https://img.shields.io/docsrs/rustsat-ipasir)](https://docs.rs/rustsat-ipasir)
 [![License](https://img.shields.io/crates/l/rustsat-cadical)](../LICENSE)

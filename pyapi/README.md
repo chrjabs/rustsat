@@ -1,4 +1,3 @@
-[![Build & Test](https://github.com/chrjabs/rustsat/actions/workflows/pyapi.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/pyapi.yml)
 [![PyPI](https://img.shields.io/pypi/v/rustsat)](https://pypi.org/project/rustsat)
 [![License](https://img.shields.io/crates/l/rustsat)](./LICENSE)
 
