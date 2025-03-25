@@ -533,10 +533,6 @@ struct DbTotalizer *tot_new(void);
  * # Safety
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
- *
- * # Panics
- *
- * If the passed `lit` is an invalid IPASIR literal
  */
 enum MaybeError tot_add(struct DbTotalizer *tot, int lit);
 

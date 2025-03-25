@@ -11,7 +11,8 @@ use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager};
 
 /// Creates a new [`DbTotalizer`] cardinality encoding
 #[no_mangle]
-pub extern "C" fn tot_new() -> *mut DbTotalizer {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn tot_new() -> *mut DbTotalizer {
     Box::into_raw(Box::default())
 }
 
@@ -25,16 +26,12 @@ pub extern "C" fn tot_new() -> *mut DbTotalizer {
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-///
-/// # Panics
-///
-/// If the passed `lit` is an invalid IPASIR literal
 #[no_mangle]
 pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return MaybeError::InvalidLiteral;
     };
-    unsafe { (*tot).extend([lit]) };
+    (*tot).extend([lit]);
     MaybeError::Ok
 }
 
@@ -71,7 +68,8 @@ pub unsafe extern "C" fn tot_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = ClauseCollector::new(collector, collector_data);
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*tot).encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager) }
+    (*tot)
+        .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("clause collector returned out of memory");
 }
 
@@ -88,7 +86,7 @@ pub unsafe extern "C" fn tot_enforce_ub(
     ub: usize,
     assump: &mut c_int,
 ) -> MaybeError {
-    match unsafe { (*tot).enforce_ub(ub) } {
+    match (*tot).enforce_ub(ub) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();
@@ -109,7 +107,7 @@ pub unsafe extern "C" fn tot_enforce_ub(
 #[no_mangle]
 pub unsafe extern "C" fn tot_reserve(tot: *mut DbTotalizer, n_vars_used: &mut u32) {
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*tot).reserve(&mut var_manager) };
+    (*tot).reserve(&mut var_manager);
 }
 
 /// Frees the memory associated with a [`DbTotalizer`]
@@ -119,7 +117,7 @@ pub unsafe extern "C" fn tot_reserve(tot: *mut DbTotalizer, n_vars_used: &mut u3
 /// `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
 #[no_mangle]
 pub unsafe extern "C" fn tot_drop(tot: *mut DbTotalizer) {
-    drop(unsafe { Box::from_raw(tot) });
+    drop(Box::from_raw(tot));
 }
 
 // TODO: figure out how to get these to work on windows

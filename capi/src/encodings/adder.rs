@@ -14,7 +14,8 @@ use super::{CAssumpCollector, CClauseCollector, ClauseCollector, MaybeError, Var
 
 /// Creates a new [`BinaryAdder`] cardinality encoding
 #[no_mangle]
-pub extern "C" fn bin_adder_new() -> *mut BinaryAdder {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn bin_adder_new() -> *mut BinaryAdder {
     Box::into_raw(Box::default())
 }
 
@@ -38,7 +39,7 @@ pub unsafe extern "C" fn bin_adder_add(
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return MaybeError::InvalidLiteral;
     };
-    unsafe { (*adder).extend([(lit, weight)]) };
+    (*adder).extend([(lit, weight)]);
     MaybeError::Ok
 }
 
@@ -76,7 +77,8 @@ pub unsafe extern "C" fn bin_adder_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = ClauseCollector::new(collector, collector_data);
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*adder).encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager) }
+    (*adder)
+        .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("clause collector returned out of memory");
 }
 
@@ -98,7 +100,7 @@ pub unsafe extern "C" fn bin_adder_enforce_ub(
     collector: CAssumpCollector,
     collector_data: *mut c_void,
 ) -> MaybeError {
-    match unsafe { (*adder).enforce_ub(ub) } {
+    match (*adder).enforce_ub(ub) {
         Ok(assumps) => {
             for l in assumps {
                 collector(l.to_ipasir(), collector_data);
@@ -142,7 +144,8 @@ pub unsafe extern "C" fn bin_adder_encode_lb(
     assert!(min_bound <= max_bound);
     let mut collector = ClauseCollector::new(collector, collector_data);
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*adder).encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager) }
+    (*adder)
+        .encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("clause collector returned out of memory");
 }
 
@@ -164,7 +167,7 @@ pub unsafe extern "C" fn bin_adder_enforce_lb(
     collector: CAssumpCollector,
     collector_data: *mut c_void,
 ) -> MaybeError {
-    match unsafe { (*adder).enforce_lb(ub) } {
+    match (*adder).enforce_lb(ub) {
         Ok(assumps) => {
             for l in assumps {
                 collector(l.to_ipasir(), collector_data);
@@ -188,7 +191,7 @@ pub unsafe extern "C" fn bin_adder_enforce_lb(
 #[no_mangle]
 pub unsafe extern "C" fn bin_adder_reserve(adder: *mut BinaryAdder, n_vars_used: &mut u32) {
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*adder).reserve(&mut var_manager) };
+    (*adder).reserve(&mut var_manager);
 }
 
 /// Frees the memory associated with a [`BinaryAdder`]
@@ -199,7 +202,7 @@ pub unsafe extern "C" fn bin_adder_reserve(adder: *mut BinaryAdder, n_vars_used:
 /// afterwards again.
 #[no_mangle]
 pub unsafe extern "C" fn bin_adder_drop(adder: *mut BinaryAdder) {
-    drop(unsafe { Box::from_raw(adder) });
+    drop(Box::from_raw(adder));
 }
 
 // TODO: figure out how to get these to work on windows
