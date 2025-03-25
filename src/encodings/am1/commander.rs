@@ -127,3 +127,22 @@ impl<const N: usize, Sub> Extend<Lit> for Commander<N, Sub> {
         self.in_lits.extend(iter);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        encodings::am1::Encode,
+        instances::{BasicVarManager, Cnf, ManageVars},
+        lit, var,
+    };
+
+    #[test]
+    fn basic() {
+        let mut enc: super::Commander = [lit![0], lit![1], lit![2], lit![3]].into_iter().collect();
+        let mut cnf = Cnf::new();
+        let mut vm = BasicVarManager::from_next_free(var![4]);
+        enc.encode(&mut cnf, &mut vm).unwrap();
+        assert_eq!(vm.n_used(), 5);
+        assert_eq!(cnf.len(), 10);
+    }
+}
