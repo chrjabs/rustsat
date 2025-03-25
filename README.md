@@ -70,6 +70,14 @@ crate](https://crates.io/crates/rustsat_tools) at `tools/src/bin`. For a bigger
 example you can look at this [multi-objective optimization
 solver](https://github.com/chrjabs/scuttle).
 
+## Minimum Supported Rust Version (MSRV)
+
+Currently, the MSRV of RustSAT is 1.74.0, the plan is to always support an MSRV that is at
+least a year old.
+
+Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
+sure to pin a precise version of RustSAT.
+
 <!-- cargo-rdme end -->
 
 ## Main Branch Documentation
