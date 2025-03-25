@@ -8,11 +8,12 @@
   withMinisat ? false,
 }: let
   manifest = (lib.importTOML ./Cargo.toml).package;
+  workspace-manifest = (lib.importTOML ../Cargo.toml).workspace.package;
 in
   assert lib.assertMsg (withCadical && !withMinisat || !withCadical && withMinisat) "either withCadical or withMinisat, but not both must be set";
     rustPlatform.buildRustPackage {
       pname = manifest.name;
-      version = manifest.version;
+      version = workspace-manifest.version;
 
       src = lib.fileset.toSource {
         root = ../.;
