@@ -156,4 +156,11 @@ impl ManageVars for VarManager<'_> {
 pub mod adder;
 pub mod dpw;
 pub mod gte;
+
 pub mod totalizer;
+
+pub mod bimander;
+pub mod bitwise;
+pub mod commander;
+pub mod ladder;
+pub mod pairwise;

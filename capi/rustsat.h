@@ -47,6 +47,18 @@ typedef enum MaybeError {
 } MaybeError;
 
 /**
+ * Implementation of the bimander at-most-1 encoding.
+ *
+ * The sub encoding is fixed to the pairwise encoding and the size of the splits to 4.
+ *
+ * # References
+ *
+ * - Van-Hau Nguyen and Son Thay Mai: _A New Method to Encode the At-Most-One Constraint into SAT,
+ *   SOICT 2015.
+ */
+typedef struct Bimander Bimander;
+
+/**
  * Implementation of the binary adder encoding first described in \[1\].
  * The implementation follows the description in \[2\].
  *
@@ -58,6 +70,29 @@ typedef enum MaybeError {
  *     JSAT 2006.
  */
 typedef struct BinaryAdder BinaryAdder;
+
+/**
+ * Implementations of the bitwise at-most-1 encoding.
+ *
+ * # References
+ *
+ * - Steven D. Prestwich: _Finding large Cliques using SAT Local Search_, in Trends in Constraint
+ *   Programming 2007.
+ * - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
+ */
+typedef struct Bitwise Bitwise;
+
+/**
+ * Implementations of the commander at-most-1 encoding.
+ *
+ * The sub encoding is fixed to the pairwise encoding and the size of the splits to 4.
+ *
+ * # References
+ *
+ * - Will Klieber and Gihwon Kwon: _Efficient CNF Encoding for Selecting 1 from N Objects, CFV
+ *   2007.
+ */
+typedef struct Commander Commander;
 
 /**
  * Implementation of the binary adder tree generalized totalizer encoding
@@ -104,6 +139,24 @@ typedef struct DbTotalizer DbTotalizer;
  *     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
  */
 typedef struct DynamicPolyWatchdog DynamicPolyWatchdog;
+
+/**
+ * Implementations of the ladder at-most-1 encoding.
+ *
+ * # References
+ *
+ * - Ian P. Gent and Peter Nightingale: _A new Encoding of AllDifferent into SAT_, ModRef 2004.
+ */
+typedef struct Ladder Ladder;
+
+/**
+ * Implementations of the pairwise at-most-1 encoding.
+ *
+ * # References
+ *
+ * - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
+ */
+typedef struct Pairwise Pairwise;
 
 typedef void (*CClauseCollector)(int lit, void *data);
 
@@ -597,6 +650,266 @@ void tot_reserve(struct DbTotalizer *tot, uint32_t *n_vars_used);
  * `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
  */
 void tot_drop(struct DbTotalizer *tot);
+
+/**
+ * Creates a new [`Bimander`] at-most-one encoding
+ */
+struct Bimander *bimander_new(void);
+
+/**
+ * Adds a new input literal to a [`Bimander`]
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `bimander` must be a return value of [`bimander_new`] that [`bimander_drop`] has not yet been
+ * called on
+ */
+enum MaybeError bimander_add(struct Bimander *bimander, int lit);
+
+/**
+ * Builds the bimander at-most-one encoding
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `bimander` must be a return value of [`bimander_new`] that [`bimander_drop`] has not yet been called on.
+ *
+ * # Panics
+ *
+ * If the encoding ran out of memory
+ */
+void bimander_encode(struct Bimander *bimander,
+                     uint32_t *n_vars_used,
+                     CClauseCollector collector,
+                     void *collector_data);
+
+/**
+ * Frees the memory associated with a [`Bimander`]
+ *
+ * # Safety
+ *
+ * `bimander` must be a return value of [`bimander_new`] and cannot be used afterwards again.
+ */
+void bimander_drop(struct Bimander *bimander);
+
+/**
+ * Creates a new [`Bitwise`] at-most-one encoding
+ */
+struct Bitwise *bitwise_new(void);
+
+/**
+ * Adds a new input literal to a [`Bitwise`]
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `bitwise` must be a return value of [`bitwise_new`] that [`bitwise_drop`] has not yet been
+ * called on
+ */
+enum MaybeError bitwise_add(struct Bitwise *bitwise, int lit);
+
+/**
+ * Builds the bitwise at-most-one encoding
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `bitwise` must be a return value of [`bitwise_new`] that [`bitwise_drop`] has not yet been called on.
+ *
+ * # Panics
+ *
+ * If the encoding ran out of memory
+ */
+void bitwise_encode(struct Bitwise *bitwise,
+                    uint32_t *n_vars_used,
+                    CClauseCollector collector,
+                    void *collector_data);
+
+/**
+ * Frees the memory associated with a [`Bitwise`]
+ *
+ * # Safety
+ *
+ * `bitwise` must be a return value of [`bitwise_new`] and cannot be used afterwards again.
+ */
+void bitwise_drop(struct Bitwise *bitwise);
+
+/**
+ * Creates a new [`Commander`] at-most-one encoding
+ */
+struct Commander *commander_new(void);
+
+/**
+ * Adds a new input literal to a [`Commander`]
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `commander` must be a return value of [`commander_new`] that [`commander_drop`] has not yet been
+ * called on
+ */
+enum MaybeError commander_add(struct Commander *commander, int lit);
+
+/**
+ * Builds the commander at-most-one encoding
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `commander` must be a return value of [`commander_new`] that [`commander_drop`] has not yet been called on.
+ *
+ * # Panics
+ *
+ * If the encoding ran out of memory
+ */
+void commander_encode(struct Commander *commander,
+                      uint32_t *n_vars_used,
+                      CClauseCollector collector,
+                      void *collector_data);
+
+/**
+ * Frees the memory associated with a [`Commander`]
+ *
+ * # Safety
+ *
+ * `commander` must be a return value of [`commander_new`] and cannot be used afterwards again.
+ */
+void commander_drop(struct Commander *commander);
+
+/**
+ * Creates a new [`Ladder`] at-most-one encoding
+ */
+struct Ladder *ladder_new(void);
+
+/**
+ * Adds a new input literal to a [`Ladder`]
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `ladder` must be a return value of [`ladder_new`] that [`ladder_drop`] has not yet been
+ * called on
+ */
+enum MaybeError ladder_add(struct Ladder *ladder, int lit);
+
+/**
+ * Builds the ladder at-most-one encoding
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `ladder` must be a return value of [`ladder_new`] that [`ladder_drop`] has not yet been called on.
+ *
+ * # Panics
+ *
+ * If the encoding ran out of memory
+ */
+void ladder_encode(struct Ladder *ladder,
+                   uint32_t *n_vars_used,
+                   CClauseCollector collector,
+                   void *collector_data);
+
+/**
+ * Frees the memory associated with a [`Ladder`]
+ *
+ * # Safety
+ *
+ * `ladder` must be a return value of [`ladder_new`] and cannot be used afterwards again.
+ */
+void ladder_drop(struct Ladder *ladder);
+
+/**
+ * Creates a new [`Pairwise`] at-most-one encoding
+ */
+struct Pairwise *pairwise_new(void);
+
+/**
+ * Adds a new input literal to a [`Pairwise`]
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *     [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `pairwise` must be a return value of [`pairwise_new`] that [`pairwise_drop`] has not yet been
+ * called on
+ */
+enum MaybeError pairwise_add(struct Pairwise *pairwise, int lit);
+
+/**
+ * Builds the pairwise at-most-one encoding
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `pairwise` must be a return value of [`pairwise_new`] that [`pairwise_drop`] has not yet been called on.
+ *
+ * # Panics
+ *
+ * If the encoding ran out of memory
+ */
+void pairwise_encode(struct Pairwise *pairwise,
+                     uint32_t *n_vars_used,
+                     CClauseCollector collector,
+                     void *collector_data);
+
+/**
+ * Frees the memory associated with a [`Pairwise`]
+ *
+ * # Safety
+ *
+ * `pairwise` must be a return value of [`pairwise_new`] and cannot be used afterwards again.
+ */
+void pairwise_drop(struct Pairwise *pairwise);
 
 #ifdef __cplusplus
 }  // extern "C"
