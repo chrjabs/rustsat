@@ -14,7 +14,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.6.4"
+version = "0.6.5"
 license = "MIT"
 edition = "2021"
 
@@ -38,9 +38,9 @@ thiserror = "2.0.12"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 rustc-hash = "2.1.1"
-rustsat = { version = "0.6.4", path = "./", default-features = false }
-rustsat-cadical = { version = "0.4.4", path = "./cadical" }
-rustsat-minisat = { version = "0.4.4", path = "./minisat" }
+rustsat = { version = "0.6.5", path = "./", default-features = false }
+rustsat-cadical = { version = "0.4.5", path = "./cadical" }
+rustsat-minisat = { version = "0.4.5", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
