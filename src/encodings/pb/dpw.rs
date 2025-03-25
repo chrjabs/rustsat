@@ -187,8 +187,7 @@ impl DynamicPolyWatchdog {
         if let Some(structure) = &self.structure {
             if self.is_max_precision() {
                 let output_weight = 1 << (structure.output_power());
-                let range =
-                    range.start / output_weight..(range.end + output_weight - 1) / output_weight;
+                let range = range.start / output_weight..range.end.div_ceil(output_weight);
                 let root = &self.db[structure.root()];
                 // positively harden lower bound
                 collector.extend_clauses(
@@ -204,7 +203,7 @@ impl DynamicPolyWatchdog {
                 let idx_offset = (utils::digits(structure.prec_div, 2) - 1) as usize;
                 for (idx, &bottom) in structure.bottom_buckets.iter().rev().enumerate() {
                     let div = 1usize << (idx + idx_offset);
-                    let range = range.start / div..(range.end + div - 1) / div;
+                    let range = range.start / div..range.end.div_ceil(div);
                     let top_con = unreachable_none!(self.db[bottom].left());
                     debug_assert_eq!(top_con.divisor(), 1);
                     let top = &self.db[top_con.id];

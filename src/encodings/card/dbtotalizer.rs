@@ -563,7 +563,7 @@ impl GeneralNode {
     #[inline]
     #[must_use]
     pub fn encoded_pos(&self, val: usize) -> bool {
-        self.lits.get(&val).map_or(false, LitData::encoded_pos)
+        self.lits.get(&val).is_some_and(LitData::encoded_pos)
     }
 }
 

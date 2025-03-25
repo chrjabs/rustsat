@@ -59,7 +59,7 @@ where
         let prev_clauses = collector.n_clauses();
         let prev_vars = var_manager.n_used();
 
-        let n_splits = (self.in_lits.len() + N - 1) / N;
+        let n_splits = self.in_lits.len().div_ceil(N);
 
         let commanders: Vec<_> = (0..n_splits).map(|_| var_manager.new_lit()).collect();
 
