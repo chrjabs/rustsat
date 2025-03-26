@@ -621,3 +621,51 @@ mod dpw_inc_prec {
         );
     }
 }
+
+fn adder_fuzzing_bug<PBE: BoundUpper + FromIterator<(Lit, usize)>>() {
+    let weights = [
+        14, 53, 25, 55, 87, 64, 100, 41, 97, 4, 62, 42, 35, 74, 19, 85, 63, 14, 48, 1, 83, 94, 60,
+        51, 87, 40, 72, 15, 81, 53,
+    ];
+    let mut solver = rustsat_minisat::core::Minisat::default();
+    let mut var_manager = BasicVarManager::from_next_free(var![30]);
+    let mut enc: PBE = weights
+        .into_iter()
+        .enumerate()
+        .map(|(idx, w)| (Lit::new(idx as u32, false), w))
+        .collect();
+    enc.encode_ub(1..=1, &mut solver, &mut var_manager).unwrap();
+    for unit in enc.enforce_ub(1).unwrap() {
+        solver.add_clause(clause![unit]).unwrap();
+    }
+    let assumps = [
+        1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1,
+    ];
+    let assumps: Vec<_> = assumps
+        .into_iter()
+        .enumerate()
+        .map(|(idx, val)| Lit::new(idx as u32, val == 0))
+        .collect();
+    let res = solver.solve_assumps(&assumps).unwrap();
+    assert_eq!(res, SolverResult::Unsat)
+}
+
+#[test]
+fn binary_adder_fuzzing_bug() {
+    adder_fuzzing_bug::<BinaryAdder>();
+}
+
+#[test]
+fn gte_fuzzing_bug() {
+    adder_fuzzing_bug::<GeneralizedTotalizer>();
+}
+
+#[test]
+fn dbgte_fuzzing_bug() {
+    adder_fuzzing_bug::<DbGte>();
+}
+
+#[test]
+fn dpw_fuzzing_bug() {
+    adder_fuzzing_bug::<DynamicPolyWatchdog>();
+}
