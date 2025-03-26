@@ -207,7 +207,7 @@ impl BoundUpper for DbGte {
                             }
                         }
                         INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                            if let &LitData::Lit { lit, enc_pos } = node.lit_data(val).unwrap() {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
@@ -480,7 +480,7 @@ pub mod referenced {
                             }
                         }
                         INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                            if let &LitData::Lit { lit, enc_pos } = node.lit_data(val).unwrap() {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());
@@ -537,7 +537,7 @@ pub mod referenced {
                             }
                         }
                         INode::General(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[&val] {
+                            if let &LitData::Lit { lit, enc_pos } = node.lit_data(val).unwrap() {
                                 if enc_pos {
                                     assumps.push(!lit);
                                     return Ok(());

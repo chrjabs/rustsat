@@ -5,7 +5,6 @@
 
 use std::{
     cmp,
-    collections::BTreeMap,
     ops::{Bound, Index, IndexMut, Range, RangeBounds},
 };
 
@@ -304,7 +303,22 @@ impl NodeLike for Node {
                 (lb..ub).chain(vec![])
             }
             INode::General(node) => {
-                let vals: Vec<_> = node.lits.range(range).map(|(val, _)| *val).collect();
+                let bin_search = |val| {
+                    node.lits
+                        .binary_search_by_key(&val, |dat| dat.0)
+                        .unwrap_or_else(|e| e)
+                };
+                let from = match range.start_bound() {
+                    Bound::Included(b) => bin_search(*b),
+                    Bound::Excluded(b) => bin_search(*b + 1),
+                    Bound::Unbounded => 0,
+                };
+                let till = match range.end_bound() {
+                    Bound::Included(b) => bin_search(*b + 1),
+                    Bound::Excluded(b) => bin_search(*b),
+                    Bound::Unbounded => node.lits.len(),
+                };
+                let vals: Vec<_> = node.lits[from..till].iter().map(|(val, _)| *val).collect();
                 (0..0).chain(vals)
             }
             INode::Dummy => (0..0).chain(vec![]),
@@ -521,7 +535,7 @@ impl Index<usize> for UnitNode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GeneralNode {
-    pub(crate) lits: BTreeMap<usize, LitData>,
+    pub(crate) lits: Vec<(usize, LitData)>,
     pub(crate) depth: usize,
     pub(crate) max_val: usize,
     pub(crate) left: NodeCon,
@@ -530,20 +544,37 @@ pub struct GeneralNode {
 
 impl GeneralNode {
     fn new(lvals: &[usize], rvals: &[usize], depth: usize, left: NodeCon, right: NodeCon) -> Self {
-        let mut lits: BTreeMap<_, _> = lvals.iter().map(|&val| (val, LitData::default())).collect();
-        for val in rvals {
-            if !lits.contains_key(val) {
-                lits.insert(*val, LitData::default());
+        // interleave the sorted value ranges and sums
+        let mut lits = Vec::with_capacity(lvals.len() + rvals.len());
+        lits.extend(lvals.iter().map(|&v| (v, LitData::default())));
+        let mut idx = 0;
+        for &r in rvals {
+            while idx < lits.len() && lits[idx].0 < r {
+                idx += 1;
+            }
+            if idx >= lits.len() || lits[idx].0 > r {
+                lits.insert(idx, (r, LitData::default()));
+            }
+            idx += 1;
+        }
+        for (lidx, &l) in lvals.iter().enumerate() {
+            let mut idx = lidx;
+            for (ridx, &r) in rvals.iter().enumerate() {
+                // TODO: can we do a bit better here? `lidx * ridx` does not work, as there might
+                // be duplicate values that were already merged
+                idx = cmp::max(idx, ridx);
+                let val = l + r;
+                while idx < lits.len() && lits[idx].0 < val {
+                    idx += 1;
+                }
+                if idx >= lits.len() || lits[idx].0 > val {
+                    lits.insert(idx, (val, LitData::default()));
+                }
+                idx += 1;
             }
         }
-        let mut max_val = 0;
-        for lval in lvals {
-            for rval in rvals {
-                let val = lval + rval;
-                max_val = val;
-                lits.entry(val).or_insert_with(LitData::default);
-            }
-        }
+        lits.shrink_to_fit();
+        let max_val = lits.last().unwrap().0;
         Self {
             lits,
             depth,
@@ -553,17 +584,36 @@ impl GeneralNode {
         }
     }
 
+    /// Gets a reference to the literal data for the output of a given value
+    #[must_use]
+    pub(crate) fn lit_data(&self, val: usize) -> Option<&LitData> {
+        self.lits
+            .binary_search_by_key(&val, |dat| dat.0)
+            .ok()
+            .map(|idx| &self.lits[idx].1)
+    }
+
+    /// Gets a mutable reference to the literal data for the output of a given value
+    #[must_use]
+    pub(crate) fn lit_data_mut(&mut self, val: usize) -> Option<&mut LitData> {
+        self.lits
+            .binary_search_by_key(&val, |dat| dat.0)
+            .ok()
+            .map(|idx| &mut self.lits[idx].1)
+    }
+
     /// Panic-safe version of literal indexing
+    #[inline]
     #[must_use]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
-        self.lits.get(&val).and_then(|dat| dat.lit())
+        self.lit_data(val).and_then(LitData::lit)
     }
 
     /// Checks if a given value is positively encoded
     #[inline]
     #[must_use]
     pub fn encoded_pos(&self, val: usize) -> bool {
-        self.lits.get(&val).is_some_and(LitData::encoded_pos)
+        self.lit_data(val).is_some_and(LitData::encoded_pos)
     }
 }
 
@@ -750,7 +800,7 @@ impl TotDb {
             }
             INode::General(node) => {
                 // Check if already encoded
-                if let Some(lit_data) = node.lits.get(&val) {
+                if let Some(lit_data) = node.lit_data(val) {
                     if let LitData::Lit {
                         lit, enc_pos: true, ..
                     } = lit_data
@@ -762,7 +812,7 @@ impl TotDb {
                 }
 
                 debug_assert!(val <= node.max_val);
-                debug_assert!(node.lits.contains_key(&val));
+                debug_assert!(node.lit_data(val).is_some());
 
                 let lcon = node.left;
                 let rcon = node.right;
@@ -772,7 +822,7 @@ impl TotDb {
                     olit
                 } else {
                     let olit = var_manager.new_var().pos_lit();
-                    *unreachable_none!(self[id].mut_general().lits.get_mut(&val)) =
+                    *unreachable_none!(self[id].mut_general().lit_data_mut(val)) =
                         LitData::new_lit(olit);
                     olit
                 };
@@ -822,7 +872,7 @@ impl TotDb {
                 }
 
                 // Mark positive literal as encoded
-                match &mut unreachable_none!(self[id].mut_general().lits.get_mut(&val)) {
+                match &mut unreachable_none!(self[id].mut_general().lit_data_mut(val)) {
                     LitData::None => unreachable!(),
                     LitData::Lit { enc_pos, .. } => *enc_pos = true,
                 };
@@ -1038,7 +1088,7 @@ impl TotDb {
                     }
                 }
                 INode::General(GeneralNode { lits, .. }) => {
-                    for lit in lits.values_mut() {
+                    for (_, lit) in lits.iter_mut() {
                         if let LitData::Lit { enc_pos, .. } = lit {
                             *enc_pos = false;
                         }
@@ -1062,7 +1112,7 @@ impl TotDb {
                     }
                 }
                 INode::General(GeneralNode { lits, .. }) => {
-                    for lit in lits.values_mut() {
+                    for (_, lit) in lits.iter_mut() {
                         *lit = LitData::None;
                     }
                 }
