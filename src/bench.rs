@@ -18,7 +18,7 @@ mod card_enc {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(Var::new(nlits));
         let mut collector = Cnf::new();
-        enc.encode_ub(.., &mut collector, &mut var_manager);
+        enc.encode_ub(.., &mut collector, &mut var_manager).unwrap();
     }
 
     fn build_full_lb<CE: BoundLower + FromIterator<Lit>>(nlits: u32) {
@@ -26,7 +26,7 @@ mod card_enc {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(Var::new(nlits));
         let mut collector = Cnf::new();
-        enc.encode_lb(.., &mut collector, &mut var_manager);
+        enc.encode_lb(.., &mut collector, &mut var_manager).unwrap();
     }
 
     fn build_full_both<CE: BoundBoth + FromIterator<Lit>>(nlits: u32) {
@@ -34,7 +34,8 @@ mod card_enc {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(Var::new(nlits));
         let mut collector = Cnf::new();
-        enc.encode_both(.., &mut collector, &mut var_manager);
+        enc.encode_both(.., &mut collector, &mut var_manager)
+            .unwrap();
     }
 
     #[bench]
@@ -136,7 +137,7 @@ mod pb_enc {
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(max_var + 1);
         let mut collector = Cnf::new();
-        enc.encode_ub(.., &mut collector, &mut var_manager);
+        enc.encode_ub(.., &mut collector, &mut var_manager).unwrap();
     }
 
     #[bench]
@@ -166,7 +167,7 @@ mod fio {
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let inst: SatInstance =
             SatInstance::from_dimacs_path(format!("{manifest}/data/minisat-segfault.cnf")).unwrap();
-        inst.to_dimacs_path("/tmp/rustsat-test.cnf").unwrap();
+        inst.write_dimacs_path("/tmp/rustsat-test.cnf").unwrap();
     }
 
     #[bench]
