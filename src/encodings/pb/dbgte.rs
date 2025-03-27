@@ -266,10 +266,10 @@ impl BoundUpper for DbGte {
                             }
                         }
                         totdb::Node::General(node) => {
-                            if let totdb::LitData::Lit {
+                            if let Some(totdb::LitData::Lit {
                                 lit,
                                 semantics: Some(semantics),
-                            } = node.lits[&val]
+                            }) = node.lit_data(val)
                             {
                                 if semantics.has_if() {
                                     assumps.push(!lit);
@@ -616,10 +616,10 @@ pub mod referenced {
                             }
                         }
                         totdb::Node::General(node) => {
-                            if let totdb::LitData::Lit {
+                            if let Some(totdb::LitData::Lit {
                                 lit,
                                 semantics: Some(semantics),
-                            } = node.lits[&val]
+                            }) = node.lit_data(val)
                             {
                                 if semantics.has_if() {
                                     assumps.push(!lit);
@@ -681,10 +681,10 @@ pub mod referenced {
                             }
                         }
                         totdb::Node::General(node) => {
-                            if let totdb::LitData::Lit {
+                            if let Some(totdb::LitData::Lit {
                                 lit,
                                 semantics: Some(semantics),
-                            } = node.lits[&val]
+                            }) = node.lit_data(val)
                             {
                                 if semantics.has_if() {
                                     assumps.push(!lit);

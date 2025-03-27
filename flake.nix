@@ -158,6 +158,7 @@
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         LD_LIBRARY_PATH = lib.makeLibraryPath libs;
         PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig/";
+        VERIPB_CHECKER = lib.getExe pkgs.veripb;
       };
   in {
     devShells = forAllSystems (system: {

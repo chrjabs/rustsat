@@ -406,7 +406,7 @@ impl super::Db {
             }
             Node::General(node) => {
                 // Check if already encoded
-                if let Some(lit_data) = node.lits.get(&val) {
+                if let Some(lit_data) = node.lit_data(val) {
                     if let LitData::Lit {
                         lit,
                         semantics: Some(semantics),
@@ -417,14 +417,14 @@ impl super::Db {
                                 self.populate_weighted_leafs(NodeCon::full(id), leafs);
                                 leafs_init = true;
                             }
-                            return Ok(Some((*lit, leafs_init)));
+                            return Ok(Some((lit, leafs_init)));
                         }
                     }
                 } else {
                     return Ok(None);
                 }
 
-                debug_assert!(node.lits.contains_key(&val));
+                debug_assert!(node.lit_data(val).is_some());
 
                 let lcon = node.left;
                 let rcon = node.right;
@@ -434,7 +434,7 @@ impl super::Db {
                     olit
                 } else {
                     let olit = var_manager.new_var().pos_lit();
-                    *unreachable_none!(self[id].mut_general().lits.get_mut(&val)) =
+                    *unreachable_none!(self[id].mut_general().lit_data_mut(val)) =
                         LitData::new_lit(olit);
                     olit
                 };
@@ -692,7 +692,7 @@ impl super::Db {
                 }
 
                 // Mark "if" semantics as encoded
-                unreachable_none!(self[id].mut_general().lits.get_mut(&val))
+                unreachable_none!(self[id].mut_general().lit_data_mut(val))
                     .add_semantics(Semantics::If);
 
                 debug_assert!(!leafs_needed || left_leafs_populated && right_leafs_populated);

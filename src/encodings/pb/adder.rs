@@ -79,7 +79,7 @@ impl BinaryAdder {
         for (lit, weight) in self.lit_buffer.drain() {
             debug_assert_ne!(weight, 0);
             self.weight_sum += weight;
-            let max_bucket = weight.next_power_of_two();
+            let max_bucket = (usize::BITS - weight.leading_zeros()) as usize;
             if max_bucket >= buckets.len() {
                 buckets.resize_with(max_bucket + 1, || VecDeque::with_capacity(1));
             }
@@ -106,7 +106,8 @@ impl BinaryAdder {
         }
 
         // Build the encoding
-        for idx in 0..buckets.len() {
+        let mut idx = 0;
+        while idx < buckets.len() {
             if idx == buckets.len() - 1 && buckets[idx].len() >= 2 {
                 buckets.resize_with(buckets.len() + 1, || VecDeque::with_capacity(1));
             }
@@ -129,6 +130,7 @@ impl BinaryAdder {
                 buckets[idx].push_back(Connection::Sum(self.nodes.len() - 1));
                 buckets[idx + 1].push_back(Connection::Carry(self.nodes.len() - 1));
             }
+            idx += 1;
         }
 
         // Store the structure

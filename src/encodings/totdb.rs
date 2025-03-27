@@ -1,6 +1,6 @@
 //! # Totalizer Database
 
-use std::{cmp, collections::BTreeMap, num::NonZero, ops};
+use std::{cmp, num::NonZero, ops};
 
 use crate::{
     encodings::atomics,
@@ -179,21 +179,21 @@ impl Db {
             }
             Node::General(node) => {
                 // Check if already encoded
-                if let Some(lit_data) = node.lits.get(&val) {
+                if let Some(lit_data) = node.lit_data(val) {
                     if let LitData::Lit {
                         lit,
                         semantics: Some(semantics),
                     } = lit_data
                     {
                         if semantics.has_if() {
-                            return Ok(Some(*lit));
+                            return Ok(Some(lit));
                         }
                     }
                 } else {
                     return Ok(None);
                 }
 
-                debug_assert!(node.lits.contains_key(&val));
+                debug_assert!(node.lit_data(val).is_some());
 
                 let lcon = node.left;
                 let rcon = node.right;
@@ -203,7 +203,7 @@ impl Db {
                     olit
                 } else {
                     let olit = var_manager.new_var().pos_lit();
-                    *unreachable_none!(self[id].mut_general().lits.get_mut(&val)) =
+                    *unreachable_none!(self[id].mut_general().lit_data_mut(val)) =
                         LitData::new_lit(olit);
                     olit
                 };
@@ -253,7 +253,7 @@ impl Db {
                 }
 
                 // Mark "if" semantics as encoded
-                unreachable_none!(self[id].mut_general().lits.get_mut(&val))
+                unreachable_none!(self[id].mut_general().lit_data_mut(val))
                     .add_semantics(Semantics::If);
 
                 Ok(Some(olit))
@@ -566,7 +566,7 @@ impl Db {
                     }
                 }
                 Node::General(GeneralNode { lits, .. }) => {
-                    for lit in lits.values_mut() {
+                    for (_, lit) in lits.iter_mut() {
                         lit.remove_semantics(reset_semantics);
                     }
                 }
@@ -588,7 +588,7 @@ impl Db {
                     }
                 }
                 Node::General(GeneralNode { lits, .. }) => {
-                    for lit in lits.values_mut() {
+                    for (_, lit) in lits.iter_mut() {
                         *lit = LitData::None;
                     }
                 }
@@ -751,7 +751,22 @@ impl NodeLike for Node {
                 (lb..ub).chain(vec![])
             }
             Node::General(node) => {
-                let vals: Vec<_> = node.lits.range(range).map(|(val, _)| *val).collect();
+                let bin_search = |val| {
+                    node.lits
+                        .binary_search_by_key(&val, |dat| dat.0)
+                        .unwrap_or_else(|e| e)
+                };
+                let from = match range.start_bound() {
+                    ops::Bound::Included(b) => bin_search(*b),
+                    ops::Bound::Excluded(b) => bin_search(*b + 1),
+                    ops::Bound::Unbounded => 0,
+                };
+                let till = match range.end_bound() {
+                    ops::Bound::Included(b) => bin_search(*b + 1),
+                    ops::Bound::Excluded(b) => bin_search(*b),
+                    ops::Bound::Unbounded => node.lits.len(),
+                };
+                let vals: Vec<_> = node.lits[from..till].iter().map(|(val, _)| *val).collect();
                 (0..0).chain(vals)
             }
             Node::Dummy => (0..0).chain(vec![]),
@@ -941,7 +956,21 @@ impl Node {
                 }
             }
             Node::General(GeneralNode { lits, .. }) => {
-                for (_, olit) in lits.range_mut(range) {
+                let bin_search = |val| {
+                    lits.binary_search_by_key(&val, |dat| dat.0)
+                        .unwrap_or_else(|e| e)
+                };
+                let from = match range.start_bound() {
+                    ops::Bound::Included(b) => bin_search(*b),
+                    ops::Bound::Excluded(b) => bin_search(*b + 1),
+                    ops::Bound::Unbounded => 0,
+                };
+                let till = match range.end_bound() {
+                    ops::Bound::Included(b) => bin_search(*b + 1),
+                    ops::Bound::Excluded(b) => bin_search(*b),
+                    ops::Bound::Unbounded => lits.len(),
+                };
+                for (_, olit) in lits[from..till].iter_mut() {
                     if let LitData::None = olit {
                         *olit = LitData::new_lit(var_manager.new_var().pos_lit());
                     }
@@ -1054,7 +1083,7 @@ impl ops::Index<usize> for UnitNode {
 /// An internal _general_ (weighted) node
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneralNode {
-    pub(crate) lits: BTreeMap<usize, LitData>,
+    pub(crate) lits: Vec<(usize, LitData)>,
     pub(crate) depth: usize,
     pub(crate) n_leafs: usize,
     pub(crate) max_val: usize,
@@ -1071,17 +1100,38 @@ impl GeneralNode {
         left: NodeCon,
         right: NodeCon,
     ) -> Self {
-        let mut lits: BTreeMap<_, _> = lvals.iter().map(|&val| (val, LitData::default())).collect();
-        for rval in rvals {
-            lits.entry(*rval).or_insert_with(LitData::default);
-            for lval in lvals {
-                let val = lval + rval;
-                lits.entry(val).or_insert_with(LitData::default);
+        // interleave the sorted value ranges and sums
+        let mut lits = Vec::with_capacity(lvals.len() + rvals.len());
+        lits.extend(lvals.iter().map(|&v| (v, LitData::default())));
+        let mut idx = 0;
+        for &r in rvals {
+            while idx < lits.len() && lits[idx].0 < r {
+                idx += 1;
+            }
+            if idx >= lits.len() || lits[idx].0 > r {
+                lits.insert(idx, (r, LitData::default()));
+            }
+            idx += 1;
+        }
+        for (lidx, &l) in lvals.iter().enumerate() {
+            let mut idx = lidx;
+            for (ridx, &r) in rvals.iter().enumerate() {
+                // TODO: can we do a bit better here? `lidx * ridx` does not work, as there might
+                // be duplicate values that were already merged
+                idx = cmp::max(idx, ridx);
+                let val = l + r;
+                while idx < lits.len() && lits[idx].0 < val {
+                    idx += 1;
+                }
+                if idx >= lits.len() || lits[idx].0 > val {
+                    lits.insert(idx, (val, LitData::default()));
+                }
+                idx += 1;
             }
         }
-        // NOTE: values are ordered
-        let max_val = lvals.last().copied().unwrap_or(0) + rvals.last().copied().unwrap_or(0);
-        debug_assert!(*lits.first_key_value().unwrap().0 > 0);
+        lits.shrink_to_fit();
+        let max_val = lits.last().unwrap().0;
+        debug_assert!(lits[0].0 > 0);
         Self {
             lits,
             depth,
@@ -1092,10 +1142,38 @@ impl GeneralNode {
         }
     }
 
+    /// Gets a reference to the literal data for the output of a given value
+    #[must_use]
+    pub(crate) fn lit_data(&self, val: usize) -> Option<LitData> {
+        self.lits
+            .binary_search_by_key(&val, |dat| dat.0)
+            .ok()
+            .map(|idx| self.lits[idx].1)
+    }
+
+    /// Gets a reference to the literal data for the output of a given value
+    #[must_use]
+    fn lit_data_ref(&self, val: usize) -> Option<&LitData> {
+        self.lits
+            .binary_search_by_key(&val, |dat| dat.0)
+            .ok()
+            .map(|idx| &self.lits[idx].1)
+    }
+
+    /// Gets a mutable reference to the literal data for the output of a given value
+    #[must_use]
+    pub(crate) fn lit_data_mut(&mut self, val: usize) -> Option<&mut LitData> {
+        self.lits
+            .binary_search_by_key(&val, |dat| dat.0)
+            .ok()
+            .map(|idx| &mut self.lits[idx].1)
+    }
+
     /// Panic-safe version of literal indexing
+    #[inline]
     #[must_use]
     pub fn lit(&self, val: usize) -> Option<&Lit> {
-        self.lits.get(&val).and_then(|dat| dat.lit())
+        self.lit_data_ref(val).and_then(LitData::lit)
     }
 
     /// Checks if a given value has the "if" semantics encoded
@@ -1103,10 +1181,7 @@ impl GeneralNode {
     #[inline]
     #[must_use]
     pub fn semantics_if(&self, val: usize) -> bool {
-        self.lits
-            .get(&val)
-            .copied()
-            .is_some_and(LitData::semantics_if)
+        self.lit_data(val).is_some_and(LitData::semantics_if)
     }
 
     /// Checks if a given value has the "only if" semantics encoded
@@ -1114,10 +1189,7 @@ impl GeneralNode {
     #[inline]
     #[must_use]
     pub fn semantics_only_if(&self, val: usize) -> bool {
-        self.lits
-            .get(&val)
-            .copied()
-            .is_some_and(LitData::semantics_only_if)
+        self.lit_data(val).is_some_and(LitData::semantics_only_if)
     }
 }
 
@@ -1340,7 +1412,7 @@ impl Iterator for ValueIter<'_> {
 /// An iterator over a nodes encoded output literals
 enum OLitIter<'node> {
     Unit(std::iter::Enumerate<std::slice::Iter<'node, LitData>>),
-    General(std::collections::btree_map::Iter<'node, usize, LitData>),
+    General(std::slice::Iter<'node, (usize, LitData)>),
     None,
 }
 
@@ -1364,7 +1436,7 @@ impl Iterator for OLitIter<'_> {
                 None => return None,
             },
             OLitIter::General(iter) => match iter.next() {
-                Some(val) => (*val.0, *val.1),
+                Some(val) => (val.0, val.1),
                 None => return None,
             },
             OLitIter::None => return None,
