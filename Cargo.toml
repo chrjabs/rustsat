@@ -42,6 +42,7 @@ rustsat = { version = "0.6.5", path = "./", default-features = false }
 rustsat-cadical = { version = "0.4.5", path = "./cadical" }
 rustsat-minisat = { version = "0.4.5", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
+rustsat-tools = { version = "0.6.5", path = "./tools" }
 serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
 tempfile = "3.19.1"
@@ -86,9 +87,9 @@ xz2 = { workspace = true, optional = true }
 [dev-dependencies]
 clap.workspace = true
 concolor-clap.workspace = true
-rustsat-minisat = { path = "./minisat" }
+rustsat-minisat.workspace = true
 rustsat-solvertests.workspace = true
-rustsat-tools = { path = "./tools" }
+rustsat-tools.workspace = true
 termcolor.workspace = true
 
 [features]

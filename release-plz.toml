@@ -31,6 +31,7 @@ semver_check = true
 [[package]]
 name = "rustsat"
 git_release_latest = true
+publish_no_verify = true  # due to cyclic dev-dependencies
 
 [[package]]
 name = "rustsat-tools"
