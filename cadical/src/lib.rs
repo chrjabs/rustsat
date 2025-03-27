@@ -14,11 +14,19 @@
 //! ## CaDiCaL Versions
 //!
 //! CaDiCaL versions can be selected via cargo crate features.
-//! All CaDiCaL versions up to [Version 2.1.1](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.1) are available.
-//! For the full list of versions and the changelog see [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
+//! All CaDiCaL versions from
+//! [Version 1.5.0](https://github.com/arminbiere/cadical/releases/tag/rel-1.5.0)
+//! up to
+//! [Version 2.1.3](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.3)
+//! are available. For the full list of versions and the changelog see
+//! [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
 //!
 //! Without any features selected, the newest version will be used.
 //! If conflicting CaDiCaL versions are requested, the newest requested version will be selected.
+//!
+//! If the determined version is _not_ the newest available, and no custom source directory is
+//! specified (see customization below), the CaDiCaL source code is downloaded at compile time,
+//! which requires network access.
 //!
 //! ## Customization
 //!
@@ -523,6 +531,7 @@ impl CaDiCaL<'_, '_> {
     ///
     /// - If opening the file fails
     /// - [`NulError`] if the provided path contains a nul byte
+    #[cfg(feature = "tracing")]
     pub fn trace_api_calls<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
         let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
         if unsafe { ffi::ccadical_trace_api_calls(self.handle, path.as_ptr()) } > 0 {
@@ -994,13 +1003,7 @@ impl FreezeVar for CaDiCaL<'_, '_> {
     }
 }
 
-// >= v1.5.4
-#[cfg(all(
-    not(feature = "v1-5-3"),
-    not(feature = "v1-5-2"),
-    not(feature = "v1-5-1"),
-    not(feature = "v1-5-0")
-))]
+#[cfg(cadical_feature = "flip")]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
@@ -1065,6 +1068,66 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
     }
 }
 
+#[cfg(cadical_feature = "propagate")]
+impl Propagate for CaDiCaL<'_, '_> {
+    fn propagate(
+        &mut self,
+        assumps: &[Lit],
+        _phase_saving: bool,
+    ) -> anyhow::Result<PropagateResult> {
+        let start = ProcessTime::now();
+        self.state = InternalSolverState::Input;
+        // Propagate with cadical backend
+        for a in assumps {
+            handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
+        }
+        let res = handle_oom!(unsafe { ffi::ccadical_propagate(self.handle) });
+        let mut props = Vec::new();
+        dbg!(res);
+        match res {
+            0 => {
+                let prop_ptr: *mut Vec<Lit> = &mut props;
+                unsafe {
+                    ffi::ccadical_get_entrailed_literals(
+                        self.handle,
+                        Some(ffi::rustsat_cadical_collect_lits),
+                        prop_ptr.cast::<std::os::raw::c_void>(),
+                    );
+                }
+            }
+            10 => {
+                self.state = InternalSolverState::Sat;
+                if let Some(max_var) = self.max_var() {
+                    for var in 0..=max_var.idx32() {
+                        let var = Var::new(var);
+                        props.push(match self.var_val(var)? {
+                            TernaryVal::True => var.pos_lit(),
+                            TernaryVal::False => var.neg_lit(),
+                            TernaryVal::DontCare => {
+                                unreachable!("returned SAT should have value for all variables")
+                            }
+                        });
+                    }
+                }
+            }
+            20 => {}
+            value => {
+                return Err(InvalidApiReturn {
+                    api_call: "ccadical_propagate",
+                    value,
+                }
+                .into())
+            }
+        }
+        self.stats.cpu_solve_time += start.elapsed();
+        Ok(PropagateResult {
+            propagated: props,
+            conflict: res == 20,
+        })
+    }
+}
+
+#[cfg(cadical_feature = "pysat-propcheck")]
 impl Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
@@ -1075,7 +1138,7 @@ impl Propagate for CaDiCaL<'_, '_> {
         self.state = InternalSolverState::Input;
         // Propagate with cadical backend
         let assumps: Vec<_> = assumps.iter().map(|l| l.to_ipasir()).collect();
-        let assump_ptr: *const c_int = &assumps[0];
+        let assump_ptr: *const c_int = assumps.as_ptr().cast();
         let mut props = Vec::new();
         let prop_ptr: *mut Vec<Lit> = &mut props;
         let res = handle_oom!(unsafe {

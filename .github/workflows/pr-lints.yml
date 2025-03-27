@@ -1,29 +1,14 @@
-name: Lints
+name: Clippy lints
 
 on:
   pull_request:
-    branches: [ "main", "next-major" ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
-    name: Formatting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - name: Run cargo fmt
-        run: cargo fmt --all -- --check
-
   clippy:
-    name: Lints
+    name: PR lints
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -36,5 +21,6 @@ jobs:
       - name: Lints
         uses: giraffate/clippy-action@v1
         with:
+          clippy_flags: --workspace
           reporter: 'github-pr-review'
           github_token: ${{ secrets.GITHUB_TOKEN }}

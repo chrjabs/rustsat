@@ -1,7 +1,15 @@
 from rustsat import Lit, Cnf, VarManager
 from typing import List, final
 
-__all__ = ["Bitwise", "Commander", "Ladder", "Pairwise"]
+__all__ = ["Bimander", "Bitwise", "Commander", "Ladder", "Pairwise"]
+
+@final
+class Bimander:
+    def __new__(cls, lits: List[Lit]) -> "Bimander": ...
+    def n_lits(self) -> int: ...
+    def n_clauses(self) -> int: ...
+    def n_vars(self) -> int: ...
+    def encode(self, var_manager: VarManager) -> Cnf: ...
 
 @final
 class Bitwise:

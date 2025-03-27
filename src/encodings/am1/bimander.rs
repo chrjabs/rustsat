@@ -27,6 +27,7 @@ use crate::{
 /// - Van-Hau Nguyen and Son Thay Mai: _A New Method to Encode the At-Most-One Constraint into SAT,
 ///   SOICT 2015.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Bimander<const N: usize = 4, Sub = super::Pairwise> {
     /// Input literals
     in_lits: Vec<Lit>,
@@ -59,7 +60,7 @@ where
         let prev_clauses = collector.n_clauses();
         let prev_vars = var_manager.n_used();
 
-        let n_splits = (self.in_lits.len() + N - 1) / N;
+        let n_splits = self.in_lits.len().div_ceil(N);
         let p = utils::digits(n_splits - 1, 2);
 
         let aux_vars: Vec<_> = (0..p).map(|_| var_manager.new_var()).collect();
@@ -81,7 +82,10 @@ where
 }
 
 impl<const N: usize, Sub> IterInputs for Bimander<N, Sub> {
-    type Iter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>> where Sub: 'a;
+    type Iter<'a>
+        = std::iter::Copied<std::slice::Iter<'a, Lit>>
+    where
+        Sub: 'a;
 
     fn iter(&self) -> Self::Iter<'_> {
         self.in_lits.iter().copied()
@@ -123,5 +127,24 @@ impl<const N: usize, Sub> FromIterator<Lit> for Bimander<N, Sub> {
 impl<const N: usize, Sub> Extend<Lit> for Bimander<N, Sub> {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         self.in_lits.extend(iter);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        encodings::am1::Encode,
+        instances::{BasicVarManager, Cnf, ManageVars},
+        lit, var,
+    };
+
+    #[test]
+    fn basic() {
+        let mut enc: super::Bimander = [lit![0], lit![1], lit![2], lit![3]].into_iter().collect();
+        let mut cnf = Cnf::new();
+        let mut vm = BasicVarManager::from_next_free(var![4]);
+        enc.encode(&mut cnf, &mut vm).unwrap();
+        assert_eq!(vm.n_used(), 5);
+        assert_eq!(cnf.len(), 10);
     }
 }

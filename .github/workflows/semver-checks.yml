@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: "recursive"
       - name: RustSAT
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:

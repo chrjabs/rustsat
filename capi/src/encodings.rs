@@ -113,7 +113,7 @@ impl<'a> VarManager<'a> {
     }
 }
 
-impl<'a> ManageVars for VarManager<'a> {
+impl ManageVars for VarManager<'_> {
     fn new_var(&mut self) -> Var {
         let var = Var::new(*self.n_vars_used);
         *self.n_vars_used += 1;
@@ -156,4 +156,11 @@ impl<'a> ManageVars for VarManager<'a> {
 pub mod adder;
 pub mod dpw;
 pub mod gte;
+
 pub mod totalizer;
+
+pub mod bimander;
+pub mod bitwise;
+pub mod commander;
+pub mod ladder;
+pub mod pairwise;

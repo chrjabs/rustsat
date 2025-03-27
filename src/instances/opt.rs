@@ -9,8 +9,10 @@ use std::{
 };
 
 use crate::{
+    algs::maxsat,
     clause,
     encodings::{card, pb},
+    solvers::Solve,
     types::{
         constraints::{CardConstraint, PbConstraint},
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
@@ -21,6 +23,7 @@ use crate::{
 
 /// Internal objective type for not exposing variants
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IntObj {
     Weighted {
         offset: isize,
@@ -44,6 +47,7 @@ use super::{
 /// This type currently supports soft clauses and soft literals.
 /// All objectives are considered minimization objectives.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Objective(IntObj);
 
 impl From<IntObj> for Objective {
@@ -470,7 +474,15 @@ impl Objective {
 
     /// Adds a soft clause or updates its weight. Returns the old weight, if
     /// the clause was already in the objective.
+    ///
+    /// # Panics
+    ///
+    /// If the clause is empty and `w` is larger than [`isize::MAX`]
     pub fn add_soft_clause(&mut self, w: usize, cl: Clause) -> Option<usize> {
+        if cl.is_empty() {
+            self.increase_offset(isize::try_from(w).expect("weight overflow"));
+            return None;
+        }
         if cl.len() == 1 {
             return self.add_soft_lit(w, !cl[0]);
         }
@@ -1099,6 +1111,7 @@ impl FromIterator<(Clause, usize)> for Objective {
 /// Type representing an optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Instance<VM: ManageVars = BasicVarManager> {
     pub(super) constrs: SatInstance<VM>,
     pub(super) obj: Objective,
@@ -1605,6 +1618,50 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ) -> anyhow::Result<Self> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb_with_idx(&mut reader, obj_idx, opts)
+    }
+
+    /// Solves the instance with a [`maxsat::Solve`] algorithm
+    ///
+    /// # Panics
+    ///
+    /// - If any interaction with the solver errors
+    /// - If the objective value overflows [`isize::MAX`]
+    pub fn solve_maxsat<Alg>(self) -> Option<(Assignment, isize)>
+    where
+        Alg: maxsat::Solve,
+        Alg::Solver: Default,
+    {
+        let mut solver = Alg::Solver::default();
+        let (cnf, vm) = self.constrs.into_cnf();
+        let mut vm = if let Some(max_var) = cmp::max(vm.max_var(), self.obj.max_var()) {
+            BasicVarManager::from_next_free(max_var + 1)
+        } else {
+            BasicVarManager::default()
+        };
+        solver
+            .add_cnf(cnf)
+            .expect("failed adding clauses to solver");
+        let handle_soft_cls = |(mut cl, weight): (Clause, usize)| {
+            debug_assert!(!cl.is_empty());
+            if cl.len() == 1 {
+                return (!cl[0], weight);
+            }
+            let blit = vm.new_lit();
+            cl.add(!blit);
+            solver
+                .add_clause(cl)
+                .expect("failed adding clause to solver");
+            (blit, weight)
+        };
+        let (iter, offset) = self.obj.into_soft_cls();
+        let obj: Vec<_> = iter.into_iter().map(handle_soft_cls).collect();
+        let (sol, cost) = Alg::solve(&mut solver, &obj)?;
+        Some((
+            sol,
+            offset
+                .checked_add_unsigned(cost)
+                .expect("objective value overflow"),
+        ))
     }
 }
 

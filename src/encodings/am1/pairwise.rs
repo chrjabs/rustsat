@@ -18,6 +18,7 @@ use crate::{
 ///
 /// - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pairwise {
     /// Input literals
     in_lits: Vec<Lit>,
@@ -88,5 +89,24 @@ impl FromIterator<Lit> for Pairwise {
 impl Extend<Lit> for Pairwise {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         self.in_lits.extend(iter);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        encodings::am1::Encode,
+        instances::{BasicVarManager, Cnf, ManageVars},
+        lit, var,
+    };
+
+    #[test]
+    fn basic() {
+        let mut enc: super::Pairwise = [lit![0], lit![1], lit![2], lit![3]].into_iter().collect();
+        let mut cnf = Cnf::new();
+        let mut vm = BasicVarManager::from_next_free(var![4]);
+        enc.encode(&mut cnf, &mut vm).unwrap();
+        assert_eq!(vm.n_used(), 4);
+        assert_eq!(cnf.len(), 6);
     }
 }

@@ -689,6 +689,7 @@ struct UnweightedPrecondResult {
 
 /// A totalizer adder node
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Seriealize, serde::Deserialize))]
 pub enum Node {
     /// An input literal, i.e., a leaf of the tree
     Leaf(Lit),
@@ -1105,7 +1106,7 @@ impl GeneralNode {
         self.lits
             .get(&val)
             .copied()
-            .map_or(false, LitData::semantics_if)
+            .is_some_and(LitData::semantics_if)
     }
 
     /// Checks if a given value has the "only if" semantics encoded
@@ -1116,7 +1117,7 @@ impl GeneralNode {
         self.lits
             .get(&val)
             .copied()
-            .map_or(false, LitData::semantics_only_if)
+            .is_some_and(LitData::semantics_only_if)
     }
 }
 
@@ -1153,7 +1154,7 @@ impl LitData {
     fn semantics_if(self) -> bool {
         match self {
             LitData::None => false,
-            LitData::Lit { semantics, .. } => semantics.map_or(false, Semantics::has_if),
+            LitData::Lit { semantics, .. } => semantics.is_some_and(Semantics::has_if),
         }
     }
 
@@ -1163,7 +1164,7 @@ impl LitData {
     fn semantics_only_if(self) -> bool {
         match self {
             LitData::None => false,
-            LitData::Lit { semantics, .. } => semantics.map_or(false, Semantics::has_only_if),
+            LitData::Lit { semantics, .. } => semantics.is_some_and(Semantics::has_only_if),
         }
     }
 

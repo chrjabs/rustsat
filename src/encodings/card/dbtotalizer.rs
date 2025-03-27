@@ -30,6 +30,7 @@ use super::{
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
 ///     Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DbTotalizer {
     /// Literals added but not yet in the encoding
     lit_buffer: Vec<Lit>,

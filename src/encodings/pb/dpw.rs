@@ -61,6 +61,7 @@ pub enum PrecisionError {
 /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 #[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DynamicPolyWatchdog {
     /// Input literals and weights for the encoding
     in_lits: RsHashMap<Lit, usize>,
@@ -128,7 +129,7 @@ impl DynamicPolyWatchdog {
     ///
     /// Returns an error if the divisor value is not a power of 2 or was increased.
     pub fn set_precision(&mut self, divisor: usize) -> Result<(), PrecisionError> {
-        if !(divisor <= 1 || (divisor & (divisor - 1)) == 0) {
+        if !(divisor <= 1 || divisor.is_power_of_two()) {
             return Err(PrecisionError::NotPow2);
         }
         if self.structure.is_some() && divisor > self.prec_div {
@@ -185,8 +186,7 @@ impl DynamicPolyWatchdog {
         if let Some(structure) = &self.structure {
             if self.is_max_precision() {
                 let output_weight = 1 << (structure.output_power());
-                let range =
-                    range.start / output_weight..(range.end + output_weight - 1) / output_weight;
+                let range = range.start / output_weight..range.end.div_ceil(output_weight);
                 let root = &self.db[structure.root()];
                 // positively harden lower bound
                 collector.extend_clauses(
@@ -202,7 +202,7 @@ impl DynamicPolyWatchdog {
                 let idx_offset = (utils::digits(structure.prec_div, 2) - 1) as usize;
                 for (idx, &bottom) in structure.bottom_buckets.iter().rev().enumerate() {
                     let div = 1usize << (idx + idx_offset);
-                    let range = range.start / div..(range.end + div - 1) / div;
+                    let range = range.start / div..range.end.div_ceil(div);
                     let top_con = unreachable_none!(self.db[bottom].left());
                     debug_assert_eq!(top_con.divisor(), 1);
                     let top = &self.db[top_con.id];
@@ -226,6 +226,7 @@ impl DynamicPolyWatchdog {
 /// Type containing information about the DPW encoding structure
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone)]
 pub(crate) struct Structure {
     /// The bottom buckets of the encoding. The first one of them is the root of the encoding.
@@ -269,7 +270,11 @@ impl IterWeightedInputs for DynamicPolyWatchdog {
 
 impl EncodeIncremental for DynamicPolyWatchdog {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-        if self.structure.is_none() && !self.in_lits.is_empty() {
+        // Special case for a single input literal, don't need an encoding structure
+        if self.in_lits.len() <= 1 {
+            return;
+        }
+        if self.structure.is_none() {
             self.structure = Some(build_structure(
                 &mut self.weight_queue,
                 self.prec_div,
@@ -706,7 +711,7 @@ fn build_structure(
     var_manager: &mut dyn ManageVars,
 ) -> Structure {
     // prec_div has to be a power of 2
-    debug_assert!(prec_div <= 1 || (prec_div & (prec_div - 1)) == 0);
+    debug_assert!(prec_div <= 1 || prec_div.is_power_of_two());
     let skipped_levels = utils::digits(prec_div, 2) as usize - 1;
 
     let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
@@ -1414,5 +1419,19 @@ mod tests {
         let mut cnf = Cnf::new();
         dpw.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 23);
+    }
+
+    #[test]
+    fn reserve_with_single_input() {
+        let mut dpw: DynamicPolyWatchdog = [(lit![0], 96833)].into_iter().collect();
+        let mut var_manager = BasicVarManager::from_next_free(var![1]);
+        dpw.reserve(&mut var_manager);
+        let mut cnf = Cnf::new();
+        dpw.encode_ub_change(96832..=96832, &mut cnf, &mut var_manager)
+            .unwrap();
+        assert!(cnf.is_empty());
+        let assumps = dpw.enforce_ub(96832).unwrap();
+        assert_eq!(assumps.len(), 1);
+        assert_eq!(assumps[0], !lit![0]);
     }
 }

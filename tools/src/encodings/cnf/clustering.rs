@@ -8,9 +8,8 @@
 //!     correlation clustering via weighted partial Maximum Satisfiability_, AIJ
 //!     2017.
 
-use std::{fmt, io};
+use std::io;
 
-use clap::ValueEnum;
 use nom::{
     branch::alt,
     character::complete::{alphanumeric1, char, multispace1},
@@ -26,30 +25,10 @@ use rustsat::{
     utils,
 };
 
-#[derive(Default, Copy, Clone, PartialEq, Eq, ValueEnum)]
-pub enum Variant {
-    Transitive,
-    Unary,
-    #[default]
-    Binary,
-}
-
-impl fmt::Display for Variant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Variant::Transitive => write!(f, "transitive"),
-            Variant::Unary => write!(f, "unary"),
-            Variant::Binary => write!(f, "binary"),
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 enum VarId {
     /// `b i k`
     Binary(u32, u32),
-    /// `y i k`
-    Unary(u32, u32),
     /// `EQ i j k`
     Eq(u32, u32, u32),
     /// `S i j`
@@ -149,7 +128,6 @@ enum Clause {
 
 pub struct Encoding {
     similarities: Vec<Similarity>,
-    variant: Variant,
     n: u32,
     a: u32,
     var_manager: VarManager,
@@ -159,13 +137,8 @@ pub struct Encoding {
 impl Encoding {
     pub fn new<R: io::BufRead, Map: Fn(f64) -> Similarity>(
         in_reader: R,
-        variant: Variant,
         sim_map: Map,
     ) -> anyhow::Result<Self> {
-        if variant != Variant::Binary {
-            panic!("only the binary encoding is implemented so far");
-        }
-
         let mut ident_map = RsHashMap::default();
         let mut next_idx: u32 = 0;
         let process_line =
@@ -223,7 +196,6 @@ impl Encoding {
 
         Ok(Self {
             similarities,
-            variant,
             n,
             a,
             var_manager: Default::default(),

@@ -5,6 +5,7 @@ doc-valid-idents = [
   "BatSat",
   "AllDifferent",
   "VeriPB",
+  "ModRef",
   "..",
 ]
 avoid-breaking-exported-api = false

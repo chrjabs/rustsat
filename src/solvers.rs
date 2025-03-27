@@ -664,7 +664,8 @@ impl<S: Solve + SolveStats> CollectClauses for S {
     }
 
     fn add_clause(&mut self, cl: Clause) -> Result<(), crate::OutOfMemory> {
-        Ok(pass_oom_or_panic!(self.add_clause(cl)))
+        pass_oom_or_panic!(self.add_clause(cl));
+        Ok(())
     }
 }
 

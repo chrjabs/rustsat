@@ -24,7 +24,7 @@ mod types;
 
 use crate::{
     encodings::{
-        am1::{Bitwise, Commander, Ladder, Pairwise},
+        am1::{Bimander, Bitwise, Commander, Ladder, Pairwise},
         card::Totalizer,
         pb::{BinaryAdder, DynamicPolyWatchdog, GeneralizedTotalizer},
     },
@@ -54,6 +54,7 @@ fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     pb.add_class::<DynamicPolyWatchdog>()?;
     pb.add_class::<BinaryAdder>()?;
     let am1 = PyModule::new(py, "rustsat.encodings.am1")?;
+    am1.add_class::<Bimander>()?;
     am1.add_class::<Bitwise>()?;
     am1.add_class::<Commander>()?;
     am1.add_class::<Ladder>()?;

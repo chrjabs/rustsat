@@ -11,7 +11,8 @@ use super::{CAssumpCollector, CClauseCollector, ClauseCollector, MaybeError, Var
 
 /// Creates a new [`DynamicPolyWatchdog`] cardinality encoding
 #[no_mangle]
-pub extern "C" fn dpw_new() -> *mut DynamicPolyWatchdog {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn dpw_new() -> *mut DynamicPolyWatchdog {
     Box::into_raw(Box::default())
 }
 
@@ -35,7 +36,7 @@ pub unsafe extern "C" fn dpw_add(
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return MaybeError::InvalidLiteral;
     };
-    if unsafe { (*dpw).add_input(lit, weight) }.is_ok() {
+    if (*dpw).add_input(lit, weight).is_ok() {
         MaybeError::Ok
     } else {
         MaybeError::InvalidState
@@ -76,7 +77,8 @@ pub unsafe extern "C" fn dpw_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = ClauseCollector::new(collector, collector_data);
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*dpw).encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager) }
+    (*dpw)
+        .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("clause collector returned out of memory");
 }
 
@@ -97,7 +99,7 @@ pub unsafe extern "C" fn dpw_enforce_ub(
     collector: CAssumpCollector,
     collector_data: *mut c_void,
 ) -> MaybeError {
-    match unsafe { (*dpw).enforce_ub(ub) } {
+    match (*dpw).enforce_ub(ub) {
         Ok(assumps) => {
             for l in assumps {
                 collector(l.to_ipasir(), collector_data);
@@ -116,7 +118,7 @@ pub unsafe extern "C" fn dpw_enforce_ub(
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
 #[no_mangle]
 pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {
-    unsafe { (*dpw).coarse_ub(ub) }
+    (*dpw).coarse_ub(ub)
 }
 
 /// Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
@@ -139,7 +141,7 @@ pub unsafe extern "C" fn dpw_set_precision(
     dpw: *mut DynamicPolyWatchdog,
     divisor: usize,
 ) -> MaybeError {
-    unsafe { (*dpw).set_precision(divisor) }.into()
+    (*dpw).set_precision(divisor).into()
 }
 
 /// Gets the next possible precision divisor value
@@ -154,7 +156,7 @@ pub unsafe extern "C" fn dpw_set_precision(
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
 #[no_mangle]
 pub unsafe extern "C" fn dpw_next_precision(dpw: *mut DynamicPolyWatchdog) -> usize {
-    unsafe { (*dpw).next_precision() }
+    (*dpw).next_precision()
 }
 
 /// Checks whether the encoding is already at the maximum precision
@@ -164,7 +166,7 @@ pub unsafe extern "C" fn dpw_next_precision(dpw: *mut DynamicPolyWatchdog) -> us
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
 #[no_mangle]
 pub unsafe extern "C" fn dpw_is_max_precision(dpw: *mut DynamicPolyWatchdog) -> bool {
-    unsafe { (*dpw).is_max_precision() }
+    (*dpw).is_max_precision()
 }
 
 /// Given a range of output values to limit the encoding to, returns additional clauses that
@@ -203,7 +205,8 @@ pub unsafe extern "C" fn dpw_limit_range(
 ) {
     assert!(min_value <= max_value);
     let mut collector = ClauseCollector::new(collector, collector_data);
-    unsafe { (*dpw).limit_range(min_value..=max_value, &mut collector) }
+    (*dpw)
+        .limit_range(min_value..=max_value, &mut collector)
         .expect("clause collector returned out of memory");
 }
 
@@ -218,7 +221,7 @@ pub unsafe extern "C" fn dpw_limit_range(
 #[no_mangle]
 pub unsafe extern "C" fn dpw_reserve(dpw: *mut DynamicPolyWatchdog, n_vars_used: &mut u32) {
     let mut var_manager = VarManager::new(n_vars_used);
-    unsafe { (*dpw).reserve(&mut var_manager) };
+    (*dpw).reserve(&mut var_manager);
 }
 
 /// Frees the memory associated with a [`DynamicPolyWatchdog`]
@@ -228,7 +231,7 @@ pub unsafe extern "C" fn dpw_reserve(dpw: *mut DynamicPolyWatchdog, n_vars_used:
 /// `dpw` must be a return value of [`dpw_new`] and cannot be used afterwards again.
 #[no_mangle]
 pub unsafe extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
-    drop(unsafe { Box::from_raw(dpw) });
+    drop(Box::from_raw(dpw));
 }
 
 // TODO: figure out how to get these to work on windows

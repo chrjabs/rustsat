@@ -53,6 +53,7 @@
 //! | `fxhash` | Use the faster firefox hash function from `rustc-hash` in RustSAT. |
 //! | `rand` | Enable randomization features. (Shuffling clauses etc.) |
 //! | `ipasir-display` | Changes `Display` trait for `Lit` and `Var` types to follow IPASIR variables indexing. |
+//! | `serde` | Add implementations for [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for many library types |
 //! | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
 //! | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
 //!
@@ -62,6 +63,14 @@
 //! crate](https://crates.io/crates/rustsat_tools) at `tools/src/bin`. For a bigger
 //! example you can look at this [multi-objective optimization
 //! solver](https://github.com/chrjabs/scuttle).
+//!
+//! ## Minimum Supported Rust Version (MSRV)
+//!
+//! Currently, the MSRV of RustSAT is 1.74.0, the plan is to always support an MSRV that is at
+//! least a year old.
+//!
+//! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
+//! sure to pin a precise version of RustSAT.
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -73,6 +82,7 @@ use std::collections::TryReserveError;
 
 use thiserror::Error;
 
+pub mod algs;
 pub mod encodings;
 pub mod instances;
 pub mod solvers;

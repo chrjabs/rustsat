@@ -50,7 +50,17 @@ cpp_compat = true
 
 
 [export]
-include = ["DbTotalizer", "DynamicPolyWatchdog", "DbGte", "BinaryAdder"]
+include = [
+  "DbTotalizer",
+  "DynamicPolyWatchdog",
+  "DbGte",
+  "BinaryAdder",
+  "Pairwise",
+  "Ladder",
+  "Bitwise",
+  "Commander",
+  "Bimander",
+]
 exclude = []
 # prefix = "CAPI_"
 item_types = []
@@ -75,7 +85,7 @@ rename_args = "None"
 # prefix = "START_FUNC"
 # postfix = "END_FUNC"
 args = "auto"
-sort_by = "Name"
+sort_by = "None"
 
 
 [struct]

@@ -1,4 +1,3 @@
-[![Build & Test](https://github.com/chrjabs/rustsat/actions/workflows/capi.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/capi.yml)
 [![License](https://img.shields.io/crates/l/rustsat)](./LICENSE)
 
 <!-- cargo-rdme start -->

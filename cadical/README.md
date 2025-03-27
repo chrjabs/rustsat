@@ -1,4 +1,3 @@
-[![Check & Test](https://github.com/chrjabs/rustsat/actions/workflows/cadical.yml/badge.svg)](https://github.com/chrjabs/rustsat/actions/workflows/cadical.yml)
 [![crates.io](https://img.shields.io/crates/v/rustsat-cadical)](https://crates.io/crates/rustsat-cadical)
 [![docs.rs](https://img.shields.io/docsrs/rustsat-cadical)](https://docs.rs/rustsat-cadical)
 [![License](https://img.shields.io/crates/l/rustsat-cadical)](../LICENSE)
@@ -21,11 +20,19 @@ Armin Biere's SAT solver [CaDiCaL](https://github.com/arminbiere/cadical) to be 
 ## CaDiCaL Versions
 
 CaDiCaL versions can be selected via cargo crate features.
-All CaDiCaL versions up to [Version 2.1.1](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.1) are available.
-For the full list of versions and the changelog see [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
+All CaDiCaL versions from
+[Version 1.5.0](https://github.com/arminbiere/cadical/releases/tag/rel-1.5.0)
+up to
+[Version 2.1.3](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.3)
+are available. For the full list of versions and the changelog see
+[the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
 
 Without any features selected, the newest version will be used.
 If conflicting CaDiCaL versions are requested, the newest requested version will be selected.
+
+If the determined version is _not_ the newest available, and no custom source directory is
+specified (see customization below), the CaDiCaL source code is downloaded at compile time,
+which requires network access.
 
 ## Customization
 

@@ -18,6 +18,7 @@ use crate::{types::Lit, utils::unreachable_none};
 /// An ID of a [`NodeLike`] in a database. The [`usize`] is typically the index in a
 /// vector of nodes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct NodeId(pub usize);
 
@@ -152,6 +153,7 @@ pub trait NodeLike: ops::Index<usize, Output = Lit> {
 
 /// A connection to another node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NodeCon {
     /// The child node
     pub id: NodeId,

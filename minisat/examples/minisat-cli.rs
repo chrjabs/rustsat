@@ -6,14 +6,13 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    thread,
 };
 
 use anyhow::Context;
 use clap::Parser;
 use rustsat::{
     instances::{fio::opb, ManageVars, SatInstance},
-    solvers::{Interrupt, InterruptSolver, Solve, SolveStats, SolverResult},
+    solvers::{Interrupt, Solve, SolveStats, SolverResult},
 };
 use rustsat_minisat::{core, simp};
 
@@ -68,6 +67,8 @@ fn solve<S: Solve + SolveStats + Interrupt + Default>(inst: SatInstance) -> anyh
 
     #[cfg(not(target_family = "windows"))]
     {
+        use rustsat::solvers::InterruptSolver;
+
         // Setup signal handling
         let interrupter = solver.interrupter();
         let mut signals = signal_hook::iterator::Signals::new([
@@ -77,7 +78,7 @@ fn solve<S: Solve + SolveStats + Interrupt + Default>(inst: SatInstance) -> anyh
             signal_hook::consts::SIGABRT,
         ])?;
         // Thread for catching incoming signals
-        thread::spawn(move || {
+        std::thread::spawn(move || {
             for _ in signals.forever() {
                 interrupter.interrupt();
             }

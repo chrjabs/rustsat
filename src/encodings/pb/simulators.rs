@@ -20,6 +20,7 @@ use crate::{
 
 /// Simulator type that builds a pseudo-boolean encoding of type `PBE` over the
 /// negated input literals in order to simulate the other bound type
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Inverted<PBE>
 where
     PBE: Encode + 'static,
@@ -255,6 +256,7 @@ type InvertedIter<IPBE> = std::iter::Map<IPBE, fn((Lit, usize)) -> (Lit, usize)>
 /// Simulator type that builds a combined pseudo-boolean encoding supporting
 /// both bounds from two individual pseudo-boolean encodings supporting each
 /// bound separately
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Double<UBE, LBE>
 where
     UBE: BoundUpper + 'static,
@@ -454,6 +456,7 @@ where
 
 /// Simulator type that mimics a pseudo-boolean encoding based on a cardinality
 /// encoding that literals are added to multiple times
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Card<CE>
 where
     CE: card::Encode + 'static,
