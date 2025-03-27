@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 
 - Two bugs in `BinaryAdder`
-- Fix cyclic dev-dependencies
+- Don't attempt scraping examples that rely on cyclic dependencies
 
 ### Features
 

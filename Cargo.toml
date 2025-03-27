@@ -119,10 +119,6 @@ name = "cnf2opb"
 doc-scrape-examples = true
 
 [[example]]
-name = "enumerator"
-doc-scrape-examples = true
-
-[[example]]
 name = "gbmosplit"
 doc-scrape-examples = true
 required-features = ["optimization"]
