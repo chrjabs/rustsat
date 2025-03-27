@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-kissat"
-version = "0.3.5"
+version = "0.3.6"
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
