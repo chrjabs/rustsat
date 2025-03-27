@@ -41,6 +41,7 @@ macro_rules! get_lit_slice {
 
 /// A totalizer database
 #[derive(Default, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Db {
     /// The node database of the totalizer
     nodes: Vec<Node>,
@@ -610,6 +611,7 @@ impl Db {
 
 /// Defines the semantics with which a totalizer output can be encoded
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Semantics {
     /// `(input lits >= bound) -> olit`
     If,
@@ -689,7 +691,7 @@ struct UnweightedPrecondResult {
 
 /// A totalizer adder node
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Seriealize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Node {
     /// An input literal, i.e., a leaf of the tree
     Leaf(Lit),
@@ -1025,6 +1027,7 @@ impl ops::Index<usize> for Node {
 
 /// An internal node of the totalizer
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct UnitNode {
     pub(crate) lits: Vec<LitData>,
     pub(crate) depth: usize,
@@ -1082,6 +1085,7 @@ impl ops::Index<usize> for UnitNode {
 
 /// An internal _general_ (weighted) node
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GeneralNode {
     pub(crate) lits: Vec<(usize, LitData)>,
     pub(crate) depth: usize,
@@ -1195,6 +1199,7 @@ impl GeneralNode {
 
 /// Data associated with an output literal in a [`Node`]
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum LitData {
     #[default]
     None,

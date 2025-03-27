@@ -12,6 +12,10 @@ readme = "README.md"
 [dependencies]
 itertools.workspace = true
 rustc-hash.workspace = true
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[features]
+serde = ["dep:serde"]

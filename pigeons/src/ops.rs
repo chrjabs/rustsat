@@ -16,11 +16,13 @@ use super::{Axiom, ConstraintId};
 
 /// A sequence of operations to be added to the proof in reverse polish notation
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OperationSequence<V: VarLike = &'static str>(IntOpSeq<V>);
 
 /// Internal representation of operation sequence handling special empty and singleton cases to
 /// avoid unnecessary allocations
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IntOpSeq<V: VarLike> {
     #[default]
     Empty,
@@ -133,7 +135,6 @@ impl<V: VarLike> OperationSequence<V> {
 }
 
 impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
-    #[must_use]
     fn saturate(mut self) -> Self {
         if !self.is_empty() {
             self.push(Operation::Sat);
@@ -141,7 +142,6 @@ impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
         self
     }
 
-    #[must_use]
     fn weaken(mut self) -> Self {
         if !self.is_empty() {
             self.push(Operation::Weak);
@@ -229,6 +229,7 @@ impl<V: VarLike> DivAssign<usize> for OperationSequence<V> {
 
 /// A sequence of operations to be added to the proof in reverse polish notation
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum Operation<V: VarLike> {
     /// A trivial identity operation to get a constraint from its [`ConstraintId`]
     Id(ConstraintId),

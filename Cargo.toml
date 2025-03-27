@@ -105,6 +105,7 @@ compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
 ipasir-display = []
+serde = ["dep:serde", "pigeons/serde"]
 proof-logging = ["dep:pigeons"]
 verbose-proofs = ["proof-logging"]
 all = [

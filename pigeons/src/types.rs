@@ -15,6 +15,7 @@ use super::{unreachable_err, ConstraintLike, ObjectiveLike};
 
 /// The proof problem type
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProblemType {
     /// Problem type is unknown
     #[default]
@@ -25,6 +26,7 @@ pub enum ProblemType {
 
 /// A constraint ID referring to a constraint
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct ConstraintId(ConstrIdInternal);
 
@@ -35,6 +37,7 @@ impl From<ConstrIdInternal> for ConstraintId {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum ConstrIdInternal {
     /// An absolute ID
     Abs(AbsConstraintId),
@@ -130,6 +133,7 @@ impl From<RelConstraintId> for ConstraintId {
 
 /// A type representing a VeriPB constraint ID
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct AbsConstraintId(pub(crate) NonZeroUsize);
 
@@ -175,6 +179,7 @@ impl ops::AddAssign<usize> for AbsConstraintId {
 
 /// A constraint ID of the x-last constraint. Equivalent to a negative constraint ID in VeriPB.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 struct RelConstraintId(pub(crate) NonZeroUsize);
 
@@ -203,6 +208,7 @@ impl fmt::Display for RelConstraintId {
 ///
 /// These variables format to `pv<idx>`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProofOnlyVar(pub(crate) u32);
 
 impl fmt::Display for ProofOnlyVar {
@@ -231,6 +237,7 @@ impl ops::AddAssign<u32> for ProofOnlyVar {
 
 /// An axiom or literal
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Axiom<V: VarLike> {
     /// Whether the axiom/literal is negated
     pub(crate) neg: bool,
@@ -284,6 +291,7 @@ impl<V: VarLike> ops::Not for Axiom<V> {
 
 /// A substitution of a variable to a value or a literal
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Substitution<V: VarLike> {
     /// The variable to substitute
     pub(crate) var: V,
@@ -319,6 +327,7 @@ impl<V: VarLike> fmt::Display for Substitution<V> {
 
 /// What to substitute a variable with
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SubstituteWith<V: VarLike> {
     /// Fix true value
     True,
@@ -349,6 +358,7 @@ impl<V: VarLike> fmt::Display for SubstituteWith<V> {
 }
 
 /// An order in the proof
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
     name: String,
     used_vars: rustc_hash::FxHashSet<V>,
@@ -359,6 +369,7 @@ pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
 
 /// A variable to be used in an order definition
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OrderVar<V: VarLike> {
     /// A variable of the left side of the order definition
     Left(V),
@@ -505,6 +516,7 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
 }
 
 /// A derivation step
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Derivation<V: VarLike, C> {
     /// A constraint added by reverse unit propagation, including hints
     Rup(C, Vec<ConstraintId>),
@@ -540,6 +552,7 @@ where
 }
 
 /// A proof target of a sub-proof
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProofGoal<V: VarLike, C> {
     /// The goal id
     id: ProofGoalId,
@@ -627,6 +640,7 @@ impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ProofGoal<V, C> {
 }
 
 /// A [`ProofGoal`] ID
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProofGoalId {
     /// A [`ProofGoal`] for a constraint
     Constraint(ConstraintId),
@@ -662,6 +676,7 @@ impl fmt::Display for ProofGoalId {
 }
 
 /// An objective update step (`obju`)
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>, C> {
     /// `new`
     New(O, Vec<ProofGoal<V, C>>, PhantomData<V>),
@@ -715,6 +730,7 @@ where
 
 /// Possible output guarantees for the output section
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutputGuarantee {
     /// No guarantee
     None,
@@ -739,6 +755,7 @@ impl fmt::Display for OutputGuarantee {
 
 /// Possible output types for the output section
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutputType {
     /// Implicit output
     Implicit,
@@ -757,6 +774,7 @@ impl fmt::Display for OutputType {
 
 /// Possible conclusions
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Conclusion<V: VarLike> {
     /// No conclusion
     None,
@@ -802,6 +820,7 @@ impl<V: VarLike> fmt::Display for Conclusion<V> {
 }
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BoundsConclusion<V: VarLike> {
     pub(crate) range: Range<usize>,
     pub(crate) lb_id: Option<ConstraintId>,

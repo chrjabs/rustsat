@@ -996,6 +996,7 @@ version = "0.1.0"
 dependencies = [
  "itertools 0.14.0",
  "rustc-hash",
+ "serde",
  "tempfile",
 ]
 

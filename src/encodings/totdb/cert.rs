@@ -1184,6 +1184,7 @@ fn collect_leafs_unweighted(db: &super::Db, id: NodeId) -> Vec<Lit> {
 
 /// The semantic definitions related to a totalizer output
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SemDefs {
     /// The if implication direction, i.e., `sum >= k -> olit`
     pub if_def: Option<AbsConstraintId>,
@@ -1213,6 +1214,7 @@ impl SemDefs {
 
 /// The data needed to identify a semantic definition
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SemDefId {
     /// The ID of the node that the definition is for
     id: NodeId,
