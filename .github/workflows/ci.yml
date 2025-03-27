@@ -112,10 +112,10 @@ jobs:
           shared-key: "toolchain-workspace"
       - name: Build entire workspace
         if: matrix.os != 'windows-latest'
-        run: cargo build --workspace --verbose
+        run: cargo build --workspace --features=all --verbose
       - name: Build entire workspace
         if: matrix.os == 'windows-latest'
-        run: cargo build --workspace --exclude rustsat-cadical --exclude rustsat-kissat --verbose
+        run: cargo build --workspace --features=all --exclude rustsat-cadical --exclude rustsat-kissat --verbose
 
   rustsat-tests:
     name: RustSAT test suite
