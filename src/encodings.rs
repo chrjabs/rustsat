@@ -74,6 +74,19 @@ mod nodedb {
     pub use super::nodedbimpl::{NodeById, NodeCon, NodeId, NodeLike};
 }
 
+#[path = "encodings/totdb.rs"]
+mod totdbimpl;
+
+// Module defined inline to be able to dynamically change visibility
+// (non-inline modules in proc macro input are unstable)
+#[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+mod totdb {
+    //! # Totalizer Database
+    pub(crate) use super::totdbimpl::LitData;
+    pub use super::totdbimpl::{AssignIter, Db, GeneralNode, Node, Semantics, UnitNode};
+}
+
 /// Iterate over encoding inputs
 pub trait IterInputs {
     /// The iterator type

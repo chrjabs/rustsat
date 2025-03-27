@@ -24,9 +24,8 @@ use crate::{
     clause,
     encodings::{
         atomics,
-        card::dbtotalizer::{GeneralNode, INode, LitData, Node, TotDb, UnitNode},
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        CollectClauses, EncodeStats, Error, IterWeightedInputs,
+        totdb, CollectClauses, EncodeStats, Error, IterWeightedInputs,
     },
     instances::ManageVars,
     lit,
@@ -79,7 +78,7 @@ pub struct DynamicPolyWatchdog {
     /// The number of clauses
     n_clauses: usize,
     /// The node database of the totalizer
-    db: TotDb,
+    db: totdb::Db,
 }
 
 impl DynamicPolyWatchdog {
@@ -110,7 +109,7 @@ impl DynamicPolyWatchdog {
             self.in_lits.insert(lit, weight);
         }
         self.weight_sum += weight;
-        let node = self.db.insert(Node::leaf(lit));
+        let node = self.db.insert(totdb::Node::leaf(lit));
         let con = NodeCon::full(node);
         if let Some(cons) = self.weight_queue.get_mut(&weight) {
             cons.push(con);
@@ -301,7 +300,7 @@ impl BoundUpper for DynamicPolyWatchdog {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        self.db.reset_encoded();
+        self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
     }
 
@@ -419,7 +418,7 @@ impl EncodeStats for DynamicPolyWatchdog {
 impl From<RsHashMap<Lit, usize>> for DynamicPolyWatchdog {
     fn from(lits: RsHashMap<Lit, usize>) -> Self {
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + *w);
-        let mut db = TotDb::default();
+        let mut db = totdb::Db::default();
         let weight_queue = lit_weight_queue(lits.clone().into_iter(), &mut db);
         Self {
             in_lits: lits,
@@ -441,13 +440,13 @@ impl FromIterator<(Lit, usize)> for DynamicPolyWatchdog {
     }
 }
 
-/// Dynamic polynomial watchdog encoding types that do not own but reference their [`TotDb`]
+/// Dynamic polynomial watchdog encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
-        encodings::{card::dbtotalizer::TotDb, nodedb::NodeLike, CollectClauses, Error},
+        encodings::{nodedb::NodeLike, totdb, CollectClauses, Error},
         instances::ManageVars,
         types::Lit,
     };
@@ -468,7 +467,7 @@ pub mod referenced {
         /// The encoding root and the tares
         structure: &'totdb Structure,
         /// The node database of the totalizer
-        db: &'totdb mut TotDb,
+        db: &'totdb mut totdb::Db,
     }
 
     /// Dynamic polynomial watchdog structure with a [`RefCell`] to a totalizer
@@ -482,12 +481,12 @@ pub mod referenced {
         /// The encoding root and the tares
         structure: &'totdb Structure,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut TotDb>,
+        db: &'totdb RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> DynamicPolyWatchdog<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
-        pub fn new(structure: &'totdb Structure, db: &'totdb mut TotDb) -> Self {
+        pub fn new(structure: &'totdb Structure, db: &'totdb mut totdb::Db) -> Self {
             Self { structure, db }
         }
 
@@ -500,7 +499,10 @@ pub mod referenced {
 
     impl<'totdb> DynamicPolyWatchdogCell<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
-        pub fn new(structure: &'totdb Structure, db: &'totdb RefCell<&'totdb mut TotDb>) -> Self {
+        pub fn new(
+            structure: &'totdb Structure,
+            db: &'totdb RefCell<&'totdb mut totdb::Db>,
+        ) -> Self {
             Self { structure, db }
         }
 
@@ -550,7 +552,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.reset_encoded();
+            self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -575,7 +577,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.borrow_mut().reset_encoded();
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -655,9 +657,12 @@ type DpwIter<'a> = std::iter::Map<
 /// Builds a DPW [`Structure`] over weighted input literals
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
-fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(lits: LI, tot_db: &mut TotDb) -> WeightQ {
+fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(
+    lits: LI,
+    tot_db: &mut totdb::Db,
+) -> WeightQ {
     let lit_to_con = |(lit, weight)| {
-        let node = tot_db.insert(Node::leaf(lit));
+        let node = tot_db.insert(totdb::Node::leaf(lit));
         NodeCon::weighted(node, weight)
     };
     con_weight_queue(lits.map(lit_to_con))
@@ -702,7 +707,7 @@ fn build_structure(
     weight_queue: &mut WeightQ,
     prec_div: usize,
     topmost: bool,
-    tot_db: &mut TotDb,
+    tot_db: &mut totdb::Db,
     var_manager: &mut dyn ManageVars,
 ) -> Structure {
     // prec_div has to be a power of 2
@@ -767,7 +772,7 @@ fn build_structure(
         let has_tare = if !topmost || idx != basis_len - skipped_levels - 1 {
             // Merge top bucket (except for last) with tare
             let tare = structure.tares[idx];
-            cons.push(NodeCon::full(tot_db.insert(Node::leaf(tare))));
+            cons.push(NodeCon::full(tot_db.insert(totdb::Node::leaf(tare))));
             true
         } else {
             false
@@ -788,9 +793,9 @@ fn build_structure(
                 bb_offset = top_bucket.offset;
             } else {
                 // last bottom bucket for this segment, leave dummy node to path in extension
-                let dummy = tot_db.insert(INode::Dummy.into());
+                let dummy = tot_db.insert(totdb::Node::Dummy);
                 let right = NodeCon::full(dummy);
-                let bottom = tot_db.insert(Node::internal(top_bucket, right, tot_db));
+                let bottom = tot_db.insert(totdb::Node::internal(top_bucket, right, tot_db));
                 bottom_buckets.push(bottom);
                 bb_offset = 0;
             }
@@ -804,7 +809,7 @@ fn build_structure(
             multiplier: unreachable_none!(NonZeroUsize::new(1)),
             len_limit: None,
         };
-        let bottom = tot_db.insert(Node::internal(top_bucket, right, tot_db));
+        let bottom = tot_db.insert(totdb::Node::internal(top_bucket, right, tot_db));
         bottom_buckets.push(bottom);
         bb_offset = 0;
     }
@@ -832,7 +837,7 @@ fn build_structure(
 fn merge_structures<Col>(
     bot_struct: &mut Structure,
     top_struct: Structure,
-    tot_db: &mut TotDb,
+    tot_db: &mut totdb::Db,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
 ) -> Result<(), crate::OutOfMemory>
@@ -864,18 +869,23 @@ where
         .iter()
         .rev()
     {
-        let dummy = tot_db.insert(INode::Dummy.into());
+        let dummy = tot_db.insert(totdb::Node::Dummy);
         let right = NodeCon::full(dummy);
-        let tare_node = tot_db.insert(Node::leaf(tare));
-        let new_bottom = tot_db.insert(Node::internal(NodeCon::full(tare_node), right, tot_db));
+        let tare_node = tot_db.insert(totdb::Node::leaf(tare));
+        let new_bottom = tot_db.insert(totdb::Node::internal(
+            NodeCon::full(tare_node),
+            right,
+            tot_db,
+        ));
         let last_bottom = *bot_struct.bottom_buckets.last().unwrap();
         debug_assert_eq!(
-            tot_db[tot_db[last_bottom].right().unwrap().id].0,
-            INode::Dummy
+            tot_db[tot_db[last_bottom].right().unwrap().id],
+            totdb::Node::Dummy
         );
-        match &mut tot_db[last_bottom].0 {
-            INode::Leaf(_) | INode::Dummy => unreachable!(),
-            INode::Unit(UnitNode { right, .. }) | INode::General(GeneralNode { right, .. }) => {
+        match &mut tot_db[last_bottom] {
+            totdb::Node::Leaf(_) | totdb::Node::Dummy => unreachable!(),
+            totdb::Node::Unit(totdb::UnitNode { right, .. })
+            | totdb::Node::General(totdb::GeneralNode { right, .. }) => {
                 *right = NodeCon {
                     id: new_bottom,
                     offset: 0,
@@ -894,12 +904,13 @@ where
     // step 3: patch together structures
     let last_bottom = *bot_struct.bottom_buckets.last().unwrap();
     debug_assert_eq!(
-        tot_db[tot_db[last_bottom].right().unwrap().id].0,
-        INode::Dummy
+        tot_db[tot_db[last_bottom].right().unwrap().id],
+        totdb::Node::Dummy
     );
-    match &mut tot_db[last_bottom].0 {
-        INode::Leaf(_) | INode::Dummy => panic!(),
-        INode::Unit(UnitNode { right, .. }) | INode::General(GeneralNode { right, .. }) => {
+    match &mut tot_db[last_bottom] {
+        totdb::Node::Leaf(_) | totdb::Node::Dummy => panic!(),
+        totdb::Node::Unit(totdb::UnitNode { right, .. })
+        | totdb::Node::General(totdb::GeneralNode { right, .. }) => {
             *right = NodeCon {
                 id: *top_struct.bottom_buckets.first().unwrap(),
                 offset: 0,
@@ -931,8 +942,12 @@ where
             .iter()
             .enumerate()
             .filter_map(|(idx, litdat)| {
-                if let &LitData::Lit { lit, enc_pos } = litdat {
-                    if enc_pos && idx + 1 >= old_right_max {
+                if let &totdb::LitData::Lit {
+                    lit,
+                    semantics: Some(semantics),
+                } = litdat
+                {
+                    if semantics.has_if() && idx + 1 >= old_right_max {
                         return Some((lit, idx + 1));
                     }
                 }
@@ -945,13 +960,24 @@ where
             ) {
                 let lval = val - right.map(rval);
                 if left.is_possible(lval) {
-                    let rlit = tot_db.define_pos_tot(right.id, rval - 1, collector, var_manager)?;
+                    let rlit = tot_db.define_unweighted(
+                        right.id,
+                        rval - 1,
+                        totdb::Semantics::If,
+                        collector,
+                        var_manager,
+                    )?;
                     if lval == 0 {
                         collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
                     } else {
                         debug_assert_eq!(left.divisor(), 1);
-                        let llit =
-                            tot_db.define_pos_tot(left.id, lval - 1, collector, var_manager)?;
+                        let llit = tot_db.define_unweighted(
+                            left.id,
+                            lval - 1,
+                            totdb::Semantics::If,
+                            collector,
+                            var_manager,
+                        )?;
                         collector.add_clause(atomics::cube_impl_lit(&[rlit, llit], olit))?;
                     }
                 }
@@ -963,7 +989,7 @@ where
         // add new output literals
         let len = right_max + left_max;
         debug_assert!(bot_buck.lits.len() <= len);
-        bot_buck.lits.resize(len, LitData::None);
+        bot_buck.lits.resize(len, totdb::LitData::None);
     }
 
     Ok(())
@@ -979,7 +1005,7 @@ where
 fn encode_output<Col>(
     dpw: &Structure,
     oidx: usize,
-    tot_db: &mut TotDb,
+    tot_db: &mut totdb::Db,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
 ) -> Result<(), crate::OutOfMemory>
@@ -989,7 +1015,13 @@ where
     if oidx >= tot_db[dpw.root()].max_val() {
         return Ok(());
     }
-    tot_db.define_pos_tot(dpw.root(), oidx, collector, var_manager)?;
+    tot_db.define_unweighted(
+        dpw.root(),
+        oidx,
+        totdb::Semantics::If,
+        collector,
+        var_manager,
+    )?;
     Ok(())
 }
 
@@ -1000,7 +1032,7 @@ where
 /// If `dpw` is not adequately encoded, returns [`Error::NotEncoded`].
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
-fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &TotDb) -> Result<Vec<Lit>, Error> {
+fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>, Error> {
     let output_weight = 1 << (dpw.output_power());
     let oidx = ub / output_weight;
     if oidx >= tot_db[dpw.root()].max_val() {
