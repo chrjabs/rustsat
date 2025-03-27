@@ -1012,6 +1012,25 @@ impl Objective {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl pigeons::ObjectiveLike<crate::types::Var> for Objective {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        self.iter_soft_lits()
+            .expect("objective for proof logging cannot have soft clauses")
+            .into_iter()
+            .map(|(l, w)| {
+                (
+                    isize::try_from(w).expect("can only handle coefficients up to `isize::MAX`"),
+                    pigeons::Axiom::from(l),
+                )
+            })
+    }
+
+    fn offset(&self) -> isize {
+        self.offset()
+    }
+}
+
 /// A wrapper type for iterators over soft literals in an objective
 enum ObjSoftLitIter<'a> {
     Weighted(hash_map::Iter<'a, Lit, usize>),
@@ -1659,5 +1678,32 @@ impl<VM: ManageVars + Default> FromIterator<WcnfLine> for Instance<VM> {
             }
         }
         inst
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_obj() {
+        use itertools::Itertools;
+        use pigeons::ObjectiveLike;
+
+        use crate::lit;
+
+        let mut obj = super::Objective::default();
+        obj.add_soft_lit(5, lit![3]);
+        obj.increase_soft_lit_int(-5, lit![42]);
+        let truth = "5 x4 5 ~x43 -5";
+
+        assert_eq!(
+            &format!(
+                "{} {}",
+                obj.sum_iter()
+                    .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
+                <super::Objective as ObjectiveLike<super::Var>>::offset(&obj)
+            ),
+            truth
+        );
     }
 }

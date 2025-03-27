@@ -45,3 +45,7 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           package: rustsat-batsat
+      - name: Pigeons
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: pigeons

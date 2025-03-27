@@ -7,9 +7,8 @@ use std::ops::RangeBounds;
 
 use crate::{
     encodings::{
-        card::dbtotalizer::{INode, LitData, TotDb},
         nodedb::{NodeById, NodeCon, NodeLike},
-        CollectClauses, EncodeStats, Error,
+        totdb, CollectClauses, EncodeStats, Error,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
@@ -28,7 +27,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 ///
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DbGte {
     /// Input literals and weights not yet in the tree
@@ -43,14 +42,14 @@ pub struct DbGte {
     /// The number of clauses in the totalizer
     n_clauses: usize,
     /// The node database of the totalizer
-    db: TotDb,
+    db: totdb::Db,
 }
 
 impl DbGte {
     /// Creates a generalized totalizer from its internal parts
     #[cfg(feature = "internals")]
     #[must_use]
-    pub fn from_raw(root: NodeCon, db: TotDb, max_leaf_weight: usize) -> Self {
+    pub fn from_raw(root: NodeCon, db: totdb::Db, max_leaf_weight: usize) -> Self {
         Self {
             root: Some(root),
             max_leaf_weight,
@@ -113,6 +112,62 @@ impl DbGte {
     pub fn depth(&self) -> usize {
         self.root.map_or(0, |con| self.db[con.id].depth())
     }
+
+    /// Gets the details of a generalized totalizer output related to proof logging
+    ///
+    /// # Errors
+    ///
+    /// [`Error::NotEncoded`] if the requested output is not encoded
+    #[cfg(feature = "proof-logging")]
+    pub fn output_proof_details(&self, value: usize) -> Result<(Lit, totdb::cert::SemDefs), Error> {
+        match self.root {
+            None => Err(Error::NotEncoded),
+            Some(root) => {
+                if !root.is_possible(value) {
+                    return Err(Error::NotEncoded);
+                }
+                self.db
+                    .get_semantics(root.id, root.offset, root.rev_map(value))
+                    .map(|sem| (self.db[root.id][root.rev_map(value)], sem))
+                    .ok_or(Error::NotEncoded)
+            }
+        }
+    }
+
+    /// Gets the number of output literals in the generalized totalizer
+    #[must_use]
+    pub fn n_output_lits(&self) -> usize {
+        match self.root {
+            Some(root) => self.db[root.id].len(),
+            None => 0,
+        }
+    }
+
+    /// Checks if the input literal buffer is empty, i.e., all input literals are included in the
+    /// encoding.
+    ///
+    /// Even after encodings, this might not be the case, if an input literal has a higher weight
+    /// than the bound encoded for
+    #[must_use]
+    pub fn is_buffer_empty(&self) -> bool {
+        self.lit_buffer.is_empty()
+    }
+
+    /// From an assignment to the input literals, generates an assignment over the totalizer
+    /// variables following strict semantics, i.e., `sum >= k <-> olit`
+    ///
+    /// # Panics
+    ///
+    /// If `assign` does not assign all input literals
+    pub fn strictly_extend_assignment<'slf>(
+        &'slf self,
+        assign: &'slf crate::types::Assignment,
+    ) -> std::iter::Flatten<std::option::IntoIter<totdb::AssignIter<'slf>>> {
+        self.root
+            .map(|root| self.db.strictly_extend_assignment(root.id, assign))
+            .into_iter()
+            .flatten()
+    }
 }
 
 impl Encode for DbGte {
@@ -170,7 +225,7 @@ impl BoundUpper for DbGte {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        self.db.reset_encoded();
+        self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
     }
 
@@ -193,28 +248,36 @@ impl BoundUpper for DbGte {
             self.db[con.id]
                 .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
                 .try_for_each(|val| {
-                    match &self.db[con.id].0 {
-                        INode::Leaf(lit) => {
+                    match &self.db[con.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let &LitData::Lit { lit, enc_pos } = node.lit_data(val).unwrap() {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let Some(totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            }) = node.lit_data(val)
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::Node::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -249,7 +312,7 @@ impl BoundUpperIncremental for DbGte {
                 )
                 .try_for_each(|val| {
                     self.db
-                        .define_pos(con.id, val, collector, var_manager)?
+                        .define_weighted(con.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
                 })?;
@@ -300,17 +363,149 @@ impl Extend<(Lit, usize)> for DbGte {
     }
 }
 
-/// Generalized totalizer encoding types that do not own but reference their [`TotDb`]
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpper for DbGte {
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        use super::cert::BoundUpperIncremental;
+        self.db.reset_encoded(totdb::Semantics::If);
+        self.encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::PbUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        W: std::io::Write,
+        Self: FromIterator<(Lit, usize)> + Sized,
+    {
+        use pigeons::{OperationSequence, VarLike};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, mut id) = constr;
+        let (lits, ub) = constr.decompose();
+        anyhow::ensure!(ub >= 0, Error::Unsat);
+        let ub = ub.unsigned_abs();
+        let mut enc = Self::from_iter(lits);
+        enc.encode_ub_cert(ub..=ub, collector, var_manager, proof)?;
+        let mut val = enc.next_higher(ub);
+        for unit in enc
+            .enforce_ub(ub)
+            .expect("should have caught special case before here")
+        {
+            let (olit, sem_defs) = enc.output_proof_details(val)?;
+            let unit_cl = crate::clause![unit];
+            let unit_id = if unit.var() < olit.var() {
+                // input literal with weight larger than bound
+                let weight = *enc.lit_buffer.get(&!unit).unwrap();
+                let unit_id = proof.reverse_unit_prop(&unit_cl, [id.into()])?;
+                // simplify main constraint
+                #[cfg(feature = "verbose-proofs")]
+                proof.comment(&"rewritten main constraint")?;
+                id = proof.operations(
+                    &(OperationSequence::<Var>::from(unit.var().axiom(!unit.is_neg())) * weight
+                        + id),
+                )?;
+                unit_id
+            } else {
+                // output literal
+                // NOTE: by the time we're here, all buffered literals have been removed from `id`
+                debug_assert_eq!(!unit, olit);
+                let unit_id = proof.operations(
+                    &((OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()) / val),
+                )?;
+                #[cfg(feature = "verbose-proofs")]
+                proof.equals(&unit_cl, Some(unit_id.into()))?;
+                val = enc.next_higher(val);
+                unit_id
+            };
+            collector.add_cert_clause(unit_cl, unit_id)?;
+        }
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpperIncremental for DbGte {
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> anyhow::Result<()>
+    where
+        Col: crate::encodings::CollectCertClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_ub_range(self, range);
+        if range.is_empty() {
+            return Ok(());
+        }
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        self.extend_tree(range.end - 1);
+        if let Some(con) = self.root {
+            let mut leafs = vec![(crate::lit![0], 0); self.db[con.id].n_leafs()];
+            let mut leafs_init = false;
+            self.db[con.id]
+                .vals(
+                    con.rev_map_round_up(range.start + 1)
+                        ..=con.rev_map(range.end + self.max_leaf_weight),
+                )
+                .try_for_each(|val| {
+                    (_, leafs_init) = self
+                        .db
+                        .define_weighted_cert(
+                            con.id,
+                            val,
+                            collector,
+                            var_manager,
+                            proof,
+                            (&mut leafs, leafs_init, false),
+                        )?
+                        .unwrap();
+                    Ok::<(), anyhow::Error>(())
+                })?;
+        }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
+        Ok(())
+    }
+}
+
+/// Generalized totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
         encodings::{
-            card::dbtotalizer::{INode, LitData, TotDb},
             nodedb::{NodeCon, NodeLike},
             pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
-            CollectClauses, Error,
+            totdb, CollectClauses, Error,
         },
         instances::ManageVars,
         types::Lit,
@@ -329,7 +524,7 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb mut TotDb,
+        db: &'totdb mut totdb::Db,
     }
 
     /// Generalized totalizer encoding with a [`RefCell`] to a totalizer
@@ -345,12 +540,12 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut TotDb>,
+        db: &'totdb RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> Gte<'totdb> {
         /// Constructs a new GTE encoding referencing a totalizer database
-        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut TotDb) -> Self {
+        pub fn new(root: NodeCon, max_leaf_weight: usize, db: &'totdb mut totdb::Db) -> Self {
             Self {
                 root,
                 max_leaf_weight,
@@ -370,7 +565,7 @@ pub mod referenced {
         pub fn new(
             root: NodeCon,
             max_leaf_weight: usize,
-            db: &'totdb RefCell<&'totdb mut TotDb>,
+            db: &'totdb RefCell<&'totdb mut totdb::Db>,
         ) -> Self {
             Self {
                 root,
@@ -449,7 +644,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.reset_encoded();
+            self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -466,28 +661,36 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db[self.root.id].0 {
-                        INode::Leaf(lit) => {
+                    match &self.db[self.root.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let &LitData::Lit { lit, enc_pos } = node.lit_data(val).unwrap() {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let Some(totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            }) = node.lit_data(val)
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::Node::Dummy => panic!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -506,7 +709,7 @@ pub mod referenced {
             Col: CollectClauses,
             R: RangeBounds<usize>,
         {
-            self.db.borrow_mut().reset_encoded();
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
@@ -523,28 +726,36 @@ pub mod referenced {
                         ..=self.root.rev_map(ub + self.max_leaf_weight),
                 )
                 .try_for_each(|val| {
-                    match &self.db.borrow()[self.root.id].0 {
-                        INode::Leaf(lit) => {
+                    match &self.db.borrow()[self.root.id] {
+                        totdb::Node::Leaf(lit) => {
                             assumps.push(!*lit);
                             return Ok(());
                         }
-                        INode::Unit(node) => {
-                            if let LitData::Lit { lit, enc_pos } = node.lits[val - 1] {
-                                if enc_pos {
+                        totdb::Node::Unit(node) => {
+                            if let totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            } = node.lits[val - 1]
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::General(node) => {
-                            if let &LitData::Lit { lit, enc_pos } = node.lit_data(val).unwrap() {
-                                if enc_pos {
+                        totdb::Node::General(node) => {
+                            if let Some(totdb::LitData::Lit {
+                                lit,
+                                semantics: Some(semantics),
+                            }) = node.lit_data(val)
+                            {
+                                if semantics.has_if() {
                                     assumps.push(!lit);
                                     return Ok(());
                                 }
                             }
                         }
-                        INode::Dummy => panic!(),
+                        totdb::Node::Dummy => unreachable!(),
                     }
                     Err(Error::NotEncoded)
                 })?;
@@ -574,7 +785,7 @@ pub mod referenced {
                 )
                 .try_for_each(|val| {
                     self.db
-                        .define_pos(self.root.id, val, collector, var_manager)?
+                        .define_weighted(self.root.id, val, collector, var_manager)?
                         .unwrap();
                     Ok::<(), crate::OutOfMemory>(())
                 })?;
@@ -604,7 +815,7 @@ pub mod referenced {
             vals.try_for_each(|val| {
                 self.db
                     .borrow_mut()
-                    .define_pos(self.root.id, val, collector, var_manager)?
+                    .define_weighted(self.root.id, val, collector, var_manager)?
                     .unwrap();
                 Ok::<(), crate::OutOfMemory>(())
             })?;
@@ -762,5 +973,83 @@ mod tests {
         let mut cnf = Cnf::new();
         gte.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 24);
+    }
+
+    #[cfg(feature = "proof-logging")]
+    mod proofs {
+        use std::{
+            fs::File,
+            io::{BufRead, BufReader},
+            path::Path,
+            process::Command,
+        };
+
+        use crate::{
+            encodings::pb::cert::BoundUpper,
+            instances::{Cnf, SatInstance},
+            types::{constraints::PbConstraint, Var},
+        };
+
+        fn print_file<P: AsRef<Path>>(path: P) {
+            println!();
+            for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+                println!("{}", line.unwrap());
+            }
+            println!();
+        }
+
+        fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+            if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
+                println!("start checking proof");
+                let out = Command::new(veripb)
+                    .arg(instance.as_ref())
+                    .arg(proof.as_ref())
+                    .output()
+                    .expect("failed to run veripb");
+                print_file(proof);
+                if out.status.success() {
+                    return;
+                }
+                panic!("verification failed: {out:?}")
+            } else {
+                println!("`$VERIPB_CHECKER` not set, omitting proof checking");
+            }
+        }
+
+        fn new_proof(
+            num_constraints: usize,
+            optimization: bool,
+        ) -> pigeons::Proof<tempfile::NamedTempFile> {
+            let file =
+                tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
+            pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+        }
+
+        #[test]
+        fn constraint() {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let inst_path = format!("{manifest}/data/single-ub.opb");
+            let constr: SatInstance =
+                SatInstance::from_opb_path(&inst_path, Default::default()).unwrap();
+            let (constr, mut vm) = constr.into_pbs();
+            assert_eq!(constr.len(), 1);
+            let Some(PbConstraint::Lb(constr)) = constr.into_iter().next() else {
+                panic!()
+            };
+            let constr = constr.invert();
+            let mut cnf = Cnf::new();
+            let mut proof = new_proof(1, false);
+            super::DbGte::encode_ub_constr_cert(
+                (constr, pigeons::AbsConstraintId::new(1)),
+                &mut cnf,
+                &mut vm,
+                &mut proof,
+            )
+            .unwrap();
+            let proof_file = proof
+                .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+                .unwrap();
+            verify_proof(&inst_path, proof_file.path());
+        }
     }
 }

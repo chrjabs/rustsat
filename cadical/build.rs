@@ -205,6 +205,10 @@ impl Version {
         self >= Version::V160
     }
 
+    fn has_tracer(self) -> bool {
+        self >= Version::V200
+    }
+
     fn has_propagate(self) -> bool {
         self >= Version::V213
     }
@@ -235,6 +239,9 @@ impl Version {
             build.define("PROPAGATE", None);
         } else {
             build.define("PYSAT_PROPCHECK", None);
+        }
+        if self.has_tracer() {
+            build.define("TRACER", None);
         }
     }
 }
@@ -274,12 +281,15 @@ fn main() {
 
     let cadical_dir = get_cadical_dir(version, None);
 
-    generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
+    generate_bindings(&cadical_dir, version, &out_dir);
 
     // Set custom configs for features only present in some version
     println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\"))");
     if version.has_flip() {
         println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
+    }
+    if version.has_tracer() {
+        println!("cargo:rustc-cfg=cadical_feature=\"tracer\"");
     }
     if version.has_propagate() {
         println!("cargo:rustc-cfg=cadical_feature=\"propagate\"");
@@ -289,12 +299,18 @@ fn main() {
 }
 
 /// Generates Rust FFI bindings
-fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
+fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
+    let header_path = std::fs::canonicalize(format!("{cadical_dir}/src/ccadical.h"))
+        .unwrap()
+        .into_os_string()
+        .into_string()
+        .unwrap();
     let bindings = bindgen::Builder::default()
-        .rust_target("1.70.0".parse().unwrap()) // Set MSRV of RustSAT
+        .rust_target("1.74.0".parse().unwrap()) // Set MSRV of RustSAT
+        .clang_arg(format!("-I{cadical_dir}/src"))
         .clang_arg("-Icpp-extension")
-        .header(header_path)
-        .allowlist_file(header_path)
+        .header(&header_path)
+        .allowlist_file(&header_path)
         .allowlist_file("cpp-extension/ccadical_extension.h")
         .blocklist_item("FILE")
         .blocklist_item("_IO_FILE")
@@ -319,6 +335,18 @@ fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
         bindings.clang_arg("-DPROPAGATE")
     } else {
         bindings.clang_arg("-DPYSAT_PROPCHECK")
+    };
+    let bindings = if cfg!(feature = "tracing") {
+        bindings
+    } else {
+        bindings.clang_arg("-DNTRACING")
+    };
+    let bindings = if version.has_tracer() {
+        bindings
+            .header("cpp-extension/ctracer.h")
+            .allowlist_file("cpp-extension/ctracer.h")
+    } else {
+        bindings
     };
     let bindings = bindings
         .generate()
@@ -387,8 +415,10 @@ fn build(repo: &str, branch: &str, version: Version) {
             .opt_level(3)
             .define("NDEBUG", None)
             .define("NCONTRACTS", None) // --no-contracts
-            .define("NTRACING", None) // --no-tracing
             .warnings(false);
+        if !cfg!(feature = "tracing") {
+            cadical_build.define("NTRACING", None);
+        }
     }
     #[cfg(feature = "quiet")]
     cadical_build.define("QUIET", None); // --quiet

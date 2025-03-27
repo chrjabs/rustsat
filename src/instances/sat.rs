@@ -320,6 +320,9 @@ impl CollectClauses for Cnf {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl crate::encodings::CollectCertClauses for Cnf {}
+
 impl IntoIterator for Cnf {
     type Item = Clause;
 
