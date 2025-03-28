@@ -320,6 +320,13 @@ fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
     } else {
         bindings.clang_arg("-DPYSAT_PROPCHECK")
     };
+    let bindings = if cfg!(feature = "tracing")
+        || cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug"
+    {
+        bindings
+    } else {
+        bindings.clang_arg("-DNTRACING")
+    };
     let bindings = bindings
         .generate()
         .expect("Unable to generate ffi bindings");
@@ -387,8 +394,9 @@ fn build(repo: &str, branch: &str, version: Version) {
             .opt_level(3)
             .define("NDEBUG", None)
             .define("NCONTRACTS", None) // --no-contracts
-            .define("NTRACING", None) // --no-tracing
             .warnings(false);
+        #[cfg(not(feature = "tracing"))]
+        cadical_build.define("NTRACING", None); // --no-tracing
     }
     #[cfg(feature = "quiet")]
     cadical_build.define("QUIET", None); // --quiet
@@ -509,7 +517,7 @@ fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
 }
 
 /// Gets a [`cc::Build`] with the default configuration applied
-/// (used in main build and when checking C++ features)
+/// (used in main build and when checking Cpp features)
 fn default_build() -> cc::Build {
     let mut build = cc::Build::new();
     build.cpp(true).std("c++11");
@@ -566,7 +574,7 @@ int main () {
 }
 "#;
 
-/// Checks whether a C++ feature is available
+/// Checks whether a Cpp feature is available
 ///
 /// The actual checks are taken from CaDiCaL's `configure` script
 fn has_cpp_feature(feature: CppFeature) -> bool {
