@@ -465,17 +465,17 @@ jobs:
         id: rust-versions
         shell: bash
         run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
+      - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
           save-if: false
       - name: Cargo doc
-        run: cargo doc --workspace --verbose --no-deps --features=all
+        run: cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --no-deps --features=all,internals
+        env:
+          RUSTDOCFLAGS: "-Dwarnings --cfg docsrs"
       - name: Doc tests
-        run: cargo test --doc --workspace --verbose
+        run: cargo +nightly test --doc --workspace --verbose
       - uses: taiki-e/install-action@cargo-spellcheck
       - name: Spellcheck documentation
         run: cargo spellcheck --code 1
