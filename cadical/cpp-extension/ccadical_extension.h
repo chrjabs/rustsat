@@ -36,3 +36,6 @@ void ccadical_get_entrailed_literals(CCaDiCaL *wrapper,
                                      void (*entrailed_cb)(void *, int),
                                      void *cb_data);
 #endif
+#ifndef NTRACING
+int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path);
+#endif
