@@ -35,3 +35,6 @@ rustsat-minisat = { workspace = true, optional = true }
 default = ["minisat"]
 minisat = ["dep:rustsat-minisat"]
 cadical = ["dep:rustsat-cadical"]
+
+[lints]
+workspace = true

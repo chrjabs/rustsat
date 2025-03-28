@@ -1,5 +1,3 @@
-#![warn(clippy::pedantic)]
-
 use glob::glob;
 use std::{
     env,

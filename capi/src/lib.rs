@@ -7,7 +7,6 @@
 //!
 //! For the API itself, see `rustsat.h`. To use RustSAT from an external project, build this crate
 //! and link against `librustsat_capi.a` (produced by `cargo` in `target/release`).
-#![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod encodings;

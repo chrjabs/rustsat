@@ -8,9 +8,6 @@
 //!
 //! The version of BatSat in this crate is Version 0.6.0.
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
-
 use std::time::Duration;
 
 use batsat::{intmap::AsIndex, lbool, Callbacks, SolverInterface};

@@ -12,9 +12,6 @@
 //! The version of Glucose in this crate is Version 4.2.1.
 //! The used Cpp source repository can be found [here](https://github.com/chrjabs/glucose4).
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
-
 use rustsat::{
     solvers::SolverState,
     types::{Lit, Var},

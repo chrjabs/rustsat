@@ -12,8 +12,6 @@
 //!
 //! Documentation for this API can be found [here](https://christophjabs.info/rustsat/pyapi/).
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
 #![allow(clippy::trivially_copy_pass_by_ref)]
 
 use pyo3::prelude::*;

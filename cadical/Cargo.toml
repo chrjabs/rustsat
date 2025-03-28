@@ -75,3 +75,6 @@ chrono.workspace = true
 clap.workspace = true
 rustsat-solvertests.workspace = true
 signal-hook.workspace = true
+
+[lints]
+workspace = true

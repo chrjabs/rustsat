@@ -43,9 +43,6 @@
 //!     patches, the user is responsible for applying the appropriate and necessary patches from the
 //!     [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
-
 use core::ffi::{c_int, c_void, CStr};
 use std::{cmp::Ordering, ffi::CString, fmt};
 

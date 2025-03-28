@@ -48,6 +48,16 @@ tempfile = "3.19.1"
 visibility = "0.1.1"
 xz2 = "0.1.7"
 
+[workspace.lints.rust]
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+unused_crate_dependencies = "deny"
+variant_size_differences = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
+[workspace.lints.clippy]
+pedantic = "warn"
+
 [package]
 name = "rustsat"
 version.workspace = true
@@ -70,10 +80,9 @@ include = [
 
 [dependencies]
 anyhow.workspace = true
-cpu-time.workspace = true
 nom.workspace = true
 thiserror.workspace = true
-visibility.workspace = true
+visibility = { workspace = true, optional = true }
 bzip2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 itertools.workspace = true
@@ -93,7 +102,7 @@ termcolor.workspace = true
 
 [features]
 default = ["optimization", "fxhash"]
-internals = []
+internals = ["dep:visibility"]
 fxhash = ["dep:rustc-hash"]
 optimization = []
 multiopt = ["optimization"]
@@ -103,6 +112,9 @@ bench = []
 ipasir-display = []
 serde = ["dep:serde"]
 all = ["multiopt", "compression", "rand", "fxhash", "serde"]
+
+[lints]
+workspace = true
 
 [package.metadata.docs.rs]
 features = ["all", "internals"]
@@ -163,9 +175,6 @@ required-features = ["optimization"]
 [profile.profiling]
 inherits = "release"
 debug = 1
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
 
 # temporary workaround for https://github.com/obi1kenobi/cargo-semver-checks/issues/1200
 [package.metadata.cargo-semver-checks.lints]

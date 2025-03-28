@@ -22,3 +22,6 @@ inline-c = "0.1.8"
 
 [lib]
 crate-type = ["staticlib"]
+
+[lints]
+workspace = true

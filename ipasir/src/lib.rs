@@ -27,9 +27,6 @@
 //! println!("cargo:rustc-flags=-l dylib=stdc++");
 //! ```
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
-
 use core::ffi::{c_int, c_void, CStr};
 
 use cpu_time::ProcessTime;

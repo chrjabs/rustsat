@@ -12,9 +12,6 @@
 //! The version of Minisat in this crate is Version 2.2.0.
 //! The used Cpp source repository can be found [here](https://github.com/chrjabs/minisat).
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
-
 use rustsat::{
     solvers::SolverState,
     types::{Lit, Var},

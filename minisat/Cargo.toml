@@ -41,3 +41,6 @@ cmake.workspace = true
 clap.workspace = true
 signal-hook.workspace = true
 rustsat-solvertests.workspace = true
+
+[lints]
+workspace = true

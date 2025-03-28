@@ -1240,7 +1240,6 @@ dependencies = [
  "bzip2",
  "clap",
  "concolor-clap",
- "cpu-time",
  "flate2",
  "itertools 0.14.0",
  "nom",
@@ -1266,7 +1265,6 @@ dependencies = [
  "cpu-time",
  "rustsat",
  "rustsat-solvertests",
- "thiserror",
 ]
 
 [[package]]
@@ -1367,7 +1365,6 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
- "rustsat",
  "syn",
 ]
 

@@ -38,3 +38,6 @@ cmake.workspace = true
 
 [dev-dependencies]
 rustsat-solvertests.workspace = true
+
+[lints]
+workspace = true

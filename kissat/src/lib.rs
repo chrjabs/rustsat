@@ -36,9 +36,6 @@
 //! environment variable.
 //! If this is set, Kissat will be built from the path specified there.
 
-#![warn(clippy::pedantic)]
-#![warn(missing_docs)]
-
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 

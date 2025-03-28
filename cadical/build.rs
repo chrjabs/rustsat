@@ -1,5 +1,3 @@
-#![warn(clippy::pedantic)]
-
 use git2::Repository;
 use glob::glob;
 use std::{
@@ -509,7 +507,7 @@ fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
 }
 
 /// Gets a [`cc::Build`] with the default configuration applied
-/// (used in main build and when checking C++ features)
+/// (used in main build and when checking Cpp features)
 fn default_build() -> cc::Build {
     let mut build = cc::Build::new();
     build.cpp(true).std("c++11");
@@ -566,7 +564,7 @@ int main () {
 }
 "#;
 
-/// Checks whether a C++ feature is available
+/// Checks whether a Cpp feature is available
 ///
 /// The actual checks are taken from CaDiCaL's `configure` script
 fn has_cpp_feature(feature: CppFeature) -> bool {
