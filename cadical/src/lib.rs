@@ -6,10 +6,14 @@
 //!
 //! ## Features
 //!
-//! - `debug`: if this feature is enables, the Cpp library will be built with debug and check functionality if the Rust project is built in debug mode
+//! - `debug`: if this feature is enabled, the Cpp library will be built with debug and check
+//!     functionality if the Rust project is built in debug mode. API tracing via the
+//!     `CADICAL_API_TRACE` environment variable is also enabled in debug mode.
 //! - `safe`: disable writing through `popen` for more safe usage of the library in applications
 //! - `quiet`: exclude message and profiling code (logging too)
 //! - `logging`: include logging code (but disabled by default)
+//! - `tracing`: always include CaDiCaL API tracing via the `CADICAL_API_TRACE` environment
+//!     variable and the [`CaDiCaL::trace_api_calls`] method
 //!
 //! ## CaDiCaL Versions
 //!
@@ -466,6 +470,21 @@ impl CaDiCaL<'_, '_> {
             }
             .into()),
         }
+    }
+
+    /// Trace the CaDiCaL API calls to a file at the given path
+    ///
+    /// # Errors
+    ///
+    /// - If opening the file fails
+    /// - [`std::ffi::NulError`] if the provided path contains a nul byte
+    #[cfg(feature = "tracing")]
+    pub fn trace_api_calls<P: AsRef<std::path::Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
+        if unsafe { ffi::ccadical_trace_api_calls(self.handle, path.as_ptr()) } > 0 {
+            anyhow::bail!("failed to open file path for tracing");
+        }
+        Ok(())
     }
 }
 

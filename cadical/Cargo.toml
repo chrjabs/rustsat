@@ -31,6 +31,8 @@ default = ["quiet"]
 debug = []
 quiet = []
 logging = []
+tracing = []
+all = ["tracing"]
 v1-5-0 = []
 v1-5-1 = []
 v1-5-2 = []
@@ -75,3 +77,6 @@ chrono.workspace = true
 clap.workspace = true
 rustsat-solvertests.workspace = true
 signal-hook.workspace = true
+
+[package.metadata.docs.rs]
+features = ["all"]
