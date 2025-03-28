@@ -145,4 +145,8 @@ int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path) {
   return 0;
 }
 #endif
+
+int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path) {
+  return ((Wrapper *)wrapper)->solver->trace_proof(path);
+}
 }

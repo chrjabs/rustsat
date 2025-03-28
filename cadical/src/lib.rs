@@ -52,8 +52,12 @@
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
-use core::ffi::{c_int, c_void, CStr};
-use std::{cmp::Ordering, ffi::CString, fmt};
+use std::{
+    cmp::Ordering,
+    ffi::{c_int, c_void, CStr, CString, NulError},
+    fmt,
+    path::Path,
+};
 
 use cpu_time::ProcessTime;
 use rustsat::solvers::{
@@ -479,12 +483,72 @@ impl CaDiCaL<'_, '_> {
     /// # Errors
     ///
     /// - If opening the file fails
-    /// - [`std::ffi::NulError`] if the provided path contains a nul byte
+    /// - [`NulError`] if the provided path contains a nul byte
     #[cfg(feature = "tracing")]
-    pub fn trace_api_calls<P: AsRef<std::path::Path>>(&mut self, path: P) -> anyhow::Result<()> {
+    pub fn trace_api_calls<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
         let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
         if unsafe { ffi::ccadical_trace_api_calls(self.handle, path.as_ptr()) } > 0 {
             anyhow::bail!("failed to open file path for tracing");
+        }
+        Ok(())
+    }
+
+    /// Attaches a proof tracer of a given format, writing to a specified path
+    ///
+    /// # Errors
+    ///
+    /// If the provided path contains a nul byte
+    // We know that the set options exist and that this should therefore never panic
+    #[expect(clippy::missing_panics_doc)]
+    pub fn trace_proof<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        format: ProofFormat,
+    ) -> Result<(), NulError> {
+        let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
+        let binary = match format {
+            ProofFormat::Drat { binary } => binary,
+            #[cfg(cadical_feature = "lrat")]
+            ProofFormat::Lrat { binary } => {
+                self.set_option("lrat", 1)
+                    .expect("we know this option exists");
+                binary
+            }
+            #[cfg(cadical_feature = "frat")]
+            ProofFormat::Frat { binary, drat } => {
+                self.set_option("frat", 1 + c_int::from(drat))
+                    .expect("we know this option exists");
+                binary
+            }
+            #[cfg(cadical_feature = "frat")]
+            ProofFormat::VeriPB {
+                checked_deletion,
+                drat,
+            } => {
+                self.set_option(
+                    "veripb",
+                    1 + c_int::from(!checked_deletion) + 2 * c_int::from(drat),
+                )
+                .expect("we know this option exists");
+                false
+            }
+            #[cfg(cadical_feature = "idrup")]
+            ProofFormat::Idrup { binary } => {
+                self.set_option("idrup", 1)
+                    .expect("we know this option exists");
+                binary
+            }
+            #[cfg(cadical_feature = "idrup")]
+            ProofFormat::Lidrup { binary } => {
+                self.set_option("lidrup", 1)
+                    .expect("we know this option exists");
+                binary
+            }
+        };
+        self.set_option("binary", c_int::from(binary))
+            .expect("we know this option exists");
+        unsafe {
+            ffi::ccadical_trace_proof_path(self.handle, path.as_ptr());
         }
         Ok(())
     }
@@ -1094,15 +1158,66 @@ impl fmt::Display for Limit {
     }
 }
 
+/// The proof formats that CaDiCaL supports
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProofFormat {
+    /// The DRAT proof format
+    Drat {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+    #[cfg(cadical_feature = "lrat")]
+    /// The LRAT proof format
+    Lrat {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+    #[cfg(cadical_feature = "frat")]
+    /// The FRAT proof format
+    Frat {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+        /// Whether to use DRAT instead of LRAT
+        drat: bool,
+    },
+    #[cfg(cadical_feature = "frat")]
+    /// The VeriPB proof format
+    VeriPB {
+        /// Whether to use checked deletion
+        checked_deletion: bool,
+        /// Whether to disable (simulated) RUP with hints
+        drat: bool,
+    },
+    #[cfg(cadical_feature = "idrup")]
+    /// The incremental proof format IDRUP
+    Idrup {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+    #[cfg(cadical_feature = "idrup")]
+    /// The linear incremental proof format LIDRUP
+    Lidrup {
+        /// Whether to write a binary or an ASCII proof
+        binary: bool,
+    },
+}
+
+impl Default for ProofFormat {
+    fn default() -> Self {
+        ProofFormat::Drat { binary: true }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{CaDiCaL, Config, Limit};
     use rustsat::{
         lit,
         solvers::{Solve, SolverState, StateError},
         types::TernaryVal,
         var,
     };
+
+    use super::{CaDiCaL, Config, Limit, ProofFormat};
 
     rustsat_solvertests::basic_unittests!(CaDiCaL);
     rustsat_solvertests::termination_unittests!(CaDiCaL);
@@ -1158,6 +1273,59 @@ mod test {
         assert_eq!(solver.get_irredundant(), 9);
         assert_eq!(solver.get_redundant(), 0);
         assert_eq!(solver.current_lit_val(lit![0]), TernaryVal::DontCare);
+    }
+
+    #[test]
+    fn proofs() {
+        let mut formats = vec![];
+        formats.extend([
+            ProofFormat::Drat { binary: false },
+            ProofFormat::Drat { binary: true },
+        ]);
+        #[cfg(cadical_feature = "lrat")]
+        formats.extend([
+            ProofFormat::Lrat { binary: false },
+            ProofFormat::Lrat { binary: true },
+        ]);
+        #[cfg(cadical_feature = "frat")]
+        formats.extend([
+            ProofFormat::Frat {
+                binary: false,
+                drat: true,
+            },
+            ProofFormat::Frat {
+                binary: true,
+                drat: true,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: false,
+                drat: false,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: true,
+                drat: false,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: false,
+                drat: true,
+            },
+            ProofFormat::VeriPB {
+                checked_deletion: true,
+                drat: true,
+            },
+        ]);
+        #[cfg(cadical_feature = "idrup")]
+        formats.extend([
+            ProofFormat::Idrup { binary: false },
+            ProofFormat::Idrup { binary: true },
+            ProofFormat::Lidrup { binary: false },
+            ProofFormat::Lidrup { binary: true },
+        ]);
+        let path = format!("{}/test-proof", std::env::var("OUT_DIR").unwrap());
+        for format in formats {
+            let mut slv = CaDiCaL::default();
+            slv.trace_proof(&path, format).unwrap();
+        }
     }
 }
 
