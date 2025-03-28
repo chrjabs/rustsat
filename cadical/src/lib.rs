@@ -47,6 +47,8 @@
 //!     patches, the user is responsible for applying the appropriate and necessary patches from the
 //!     [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
 
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 
