@@ -209,6 +209,19 @@ impl Version {
         self >= Version::V213
     }
 
+    fn has_lrat(self) -> bool {
+        self >= Version::V170
+    }
+
+    fn has_frat(self) -> bool {
+        // NOTE: FRAT is technically supported since v1.7.0, but the options for requesting it differ
+        self >= Version::V190
+    }
+
+    fn has_idrup(self) -> bool {
+        self >= Version::V200
+    }
+
     fn set_defines(self, build: &mut cc::Build) {
         if !has_cpp_feature(CppFeature::FlexibleArrayMembers) {
             build.define("NFLEXIBLE", None);
@@ -277,7 +290,7 @@ fn main() {
     generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
 
     // Set custom configs for features only present in some version
-    println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\"))");
+    println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\", \"lrat\", \"frat\", \"idrup\"))");
     if version.has_flip() {
         println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
     }
@@ -285,6 +298,15 @@ fn main() {
         println!("cargo:rustc-cfg=cadical_feature=\"propagate\"");
     } else {
         println!("cargo:rustc-cfg=cadical_feature=\"pysat-propcheck\"");
+    }
+    if version.has_lrat() {
+        println!("cargo:rustc-cfg=cadical_feature=\"lrat\"");
+    }
+    if version.has_frat() {
+        println!("cargo:rustc-cfg=cadical_feature=\"frat\"");
+    }
+    if version.has_idrup() {
+        println!("cargo:rustc-cfg=cadical_feature=\"idrup\"");
     }
 }
 
