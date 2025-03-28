@@ -25,10 +25,12 @@ jobs:
       - rustsat-kani
       - batsat-tests
       - cadical-tests
+      - cadical-test-all-features
       - capi-tests
       - capi-header
       - glucose-tests
       - kissat-tests
+      - kissat-test-all-features
       - minisat-tests
       - pyapi-tests
       - pyapi-stubs
@@ -45,10 +47,12 @@ jobs:
           echo "rustsat-kani: ${{ needs.rustsat-kani.result }}"
           echo "batsat-tests: ${{ needs.batsat-tests.result }}"
           echo "cadical-tests: ${{ needs.cadical-tests.result }}"
+          echo "cadical-test-all-features: ${{ needs.cadical-test-all-features.result }}"
           echo "capi-tests: ${{ needs.capi-tests.result }}"
           echo "capi-header: ${{ needs.capi-header.result }}"
           echo "glucose-tests: ${{ needs.glucose-tests.result }}"
           echo "kissat-tests: ${{ needs.kissat-tests.result }}"
+          echo "kissat-test-all-features: ${{ needs.kissat-test-all-features.result }}"
           echo "minisat-tests: ${{ needs.minisat-tests.result }}"
           echo "pyapi-tests: ${{ needs.pyapi-tests.result }}"
           echo "pyapi-stubs: ${{ needs.pyapi-stubs.result }}"
@@ -71,6 +75,8 @@ jobs:
         run: exit 1
       - if: ${{ needs.cadical-tests.result != 'success' }}
         run: exit 1
+      - if: ${{ needs.cadical-test-all-features.result == 'failure' }}
+        run: exit 1
       - if: ${{ needs.capi-tests.result != 'success' }}
         run: exit 1
       - if: ${{ needs.capi-header.result != 'success' }}
@@ -78,6 +84,8 @@ jobs:
       - if: ${{ needs.glucose-tests.result != 'success' }}
         run: exit 1
       - if: ${{ needs.kissat-tests.result != 'success' }}
+        run: exit 1
+      - if: ${{ needs.kissat-test-all-features.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.minisat-tests.result != 'success' }}
         run: exit 1
@@ -249,6 +257,29 @@ jobs:
       - name: Test suite
         run: cargo nextest run --profile ci -p rustsat-cadical --verbose
 
+  cadical-test-all-features:
+    name: CaDiCaL test all features
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
+    needs:
+      - build-workspace
+    steps:
+      - uses: actions/checkout@v4
+      - name: Determine Rust version
+        id: rust-versions
+        shell: bash
+        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
+      - uses: taiki-e/install-action@nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "toolchain-workspace"
+          save-if: false
+      - name: Test all features
+        run: scripts/check-all-features.sh -v -t -n -p rustsat-cadical
+
   capi-tests:
     name: C-API test suite
     strategy:
@@ -355,6 +386,29 @@ jobs:
           save-if: false
       - name: Test suite
         run: cargo nextest run --profile ci -p rustsat-kissat --verbose
+
+  kissat-test-all-features:
+    name: Kissat test all features
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
+    needs:
+      - build-workspace
+    steps:
+      - uses: actions/checkout@v4
+      - name: Determine Rust version
+        id: rust-versions
+        shell: bash
+        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
+      - uses: taiki-e/install-action@nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "toolchain-workspace"
+          save-if: false
+      - name: Test all features
+        run: scripts/check-all-features.sh -v -t -n -p rustsat-kissat
 
   minisat-tests:
     name: MiniSat test suite
