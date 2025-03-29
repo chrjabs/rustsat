@@ -39,3 +39,4 @@ void ccadical_get_entrailed_literals(CCaDiCaL *wrapper,
 #ifndef NTRACING
 int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path);
 #endif
+int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path);
