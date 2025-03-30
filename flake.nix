@@ -147,6 +147,7 @@
             kani
             git-subtree-cmd
             pr-merge-ff-cmd
+            typos
           ]
           ++ self.checks.${system}.pre-commit-check.enabledPackages;
         buildInputs = libs;
@@ -195,6 +196,8 @@
               language = "system";
               files = "(.+\\.rs|docs/.+\\.md)$";
             };
+            # Code spellchecker
+            typos.enable = true;
             # TOML
             check-toml.enable = true;
             taplo.enable = true;

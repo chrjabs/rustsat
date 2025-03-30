@@ -6,7 +6,7 @@ use rustsat::{
     encodings::{
         pb::{
             BinaryAdder as RsAdder, BoundBoth, BoundBothIncremental, BoundLower,
-            BoundLowerIncremental, BoundUpper as PbBU, BoundUpperIncremental as PbBUI, DbGte,
+            BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DbGte,
             DynamicPolyWatchdog as RsDpw, Encode as PbEncode,
         },
         EncodeStats, Error,

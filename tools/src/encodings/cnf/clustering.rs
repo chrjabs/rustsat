@@ -406,10 +406,10 @@ pub fn scaling_map(sim: f64, multiplier: u32) -> isize {
     (sim * (multiplier as f64)).trunc() as isize
 }
 
-pub fn saturating_map(sim: isize, dont_care: usize, hard_thr: usize) -> Similarity {
+pub fn saturating_map(sim: isize, dont_care: usize, hard_threshold: usize) -> Similarity {
     match sim.unsigned_abs() {
         asim if asim < dont_care => Similarity::DontCare,
-        asim if asim > hard_thr => {
+        asim if asim > hard_threshold => {
             if sim > 0 {
                 Similarity::MustLink
             } else {

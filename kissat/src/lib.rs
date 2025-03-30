@@ -504,13 +504,15 @@ impl fmt::Display for Limit {
     }
 }
 
-extern "C" fn panic_instead_of_abort() {
+extern "C" fn rustsat_kissat_panic_instead_of_abort() {
     panic!("kissat called kissat_abort");
 }
 
 /// Changes Kissat's abort behavior to cause a Rust panic instead
-pub fn panic_intead_of_abort() {
-    unsafe { ffi::kissat_call_function_instead_of_abort(Some(panic_instead_of_abort)) };
+pub fn panic_instead_of_abort() {
+    unsafe {
+        ffi::kissat_call_function_instead_of_abort(Some(rustsat_kissat_panic_instead_of_abort));
+    };
 }
 
 /// Changes Kissat's abort behavior to call the given function instead

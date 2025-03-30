@@ -4,10 +4,7 @@ use pyo3::prelude::*;
 
 use rustsat::{
     encodings::{
-        card::{
-            BoundUpper as CardBU, BoundUpperIncremental as CardBUI, DbTotalizer,
-            Encode as CardEncode,
-        },
+        card::{BoundUpper, BoundUpperIncremental, DbTotalizer, Encode as CardEncode},
         EncodeStats, Error,
     },
     instances::{BasicVarManager, Cnf as RsCnf},

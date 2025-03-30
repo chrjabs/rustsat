@@ -303,7 +303,7 @@ macro_rules! check_exit_code {
     ($status:expr) => {
         match $status.code() {
             // these are the expected return codes for SAT solvers
-            // we don't check them against the ouput though
+            // we don't check them against the output though
             Some(0 | 10 | 20) => (),
             Some(x) => anyhow::bail!("solver returned unexpected code {x}"),
             None => anyhow::bail!("solver process terminated by signal"),
@@ -380,7 +380,7 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
             }
         }
     };
-    // case input pipe handeled above
+    // case input pipe handled above
     let output = match config.output.0 {
         OutputViaInt::File(path) => {
             // pipe output into file

@@ -78,7 +78,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     if let Some(constr) = constrs.unsat_constraint(&sol) {
-        println!("unsatisfied contraint: {constr}");
+        println!("unsatisfied constraint: {constr}");
         std::process::exit(1);
     }
     print!("objective values: ");

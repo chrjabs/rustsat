@@ -51,7 +51,7 @@ pub struct GeneralizedTotalizer {
 
 impl GeneralizedTotalizer {
     /// Recursively builds the tree data structure. Uses weights out of
-    /// `lit_buffer` to initialize leafs.
+    /// `lit_buffer` to initialize leaves.
     fn build_tree(lits: &[(Lit, usize)]) -> Node {
         debug_assert_ne!(lits.len(), 0);
 

@@ -739,7 +739,7 @@ pub enum InvalidVLine {
 
 /// Different possible `v`-line formats
 enum VLineFormat {
-    /// Assignment specified as a space-spearated sequence of IPASIR literals. This is the format
+    /// Assignment specified as a space-separated sequence of IPASIR literals. This is the format
     /// used in the SAT competition.
     SatComp,
     /// Assignment specified as a sequence of zeroes and ones. This is the format used in the
@@ -1332,9 +1332,9 @@ mod tests {
         assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
         assert_eq!(
             {
-                let mut asign = Assignment::default();
-                asign.extend_from_vline(vline).unwrap();
-                asign
+                let mut assign = Assignment::default();
+                assign.extend_from_vline(vline).unwrap();
+                assign
             },
             ground_truth
         );
@@ -1354,9 +1354,9 @@ mod tests {
         assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
         assert_eq!(
             {
-                let mut asign = Assignment::default();
-                asign.extend_from_vline(vline).unwrap();
-                asign
+                let mut assign = Assignment::default();
+                assign.extend_from_vline(vline).unwrap();
+                assign
             },
             ground_truth
         );
@@ -1376,9 +1376,9 @@ mod tests {
         assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
         assert_eq!(
             {
-                let mut asign = Assignment::default();
-                asign.extend_from_vline(vline).unwrap();
-                asign
+                let mut assign = Assignment::default();
+                assign.extend_from_vline(vline).unwrap();
+                assign
             },
             ground_truth
         );

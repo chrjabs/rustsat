@@ -37,6 +37,7 @@ jobs:
       - tools-tests
       - docs
       - formatting
+      - code-spelling
     if: ${{ success() || failure() }}  # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
@@ -59,6 +60,7 @@ jobs:
           echo "tools-tests: ${{ needs.tools-tests.result }}"
           echo "docs: ${{ needs.docs.result }}"
           echo "formatting: ${{ needs.formatting.result }}"
+          echo "code-spelling: ${{ needs.code-spelling.result }}"
       # Fail this required job if any of its dependent jobs have failed.
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
@@ -98,6 +100,8 @@ jobs:
       - if: ${{ needs.docs.result != 'success' }}
         run: exit 1
       - if: ${{ needs.formatting.result != 'success' }}
+        run: exit 1
+      - if: ${{ needs.code-spelling.result != 'success' }}
         run: exit 1
 
   build-workspace:
@@ -568,3 +572,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
+
+  code-spelling:
+    name: Spell check with typos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@v1.31.0

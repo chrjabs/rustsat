@@ -323,11 +323,11 @@ impl Db {
         };
 
         let (left_only_if, right_only_if) = if new_semantics.has_only_if() {
-            let left_oif_max = cmp::min(self.con_len(lcon), idx);
-            let right_oif_max = cmp::min(self.con_len(rcon), idx);
+            let left_only_if_max = cmp::min(self.con_len(lcon), idx);
+            let right_only_if_max = cmp::min(self.con_len(rcon), idx);
             (
-                idx - right_oif_max..=left_oif_max,
-                idx - left_oif_max..=right_oif_max,
+                idx - right_only_if_max..=left_only_if_max,
+                idx - left_only_if_max..=right_only_if_max,
             )
         } else {
             #[allow(clippy::reversed_empty_ranges)]
@@ -792,12 +792,12 @@ impl NodeLike for Node {
         }
     }
 
-    fn n_leafs(&self) -> usize {
+    fn n_leaves(&self) -> usize {
         match &self {
             Node::Leaf(..) => 1,
             Node::Dummy => 0,
-            Node::Unit(UnitNode { n_leafs, .. }) | Node::General(GeneralNode { n_leafs, .. }) => {
-                *n_leafs
+            Node::Unit(UnitNode { n_leaves, .. }) | Node::General(GeneralNode { n_leaves, .. }) => {
+                *n_leaves
             }
         }
     }
@@ -810,16 +810,16 @@ impl NodeLike for Node {
             || matches!(&db[left.id], Node::General(_))
             || matches!(&db[right.id], Node::General(_));
         let depth = std::cmp::max(db[left.id].depth(), db[right.id].depth()) + 1;
-        let n_leafs = left.len_limit.map_or(
+        let n_leaves = left.len_limit.map_or(
             if left.offset() == 0 {
-                db[left.id].n_leafs()
+                db[left.id].n_leaves()
             } else {
                 db[left.id].vals(left.offset() + 1..).count()
             },
             NonZeroUsize::get,
         ) + right.len_limit.map_or(
             if right.offset() == 0 {
-                db[right.id].n_leafs()
+                db[right.id].n_leaves()
             } else {
                 db[right.id].vals(right.offset() + 1..).count()
             },
@@ -835,7 +835,7 @@ impl NodeLike for Node {
                 .map(|val| right.map(val))
                 .collect();
             return Node::General(GeneralNode::new(
-                &lvals, &rvals, depth, n_leafs, left, right,
+                &lvals, &rvals, depth, n_leaves, left, right,
             ));
         }
         // if both inputs have the same weight, the multiplier should be 1
@@ -843,7 +843,7 @@ impl NodeLike for Node {
         Node::Unit(UnitNode::new(
             db.con_len(left) + db.con_len(right),
             depth,
-            n_leafs,
+            n_leaves,
             left,
             right,
         ))
@@ -1025,13 +1025,13 @@ impl ops::Index<usize> for Node {
 pub struct UnitNode {
     pub(crate) lits: Vec<LitData>,
     pub(crate) depth: usize,
-    pub(crate) n_leafs: usize,
+    pub(crate) n_leaves: usize,
     pub(crate) left: NodeCon,
     pub(crate) right: NodeCon,
 }
 
 impl UnitNode {
-    fn new(len: usize, depth: usize, n_leafs: usize, left: NodeCon, right: NodeCon) -> Self {
+    fn new(len: usize, depth: usize, n_leaves: usize, left: NodeCon, right: NodeCon) -> Self {
         // Length of node can never change
         let mut lits = vec![];
         lits.reserve_exact(len);
@@ -1039,7 +1039,7 @@ impl UnitNode {
         Self {
             lits,
             depth,
-            n_leafs,
+            n_leaves,
             left,
             right,
         }
@@ -1083,7 +1083,7 @@ impl ops::Index<usize> for UnitNode {
 pub struct GeneralNode {
     pub(crate) lits: Vec<(usize, LitData)>,
     pub(crate) depth: usize,
-    pub(crate) n_leafs: usize,
+    pub(crate) n_leaves: usize,
     pub(crate) max_val: usize,
     pub(crate) left: NodeCon,
     pub(crate) right: NodeCon,
@@ -1094,7 +1094,7 @@ impl GeneralNode {
         lvals: &[usize],
         rvals: &[usize],
         depth: usize,
-        n_leafs: usize,
+        n_leaves: usize,
         left: NodeCon,
         right: NodeCon,
     ) -> Self {
@@ -1133,7 +1133,7 @@ impl GeneralNode {
         Self {
             lits,
             depth,
-            n_leafs,
+            n_leaves,
             max_val,
             left,
             right,
@@ -1705,11 +1705,11 @@ mod tests {
         assert_eq!(con.multiplier(), 1);
         assert_eq!(con.divisor(), 1);
         assert_eq!(con.offset(), 0);
-        let mut leafs: Vec<_> = db.leaf_iter(con.id).collect();
+        let mut leaves: Vec<_> = db.leaf_iter(con.id).collect();
         lits.sort_unstable();
-        leafs.sort_unstable();
-        assert_eq!(lits, leafs);
-        assert_eq!(leafs.len(), db[con.id].n_leafs());
+        leaves.sort_unstable();
+        assert_eq!(lits, leaves);
+        assert_eq!(leaves.len(), db[con.id].n_leaves());
     }
 
     #[test]
@@ -1719,9 +1719,9 @@ mod tests {
         let a = db.insert(Node::leaf(lit![0]));
         let b = db.insert(Node::leaf(lit![1]));
         let c = db.insert(Node::internal(NodeCon::full(a), NodeCon::full(b), &db));
-        let leafs: Vec<_> = db.leaf_iter(c).collect();
-        assert_eq!(vec![(lit![0], 1), (lit![1], 1)], leafs);
-        assert_eq!(leafs.len(), db[c].n_leafs());
+        let leaves: Vec<_> = db.leaf_iter(c).collect();
+        assert_eq!(vec![(lit![0], 1), (lit![1], 1)], leaves);
+        assert_eq!(leaves.len(), db[c].n_leaves());
         let d = db.insert(Node::leaf(lit![2]));
         let e = db.insert(Node::internal(
             NodeCon::full(d),
@@ -1729,9 +1729,9 @@ mod tests {
             &db,
         ));
         db[c].reserve_vars(2..=2, &mut vm);
-        let leafs: Vec<_> = db.leaf_iter(e).collect();
-        assert_eq!(vec![(lit![2], 1), (db[c][2], 1)], leafs);
-        assert_eq!(leafs.len(), db[e].n_leafs());
+        let leaves: Vec<_> = db.leaf_iter(e).collect();
+        assert_eq!(vec![(lit![2], 1), (db[c][2], 1)], leaves);
+        assert_eq!(leaves.len(), db[e].n_leaves());
     }
 
     #[test]
@@ -1749,7 +1749,7 @@ mod tests {
             NodeCon::offset_weighted(b, 1, 4),
             &db,
         ));
-        let leafs: Vec<_> = db.leaf_iter(c).collect();
+        let leaves: Vec<_> = db.leaf_iter(c).collect();
         assert_eq!(
             vec![
                 (db[a][3], 2),
@@ -1758,9 +1758,9 @@ mod tests {
                 (db[b][3], 4),
                 (db[b][4], 4)
             ],
-            leafs
+            leaves
         );
-        assert_eq!(leafs.len(), db[c].n_leafs());
+        assert_eq!(leaves.len(), db[c].n_leaves());
     }
 
     #[test]
@@ -1776,7 +1776,7 @@ mod tests {
             NodeCon::full(b),
             &db,
         ));
-        let leafs: Vec<_> = db.leaf_iter(c).collect();
+        let leaves: Vec<_> = db.leaf_iter(c).collect();
         assert_eq!(
             vec![
                 (db[a.id][3], 1),
@@ -1786,8 +1786,8 @@ mod tests {
                 (db[a.id][13], 1),
                 (lit![3], 1)
             ],
-            leafs
+            leaves
         );
-        assert_eq!(leafs.len(), db[c].n_leafs());
+        assert_eq!(leaves.len(), db[c].n_leaves());
     }
 }

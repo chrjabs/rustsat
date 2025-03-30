@@ -14,8 +14,8 @@ enum InitBy {
 
 impl Parse for InitBy {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(if let syn::Result::<Type>::Ok(typ) = input.parse() {
-            Self::Default(typ)
+        Ok(if let syn::Result::<Type>::Ok(r#type) = input.parse() {
+            Self::Default(r#type)
         } else {
             Self::Expr(input.parse()?)
         })
@@ -25,7 +25,7 @@ impl Parse for InitBy {
 impl ToTokens for InitBy {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
-            InitBy::Default(typ) => typ.to_tokens(tokens),
+            InitBy::Default(r#type) => r#type.to_tokens(tokens),
             InitBy::Expr(expr) => expr.to_tokens(tokens),
         }
     }
