@@ -588,6 +588,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 }
 
 /// An iterator over the leaves in a given sub-tree
+#[derive(Debug)]
 pub struct LeafIter<'db, Db> {
     /// The database that the tree is in
     db: &'db Db,

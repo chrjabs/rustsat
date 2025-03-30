@@ -38,6 +38,7 @@
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
@@ -90,6 +91,24 @@ pub struct Kissat<'term> {
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     stats: SolverStats,
+}
+
+impl fmt::Debug for Kissat<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Kissat")
+            .field("handle", &self.handle)
+            .field("state", &self.state)
+            .field(
+                "terminate_cb",
+                if self.terminate_cb.is_some() {
+                    &"some callback"
+                } else {
+                    &"no callback"
+                },
+            )
+            .field("stats", &self.stats)
+            .finish()
+    }
 }
 
 unsafe impl Send for Kissat<'_> {}
@@ -415,6 +434,7 @@ impl Interrupt for Kissat<'_> {
 }
 
 /// An Interrupter for the Kissat solver
+#[derive(Debug)]
 pub struct Interrupter {
     /// The C API handle
     handle: *mut ffi::kissat,

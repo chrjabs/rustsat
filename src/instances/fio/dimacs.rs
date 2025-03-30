@@ -527,6 +527,7 @@ pub fn write_cnf_annotated<W: Write>(
 }
 
 /// Input data for writing a CNF instance
+#[derive(Debug)]
 pub enum CnfLine {
     /// A comment line
     Comment(String),
@@ -593,6 +594,7 @@ pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
 }
 
 #[cfg(feature = "optimization")]
+#[derive(Debug)]
 /// Input data for writing a single-objective (WCNF) instance
 pub enum WcnfLine {
     /// A comment line
@@ -676,6 +678,7 @@ pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WC
 }
 
 #[cfg(feature = "multiopt")]
+#[derive(Debug)]
 /// Input data for writing a multi-objective (MCNF) instance
 pub enum McnfLine {
     /// A comment line

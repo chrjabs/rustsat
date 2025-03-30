@@ -60,7 +60,7 @@ pub enum PrecisionError {
 ///
 /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DynamicPolyWatchdog {
     /// Input literals and weights for the encoding
@@ -227,7 +227,7 @@ impl DynamicPolyWatchdog {
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Structure {
     /// The bottom buckets of the encoding. The first one of them is the root of the encoding.
     /// Sorted from highest to lowest. This might skip some bottom buckets, if their level is
@@ -463,6 +463,7 @@ pub mod referenced {
     ///
     /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
     ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+    #[derive(Debug)]
     pub struct DynamicPolyWatchdog<'totdb> {
         /// The encoding root and the tares
         structure: &'totdb Structure,
@@ -477,6 +478,7 @@ pub mod referenced {
     ///
     /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
     ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+    #[derive(Debug)]
     pub struct DynamicPolyWatchdogCell<'totdb> {
         /// The encoding root and the tares
         structure: &'totdb Structure,

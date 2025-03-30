@@ -26,7 +26,7 @@ use crate::{
 ///
 /// - Van-Hau Nguyen and Son Thay Mai: _A New Method to Encode the At-Most-One Constraint into SAT,
 ///   SOICT 2015.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Bimander<const N: usize = 4, Sub = super::Pairwise> {
     /// Input literals

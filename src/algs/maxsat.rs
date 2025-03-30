@@ -48,6 +48,7 @@ fn objective_value(obj: &[(Lit, usize)], sol: &Assignment) -> usize {
 ///
 /// - If any interaction with the solver errors
 /// - If the objective value overflows [`isize::MAX`]
+#[derive(Debug)]
 pub struct SolutionImprovingSearch<Solver, PbEnc> {
     slv: PhantomData<Solver>,
     enc: PhantomData<PbEnc>,

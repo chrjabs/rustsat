@@ -148,7 +148,7 @@ impl Default for BasicVarManager {
 }
 
 /// Manager for re-indexing an existing instance
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReindexingVarManager {
     next_var: Var,
@@ -238,6 +238,7 @@ impl ManageVars for ReindexingVarManager {
 
 /// Manager keeping track of used variables and variables associated with objects
 #[derive(PartialEq, Eq)]
+#[allow(missing_debug_implementations)]
 pub struct ObjectVarManager {
     next_var: Var,
     object_map: RsHashMap<Box<dyn VarKey>, Var>,
@@ -321,7 +322,7 @@ impl ManageVars for ObjectVarManager {
 
 #[cfg(feature = "rand")]
 /// Manager for randomly re-indexing an instance
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RandReindVarManager {
     next_var: Var,

@@ -10,6 +10,7 @@
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use std::time::Duration;
 
@@ -32,6 +33,19 @@ pub struct Solver<Cb: Callbacks> {
     n_terminated: usize,
     avg_clause_len: f32,
     cpu_time: Duration,
+}
+
+impl<Cb: Callbacks> std::fmt::Debug for Solver<Cb> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Solver")
+            .field("internal", &"omitted")
+            .field("n_sat", &self.n_sat)
+            .field("n_unsat", &self.n_unsat)
+            .field("n_terminated", &self.n_terminated)
+            .field("avg_clause_len", &self.avg_clause_len)
+            .field("cpu_time", &self.cpu_time)
+            .finish()
+    }
 }
 
 impl<Cb: Callbacks> Solver<Cb> {

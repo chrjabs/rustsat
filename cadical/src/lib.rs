@@ -51,6 +51,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use std::{
     cmp::Ordering,
@@ -131,6 +132,32 @@ pub struct CaDiCaL<'term, 'learn> {
     terminate_cb: OptTermCallbackStore<'term>,
     learner_cb: OptLearnCallbackStore<'learn>,
     stats: SolverStats,
+}
+
+impl fmt::Debug for CaDiCaL<'_, '_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CaDiCaL")
+            .field("handle", &self.handle)
+            .field("state", &self.state)
+            .field(
+                "terminate_cb",
+                if self.terminate_cb.is_some() {
+                    &"some callback"
+                } else {
+                    &"no callback"
+                },
+            )
+            .field(
+                "learner_cb",
+                if self.learner_cb.is_some() {
+                    &"some callback"
+                } else {
+                    &"no callback"
+                },
+            )
+            .field("stats", &self.stats)
+            .finish()
+    }
 }
 
 unsafe impl Send for CaDiCaL<'_, '_> {}
@@ -823,6 +850,7 @@ impl Interrupt for CaDiCaL<'_, '_> {
 }
 
 /// An Interrupter for the CaDiCaL solver
+#[derive(Debug)]
 pub struct Interrupter {
     /// The C API handle
     handle: *mut ffi::CCaDiCaL,

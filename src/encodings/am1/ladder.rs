@@ -17,7 +17,7 @@ use crate::{
 /// # References
 ///
 /// - Ian P. Gent and Peter Nightingale: _A new Encoding of AllDifferent into SAT_, ModRef 2004.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ladder {
     /// Input literals

@@ -363,6 +363,7 @@ fn opb_data(input: &str, opts: Options) -> IResult<&str, OpbData> {
 
 /// Possible lines that can be written to OPB
 #[cfg(not(feature = "optimization"))]
+#[derive(Debug)]
 pub enum FileLine {
     /// A comment line
     Comment(String),
@@ -376,6 +377,7 @@ pub enum FileLine {
 
 /// Possible lines that can be written to OPB
 #[cfg(feature = "optimization")]
+#[derive(Debug)]
 pub enum FileLine<LI: crate::types::WLitIter> {
     /// A comment line
     Comment(String),

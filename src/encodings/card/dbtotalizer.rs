@@ -380,6 +380,7 @@ pub mod referenced {
     ///
     /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
     /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+    #[derive(Debug)]
     pub struct Tot<'totdb> {
         /// The root of the tree, if constructed
         root: NodeId,
@@ -395,6 +396,7 @@ pub mod referenced {
     ///
     /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
     /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+    #[derive(Debug)]
     pub struct TotCell<'totdb> {
         /// The root of the tree, if constructed
         root: NodeId,

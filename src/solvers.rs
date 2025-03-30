@@ -463,6 +463,7 @@ pub trait Propagate {
 }
 
 /// A result returned from the [`Propagate`] trait
+#[derive(Debug)]
 #[must_use]
 pub struct PropagateResult {
     /// The list of propagated literals
@@ -483,7 +484,7 @@ type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
 type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
 /// Solver statistics
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug)]
 pub struct SolverStats {
     /// The number of satisfiable queries executed
     pub n_sat: usize,

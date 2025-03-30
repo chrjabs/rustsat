@@ -21,7 +21,7 @@ use crate::{
 /// - Steven D. Prestwich: _Finding large Cliques using SAT Local Search_, in Trends in Constraint
 ///   Programming 2007.
 /// - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Bitwise {
     /// Input literals

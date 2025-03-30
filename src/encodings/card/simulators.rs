@@ -19,6 +19,7 @@ use crate::{
 
 /// Simulator type that builds a cardinality encoding of type `CE` over the
 /// negated input literals in order to simulate the other bound type
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Inverted<CE>
 where
@@ -296,6 +297,7 @@ type InvertedIter<ICE> = std::iter::Map<ICE, fn(Lit) -> Lit>;
 /// Simulator type that builds a combined cardinality encoding supporting both
 /// bounds from two individual cardinality encodings supporting each bound
 /// separately
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Double<UBE, LBE>
 where

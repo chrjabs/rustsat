@@ -1278,6 +1278,7 @@ impl LitData {
 
 /// A depth first search iterator over the nodes in the tree, computing the sum of input value at
 /// each node
+#[derive(Debug)]
 pub struct ValueIter<'a> {
     /// The database that the tree is in
     db: &'a Db,
@@ -1409,6 +1410,7 @@ impl Iterator for ValueIter<'_> {
 }
 
 /// An iterator over a nodes encoded output literals
+#[derive(Debug)]
 enum OLitIter<'node> {
     Unit(std::iter::Enumerate<std::slice::Iter<'node, LitData>>),
     General(std::slice::Iter<'node, (usize, LitData)>),
@@ -1448,6 +1450,7 @@ impl Iterator for OLitIter<'_> {
 }
 
 /// An iterator over assigned totalizer variables
+#[derive(Debug)]
 pub struct AssignIter<'db> {
     db: &'db Db,
     val_iter: ValueIter<'db>,

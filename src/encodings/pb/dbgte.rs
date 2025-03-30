@@ -364,6 +364,7 @@ pub mod referenced {
     ///
     /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
     ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    #[derive(Debug)]
     pub struct Gte<'totdb> {
         /// A node connection to the root
         root: NodeCon,
@@ -380,6 +381,7 @@ pub mod referenced {
     ///
     /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
     ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    #[derive(Debug)]
     pub struct GteCell<'totdb> {
         /// A node connection to the root
         root: NodeCon,

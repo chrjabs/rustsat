@@ -14,6 +14,7 @@
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use rustsat::{
     solvers::SolverState,

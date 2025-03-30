@@ -77,6 +77,7 @@
 #![cfg_attr(feature = "bench", feature(test))]
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use std::collections::TryReserveError;
 
