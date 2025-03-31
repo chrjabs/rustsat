@@ -1,4 +1,4 @@
-39
+47
 accessor
 al
 AllDifferent
@@ -10,14 +10,19 @@ bitwise
 boolean
 cardinality
 changelog
+checkable
 children's
 comparator
 decrementing
 encoding/S
+equioptimal
+equisatisfiable
 et
 executable/S
+formatter
 hasher
 incrementing
+initializer/S
 inprocessing
 irredundant
 learnt
@@ -28,6 +33,9 @@ parser/S
 preprocessing
 propagations
 recurse/S
+redundance
+reflexivity
+reification/S
 satisfiability
 satisfiable
 struct/S
