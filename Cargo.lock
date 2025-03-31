@@ -991,6 +991,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pigeons"
+version = "0.0.1"
+dependencies = [
+ "itertools 0.14.0",
+ "rustc-hash",
+ "serde",
+ "tempfile",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"

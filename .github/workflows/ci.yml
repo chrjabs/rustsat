@@ -32,6 +32,7 @@ jobs:
       - kissat-tests
       - kissat-test-all-features
       - minisat-tests
+      - pigeons-tests
       - pyapi-tests
       - pyapi-stubs
       - tools-tests
@@ -55,6 +56,7 @@ jobs:
           echo "kissat-tests: ${{ needs.kissat-tests.result }}"
           echo "kissat-test-all-features: ${{ needs.kissat-test-all-features.result }}"
           echo "minisat-tests: ${{ needs.minisat-tests.result }}"
+          echo "pigeons-tests: ${{ needs.pigeons-tests.result }}"
           echo "pyapi-tests: ${{ needs.pyapi-tests.result }}"
           echo "pyapi-stubs: ${{ needs.pyapi-stubs.result }}"
           echo "tools-tests: ${{ needs.tools-tests.result }}"
@@ -438,6 +440,42 @@ jobs:
           save-if: false
       - name: Test suite
         run: cargo nextest run --profile ci -p rustsat-minisat --verbose
+
+  pigeons-tests:
+    name: Pigeons test suite
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    needs:
+      - build-workspace
+    steps:
+      - uses: actions/checkout@v4
+      - name: Determine Rust version
+        id: rust-versions
+        shell: bash
+        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
+      - uses: taiki-e/install-action@nextest
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "toolchain-workspace"
+          save-if: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+      - name: Install VeriPB
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -e
+          sudo apt-get install libgmp-dev
+          pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
+          echo "VERIPB_CHECKER=$(which veripb)" >> "$GITHUB_ENV"
+      - name: Test suite
+        run: cargo nextest run --profile ci -p pigeons --verbose
 
   pyapi-tests:
     name: PyAPI test suite
