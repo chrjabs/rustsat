@@ -112,8 +112,8 @@ pub trait BoundUpper: Encode {
     }
 }
 
-/// Trait for cardinality encodings that allow upper bounding of the form `sum
-/// of lits <= ub`
+/// Trait for cardinality encodings that allow lower bounding of the form `sum
+/// of lits >= lb`
 pub trait BoundLower: Encode {
     /// Lazily builds the cardinality encoding to enable lower bounds in a given
     /// range. `var_manager` is the variable manager to use for tracking new
@@ -282,8 +282,8 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
         R: RangeBounds<usize>;
 }
 
-/// Trait for incremental cardinality encodings that allow upper bounding of the
-/// form `sum of lits <= ub`
+/// Trait for incremental cardinality encodings that allow lower bounding of the
+/// form `sum of lits >= lb`
 pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// Lazily builds the _change in_ cardinality encoding to enable lower
     /// bounds in a given range. `var_manager` is the variable manager to use

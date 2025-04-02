@@ -147,8 +147,8 @@ pub trait BoundUpper: Encode {
     }
 }
 
-/// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
-/// of lits <= ub`
+/// Trait for pseudo-boolean encodings that allow lower bounding of the form `sum
+/// of lits >= lb`
 pub trait BoundLower: Encode {
     /// Lazily builds the pseudo-boolean encoding to enable lower bounds in a
     /// given range. `var_manager` is the variable manager to use for tracking
@@ -329,8 +329,8 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
         R: RangeBounds<usize>;
 }
 
-/// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
-/// form `sum of lits <= ub`
+/// Trait for incremental pseudo-boolean encodings that allow lower bounding of the
+/// form `sum of lits >= lb`
 pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable lower
     /// bounds within the range. `var_manager` is the variable manager to use
