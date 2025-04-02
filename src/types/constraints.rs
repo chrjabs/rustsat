@@ -309,6 +309,28 @@ impl fmt::Debug for Clause {
     }
 }
 
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike<crate::types::Var> for Clause {
+    fn rhs(&self) -> isize {
+        1
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        self.lits.iter().map(|l| (1, pigeons::Axiom::from(*l)))
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike<crate::types::Var> for Cl {
+    fn rhs(&self) -> isize {
+        1
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        self.lits.iter().map(|l| (1, pigeons::Axiom::from(*l)))
+    }
+}
+
 /// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
@@ -814,6 +836,63 @@ impl<'slf> IntoIterator for &'slf mut CardConstraint {
 impl From<Clause> for CardConstraint {
     fn from(value: Clause) -> Self {
         CardConstraint::new_lb(value, 1)
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike<crate::types::Var> for CardConstraint {
+    fn rhs(&self) -> isize {
+        match self {
+            CardConstraint::Ub(c) => {
+                isize::try_from(c.lits.len())
+                    .expect("cannot handle more than `isize::MAX` literals")
+                    - isize::try_from(c.b).expect("cannot handle bounds larger than `isize::MAX`")
+            }
+            CardConstraint::Lb(c) => {
+                isize::try_from(c.b).expect("cannot handle bounds larger than `isize::MAX`")
+            }
+            CardConstraint::Eq(_) => {
+                panic!("VeriPB does not support equality constraints in the proof")
+            }
+        }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        match self {
+            CardConstraint::Ub(CardUbConstr { lits, .. }) => PigeonLitIter {
+                lits: lits.iter(),
+                negate: true,
+            },
+            CardConstraint::Lb(CardLbConstr { lits, .. })
+            | CardConstraint::Eq(CardEqConstr { lits, .. }) => PigeonLitIter {
+                lits: lits.iter(),
+                negate: false,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+struct PigeonLitIter<'a> {
+    lits: std::slice::Iter<'a, Lit>,
+    negate: bool,
+}
+
+#[cfg(feature = "proof-logging")]
+impl Iterator for PigeonLitIter<'_> {
+    type Item = (isize, pigeons::Axiom<crate::types::Var>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lits.next().map(|l| {
+            (
+                1,
+                if self.negate {
+                    pigeons::Axiom::from(!*l)
+                } else {
+                    pigeons::Axiom::from(*l)
+                },
+            )
+        })
     }
 }
 
@@ -1418,6 +1497,60 @@ impl PbConstraint {
     #[must_use]
     pub fn is_sat(&self, assign: &Assignment) -> bool {
         self.evaluate(assign) == TernaryVal::True
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike<crate::types::Var> for PbConstraint {
+    fn rhs(&self) -> isize {
+        match self {
+            PbConstraint::Ub(c) => {
+                isize::try_from(c.weight_sum).expect("can handle at most `isize::MAX` weight sum")
+                    - c.b
+            }
+            PbConstraint::Lb(c) => c.b,
+            PbConstraint::Eq(_) => {
+                panic!("VeriPB does not support equality constraints in the proof")
+            }
+        }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        match self {
+            PbConstraint::Ub(PbUbConstr { lits, .. }) => PigeonWLitIter {
+                lits: lits.iter(),
+                negate: true,
+            },
+            PbConstraint::Lb(PbLbConstr { lits, .. })
+            | PbConstraint::Eq(PbEqConstr { lits, .. }) => PigeonWLitIter {
+                lits: lits.iter(),
+                negate: false,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+struct PigeonWLitIter<'a> {
+    lits: std::slice::Iter<'a, (Lit, usize)>,
+    negate: bool,
+}
+
+#[cfg(feature = "proof-logging")]
+impl Iterator for PigeonWLitIter<'_> {
+    type Item = (isize, pigeons::Axiom<crate::types::Var>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.lits.next().map(|(l, w)| {
+            (
+                isize::try_from(*w).expect("can only handle coefficients up to `isize::MAX`"),
+                if self.negate {
+                    pigeons::Axiom::from(!*l)
+                } else {
+                    pigeons::Axiom::from(*l)
+                },
+            )
+        })
     }
 }
 
