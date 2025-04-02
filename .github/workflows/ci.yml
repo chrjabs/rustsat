@@ -93,6 +93,8 @@ jobs:
         run: exit 1
       - if: ${{ needs.minisat-tests.result != 'success' }}
         run: exit 1
+      - if: ${{ needs.pigeons-tests.result != 'success' }}
+        run: exit 1
       - if: ${{ needs.pyapi-tests.result != 'success' }}
         run: exit 1
       - if: ${{ needs.pyapi-stubs.result != 'success' }}
