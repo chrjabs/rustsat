@@ -222,6 +222,10 @@ impl Version {
         self >= Version::V200
     }
 
+    fn has_proof_tracer(self) -> bool {
+        self >= Version::V200
+    }
+
     fn set_defines(self, build: &mut cc::Build) {
         if !has_cpp_feature(CppFeature::FlexibleArrayMembers) {
             build.define("NFLEXIBLE", None);
@@ -248,6 +252,34 @@ impl Version {
             build.define("PROPAGATE", None);
         } else {
             build.define("PYSAT_PROPCHECK", None);
+        }
+        if self.has_proof_tracer() {
+            build.define("TRACER", None);
+        }
+    }
+
+    /// Sets custom `rustc` `--cfg` arguments for features only present in some version
+    fn set_cfgs(self) {
+        println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\", \"lrat\", \"frat\", \"idrup\", \"proof-tracer\"))");
+        if self.has_flip() {
+            println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
+        }
+        if self.has_propagate() {
+            println!("cargo:rustc-cfg=cadical_feature=\"propagate\"");
+        } else {
+            println!("cargo:rustc-cfg=cadical_feature=\"pysat-propcheck\"");
+        }
+        if self.has_lrat() {
+            println!("cargo:rustc-cfg=cadical_feature=\"lrat\"");
+        }
+        if self.has_frat() {
+            println!("cargo:rustc-cfg=cadical_feature=\"frat\"");
+        }
+        if self.has_idrup() {
+            println!("cargo:rustc-cfg=cadical_feature=\"idrup\"");
+        }
+        if self.has_proof_tracer() {
+            println!("cargo:rustc-cfg=cadical_feature=\"proof-tracer\"");
         }
     }
 }
@@ -287,36 +319,20 @@ fn main() {
 
     let cadical_dir = get_cadical_dir(version, None);
 
-    generate_bindings(&format!("{cadical_dir}/src/ccadical.h"), version, &out_dir);
+    generate_bindings(&cadical_dir, version, &out_dir);
 
-    // Set custom configs for features only present in some version
-    println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\", \"lrat\", \"frat\", \"idrup\"))");
-    if version.has_flip() {
-        println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
-    }
-    if version.has_propagate() {
-        println!("cargo:rustc-cfg=cadical_feature=\"propagate\"");
-    } else {
-        println!("cargo:rustc-cfg=cadical_feature=\"pysat-propcheck\"");
-    }
-    if version.has_lrat() {
-        println!("cargo:rustc-cfg=cadical_feature=\"lrat\"");
-    }
-    if version.has_frat() {
-        println!("cargo:rustc-cfg=cadical_feature=\"frat\"");
-    }
-    if version.has_idrup() {
-        println!("cargo:rustc-cfg=cadical_feature=\"idrup\"");
-    }
+    version.set_cfgs();
 }
 
 /// Generates Rust FFI bindings
-fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
+fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
+    let header_path = format!("{cadical_dir}/src/ccadical.h");
+
     let bindings = bindgen::Builder::default()
         .rust_target("1.75.0".parse().unwrap()) // Set MSRV of RustSAT
+        .clang_arg(format!("-I{cadical_dir}/src"))
         .clang_arg("-Icpp-extension")
-        .header(header_path)
-        .allowlist_file(header_path)
+        .allowlist_file(&header_path)
         .allowlist_file("cpp-extension/ccadical_extension.h")
         .blocklist_item("FILE")
         .blocklist_item("_IO_FILE")
@@ -332,6 +348,14 @@ fn generate_bindings(header_path: &str, version: Version, out_dir: &str) {
         .blocklist_function("ccadical_close_proof")
         .blocklist_function("ccadical_conclude")
         .blocklist_function("ccadical_simplify");
+    let bindings = if version.has_proof_tracer() {
+        // in this case, `ccadical.h` is included from `ctracer.h`
+        bindings
+            .header("cpp-extension/ctracer.h")
+            .allowlist_file("cpp-extension/ctracer.h")
+    } else {
+        bindings.header(&header_path)
+    };
     #[cfg(not(feature = "tracing"))]
     let bindings = bindings.blocklist_function("ccadical_trace_api_calls");
     let bindings = if version.has_flip() {

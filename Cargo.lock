@@ -1292,6 +1292,7 @@ dependencies = [
  "cpu-time",
  "git2",
  "glob",
+ "pigeons",
  "rustsat",
  "rustsat-solvertests",
  "signal-hook",
