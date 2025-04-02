@@ -279,6 +279,21 @@ fn dbtot_inc_ub() {
     test_inc_ub_card::<DbTotalizer>()
 }
 
+#[test]
+fn dbtot_inc_both() {
+    test_inc_both_card::<DbTotalizer>()
+}
+
+#[test]
+fn dbtot_both() {
+    test_both_card::<DbTotalizer>()
+}
+
+#[test]
+fn dbtot_min_enc() {
+    test_both_card_min_enc::<DbTotalizer>()
+}
+
 use rustsat_tools::{test_all, test_assignment};
 
 fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
