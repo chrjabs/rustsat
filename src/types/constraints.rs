@@ -351,6 +351,7 @@ macro_rules! clause {
 /// Dynamically sized clause type to be used with references
 ///
 /// [`Clause`] is the owned version: if [`Clause`] is [`String`], this is [`str`].
+#[derive(PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Cl {
     lits: [Lit],
@@ -582,6 +583,15 @@ macro_rules! write_lit_sum {
 }
 
 impl CardConstraint {
+    /// Constructs a new unit constraint enforcing a literal
+    #[must_use]
+    pub fn new_unit(lit: Lit) -> Self {
+        CardConstraint::Lb(CardLbConstr {
+            lits: vec![lit],
+            b: 1,
+        })
+    }
+
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
     pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
         CardConstraint::Ub(CardUbConstr {
@@ -648,12 +658,21 @@ impl CardConstraint {
     }
 
     /// Changes the bound on the constraint
+    #[deprecated(
+        since = "0.7.0",
+        note = "`change_bound` has been renamed to `set_bound`"
+    )]
     pub fn change_bound(&mut self, b: usize) {
+        self.set_bound(b);
+    }
+
+    /// Sets the bound of the constraint
+    pub fn set_bound(&mut self, bound: usize) {
         match self {
-            CardConstraint::Ub(constr) => constr.b = b,
-            CardConstraint::Lb(constr) => constr.b = b,
-            CardConstraint::Eq(constr) => constr.b = b,
-        }
+            CardConstraint::Ub(CardUbConstr { b, .. })
+            | CardConstraint::Lb(CardLbConstr { b, .. })
+            | CardConstraint::Eq(CardEqConstr { b, .. }) => *b = bound,
+        };
     }
 
     /// Checks if the constraint is always satisfied
@@ -929,6 +948,19 @@ impl CardUbConstr {
         (&self.lits, &self.b)
     }
 
+    /// Converts the upper bound constraint into an equivalent lower bound constraint
+    #[must_use]
+    pub fn invert(mut self) -> CardLbConstr {
+        self.lits.iter_mut().for_each(|l| {
+            *l = !*l;
+        });
+        let length = self.lits.len();
+        CardLbConstr {
+            lits: self.lits,
+            b: length - self.b,
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -979,6 +1011,19 @@ impl CardLbConstr {
     /// Get references to the constraints internals
     pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
+    }
+
+    /// Converts the lower bound constraint into an equivalent upper bound constraint
+    #[must_use]
+    pub fn invert(mut self) -> CardUbConstr {
+        self.lits.iter_mut().for_each(|l| {
+            *l = !*l;
+        });
+        let length = self.lits.len();
+        CardUbConstr {
+            lits: self.lits,
+            b: length - self.b,
+        }
     }
 
     /// Checks if the constraint is always satisfied
@@ -1037,6 +1082,21 @@ impl CardEqConstr {
     /// Get references to the constraints internals
     pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
+    }
+
+    /// Splits the equality constraint into a lower bound and an upper bound constraint
+    #[must_use]
+    pub fn split(self) -> (CardLbConstr, CardUbConstr) {
+        (
+            CardLbConstr {
+                lits: self.lits.clone(),
+                b: self.b,
+            },
+            CardUbConstr {
+                lits: self.lits,
+                b: self.b,
+            },
+        )
     }
 
     /// Checks if the constraint is unsatisfiable
@@ -1121,6 +1181,16 @@ macro_rules! write_wlit_sum {
 }
 
 impl PbConstraint {
+    /// Constructs a new unit constraint enforcing a literal
+    #[must_use]
+    pub fn new_unit(lit: Lit) -> Self {
+        PbConstraint::Lb(PbLbConstr {
+            lits: vec![(lit, 1)],
+            weight_sum: 1,
+            b: 1,
+        })
+    }
+
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
     fn convert_input_lits<LI: IWLitIter>(lits: LI) -> (impl WLitIter, usize, isize) {
         let mut b_add = 0;
@@ -1151,6 +1221,17 @@ impl PbConstraint {
         })
     }
 
+    /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
+    pub fn new_ub_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        PbConstraint::Ub(PbUbConstr {
+            lits,
+            weight_sum,
+            b,
+        })
+    }
+
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
     pub fn new_lb<LI: IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
@@ -1158,6 +1239,17 @@ impl PbConstraint {
             lits: lits.into_iter().collect(),
             weight_sum,
             b: b + b_add,
+        })
+    }
+
+    /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
+    pub fn new_lb_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        PbConstraint::Lb(PbLbConstr {
+            lits,
+            weight_sum,
+            b,
         })
     }
 
@@ -1171,6 +1263,27 @@ impl PbConstraint {
         })
     }
 
+    /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
+    pub fn new_eq_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        PbConstraint::Eq(PbEqConstr {
+            lits,
+            weight_sum,
+            b,
+        })
+    }
+
+    /// Gets the sum of weights of the constraint
+    #[must_use]
+    pub fn weight_sum(&self) -> usize {
+        match self {
+            PbConstraint::Ub(c) => c.weight_sum,
+            PbConstraint::Lb(c) => c.weight_sum,
+            PbConstraint::Eq(c) => c.weight_sum,
+        }
+    }
+
     /// Gets mutable references to the underlying data
     fn get_data(&mut self) -> (&mut Vec<(Lit, usize)>, &mut usize, &mut isize) {
         match self {
@@ -1178,6 +1291,15 @@ impl PbConstraint {
             PbConstraint::Lb(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
             PbConstraint::Eq(constr) => (&mut constr.lits, &mut constr.weight_sum, &mut constr.b),
         }
+    }
+
+    /// Sets the bound of the constraint
+    pub fn set_bound(&mut self, bound: isize) {
+        match self {
+            PbConstraint::Ub(PbUbConstr { b, .. })
+            | PbConstraint::Lb(PbLbConstr { b, .. })
+            | PbConstraint::Eq(PbEqConstr { b, .. }) => *b = bound,
+        };
     }
 
     /// Adds literals to the cardinality constraint
@@ -1332,7 +1454,8 @@ impl PbConstraint {
         self.into_card_constr()
     }
 
-    /// Converts the pseudo-boolean constraint into a cardinality constraint, if possible
+    /// Converts the pseudo-boolean constraint into a cardinality constraint, only if the
+    /// constraint is already a cardinality
     ///
     /// # Errors
     ///
@@ -1389,6 +1512,21 @@ impl PbConstraint {
                 }
             }
         })
+    }
+
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is UNSAT or a tautology
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardConstraint {
+        match self {
+            PbConstraint::Ub(constr) => CardConstraint::Ub(constr.extend_to_card_constr()),
+            PbConstraint::Lb(constr) => CardConstraint::Lb(constr.extend_to_card_constr()),
+            PbConstraint::Eq(constr) => CardConstraint::Eq(constr.extend_to_card_constr()),
+        }
     }
 
     /// Converts the constraint into a clause, if possible
@@ -1633,6 +1771,43 @@ impl PbUbConstr {
         (&self.lits, &self.b)
     }
 
+    /// Converts the upper bound constraint into an equivalent lower bound constraint
+    ///
+    /// # Panics
+    ///
+    /// If the sum of weights is larger than [`isize::MAX`]
+    #[must_use]
+    pub fn invert(mut self) -> PbLbConstr {
+        self.lits.iter_mut().for_each(|(l, _)| {
+            *l = !*l;
+        });
+        PbLbConstr {
+            lits: self.lits,
+            weight_sum: self.weight_sum,
+            b: -self.b
+                + isize::try_from(self.weight_sum)
+                    .expect("cannot handle weight sum larger than `isize::MAX`"),
+        }
+    }
+
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is UNSAT
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardUbConstr {
+        CardUbConstr {
+            lits: self
+                .lits
+                .into_iter()
+                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .collect(),
+            b: self.b.unsigned_abs(),
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1731,6 +1906,43 @@ impl PbLbConstr {
         (&self.lits, &self.b)
     }
 
+    /// Converts the lower bound constraint into an equivalent upper bound constraint
+    ///
+    /// # Panics
+    ///
+    /// If the sum of weights is larger than [`isize::MAX`]
+    #[must_use]
+    pub fn invert(mut self) -> PbUbConstr {
+        self.lits.iter_mut().for_each(|(l, _)| {
+            *l = !*l;
+        });
+        PbUbConstr {
+            lits: self.lits,
+            weight_sum: self.weight_sum,
+            b: -self.b
+                + isize::try_from(self.weight_sum)
+                    .expect("cannot handle weight sum larger than `isize::MAX`"),
+        }
+    }
+
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is a tautology
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardLbConstr {
+        CardLbConstr {
+            lits: self
+                .lits
+                .into_iter()
+                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .collect(),
+            b: self.b.unsigned_abs(),
+        }
+    }
+
     /// Checks if the constraint is always satisfied
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -1826,6 +2038,41 @@ impl PbEqConstr {
     /// Gets references to the constraints internals
     pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
         (&self.lits, &self.b)
+    }
+
+    /// Splits the equality constraint into a lower bound and an upper bound constraint
+    #[must_use]
+    pub fn split(self) -> (PbLbConstr, PbUbConstr) {
+        (
+            PbLbConstr {
+                lits: self.lits.clone(),
+                weight_sum: self.weight_sum,
+                b: self.b,
+            },
+            PbUbConstr {
+                lits: self.lits,
+                weight_sum: self.weight_sum,
+                b: self.b,
+            },
+        )
+    }
+
+    /// Extends the constraint into a cardinality constraint by repeating literals as often as
+    /// their coefficient requires
+    ///
+    /// # Panics
+    ///
+    /// If the constraint is UNSAT
+    #[must_use]
+    pub fn extend_to_card_constr(self) -> CardEqConstr {
+        CardEqConstr {
+            lits: self
+                .lits
+                .into_iter()
+                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .collect(),
+            b: self.b.unsigned_abs(),
+        }
     }
 
     /// Checks if the constraint is unsatisfiable
