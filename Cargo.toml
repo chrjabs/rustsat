@@ -60,7 +60,7 @@ description = "This library aims to provide implementations of elements commonly
 keywords = ["sat", "satisfiability", "encodings"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
-rust-version = "1.74.0" # update the crate documentation if you change this
+rust-version = "1.75.0" # update the crate documentation if you change this
 include = [
   "LICENSE",
   "CHANGELOG.md",

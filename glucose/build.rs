@@ -27,7 +27,7 @@ fn main() {
 
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
-        .rust_target("1.70.0".parse().unwrap()) // Set MSRV of RustSAT
+        .rust_target("1.75.0".parse().unwrap()) // Set MSRV of RustSAT
         .header("cppsrc/cglucose4.h")
         .allowlist_file("cppsrc/cglucose4.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
