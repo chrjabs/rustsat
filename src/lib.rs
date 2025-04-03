@@ -34,6 +34,7 @@
 //! | `rustsat-tools` | A collection of small helpful tools based on RustSAT that can be installed as binaries. For a list of available tools, see [this directory](https://github.com/chrjabs/rustsat/tree/main/tools/src/bin) with short descriptions of the tools in the headers of the files. |
 //! | `rustsat-<satsolver>` | Interfaces to SAT solvers that can be used alongside RustSAT. Currently interfaces are available for `cadical`, `kissat`, `glucose`, and `minisat`. |
 //! | `rustsat-ipasir` | [IPASIR](https://github.com/biotomas/ipasir) bindings to use any compliant solver with RustSAT. |
+//! | `pigeons` | A library for writing [VeriPB](https://gitlab.com/MIAOresearch/software/VeriPB) proofs. Used by RustSAT with the `proof-logging` feature. |
 //!
 //! ## Installation
 //!
@@ -54,6 +55,8 @@
 //! | `rand` | Enable randomization features. (Shuffling clauses etc.) |
 //! | `ipasir-display` | Changes `Display` trait for `Lit` and `Var` types to follow IPASIR variables indexing. |
 //! | `serde` | Add implementations for [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for many library types |
+//! | `proof-logging` | Add proof logging / certification support to constraint encodings |
+//! | `verbose-proofs` | Make the generated proofs (see `proof-logging`) more verbose, for debugging and testing |
 //! | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
 //! | `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
 //!
