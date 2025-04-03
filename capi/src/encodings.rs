@@ -159,6 +159,10 @@ impl ManageVars for VarManager<'_> {
     }
 }
 
+pub mod am1;
+pub mod card;
+pub mod pb;
+
 pub mod adder;
 pub mod dpw;
 pub mod gte;
