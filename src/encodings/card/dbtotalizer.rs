@@ -1112,6 +1112,19 @@ mod tests {
     }
 
     #[test]
+    fn capi_basics() {
+        let mut tot = DbTotalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..=4, &mut cnf, &mut var_manager).unwrap();
+        tot.encode_lb(0..=4, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 12);
+        assert_eq!(cnf.len(), 28);
+    }
+
+    #[test]
     fn functions_min_rhs() {
         let mut tot = DbTotalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);

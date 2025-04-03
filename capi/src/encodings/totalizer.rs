@@ -3,7 +3,10 @@
 use std::ffi::{c_int, c_void};
 
 use rustsat::{
-    encodings::card::{BoundUpper, BoundUpperIncremental, DbTotalizer, EncodeIncremental},
+    encodings::card::{
+        BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DbTotalizer,
+        EncodeIncremental,
+    },
     types::Lit,
 };
 
@@ -96,6 +99,67 @@ pub unsafe extern "C" fn tot_enforce_ub(
     }
 }
 
+/// Lazily builds the _change in_ cardinality encoding to enable lower bounds in a given range. A
+/// change might be added literals or changed bounds.
+///
+/// The min and max bounds are inclusive. After a call to [`tot_encode_lb`] with `min_bound=2` and
+/// `max_bound=4` bound including `>= 2` and `>= 4` can be enforced.
+///
+/// Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+/// passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+/// passed as the first argument and the `collector_data` as a second.
+///
+/// `n_vars_used` must be the number of variables already used and will be incremented by the
+/// number of variables used up in the encoding.
+///
+/// # Safety
+///
+/// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
+///
+/// # Panics
+///
+/// - If `min_bound > max_bound`.
+/// - If the encoding ran out of memory
+#[no_mangle]
+pub unsafe extern "C" fn tot_encode_lb(
+    tot: *mut DbTotalizer,
+    min_bound: usize,
+    max_bound: usize,
+    n_vars_used: &mut u32,
+    collector: CClauseCollector,
+    collector_data: *mut c_void,
+) {
+    assert!(min_bound <= max_bound);
+    let mut collector = ClauseCollector::new(collector, collector_data);
+    let mut var_manager = VarManager::new(n_vars_used);
+    (*tot)
+        .encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager)
+        .expect("clause collector returned out of memory");
+}
+
+/// Returns an assumption/unit for enforcing a lower bound (`sum of lits >= lb`). Make sure that
+/// [`tot_encode_lb`] has been called adequately and nothing has been called afterwards, otherwise
+/// [`MaybeError::NotEncoded`] will be returned.
+///
+/// # Safety
+///
+/// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
+#[no_mangle]
+pub unsafe extern "C" fn tot_enforce_lb(
+    tot: *mut DbTotalizer,
+    ub: usize,
+    assump: &mut c_int,
+) -> MaybeError {
+    match (*tot).enforce_lb(ub) {
+        Ok(assumps) => {
+            debug_assert_eq!(assumps.len(), 1);
+            *assump = assumps[0].to_ipasir();
+            MaybeError::Ok
+        }
+        Err(err) => err.into(),
+    }
+}
+
 /// Reserves all auxiliary variables that the encoding might need
 ///
 /// All calls to [`tot_encode_ub`] following a call to this function are guaranteed to not increase
@@ -163,9 +227,10 @@ mod tests {
                 uint32_t n_used = 4;
                 uint32_t n_clauses = 0;
                 tot_encode_ub(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
+                tot_encode_lb(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
                 tot_drop(tot);
                 assert(n_used == 12);
-                assert(n_clauses == 14);
+                assert(n_clauses == 28);
                 return 0;
             }
         })
