@@ -759,6 +759,18 @@ pub struct Assignment {
 }
 
 impl Assignment {
+    /// Gets the length of the assignment
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.assignment.len()
+    }
+
+    /// Checks whether the assignment is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.assignment.is_empty()
+    }
+
     /// Get the value that the solution assigns to a variable.
     /// If the variable is not included in the solution, will return `TernaryVal::DontCare`.
     #[must_use]
