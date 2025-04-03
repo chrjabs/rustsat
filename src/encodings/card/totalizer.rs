@@ -8,7 +8,7 @@ use std::{cmp, ops::RangeBounds};
 use crate::{
     encodings::{
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        totdb, CollectClauses, EncodeStats, EnforceError, NotEncoded,
+        totdb, CollectClauses, EncodeStats, EnforceError, Monotone, NotEncoded,
     },
     instances::ManageVars,
     types::Lit,
@@ -334,6 +334,8 @@ impl BoundBoth for Totalizer {
 }
 
 impl BoundBothIncremental for Totalizer {}
+
+impl Monotone for Totalizer {}
 
 impl EncodeStats for Totalizer {
     fn n_clauses(&self) -> usize {

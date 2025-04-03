@@ -7,7 +7,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    encodings::pb,
+    encodings::{pb, Monotone},
     instances::BasicVarManager,
     solvers::{SolveIncremental, SolveStats, SolverResult},
     types::{Assignment, Lit, TernaryVal},
@@ -57,7 +57,7 @@ pub struct SolutionImprovingSearch<Solver, PbEnc> {
 impl<Solver, PbEnc> Solve for SolutionImprovingSearch<Solver, PbEnc>
 where
     Solver: SolveIncremental + SolveStats,
-    PbEnc: FromIterator<(Lit, usize)> + pb::BoundUpperIncremental,
+    PbEnc: FromIterator<(Lit, usize)> + pb::BoundUpperIncremental + Monotone,
 {
     type Solver = Solver;
 

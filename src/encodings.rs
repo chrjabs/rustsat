@@ -65,6 +65,12 @@ pub enum ConstraintEncodingError {
     OutOfMemory(#[from] crate::OutOfMemory),
 }
 
+/// Marker trait for "monotone" incremental encodings, i.e., encodings for which enforcing `sum <=
+/// k` (as hard clauses) does not conflict with enforcing `sum <= k - x` later.
+///
+/// The [`pb::DynamicPolyWatchdog`] is a notable exception to this, because of its tare variables.
+pub trait Monotone {}
+
 /// Trait for encodings that track statistics.
 pub trait EncodeStats {
     /// Gets the number of clauses in the encoding

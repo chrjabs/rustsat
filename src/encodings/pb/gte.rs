@@ -8,7 +8,7 @@ use std::ops::RangeBounds;
 use crate::{
     encodings::{
         nodedb::{NodeById, NodeCon, NodeLike},
-        totdb, CollectClauses, EncodeStats, EnforceError,
+        totdb, CollectClauses, EncodeStats, EnforceError, Monotone,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
@@ -325,6 +325,8 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
         Ok(())
     }
 }
+
+impl Monotone for GeneralizedTotalizer {}
 
 impl EncodeStats for GeneralizedTotalizer {
     fn n_clauses(&self) -> usize {

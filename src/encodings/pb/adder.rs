@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 
 use crate::{
     clause,
-    encodings::{CollectClauses, EncodeStats, EnforceError},
+    encodings::{CollectClauses, EncodeStats, EnforceError, Monotone},
     instances::ManageVars,
     types::{Clause, Lit, RsHashMap},
     OutOfMemory,
@@ -419,6 +419,8 @@ impl EncodeIncremental for BinaryAdder {
         }
     }
 }
+
+impl Monotone for BinaryAdder {}
 
 impl EncodeStats for BinaryAdder {
     fn n_clauses(&self) -> usize {
