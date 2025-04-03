@@ -1,0 +1,15 @@
+#[test]
+fn {{ enc.id }}_new_drop() {
+    (assert_c! {
+        #include <assert.h>
+        #include "rustsat.h"
+
+        int main() {
+            {{ enc.name }} *{{ enc.id }} = {{ enc.id }}_new();
+            assert({{ enc.id }} != NULL);
+            {{ enc.id }}_drop({{ enc.id }});
+            return 0;
+        }
+    })
+    .success();
+}

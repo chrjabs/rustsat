@@ -159,14 +159,29 @@ impl ManageVars for VarManager<'_> {
     }
 }
 
-pub mod adder;
+/// Implementations of the commander at-most-1 encoding.
+///
+/// The sub encoding is fixed to the pairwise encoding and the size of the splits to 4.
+///
+/// # References
+///
+/// - Will Klieber and Gihwon Kwon: _Efficient CNF Encoding for Selecting 1 from N Objects, CFV
+///   2007.
+#[derive(Default)]
+pub struct Commander(rustsat::encodings::am1::Commander);
+
+/// Implementation of the bimander at-most-1 encoding.
+///
+/// The sub encoding is fixed to the pairwise encoding and the size of the splits to 4.
+///
+/// # References
+///
+/// - Van-Hau Nguyen and Son Thay Mai: _A New Method to Encode the At-Most-One Constraint into SAT,
+///   SOICT 2015.
+#[derive(Default)]
+pub struct Bimander(rustsat::encodings::am1::Bimander);
+
+pub mod am1;
+pub mod card;
 pub mod dpw;
-pub mod gte;
-
-pub mod totalizer;
-
-pub mod bimander;
-pub mod bitwise;
-pub mod commander;
-pub mod ladder;
-pub mod pairwise;
+pub mod pb;

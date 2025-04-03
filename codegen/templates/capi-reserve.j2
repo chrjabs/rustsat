@@ -1,0 +1,10 @@
+/// Reserves all auxiliary variables that the encoding might need
+///
+/// All calls to [`{{ enc.id }}_encode_ub`] following a call to this function are guaranteed to not increase
+/// the value of `n_vars_used`. This does _not_ hold if [`{{ enc.id }}_add`] is called in between
+{% include 'capi-safety.j2' %}
+#[no_mangle]
+pub unsafe extern "C" fn {{ enc.id }}_reserve({{ enc.id }}: *mut {{ enc.name }}, n_vars_used: &mut u32) {
+    let mut var_manager = VarManager::new(n_vars_used);
+    (*{{ enc.id }}).reserve(&mut var_manager);
+}

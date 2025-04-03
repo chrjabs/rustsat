@@ -1,7 +1,5 @@
 #![warn(clippy::pedantic)]
 
-extern crate cbindgen;
-
 use std::env;
 
 fn main() {

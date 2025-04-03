@@ -1,0 +1,9 @@
+/// Frees the memory associated with a [`{{ enc.name }}`]
+///
+/// # Safety
+///
+/// `{{ enc.id }}` must be a return value of [`{{ enc.id }}_new`] and cannot be used afterwards again.
+#[no_mangle]
+pub unsafe extern "C" fn {{ enc.id }}_drop({{ enc.id }}: *mut {{ enc.name }}) {
+    drop(Box::from_raw({{ enc.id }}));
+}
