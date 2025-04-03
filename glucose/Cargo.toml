@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-glucose"
-version = "0.3.9"
+version.workspace = true
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
@@ -16,6 +16,7 @@ include = [
   "/cppsrc/",
   "!/cppsrc/parallel/",
 ]
+rust-version.workspace = true
 
 build = "build.rs"
 

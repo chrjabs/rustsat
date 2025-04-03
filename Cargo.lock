@@ -993,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "pigeons"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "itertools 0.14.0",
  "rustc-hash",
@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.1.6"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1283,7 +1283,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-cadical"
-version = "0.4.7"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1311,7 +1311,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-glucose"
-version = "0.3.9"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-ipasir"
-version = "0.1.9"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "cpu-time",
@@ -1334,7 +1334,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-kissat"
-version = "0.4.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1352,7 +1352,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-minisat"
-version = "0.4.7"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1376,7 +1376,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-solvertests"
-version = "0.1.0"
+version = "0.7.0"
 dependencies = [
  "proc-macro2",
  "quote",

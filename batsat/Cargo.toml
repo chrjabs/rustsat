@@ -1,14 +1,15 @@
 [package]
 name = "rustsat-batsat"
-version = "0.1.6"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 authors = ["Noah Bruns <nbruns@efs.at>"]
-license = "MIT"
+license.workspace = true
 description = "Interface to the SAT solver BatSat for the RustSAT library. BatSat is fully implemented in Rust"
 keywords = ["sat-solver", "rustsat", "batsat"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 include = ["CHANGELOG.md", "README.md", "/src/"]
+rust-version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
