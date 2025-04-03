@@ -4,7 +4,10 @@ use pyo3::prelude::*;
 
 use rustsat::{
     encodings::{
-        card::{BoundUpper, BoundUpperIncremental, DbTotalizer, Encode as CardEncode},
+        card::{
+            BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+            BoundUpperIncremental, DbTotalizer, Encode as CardEncode,
+        },
         EncodeStats,
     },
     instances::{BasicVarManager, Cnf as RsCnf},
@@ -60,7 +63,7 @@ macro_rules! implement_pyapi {
                 self.0.n_vars()
             }
 
-            /// Incrementally builds the encoding to that upper bounds in the range
+            /// Incrementally builds the encoding so that upper bounds in the range
             /// `min_ub..=max_ub` can be enforced. New variables will be taken from `var_manager`.
             fn encode_ub(
                 &mut self,
@@ -83,6 +86,67 @@ macro_rules! implement_pyapi {
                     std::mem::transmute(self.0.enforce_ub(ub).map_err(|_| {
                         pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
                     })?)
+                };
+                Ok(assumps)
+            }
+
+            /// Incrementally builds the encoding so that lower bounds in the range
+            /// `min_lb..=max_lb` can be enforced. New variables will be taken from `var_manager`.
+            fn encode_lb(
+                &mut self,
+                min_lb: usize,
+                max_lb: usize,
+                var_manager: &mut VarManager,
+            ) -> PyResult<Cnf> {
+                let mut cnf = RsCnf::new();
+                let var_manager: &mut BasicVarManager = var_manager.into();
+                handle_oom!(self
+                    .0
+                    .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager));
+                Ok(cnf.into())
+            }
+
+            /// Gets assumptions to enforce the given upper bound. Make sure that the required
+            /// encoding is built first.
+            fn enforce_lb(&self, lb: usize) -> PyResult<Vec<Lit>> {
+                let assumps: Vec<Lit> = unsafe {
+                    std::mem::transmute(
+                        self.0
+                            .enforce_lb(lb)
+                            .map_err(super::convert_enforce_error)?,
+                    )
+                };
+                Ok(assumps)
+            }
+
+            /// Incrementally builds the encoding so that both bounds in the range
+            /// `min_bound..=max_bound` can be enforced. New variables will be taken from
+            /// `var_manager`.
+            fn encode_both(
+                &mut self,
+                min_bound: usize,
+                max_bound: usize,
+                var_manager: &mut VarManager,
+            ) -> PyResult<Cnf> {
+                let mut cnf = RsCnf::new();
+                let var_manager: &mut BasicVarManager = var_manager.into();
+                handle_oom!(self.0.encode_both_change(
+                    min_bound..=max_bound,
+                    &mut cnf,
+                    var_manager
+                ));
+                Ok(cnf.into())
+            }
+
+            /// Gets assumptions to enforce the given equality bound. Make sure that the required
+            /// encoding is built first.
+            fn enforce_eq(&self, val: usize) -> PyResult<Vec<Lit>> {
+                let assumps: Vec<Lit> = unsafe {
+                    std::mem::transmute(
+                        self.0
+                            .enforce_eq(val)
+                            .map_err(super::convert_enforce_error)?,
+                    )
                 };
                 Ok(assumps)
             }
