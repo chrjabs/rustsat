@@ -6,7 +6,7 @@ use rustsat::{
     encodings::{
         card::{
             BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-            BoundUpperIncremental, DbTotalizer, Encode as CardEncode,
+            BoundUpperIncremental, Encode as CardEncode, Totalizer as RsTotalizer,
         },
         EncodeStats,
     },
@@ -165,6 +165,6 @@ macro_rules! implement_pyapi {
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 #[pyclass]
 #[repr(transparent)]
-pub struct Totalizer(DbTotalizer);
+pub struct Totalizer(RsTotalizer);
 
-implement_pyapi!(Totalizer, DbTotalizer);
+implement_pyapi!(Totalizer, RsTotalizer);

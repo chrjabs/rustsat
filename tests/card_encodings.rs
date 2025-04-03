@@ -2,7 +2,7 @@ use rustsat::{
     clause,
     encodings::card::{
         simulators::{Double, Inverted},
-        BoundBoth, BoundBothIncremental, BoundUpperIncremental, DbTotalizer, Totalizer,
+        BoundBoth, BoundBothIncremental, BoundUpperIncremental, Totalizer,
     },
     instances::{BasicVarManager, ManageVars},
     lit,
@@ -245,6 +245,11 @@ fn test_both_card_min_enc<CE: BoundBoth + From<Vec<Lit>>>() {
 }
 
 #[test]
+fn tot_inc_ub() {
+    test_inc_ub_card::<Totalizer>()
+}
+
+#[test]
 fn tot_inc_both() {
     test_inc_both_card::<Totalizer>()
 }
@@ -267,31 +272,6 @@ fn invertet_tot() {
 #[test]
 fn double_invertet_tot() {
     test_inc_both_card::<Double<Inverted<Totalizer>, Inverted<Totalizer>>>()
-}
-
-#[test]
-fn tot_inc_ub() {
-    test_inc_ub_card::<Totalizer>()
-}
-
-#[test]
-fn dbtot_inc_ub() {
-    test_inc_ub_card::<DbTotalizer>()
-}
-
-#[test]
-fn dbtot_inc_both() {
-    test_inc_both_card::<DbTotalizer>()
-}
-
-#[test]
-fn dbtot_both() {
-    test_both_card::<DbTotalizer>()
-}
-
-#[test]
-fn dbtot_min_enc() {
-    test_both_card_min_enc::<DbTotalizer>()
 }
 
 use rustsat_tools::{test_all, test_assignment};
@@ -564,16 +544,6 @@ fn invtot_both_exhaustive() {
     test_both_exhaustive::<Inverted<Totalizer>>()
 }
 
-#[test]
-fn dbtot_ub_exhaustive() {
-    test_ub_exhaustive::<DbTotalizer>()
-}
-
-#[test]
-fn dbtot_both_exhaustive() {
-    test_both_exhaustive::<DbTotalizer>()
-}
-
 #[cfg(feature = "proof-logging")]
 mod cert {
     use std::{
@@ -585,7 +555,7 @@ mod cert {
 
     use rustsat::{
         clause,
-        encodings::card::{cert::BoundBothIncremental, DbTotalizer},
+        encodings::card::{cert::BoundBothIncremental, Totalizer},
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         solvers::{
@@ -873,12 +843,12 @@ mod cert {
     }
 
     #[test]
-    fn dbtot_inc_both() {
-        test_inc_both_card::<DbTotalizer>()
+    fn tot_inc_both() {
+        test_inc_both_card::<Totalizer>()
     }
 
     #[test]
-    fn dbtot_both_exhaustive() {
-        test_both_exhaustive::<DbTotalizer>()
+    fn tot_both_exhaustive() {
+        test_both_exhaustive::<Totalizer>()
     }
 }

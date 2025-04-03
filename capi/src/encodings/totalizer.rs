@@ -4,22 +4,22 @@ use std::ffi::{c_int, c_void};
 
 use rustsat::{
     encodings::card::{
-        BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DbTotalizer,
-        EncodeIncremental,
+        BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental, EncodeIncremental,
+        Totalizer,
     },
     types::Lit,
 };
 
 use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager};
 
-/// Creates a new [`DbTotalizer`] cardinality encoding
+/// Creates a new [`Totalizer`] cardinality encoding
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn tot_new() -> *mut DbTotalizer {
+pub unsafe extern "C" fn tot_new() -> *mut Totalizer {
     Box::into_raw(Box::default())
 }
 
-/// Adds a new input literal to a [`DbTotalizer`]
+/// Adds a new input literal to a [`Totalizer`]
 ///
 /// # Errors
 ///
@@ -30,7 +30,7 @@ pub unsafe extern "C" fn tot_new() -> *mut DbTotalizer {
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
 #[no_mangle]
-pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeError {
+pub unsafe extern "C" fn tot_add(tot: *mut Totalizer, lit: c_int) -> MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return MaybeError::InvalidLiteral;
     };
@@ -61,7 +61,7 @@ pub unsafe extern "C" fn tot_add(tot: *mut DbTotalizer, lit: c_int) -> MaybeErro
 /// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn tot_encode_ub(
-    tot: *mut DbTotalizer,
+    tot: *mut Totalizer,
     min_bound: usize,
     max_bound: usize,
     n_vars_used: &mut u32,
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn tot_encode_ub(
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
 #[no_mangle]
 pub unsafe extern "C" fn tot_enforce_ub(
-    tot: *mut DbTotalizer,
+    tot: *mut Totalizer,
     ub: usize,
     assump: &mut c_int,
 ) -> MaybeError {
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn tot_enforce_ub(
 /// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn tot_encode_lb(
-    tot: *mut DbTotalizer,
+    tot: *mut Totalizer,
     min_bound: usize,
     max_bound: usize,
     n_vars_used: &mut u32,
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn tot_encode_lb(
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
 #[no_mangle]
 pub unsafe extern "C" fn tot_enforce_lb(
-    tot: *mut DbTotalizer,
+    tot: *mut Totalizer,
     ub: usize,
     assump: &mut c_int,
 ) -> MaybeError {
@@ -169,18 +169,18 @@ pub unsafe extern "C" fn tot_enforce_lb(
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
 #[no_mangle]
-pub unsafe extern "C" fn tot_reserve(tot: *mut DbTotalizer, n_vars_used: &mut u32) {
+pub unsafe extern "C" fn tot_reserve(tot: *mut Totalizer, n_vars_used: &mut u32) {
     let mut var_manager = VarManager::new(n_vars_used);
     (*tot).reserve(&mut var_manager);
 }
 
-/// Frees the memory associated with a [`DbTotalizer`]
+/// Frees the memory associated with a [`Totalizer`]
 ///
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
 #[no_mangle]
-pub unsafe extern "C" fn tot_drop(tot: *mut DbTotalizer) {
+pub unsafe extern "C" fn tot_drop(tot: *mut Totalizer) {
     drop(Box::from_raw(tot));
 }
 
@@ -196,7 +196,7 @@ mod tests {
             #include "rustsat.h"
 
             int main() {
-                DbTotalizer *tot = tot_new();
+                Totalizer *tot = tot_new();
                 assert(tot != NULL);
                 tot_drop(tot);
                 return 0;
@@ -219,7 +219,7 @@ mod tests {
             }
 
             int main() {
-                DbTotalizer *tot = tot_new();
+                Totalizer *tot = tot_new();
                 assert(tot_add(tot, 1) == Ok);
                 assert(tot_add(tot, 2) == Ok);
                 assert(tot_add(tot, 3) == Ok);
@@ -251,7 +251,7 @@ mod tests {
             }
 
             int main() {
-                DbTotalizer *tot = tot_new();
+                Totalizer *tot = tot_new();
                 assert(tot_add(tot, 1) == Ok);
                 assert(tot_add(tot, 2) == Ok);
                 assert(tot_add(tot, 3) == Ok);

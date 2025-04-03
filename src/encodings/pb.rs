@@ -61,9 +61,6 @@ pub type DoubleGeneralizedTotalizer =
 pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
 
-pub mod dbgte;
-pub use dbgte::DbGte;
-
 pub mod adder;
 pub use adder::BinaryAdder;
 

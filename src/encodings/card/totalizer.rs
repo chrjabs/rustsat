@@ -1,128 +1,150 @@
-//! # Totalizer Encoding
+//! # Totalizer Encoding Based On a Node Database
 //!
-//! Implementation of the binary adder tree totalizer encoding \[1\].
-//! The implementation is incremental as extended in \[2\].
-//! The implementation is recursive.
-//!
-//! For an alternative implementation based on a node database, see
-//! [`crate::encodings::card::DbTotalizer`].
-//!
-//! ## References
-//!
-//! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
-//! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+//! This is an alternative implementation of the
+//! [`crate::encodings::card::Totalizer`] encoding.
 
-use super::{
-    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-    BoundUpperIncremental, Encode, EncodeIncremental, EnforceError,
-};
+use std::{cmp, ops::RangeBounds};
+
 use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs, NotEncoded},
+    encodings::{
+        nodedb::{NodeById, NodeCon, NodeId, NodeLike},
+        totdb, CollectClauses, EncodeStats, EnforceError, NotEncoded,
+    },
     instances::ManageVars,
     types::Lit,
 };
-use std::{
-    cmp,
-    ops::{Range, RangeBounds},
-    slice,
+
+use super::{
+    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+    BoundUpperIncremental, Encode, EncodeIncremental,
 };
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
-/// The implementation is recursive.
+/// The implementation is based on a node database.
+/// For now, this implementation only supports upper bounding.
 ///
 /// # References
 ///
-/// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
-/// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+/// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
+///     Constraints_, CP 2003.
+/// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
+///     Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Totalizer {
-    /// Input literals to the totalizer
-    in_lits: Vec<Lit>,
-    /// Index of the next literal in [`Totalizer::in_lits`] that is not in the tree yet
-    not_enc_idx: usize,
+    /// Literals added but not yet in the encoding
+    lit_buffer: Vec<Lit>,
     /// The root of the tree, if constructed
-    root: Option<Node>,
+    root: Option<NodeId>,
     /// The number of variables in the totalizer
     n_vars: u32,
     /// The number of clauses in the totalizer
     n_clauses: usize,
+    /// The node database of the totalizer
+    db: totdb::Db,
+    /// The offset of the totalizer
+    offset: usize,
 }
 
 impl Totalizer {
-    /// Recursively builds the tree data structure. Attention, low level
-    /// interface, might change!
-    #[cfg_attr(feature = "internals", visibility::make(pub))]
-    #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+    /// Creates a totalizer from its internal parts
+    #[cfg(feature = "internals")]
     #[must_use]
-    fn build_tree(lits: &[Lit]) -> Node {
-        debug_assert_ne!(lits.len(), 0);
-
-        if lits.len() == 1 {
-            return Node::new_leaf(lits[0]);
-        };
-
-        let split = lits.len() / 2;
-        let left = Totalizer::build_tree(&lits[..split]);
-        let right = Totalizer::build_tree(&lits[split..]);
-
-        Node::new_internal(left, right)
+    pub fn from_raw(root: NodeId, offset: usize, db: totdb::Db) -> Self {
+        Self {
+            root: Some(root),
+            db,
+            offset,
+            ..Default::default()
+        }
     }
 
-    /// Extends the tree at the root node with added literals
     fn extend_tree(&mut self) {
-        if self.not_enc_idx != self.in_lits.len() {
-            let subtree = Totalizer::build_tree(&self.in_lits[self.not_enc_idx..]);
-            self.root = match self.root.take() {
-                None => Some(subtree),
-                Some(old_root) => {
-                    let new_root = Node::new_internal(old_root, subtree);
-                    Some(new_root)
-                }
-            };
-            self.not_enc_idx = self.in_lits.len();
+        if self.lit_buffer.is_empty() {
+            return;
         }
+        let new_tree = self.db.lit_tree(&self.lit_buffer);
+        self.root = Some(match self.root {
+            Some(old_root) => {
+                self.db
+                    .merge(&[NodeCon::full(old_root), NodeCon::full(new_tree)])
+                    .id
+            }
+            None => new_tree,
+        });
+        self.lit_buffer.clear();
     }
 
     /// Gets the maximum depth of the tree
     #[must_use]
     pub fn depth(&self) -> usize {
-        match &self.root {
-            None => 0,
-            Some(root_node) => root_node.depth(),
+        self.root.map_or(0, |root| self.db[root].depth())
+    }
+
+    /// Gets the details of a totalizer output related to proof logging
+    ///
+    /// # Errors
+    ///
+    /// If the requested output is not encoded
+    #[cfg(feature = "proof-logging")]
+    pub fn output_proof_details(
+        &self,
+        value: usize,
+    ) -> Result<(Lit, totdb::cert::SemDefs), NotEncoded> {
+        match self.root {
+            None => Err(NotEncoded),
+            Some(root) => self
+                .db
+                .get_semantics(root, self.offset, value + self.offset)
+                .map(|sem| (self.db[root][value + self.offset], sem))
+                .ok_or(NotEncoded),
         }
     }
 
-    /// Fully builds the tree, then returns it
-    #[cfg(feature = "internals")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+    /// Gets the number of output literals in the totalizer
+    ///
+    /// This will only differ from [`Self::n_lits`] if the encoding has an offset
     #[must_use]
-    pub fn tree(mut self) -> Option<Node> {
-        self.extend_tree();
+    pub fn n_output_lits(&self) -> usize {
+        match self.root {
+            Some(root) => self.db[root].len() - self.offset,
+            None => 0,
+        }
+    }
+
+    /// From an assignment to the input literals, generates an assignment over the totalizer
+    /// variables following strict semantics, i.e., `sum >= k <-> olit`
+    ///
+    /// # Panics
+    ///
+    /// If `assign` does not assign all input literals
+    pub fn strictly_extend_assignment<'slf>(
+        &'slf self,
+        assign: &'slf crate::types::Assignment,
+    ) -> std::iter::Flatten<std::option::IntoIter<totdb::AssignIter<'slf>>> {
         self.root
+            .map(|root| self.db.strictly_extend_assignment(root, assign))
+            .into_iter()
+            .flatten()
     }
 }
 
 impl Encode for Totalizer {
     fn n_lits(&self) -> usize {
-        self.in_lits.len()
-    }
-}
-
-impl IterInputs for Totalizer {
-    type Iter<'a> = TotIter<'a>;
-
-    fn iter(&self) -> Self::Iter<'_> {
-        self.in_lits.iter().copied()
+        self.lit_buffer.len()
+            + match self.root {
+                Some(id) => self.db[id].len(),
+                None => 0,
+            }
     }
 }
 
 impl EncodeIncremental for Totalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.extend_tree();
-        if let Some(root) = &mut self.root {
-            root.reserve_all_vars_rec(var_manager);
+        if let Some(root) = self.root {
+            self.db.reserve_vars(root, var_manager);
         }
     }
 }
@@ -138,102 +160,38 @@ impl BoundUpper for Totalizer {
         Col: CollectClauses,
         R: RangeBounds<usize>,
     {
-        let range = super::prepare_ub_range(self, range);
-        if range.is_empty() {
-            return Ok(());
-        };
-        self.extend_tree();
-        match &mut self.root {
-            None => (),
-            Some(root) => {
-                let n_vars_before = var_manager.n_used();
-                let n_clauses_before = collector.n_clauses();
-                root.rec_encode_ub(range, collector, var_manager)?;
-                self.n_clauses += collector.n_clauses() - n_clauses_before;
-                self.n_vars += var_manager.n_used() - n_vars_before;
-            }
-        };
-        Ok(())
+        self.db.reset_encoded(totdb::Semantics::If);
+        self.encode_ub_change(range, collector, var_manager)
     }
 
     fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
-        if ub >= self.in_lits.len() {
+        if ub >= self.n_lits() - self.offset {
             return Ok(vec![]);
-        };
-        if self.not_enc_idx != self.in_lits.len() {
+        }
+        if !self.lit_buffer.is_empty() {
             return Err(NotEncoded);
-        };
-        match &self.root {
-            None => Err(NotEncoded),
-            Some(root_node) => match root_node {
-                Node::Leaf { lit } => Ok(vec![!*lit]),
-                Node::Internal {
-                    out_lits, ub_range, ..
-                } => {
-                    if ub_range.contains(&ub) {
-                        Ok(vec![!out_lits[ub].unwrap()])
-                    } else {
-                        Err(NotEncoded)
+        }
+        if let Some(id) = self.root {
+            match &self.db[id] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(ub, self.offset);
+                    return Ok(vec![!*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[ub + self.offset]
+                    {
+                        if semantics.has_if() {
+                            return Ok(vec![!lit]);
+                        }
                     }
                 }
-            },
-        }
-    }
-}
-
-impl BoundLower for Totalizer {
-    fn encode_lb<Col, R>(
-        &mut self,
-        range: R,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
-    where
-        Col: CollectClauses,
-        R: RangeBounds<usize>,
-    {
-        let range = super::prepare_lb_range(self, range);
-        if range.is_empty() {
-            return Ok(());
-        };
-        self.extend_tree();
-        match &mut self.root {
-            None => (),
-            Some(root) => {
-                let n_vars_before = var_manager.n_used();
-                let n_clauses_before = collector.n_clauses();
-                root.rec_encode_lb(range, collector, var_manager)?;
-                self.n_clauses += collector.n_clauses() - n_clauses_before;
-                self.n_vars += var_manager.n_used() - n_vars_before;
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
-        };
-        Ok(())
-    }
-
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
-        if self.not_enc_idx != self.in_lits.len() {
-            return Err(EnforceError::NotEncoded);
-        };
-        if lb > self.in_lits.len() {
-            return Err(EnforceError::Unsat);
-        } else if lb == 0 {
-            return Ok(vec![]);
-        };
-        match &self.root {
-            None => Err(EnforceError::NotEncoded),
-            Some(root_node) => match root_node {
-                Node::Leaf { lit } => Ok(vec![*lit]),
-                Node::Internal {
-                    out_lits, lb_range, ..
-                } => {
-                    if lb_range.contains(&lb) {
-                        Ok(vec![out_lits[lb - 1].unwrap()])
-                    } else {
-                        Err(EnforceError::NotEncoded)
-                    }
-                }
-            },
         }
+        Err(NotEncoded)
     }
 }
 
@@ -249,21 +207,76 @@ impl BoundUpperIncremental for Totalizer {
         R: RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
         if range.is_empty() {
             return Ok(());
-        };
+        }
         self.extend_tree();
-        match &mut self.root {
-            None => (),
-            Some(root) => {
-                let n_vars_before = var_manager.n_used();
-                let n_clauses_before = collector.n_clauses();
-                root.rec_encode_ub_change(range, collector, var_manager)?;
-                self.n_clauses += collector.n_clauses() - n_clauses_before;
-                self.n_vars += var_manager.n_used() - n_vars_before;
+        if let Some(id) = self.root {
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                self.db.define_unweighted(
+                    id,
+                    idx + self.offset,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                )?;
             }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         };
         Ok(())
+    }
+}
+
+impl BoundLower for Totalizer {
+    fn encode_lb<Col, R>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+    ) -> Result<(), crate::OutOfMemory>
+    where
+        Col: CollectClauses,
+        R: RangeBounds<usize>,
+    {
+        self.db.reset_encoded(totdb::Semantics::OnlyIf);
+        self.encode_lb_change(range, collector, var_manager)
+    }
+
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
+        if lb <= self.offset {
+            return Ok(vec![]);
+        }
+        if lb > self.n_lits() + self.offset {
+            return Err(EnforceError::Unsat);
+        }
+        if !self.lit_buffer.is_empty() {
+            return Err(EnforceError::NotEncoded);
+        }
+        if let Some(id) = self.root {
+            match &self.db[id] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(lb, 1);
+                    return Ok(vec![*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[lb - 1 + self.offset]
+                    {
+                        if semantics.has_only_if() {
+                            return Ok(vec![lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+            }
+        }
+        Err(EnforceError::NotEncoded)
     }
 }
 
@@ -279,19 +292,25 @@ impl BoundLowerIncremental for Totalizer {
         R: RangeBounds<usize>,
     {
         let range = super::prepare_lb_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
         if range.is_empty() {
             return Ok(());
-        };
+        }
         self.extend_tree();
-        match &mut self.root {
-            None => (),
-            Some(root) => {
-                let n_vars_before = var_manager.n_used();
-                let n_clauses_before = collector.n_clauses();
-                root.rec_encode_lb_change(range, collector, var_manager)?;
-                self.n_clauses += collector.n_clauses() - n_clauses_before;
-                self.n_vars += var_manager.n_used() - n_vars_before;
+        if let Some(id) = self.root {
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                self.db.define_unweighted(
+                    id,
+                    idx - 1 + self.offset,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                )?;
             }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         };
         Ok(())
     }
@@ -329,11 +348,12 @@ impl EncodeStats for Totalizer {
 impl From<Vec<Lit>> for Totalizer {
     fn from(lits: Vec<Lit>) -> Self {
         Self {
-            in_lits: lits,
-            not_enc_idx: Default::default(),
+            lit_buffer: lits,
             root: None,
             n_vars: 0,
             n_clauses: 0,
+            db: totdb::Db::default(),
+            offset: 0,
         }
     }
 }
@@ -341,586 +361,730 @@ impl From<Vec<Lit>> for Totalizer {
 impl FromIterator<Lit> for Totalizer {
     fn from_iter<T: IntoIterator<Item = Lit>>(iter: T) -> Self {
         Self {
-            in_lits: Vec::from_iter(iter),
-            not_enc_idx: Default::default(),
+            lit_buffer: Vec::from_iter(iter),
             root: None,
             n_vars: 0,
             n_clauses: 0,
+            db: totdb::Db::default(),
+            offset: 0,
         }
     }
 }
 
 impl Extend<Lit> for Totalizer {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
-        self.in_lits.extend(iter);
+        self.lit_buffer.extend(iter);
     }
 }
 
-pub(super) type TotIter<'a> = std::iter::Copied<std::slice::Iter<'a, Lit>>;
-
-/// A node in the totalizer tree. This is only exposed publicly to be reused in
-/// more complex encodings, for using the totalizer, this should not be directly
-/// accessed but only through [`Totalizer`].
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug)]
-enum Node {
-    /// An input literal, i.e., a leaf node of the tree
-    Leaf {
-        /// The input literal to the tree
-        lit: Lit,
-    },
-    /// An internal node of the tree
-    Internal {
-        /// The output literals of this node
-        out_lits: Vec<Option<Lit>>,
-        /// The path length to the leaf furthest away in the sub-tree
-        depth: usize,
-        /// The number of clauses this node produced
-        n_clauses: usize,
-        /// The maximum output this node can have
-        max_val: usize,
-        /// The range encoded for upper bounding
-        ub_range: Range<usize>,
-        /// The range encoded for lower bounding
-        lb_range: Range<usize>,
-        /// The left child
-        left: Box<Node>,
-        /// The right child
-        right: Box<Node>,
-    },
-}
-
-impl Node {
-    /// Constructs a new leaf node
-    #[must_use]
-    pub fn new_leaf(lit: Lit) -> Node {
-        Node::Leaf { lit }
-    }
-
-    /// Constructs a new internal node
-    #[must_use]
-    pub fn new_internal(left: Node, right: Node) -> Node {
-        Node::Internal {
-            out_lits: vec![],
-            depth: cmp::max(left.depth() + 1, right.depth() + 1),
-            n_clauses: 0,
-            ub_range: 0..0,
-            lb_range: 0..0,
-            max_val: left.max_val() + right.max_val(),
-            left: Box::new(left),
-            right: Box::new(right),
-        }
-    }
-
-    /// Gets the maximum depth of the sub-tree rooted in this node
-    #[must_use]
-    pub fn depth(&self) -> usize {
-        match self {
-            Node::Leaf { .. } => 1,
-            Node::Internal { depth, .. } => *depth,
-        }
-    }
-
-    /// Gets the maximum value that the node represents
-    #[must_use]
-    pub fn max_val(&self) -> usize {
-        match self {
-            Node::Leaf { .. } => 1,
-            Node::Internal { max_val, .. } => *max_val,
-        }
-    }
-
-    /// Encodes the upper bound adder for this node in a given range. This
-    /// method only produces the encoding and does _not_ change any of the stats
-    /// of the node.
-    fn encode_ub_range<Col>(
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpper for Totalizer {
+    fn encode_ub_cert<Col, R, W>(
         &mut self,
-        range: Range<usize>,
+        range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
     where
-        Col: CollectClauses,
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
     {
-        let range = self.limit_range(range);
+        use super::cert::BoundUpperIncremental;
+        self.db.reset_encoded(totdb::Semantics::If);
+        self.encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
+    {
+        use pigeons::{OperationLike, OperationSequence};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, ub) = constr.decompose();
+        if ub > lits.len() {
+            return Ok(());
+        }
+        let mut enc = Self::from_iter(lits);
+        enc.encode_ub_cert(ub..=ub, collector, var_manager, proof)?;
+        let (olit, sem_defs) = enc
+            .output_proof_details(ub + 1)
+            .expect("encoded just before, so should be fine");
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![!olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpperIncremental for Totalizer {
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_ub_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
         if range.is_empty() {
             return Ok(());
         }
-
-        // Reserve vars if needed
-        self.reserve_vars_range(range.clone(), var_manager);
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                out_lits,
-                left,
-                right,
-                ..
-            } => {
-                // Encode adder for current node
-                let tmp_opt_lit_l;
-                let tmp_opt_lit_r;
-                let left_lits = match &**left {
-                    Node::Leaf { lit } => {
-                        tmp_opt_lit_l = Some(*lit);
-                        slice::from_ref(&tmp_opt_lit_l)
-                    }
-                    Node::Internal { out_lits, .. } => &out_lits[..],
-                };
-                let right_lits = match &**right {
-                    Node::Leaf { lit } => {
-                        tmp_opt_lit_r = Some(*lit);
-                        slice::from_ref(&tmp_opt_lit_r)
-                    }
-                    Node::Internal { out_lits, .. } => &out_lits[..],
-                };
-                // Iterate through all value combinations
-                let clause_for_vals = |left_val: usize, right_val: usize| {
-                    let sum_val = left_val + right_val;
-                    if sum_val > range.end || sum_val <= range.start {
-                        return None;
-                    }
-                    let mut lhs: Vec<Lit> = vec![];
-                    if left_val != 0 {
-                        lhs.push(left_lits[left_val - 1].unwrap());
-                    }
-                    if right_val != 0 {
-                        lhs.push(right_lits[right_val - 1].unwrap());
-                    }
-                    if !lhs.is_empty() {
-                        // (left > x) & (right > y) -> (out > x+y)
-                        return Some(atomics::cube_impl_lit(&lhs, out_lits[sum_val - 1].unwrap()));
-                    }
-                    None
-                };
-                let clause_iter = (0..=left_lits.len()).flat_map(|left_val| {
-                    (0..=right_lits.len())
-                        .filter_map(move |right_val| clause_for_vals(left_val, right_val))
-                });
-                collector.extend_clauses(clause_iter)?;
+        self.extend_tree();
+        if let Some(id) = self.root {
+            let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
+            let mut leaves_init = false;
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                (_, leaves_init) = self.db.define_unweighted_cert(
+                    id,
+                    idx + self.offset,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                    proof,
+                    (&mut leaves, leaves_init, false),
+                )?;
             }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
         };
+        Ok(())
+    }
+}
 
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundLower for Totalizer {
+    fn encode_lb_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        use super::cert::BoundLowerIncremental;
+        self.db.reset_encoded(totdb::Semantics::OnlyIf);
+        self.encode_lb_change_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_lb_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardLbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::ConstraintEncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
+    {
+        use pigeons::{OperationLike, OperationSequence};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, lb) = constr.decompose();
+        if lb > lits.len() {
+            return Err(crate::encodings::cert::ConstraintEncodingError::Unsat);
+        }
+        let mut enc = Self::from_iter(lits);
+        enc.encode_lb_cert(lb..=lb, collector, var_manager, proof)?;
+        let (olit, sem_defs) = enc
+            .output_proof_details(lb)
+            .expect("encoded right before, so should be fine");
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundLowerIncremental for Totalizer {
+    fn encode_lb_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_lb_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
+        if range.is_empty() {
+            return Ok(());
+        }
+        self.extend_tree();
+        if let Some(id) = self.root {
+            let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
+            let mut leaves_init = false;
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                (_, leaves_init) = self.db.define_unweighted_cert(
+                    id,
+                    idx - 1 + self.offset,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                    proof,
+                    (&mut leaves, leaves_init, false),
+                )?;
+            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
+        };
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundBoth for Totalizer {
+    fn encode_both_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize> + Clone,
+        W: std::io::Write,
+    {
+        use super::cert::{BoundLowerIncremental, BoundUpperIncremental};
+
+        self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
+        self.encode_lb_change_cert(range, collector, var_manager, proof)?;
         Ok(())
     }
 
-    /// Encodes the lower bound adder for this node in a given range. This
-    /// method only produces the encoding and does _not_ change any of the stats
-    /// of the node.
-    fn encode_lb_range<Col>(
-        &mut self,
-        range: Range<usize>,
+    fn encode_eq_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardEqConstr,
+            pigeons::AbsConstraintId,
+        ),
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::ConstraintEncodingError>
     where
-        Col: CollectClauses,
+        Col: crate::encodings::cert::CollectClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
     {
-        let range = self.limit_range(range);
-        if range.is_empty() {
-            return Ok(());
-        }
+        use pigeons::{OperationLike, OperationSequence};
 
-        // Reserve vars if needed
-        self.reserve_vars_range(
-            if range.start > 0 { range.start - 1 } else { 0 }..if range.end > 0 {
-                range.end - 1
-            } else {
-                0
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, b) = constr.decompose();
+        if b > lits.len() {
+            return Err(crate::encodings::cert::ConstraintEncodingError::Unsat);
+        }
+        let mut enc = Self::from_iter(lits);
+        enc.encode_both_cert(b..=b, collector, var_manager, proof)?;
+        // UB
+        let (olit, sem_defs) = enc
+            .output_proof_details(b + 1)
+            .expect("encoded just before, so should be fine");
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id + 1) + sem_defs.only_if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![!olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        // LB
+        let (olit, sem_defs) = enc
+            .output_proof_details(b)
+            .expect("encoded just before, so should be fine");
+        let unit_id = proof.operations(
+            &((OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate()),
+        )?;
+        let unit_cl = crate::clause![olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundBothIncremental for Totalizer {}
+
+/// Totalizer encoding types that do not own but reference their [`totdb::Db`]
+#[cfg(feature = "internals")]
+pub mod referenced {
+    use std::cell::RefCell;
+
+    use crate::{
+        encodings::{
+            card::{
+                BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+                BoundUpperIncremental, Encode, EncodeIncremental,
             },
-            var_manager,
-        );
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                out_lits,
-                left,
-                right,
-                ..
-            } => {
-                // Encode adder for current node
-                let tmp_opt_lit_l;
-                let tmp_opt_lit_r;
-                let left_lits = match &**left {
-                    Node::Leaf { lit } => {
-                        tmp_opt_lit_l = Some(*lit);
-                        slice::from_ref(&tmp_opt_lit_l)
-                    }
-                    Node::Internal { out_lits, .. } => &out_lits[..],
-                };
-                let right_lits = match &**right {
-                    Node::Leaf { lit } => {
-                        tmp_opt_lit_r = Some(*lit);
-                        slice::from_ref(&tmp_opt_lit_r)
-                    }
-                    Node::Internal { out_lits, .. } => &out_lits[..],
-                };
-                // Iterate through all value combinations
-                let clause_for_vals = |left_val: usize, right_val: usize| {
-                    let sum_val = left_val + right_val;
-                    if sum_val + 1 >= range.end || sum_val + 1 < range.start {
-                        return None;
-                    }
-                    let mut lhs = vec![];
-                    if left_val < left_lits.len() {
-                        lhs.push(!left_lits[left_val].unwrap());
-                    }
-                    if right_val < right_lits.len() {
-                        lhs.push(!right_lits[right_val].unwrap());
-                    }
-                    if !lhs.is_empty() {
-                        // (left <= x) & (right <= y) -> (out <= x+y)
-                        return Some(atomics::cube_impl_lit(&lhs, !out_lits[sum_val].unwrap()));
-                    }
-                    None
-                };
-                let clause_iter = (0..=left_lits.len()).flat_map(|left_val| {
-                    (0..=right_lits.len())
-                        .filter_map(move |right_val| clause_for_vals(left_val, right_val))
-                });
-                collector.extend_clauses(clause_iter)?;
-            }
-        };
+            nodedb::{NodeId, NodeLike},
+            totdb, CollectClauses, EnforceError, NotEncoded,
+        },
+        instances::ManageVars,
+        types::Lit,
+    };
 
-        Ok(())
+    /// Implementation of the binary adder tree totalizer encoding \[1\].
+    /// The implementation is incremental as extended in \[2\].
+    /// This uses a _mutable reference_ to a totalizer database.
+    ///
+    /// # References
+    ///
+    /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
+    /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+    #[derive(Debug)]
+    pub struct Tot<'totdb> {
+        /// The root of the tree, if constructed
+        root: NodeId,
+        /// The node database of the totalizer
+        db: &'totdb mut totdb::Db,
     }
 
-    /// Encodes the upper bound adder from the children to this node in a given
-    /// range. Recurses depth first. Always returns the full requested CNF
-    /// encoding, i.e., non-incremental.
+    /// Implementation of the binary adder tree totalizer encoding \[1\].
+    /// The implementation is incremental as extended in \[2\].
+    /// This uses a [`RefCell`] to a totalizer database.
     ///
-    /// # Errors
+    /// # References
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
-    pub fn rec_encode_ub<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
-    where
-        Col: CollectClauses,
-    {
-        let range = self.limit_range(range);
-        if range.is_empty() {
-            return Ok(());
+    /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality Constraints_, CP 2003.
+    /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
+    #[derive(Debug)]
+    pub struct TotCell<'totdb> {
+        /// The root of the tree, if constructed
+        root: NodeId,
+        /// The node database of the totalizer
+        db: &'totdb RefCell<&'totdb mut totdb::Db>,
+    }
+
+    impl<'totdb> Tot<'totdb> {
+        /// Constructs a new Totalizer encoding referencing a totalizer database
+        pub fn new(root: NodeId, db: &'totdb mut totdb::Db) -> Self {
+            Self { root, db }
         }
 
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                left,
-                right,
-                lb_range,
-                ..
-            } => {
-                // Copy to avoid borrow checker
-                let lb_range = lb_range.clone();
-
-                let left_range = Node::compute_required_range(range.clone(), right.max_val());
-                let right_range = Node::compute_required_range(range.clone(), left.max_val());
-                // Recurse
-                left.rec_encode_ub(left_range, collector, var_manager)?;
-                right.rec_encode_ub(right_range, collector, var_manager)?;
-
-                // Ignore all previous encoding and encode from scratch
-                let n_clauses_before = collector.n_clauses();
-                self.encode_ub_range(range.clone(), collector, var_manager)?;
-
-                self.update_stats(range, lb_range, collector.n_clauses() - n_clauses_before);
-            }
+        /// Gets the maximum depth of the tree
+        #[must_use]
+        pub fn depth(&self) -> usize {
+            self.db[self.root].depth()
         }
-        Ok(())
     }
 
-    /// Encodes the lower bound adder from the children to this node in a given
-    /// range. Recurses depth first. Always returns the full requested CNF
-    /// encoding.
-    ///
-    /// # Errors
-    ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
-    pub fn rec_encode_lb<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
-    where
-        Col: CollectClauses,
-    {
-        let range = self.limit_range(range);
-        if range.is_empty() {
-            return Ok(());
+    impl<'totdb> TotCell<'totdb> {
+        /// Constructs a new Totalizer encoding referencing a totalizer database
+        pub fn new(root: NodeId, db: &'totdb RefCell<&'totdb mut totdb::Db>) -> Self {
+            Self { root, db }
         }
 
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                left,
-                right,
-                ub_range,
-                ..
-            } => {
-                // Copy to avoid borrow checker
-                let ub_range = ub_range.clone();
-
-                let left_range = Node::compute_required_range(range.clone(), right.max_val());
-                let right_range = Node::compute_required_range(range.clone(), left.max_val());
-                // Recurse
-                left.rec_encode_lb(left_range, collector, var_manager)?;
-                right.rec_encode_lb(right_range, collector, var_manager)?;
-
-                // Ignore all previous encoding and encode from scratch
-                let n_clauses_before = collector.n_clauses();
-                self.encode_lb_range(range.clone(), collector, var_manager)?;
-
-                self.update_stats(ub_range, range, collector.n_clauses() - n_clauses_before);
-            }
-        };
-
-        Ok(())
+        /// Gets the maximum depth of the tree
+        #[must_use]
+        pub fn depth(&self) -> usize {
+            self.db.borrow()[self.root].depth()
+        }
     }
 
-    /// Encodes the upper bound adder from the children to this node in a given
-    /// range. Recurses depth first. Incrementally only encodes new clauses.
-    ///
-    /// # Errors
-    ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
-    pub fn rec_encode_ub_change<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
-    where
-        Col: CollectClauses,
-    {
-        let range = self.limit_range(range);
-        if range.is_empty() {
-            return Ok(());
+    impl Encode for Tot<'_> {
+        fn n_lits(&self) -> usize {
+            self.db[self.root].len()
+        }
+    }
+
+    impl Encode for TotCell<'_> {
+        fn n_lits(&self) -> usize {
+            self.db.borrow()[self.root].len()
+        }
+    }
+
+    impl EncodeIncremental for Tot<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            self.db.reserve_vars(self.root, var_manager);
+        }
+    }
+
+    impl EncodeIncremental for TotCell<'_> {
+        fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
+            self.db.borrow_mut().reserve_vars(self.root, var_manager);
+        }
+    }
+
+    impl BoundUpper for Tot<'_> {
+        fn encode_ub<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.reset_encoded(totdb::Semantics::If);
+            self.encode_ub_change(range, collector, var_manager)
         }
 
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                left,
-                right,
-                ub_range,
-                lb_range,
-                ..
-            } => {
-                // Copy to avoid borrow checker
-                let lb_range = lb_range.clone();
-                let ub_range = ub_range.clone();
-
-                let left_range = Node::compute_required_range(range.clone(), right.max_val());
-                let right_range = Node::compute_required_range(range.clone(), left.max_val());
-                // Recurse
-                left.rec_encode_ub_change(left_range, collector, var_manager)?;
-                right.rec_encode_ub_change(right_range, collector, var_manager)?;
-
-                // Encode changes for current node
-                let n_clauses_before = collector.n_clauses();
-                if ub_range.is_empty() {
-                    // First time encoding this node
-                    self.encode_ub_range(range.clone(), collector, var_manager)?;
-                } else {
-                    // Part already encoded
-                    if range.start < ub_range.start {
-                        self.encode_ub_range(range.start..ub_range.start, collector, var_manager)?;
-                    };
-                    if range.end > ub_range.end {
-                        self.encode_ub_range(ub_range.end..range.end, collector, var_manager)?;
-                    };
-                };
-
-                self.update_stats(range, lb_range, collector.n_clauses() - n_clauses_before);
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
+            if ub >= self.n_lits() {
+                return Ok(vec![]);
             }
-        };
-
-        Ok(())
-    }
-
-    /// Encodes the lower bound adder from the children to this node in a given
-    /// range. Recurses depth first. Incrementally only encodes new clauses.
-    ///
-    /// # Errors
-    ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
-    pub fn rec_encode_lb_change<Col>(
-        &mut self,
-        range: Range<usize>,
-        collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
-    ) -> Result<(), crate::OutOfMemory>
-    where
-        Col: CollectClauses,
-    {
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                left,
-                right,
-                ub_range,
-                lb_range,
-                ..
-            } => {
-                // Copy to avoid borrow checker
-                let lb_range = lb_range.clone();
-                let ub_range = ub_range.clone();
-
-                let left_range = Node::compute_required_range(range.clone(), right.max_val());
-                let right_range = Node::compute_required_range(range.clone(), left.max_val());
-                // Recurse
-                left.rec_encode_lb_change(left_range, collector, var_manager)?;
-                right.rec_encode_lb_change(right_range, collector, var_manager)?;
-
-                // Encode changes for current node
-                let n_clauses_before = collector.n_clauses();
-                if lb_range.is_empty() {
-                    // First time encoding this node
-                    self.encode_lb_range(range.clone(), collector, var_manager)?;
-                } else {
-                    // Part already encoded
-                    if range.start < lb_range.start {
-                        self.encode_lb_range(range.start..lb_range.start, collector, var_manager)?;
-                    };
-                    if range.end > lb_range.end {
-                        self.encode_lb_range(lb_range.end..range.end, collector, var_manager)?;
-                    };
-                };
-
-                self.update_stats(ub_range, range, collector.n_clauses() - n_clauses_before);
-            }
-        };
-
-        Ok(())
-    }
-
-    /// Reserves variables this node might need for indices in a given range.
-    fn reserve_vars_range(
-        &mut self,
-        mut idx_range: Range<usize>,
-        var_manager: &mut dyn ManageVars,
-    ) {
-        match self {
-            Node::Leaf { .. } => (),
-            Node::Internal {
-                out_lits, max_val, ..
-            } => {
-                idx_range.end = if idx_range.end > *max_val {
-                    *max_val
-                } else {
-                    idx_range.end
-                };
-                if out_lits.len() < idx_range.end {
-                    out_lits.resize(idx_range.end, None);
-                };
-                for olit in out_lits
-                    .iter_mut()
-                    .take(idx_range.end)
-                    .skip(idx_range.start)
-                {
-                    if olit.is_none() {
-                        *olit = Some(var_manager.new_var().pos_lit());
+            match &self.db[self.root] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(ub, 0);
+                    return Ok(vec![!*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[ub]
+                    {
+                        if semantics.has_if() {
+                            return Ok(vec![!lit]);
+                        }
                     }
                 }
-                debug_assert!(out_lits.len() <= *max_val);
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
+            Err(NotEncoded)
         }
     }
 
-    /// Reserves all variables this node might need. This is used if variables
-    /// in the totalizer should have consecutive indices.
-    fn reserve_all_vars(&mut self, var_manager: &mut dyn ManageVars) {
-        let max_val = match self {
-            Node::Leaf { .. } => return,
-            Node::Internal { max_val, .. } => *max_val,
-        };
-        #[allow(clippy::range_plus_one)]
-        self.reserve_vars_range(0..max_val + 1, var_manager);
-    }
+    impl BoundUpper for TotCell<'_> {
+        fn encode_ub<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
+            self.encode_ub_change(range, collector, var_manager)
+        }
 
-    /// Reserves all variables this node and the lower sub-tree might need. This
-    /// is used if variables in the totalizer should have consecutive indices.
-    pub fn reserve_all_vars_rec(&mut self, var_manager: &mut dyn ManageVars) {
-        match self {
-            Node::Leaf { .. } => return,
-            Node::Internal { left, right, .. } => {
-                // Recursion
-                left.reserve_all_vars_rec(var_manager);
-                right.reserve_all_vars_rec(var_manager);
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
+            if ub >= self.n_lits() {
+                return Ok(vec![]);
             }
-        };
-        self.reserve_all_vars(var_manager);
-    }
-
-    /// Computes the required encoding range for a node given a requested range
-    /// for the parent and the maximum value of the sibling.
-    fn compute_required_range(requested_range: Range<usize>, max_sibling: usize) -> Range<usize> {
-        if requested_range.is_empty() {
-            0..0
-        } else if requested_range.start > max_sibling {
-            requested_range.start - max_sibling..requested_range.end
-        } else {
-            0..requested_range.end
-        }
-    }
-
-    /// Limits a range by the maximum of the node
-    fn limit_range(&self, range: Range<usize>) -> Range<usize> {
-        match self {
-            Node::Leaf { .. } => range.start..cmp::min(2, range.end),
-            Node::Internal { max_val, .. } => range.start..cmp::min(*max_val + 1, range.end),
-        }
-    }
-
-    /// Updates the statistics of the node by increasing the number of clauses
-    /// and updating the encoded ranges
-    fn update_stats(
-        &mut self,
-        new_upper_range: Range<usize>,
-        new_lower_range: Range<usize>,
-        new_n_clauses: usize,
-    ) {
-        match self {
-            Node::Leaf { .. } => debug_assert_eq!(new_n_clauses, 0),
-            Node::Internal {
-                n_clauses,
-                ub_range,
-                lb_range,
-                max_val,
-                ..
-            } => {
-                *n_clauses += new_n_clauses;
-                *ub_range = if (*ub_range).is_empty() {
-                    new_upper_range.start..cmp::min(*max_val + 1, new_upper_range.end)
-                } else {
-                    cmp::min(new_upper_range.start, ub_range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(new_upper_range.end, ub_range.end))
-                };
-                *lb_range = if (*lb_range).is_empty() {
-                    new_lower_range.start..cmp::min(*max_val + 1, new_lower_range.end)
-                } else {
-                    cmp::min(new_lower_range.start, lb_range.start)
-                        ..cmp::min(*max_val + 1, cmp::max(new_lower_range.end, lb_range.end))
-                };
+            match &self.db.borrow()[self.root] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(ub, 0);
+                    return Ok(vec![!*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[ub]
+                    {
+                        if semantics.has_if() {
+                            return Ok(vec![!lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
+            Err(NotEncoded)
         }
     }
+
+    impl BoundLower for Tot<'_> {
+        fn encode_lb<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.reset_encoded(totdb::Semantics::If);
+            self.encode_lb_change(range, collector, var_manager)
+        }
+
+        fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
+            if lb > self.n_lits() {
+                return Err(EnforceError::Unsat);
+            }
+            match &self.db[self.root] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(lb, 1);
+                    return Ok(vec![*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[lb - 1]
+                    {
+                        if semantics.has_only_if() {
+                            return Ok(vec![lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+            }
+            Err(EnforceError::NotEncoded)
+        }
+    }
+
+    impl BoundLower for TotCell<'_> {
+        fn encode_lb<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
+            self.encode_lb_change(range, collector, var_manager)
+        }
+
+        fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
+            if lb > self.n_lits() {
+                return Err(EnforceError::Unsat);
+            }
+            match &self.db.borrow()[self.root] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(lb, 1);
+                    return Ok(vec![*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[lb - 1]
+                    {
+                        if semantics.has_only_if() {
+                            return Ok(vec![lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+            }
+            Err(EnforceError::NotEncoded)
+        }
+    }
+
+    impl BoundUpperIncremental for Tot<'_> {
+        fn encode_ub_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_ub_range(self, range);
+            if range.is_empty() {
+                return Ok(());
+            }
+            for idx in range {
+                self.db.define_unweighted(
+                    self.root,
+                    idx,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl BoundUpperIncremental for TotCell<'_> {
+        fn encode_ub_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_ub_range(self, range);
+            if range.is_empty() {
+                return Ok(());
+            }
+            for idx in range {
+                self.db.borrow_mut().define_unweighted(
+                    self.root,
+                    idx,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl BoundLowerIncremental for Tot<'_> {
+        fn encode_lb_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_lb_range(self, range);
+            if range.is_empty() {
+                return Ok(());
+            }
+            for idx in range {
+                self.db.define_unweighted(
+                    self.root,
+                    idx - 1,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl BoundLowerIncremental for TotCell<'_> {
+        fn encode_lb_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_lb_range(self, range);
+            if range.is_empty() {
+                return Ok(());
+            }
+            for idx in range {
+                self.db.borrow_mut().define_unweighted(
+                    self.root,
+                    idx - 1,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl BoundBoth for Tot<'_> {
+        fn encode_both<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize> + Clone,
+        {
+            self.encode_ub_change(range.clone(), collector, var_manager)?;
+            self.encode_lb_change(range, collector, var_manager)?;
+            Ok(())
+        }
+    }
+
+    impl BoundBoth for TotCell<'_> {
+        fn encode_both<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize> + Clone,
+        {
+            self.encode_ub_change(range.clone(), collector, var_manager)?;
+            self.encode_lb_change(range, collector, var_manager)?;
+            Ok(())
+        }
+    }
+
+    impl BoundBothIncremental for Tot<'_> {}
+
+    impl BoundBothIncremental for TotCell<'_> {}
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Node, Totalizer};
+    use super::Totalizer;
     use crate::{
         encodings::{
             card::{
-                BoundBoth, BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
+                BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
                 EncodeIncremental,
             },
             EncodeStats, EnforceError, NotEncoded,
@@ -930,201 +1094,7 @@ mod tests {
     };
 
     #[test]
-    fn adder_1() {
-        // Child nodes
-        let child1 = Node::new_leaf(lit![0]);
-        let child2 = Node::new_leaf(lit![1]);
-        let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![2]);
-        let mut cnf = Cnf::new();
-        node.encode_ub_range(0..3, &mut cnf, &mut var_manager)
-            .unwrap();
-        node.encode_lb_range(0..3, &mut cnf, &mut var_manager)
-            .unwrap();
-        match &node {
-            Node::Leaf { .. } => panic!(),
-            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 2),
-        };
-        assert_eq!(cnf.len(), 6);
-    }
-
-    #[test]
-    fn adder_2() {
-        // (Inconsistent) child nodes
-        let child1 = Node::Internal {
-            out_lits: vec![Some(lit![1]), Some(lit![2])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let child2 = Node::Internal {
-            out_lits: vec![Some(lit![3]), Some(lit![4])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![5]);
-        let mut cnf = Cnf::new();
-        node.encode_ub_range(0..5, &mut cnf, &mut var_manager)
-            .unwrap();
-        node.encode_lb_range(0..5, &mut cnf, &mut var_manager)
-            .unwrap();
-        match &node {
-            Node::Leaf { .. } => panic!(),
-            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
-        };
-        assert_eq!(cnf.len(), 16);
-    }
-
-    #[test]
-    fn adder_3() {
-        // Child nodes
-        let child1 = Node::new_leaf(lit![0]);
-        let child2 = Node::new_leaf(lit![1]);
-        let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![2]);
-        let mut cnf = Cnf::new();
-        node.encode_lb_range(0..2, &mut cnf, &mut var_manager)
-            .unwrap();
-        match &node {
-            Node::Leaf { .. } => panic!(),
-            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 1),
-        };
-        assert_eq!(cnf.len(), 1);
-    }
-
-    #[test]
-    fn partial_adder_1() {
-        // (Inconsistent) child nodes
-        let child1 = Node::Internal {
-            out_lits: vec![Some(lit![1]), Some(lit![2]), Some(lit![3])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let child2 = Node::Internal {
-            out_lits: vec![Some(lit![4]), Some(lit![5]), Some(lit![6])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![7]);
-        let mut cnf = Cnf::new();
-        node.encode_ub_range(0..4, &mut cnf, &mut var_manager)
-            .unwrap();
-        node.encode_lb_range(0..4, &mut cnf, &mut var_manager)
-            .unwrap();
-        match &node {
-            Node::Leaf { .. } => panic!(),
-            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
-        };
-        assert_eq!(cnf.len(), 18);
-    }
-
-    #[test]
-    fn partial_adder_already_encoded() {
-        // (Inconsistent) child nodes
-        let child1 = Node::Internal {
-            out_lits: vec![Some(lit![1]), Some(lit![2]), Some(lit![3])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let child2 = Node::Internal {
-            out_lits: vec![Some(lit![4]), Some(lit![5]), Some(lit![6])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![7]);
-        let mut cnf = Cnf::new();
-        node.encode_ub_range(3..3, &mut cnf, &mut var_manager)
-            .unwrap();
-        node.encode_lb_range(3..3, &mut cnf, &mut var_manager)
-            .unwrap();
-        assert_eq!(cnf.len(), 0);
-    }
-
-    #[test]
-    fn partial_adder_2() {
-        // (Inconsistent) child nodes
-        let child1 = Node::Internal {
-            out_lits: vec![Some(lit![1]), Some(lit![2]), Some(lit![3])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let child2 = Node::Internal {
-            out_lits: vec![Some(lit![4]), Some(lit![5]), Some(lit![6])],
-            depth: 1,
-            n_clauses: 0,
-            max_val: 2,
-            ub_range: 0..3,
-            lb_range: 0..3,
-            // Dummy nodes for children
-            left: Box::new(Node::new_leaf(lit![0])),
-            right: Box::new(Node::new_leaf(lit![0])),
-        };
-        let mut node = Node::new_internal(child1, child2);
-        let mut var_manager = BasicVarManager::default();
-        var_manager.increase_next_free(var![7]);
-        let mut cnf = Cnf::new();
-        node.encode_ub_range(2..4, &mut cnf, &mut var_manager)
-            .unwrap();
-        node.encode_lb_range(2..4, &mut cnf, &mut var_manager)
-            .unwrap();
-        match &node {
-            Node::Leaf { .. } => panic!(),
-            Node::Internal { out_lits, .. } => assert_eq!(out_lits.len(), 4),
-        };
-        assert_eq!(cnf.len(), 12);
-    }
-
-    #[test]
-    fn tot_functions() {
+    fn functions() {
         let mut tot = Totalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         assert_eq!(tot.enforce_ub(2), Err(NotEncoded));
@@ -1133,30 +1103,42 @@ mod tests {
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
         tot.encode_ub(0..5, &mut cnf, &mut var_manager).unwrap();
-        tot.encode_lb(0..5, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(tot.depth(), 3);
-        assert_eq!(cnf.len(), 28);
-        assert_eq!(tot.n_clauses(), 28);
+        println!("len: {}, {:?}", cnf.len(), cnf);
+        assert_eq!(cnf.len(), 14);
+        assert_eq!(tot.n_clauses(), 14);
         assert_eq!(tot.n_vars(), 8);
         assert_eq!(tot.enforce_ub(2).unwrap().len(), 1);
-        assert_eq!(tot.enforce_lb(2).unwrap().len(), 1);
     }
 
     #[test]
-    fn tot_functions_min_rhs() {
+    fn capi_basics() {
         let mut tot = Totalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
-        tot.encode_both(3..4, &mut cnf, &mut var_manager).unwrap();
+        tot.encode_ub(0..=4, &mut cnf, &mut var_manager).unwrap();
+        tot.encode_lb(0..=4, &mut cnf, &mut var_manager).unwrap();
+        assert_eq!(var_manager.n_used(), 12);
+        assert_eq!(cnf.len(), 28);
+    }
+
+    #[test]
+    fn functions_min_rhs() {
+        let mut tot = Totalizer::default();
+        tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(3..4, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(tot.depth(), 3);
-        assert_eq!(cnf.len(), 12);
+        assert_eq!(cnf.len(), 3);
         assert_eq!(cnf.len(), tot.n_clauses());
     }
 
     #[test]
-    fn tot_incremental_building_ub() {
+    fn incremental_building_ub() {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
@@ -1177,7 +1159,7 @@ mod tests {
     }
 
     #[test]
-    fn tot_incremental_building_lb() {
+    fn incremental_building_lb() {
         let mut tot1 = Totalizer::default();
         tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
@@ -1207,5 +1189,87 @@ mod tests {
         let mut cnf = Cnf::new();
         tot.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 12);
+    }
+
+    #[cfg(feature = "proof-logging")]
+    mod proofs {
+        use std::{
+            fs::File,
+            io::{BufRead, BufReader},
+            path::Path,
+            process::Command,
+        };
+
+        use crate::{
+            encodings::card::cert::BoundBoth,
+            instances::{Cnf, SatInstance},
+            types::{constraints::CardConstraint, Var},
+        };
+
+        fn print_file<P: AsRef<Path>>(path: P) {
+            println!();
+            for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+                println!("{}", line.unwrap());
+            }
+            println!();
+        }
+
+        fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+            if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
+                println!("start checking proof");
+                let out = Command::new(veripb)
+                    .arg(instance.as_ref())
+                    .arg(proof.as_ref())
+                    .output()
+                    .expect("failed to run veripb");
+                print_file(proof);
+                if out.status.success() {
+                    return;
+                }
+                panic!("verification failed: {out:?}")
+            } else {
+                println!("`$VERIPB_CHECKER` not set, omitting proof checking");
+            }
+        }
+
+        fn new_proof(
+            num_constraints: usize,
+            optimization: bool,
+        ) -> pigeons::Proof<tempfile::NamedTempFile> {
+            let file =
+                tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
+            pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+        }
+
+        #[test]
+        fn constraint() {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let inst_path = format!("{manifest}/data/single-card-eq.opb");
+            let constr: SatInstance = SatInstance::from_opb_path(
+                &inst_path,
+                crate::instances::fio::opb::Options::default(),
+            )
+            .unwrap();
+            let (constr, mut vm) = constr.into_pbs();
+            assert_eq!(constr.len(), 1);
+            let constr = constr.into_iter().next().unwrap();
+            let constr = constr.into_card_constr().unwrap();
+            let CardConstraint::Eq(constr) = constr else {
+                panic!()
+            };
+            let mut cnf = Cnf::new();
+            let mut proof = new_proof(2, false);
+            super::Totalizer::encode_eq_constr_cert(
+                (constr, pigeons::AbsConstraintId::new(1)),
+                &mut cnf,
+                &mut vm,
+                &mut proof,
+            )
+            .unwrap();
+            let proof_file = proof
+                .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+                .unwrap();
+            verify_proof(&inst_path, proof_file.path());
+        }
     }
 }

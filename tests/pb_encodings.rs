@@ -4,7 +4,7 @@ use rustsat::{
         card::Totalizer,
         pb::{
             simulators::Card, BinaryAdder, BoundBothIncremental, BoundLower, BoundUpper,
-            BoundUpperIncremental, DbGte, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
+            BoundUpperIncremental, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
             GeneralizedTotalizer, InvertedGeneralizedTotalizer,
         },
     },
@@ -274,16 +274,6 @@ fn dpw_min_enc() {
 }
 
 #[test]
-fn dbgte_ub() {
-    test_inc_pb_ub::<DbGte>()
-}
-
-#[test]
-fn dbgte_min_enc() {
-    test_pb_ub_min_enc::<DbGte>()
-}
-
-#[test]
 fn adder_ub() {
     test_inc_pb_ub::<BinaryAdder>()
 }
@@ -432,8 +422,6 @@ macro_rules! generate_exhaustive {
 use generate_exhaustive;
 
 generate_exhaustive!(gte, GeneralizedTotalizer);
-
-generate_exhaustive!(dbgte, DbGte);
 
 generate_exhaustive!(dpw, DynamicPolyWatchdog);
 
@@ -662,11 +650,6 @@ fn gte_fuzzing_bug() {
 }
 
 #[test]
-fn dbgte_fuzzing_bug() {
-    adder_fuzzing_bug::<DbGte>();
-}
-
-#[test]
 fn dpw_fuzzing_bug() {
     adder_fuzzing_bug::<DynamicPolyWatchdog>();
 }
@@ -682,7 +665,7 @@ mod cert {
 
     use rustsat::{
         clause,
-        encodings::pb::{cert::BoundUpperIncremental, DbGte},
+        encodings::pb::{cert::BoundUpperIncremental, GeneralizedTotalizer},
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         solvers::{
@@ -916,8 +899,8 @@ mod cert {
 
     #[test]
     fn dbgte_inc_ub() {
-        test_inc_pb_ub::<DbGte>()
+        test_inc_pb_ub::<GeneralizedTotalizer>()
     }
 
-    super::generate_exhaustive!(dbgte, DbGte);
+    super::generate_exhaustive!(dbgte, GeneralizedTotalizer);
 }

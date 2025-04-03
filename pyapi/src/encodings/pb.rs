@@ -6,8 +6,8 @@ use rustsat::{
     encodings::{
         pb::{
             BinaryAdder as RsAdder, BoundBoth, BoundBothIncremental, BoundLower,
-            BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DbGte,
-            DynamicPolyWatchdog as RsDpw, Encode as PbEncode,
+            BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DynamicPolyWatchdog as RsDpw,
+            Encode as PbEncode, GeneralizedTotalizer as RsGte,
         },
         EncodeStats,
     },
@@ -199,9 +199,9 @@ macro_rules! implement_pyapi {
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[pyclass]
 #[repr(transparent)]
-pub struct GeneralizedTotalizer(DbGte);
+pub struct GeneralizedTotalizer(RsGte);
 
-implement_pyapi!(ub, GeneralizedTotalizer, DbGte);
+implement_pyapi!(ub, GeneralizedTotalizer, RsGte);
 
 /// Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
 ///

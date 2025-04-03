@@ -18,7 +18,7 @@ use crate::{
     utils::unreachable_err,
 };
 
-use super::{simulators, DbGte};
+use super::{simulators, GeneralizedTotalizer};
 
 /// Trait for certified PB encodings that allow upper bounding of the form `sum of lits <=
 /// ub`
@@ -264,18 +264,20 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     }
 }
 
-/// The default upper bound encoding. For now this is a [`DbGte`].
-pub type DefUpperBounding = DbGte;
-/// The default lower bound encoding. For now this is an inverted [`DbGte`].
-pub type DefLowerBounding = simulators::Inverted<DbGte>;
-/// The default encoding for both bounds. For now this is a doubled [`DbGte`].
-pub type DefBothBounding = simulators::Double<DbGte, simulators::Inverted<DbGte>>;
-/// The default incremental upper bound encoding. For now this is a [`DbGte`].
-pub type DefIncUpperBounding = DbGte;
-/// The default incremental lower bound encoding. For now this is an inverted [`DbGte`].
-pub type DefIncLowerBounding = simulators::Inverted<DbGte>;
-/// The default incremental encoding for both bounds. For now this is a doubled [`DbGte`].
-pub type DefIncBothBounding = simulators::Double<DbGte, simulators::Inverted<DbGte>>;
+/// The default upper bound encoding. For now this is a [`GeneralizedTotalizer`].
+pub type DefUpperBounding = GeneralizedTotalizer;
+/// The default lower bound encoding. For now this is an inverted [`GeneralizedTotalizer`].
+pub type DefLowerBounding = simulators::Inverted<GeneralizedTotalizer>;
+/// The default encoding for both bounds. For now this is a doubled [`GeneralizedTotalizer`].
+pub type DefBothBounding =
+    simulators::Double<GeneralizedTotalizer, simulators::Inverted<GeneralizedTotalizer>>;
+/// The default incremental upper bound encoding. For now this is a [`GeneralizedTotalizer`].
+pub type DefIncUpperBounding = GeneralizedTotalizer;
+/// The default incremental lower bound encoding. For now this is an inverted [`GeneralizedTotalizer`].
+pub type DefIncLowerBounding = simulators::Inverted<GeneralizedTotalizer>;
+/// The default incremental encoding for both bounds. For now this is a doubled [`GeneralizedTotalizer`].
+pub type DefIncBothBounding =
+    simulators::Double<GeneralizedTotalizer, simulators::Inverted<GeneralizedTotalizer>>;
 
 /// Constructs a default upper bounding pseudo-boolean encoding.
 #[must_use]

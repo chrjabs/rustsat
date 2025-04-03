@@ -95,36 +95,6 @@ typedef struct Bitwise Bitwise;
 typedef struct Commander Commander;
 
 /**
- * Implementation of the binary adder tree generalized totalizer encoding
- * \[1\]. The implementation is incremental. The implementation is recursive.
- * This encoding only support upper bounding. Lower bounding can be achieved by
- * negating the input literals. This is implemented in
- * [`super::simulators::Inverted`].
- * The implementation is based on a node database.
- *
- * # References
- *
- * - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
- *     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
- */
-typedef struct DbGte DbGte;
-
-/**
- * Implementation of the binary adder tree totalizer encoding \[1\].
- * The implementation is incremental as extended in \[2\].
- * The implementation is based on a node database.
- * For now, this implementation only supports upper bounding.
- *
- * # References
- *
- * - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
- *     Constraints_, CP 2003.
- * - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
- *     Cardinality Constraints for MaxSAT_, CP 2014.
- */
-typedef struct DbTotalizer DbTotalizer;
-
-/**
  * Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
  *
  * **Note**:
@@ -139,6 +109,21 @@ typedef struct DbTotalizer DbTotalizer;
  *     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
  */
 typedef struct DynamicPolyWatchdog DynamicPolyWatchdog;
+
+/**
+ * Implementation of the binary adder tree generalized totalizer encoding
+ * \[1\]. The implementation is incremental. The implementation is recursive.
+ * This encoding only support upper bounding. Lower bounding can be achieved by
+ * negating the input literals. This is implemented in
+ * [`super::simulators::Inverted`].
+ * The implementation is based on a node database.
+ *
+ * # References
+ *
+ * - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
+ *     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+ */
+typedef struct GeneralizedTotalizer GeneralizedTotalizer;
 
 /**
  * Implementations of the ladder at-most-1 encoding.
@@ -157,6 +142,21 @@ typedef struct Ladder Ladder;
  * - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
  */
 typedef struct Pairwise Pairwise;
+
+/**
+ * Implementation of the binary adder tree totalizer encoding \[1\].
+ * The implementation is incremental as extended in \[2\].
+ * The implementation is based on a node database.
+ * For now, this implementation only supports upper bounding.
+ *
+ * # References
+ *
+ * - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
+ *     Constraints_, CP 2003.
+ * - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
+ *     Cardinality Constraints for MaxSAT_, CP 2014.
+ */
+typedef struct Totalizer Totalizer;
 
 typedef void (*CClauseCollector)(int lit, void *data);
 
@@ -483,12 +483,12 @@ void dpw_reserve(struct DynamicPolyWatchdog *dpw, uint32_t *n_vars_used);
 void dpw_drop(struct DynamicPolyWatchdog *dpw);
 
 /**
- * Creates a new [`DbGte`] cardinality encoding
+ * Creates a new [`GeneralizedTotalizer`] cardinality encoding
  */
-struct DbGte *gte_new(void);
+struct GeneralizedTotalizer *gte_new(void);
 
 /**
- * Adds a new input literal to a [`DbGte`].
+ * Adds a new input literal to a [`GeneralizedTotalizer`].
  *
  * # Errors
  *
@@ -499,7 +499,7 @@ struct DbGte *gte_new(void);
  *
  * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
  */
-enum MaybeError gte_add(struct DbGte *gte, int lit, size_t weight);
+enum MaybeError gte_add(struct GeneralizedTotalizer *gte, int lit, size_t weight);
 
 /**
  * Lazily builds the _change in_ pseudo-boolean encoding to enable upper bounds from within the
@@ -524,7 +524,7 @@ enum MaybeError gte_add(struct DbGte *gte, int lit, size_t weight);
  * - If `min_bound > max_bound`.
  * - If the encoding ran out of memory
  */
-void gte_encode_ub(struct DbGte *gte,
+void gte_encode_ub(struct GeneralizedTotalizer *gte,
                    size_t min_bound,
                    size_t max_bound,
                    uint32_t *n_vars_used,
@@ -543,7 +543,7 @@ void gte_encode_ub(struct DbGte *gte,
  *
  * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
  */
-enum MaybeError gte_enforce_ub(struct DbGte *gte,
+enum MaybeError gte_enforce_ub(struct GeneralizedTotalizer *gte,
                                size_t ub,
                                CAssumpCollector collector,
                                void *collector_data);
@@ -558,25 +558,25 @@ enum MaybeError gte_enforce_ub(struct DbGte *gte,
  *
  * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
  */
-void gte_reserve(struct DbGte *gte, uint32_t *n_vars_used);
+void gte_reserve(struct GeneralizedTotalizer *gte, uint32_t *n_vars_used);
 
 /**
- * Frees the memory associated with a [`DbGte`]
+ * Frees the memory associated with a [`GeneralizedTotalizer`]
  *
  * # Safety
  *
  * `gte` must be a return value of [`gte_new`] and cannot be used
  * afterwards again.
  */
-void gte_drop(struct DbGte *gte);
+void gte_drop(struct GeneralizedTotalizer *gte);
 
 /**
- * Creates a new [`DbTotalizer`] cardinality encoding
+ * Creates a new [`Totalizer`] cardinality encoding
  */
-struct DbTotalizer *tot_new(void);
+struct Totalizer *tot_new(void);
 
 /**
- * Adds a new input literal to a [`DbTotalizer`]
+ * Adds a new input literal to a [`Totalizer`]
  *
  * # Errors
  *
@@ -587,7 +587,7 @@ struct DbTotalizer *tot_new(void);
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  */
-enum MaybeError tot_add(struct DbTotalizer *tot, int lit);
+enum MaybeError tot_add(struct Totalizer *tot, int lit);
 
 /**
  * Lazily builds the _change in_ cardinality encoding to enable upper bounds in a given range. A
@@ -612,7 +612,7 @@ enum MaybeError tot_add(struct DbTotalizer *tot, int lit);
  * - If `min_bound > max_bound`.
  * - If the encoding ran out of memory
  */
-void tot_encode_ub(struct DbTotalizer *tot,
+void tot_encode_ub(struct Totalizer *tot,
                    size_t min_bound,
                    size_t max_bound,
                    uint32_t *n_vars_used,
@@ -628,7 +628,7 @@ void tot_encode_ub(struct DbTotalizer *tot,
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  */
-enum MaybeError tot_enforce_ub(struct DbTotalizer *tot, size_t ub, int *assump);
+enum MaybeError tot_enforce_ub(struct Totalizer *tot, size_t ub, int *assump);
 
 /**
  * Lazily builds the _change in_ cardinality encoding to enable lower bounds in a given range. A
@@ -653,7 +653,7 @@ enum MaybeError tot_enforce_ub(struct DbTotalizer *tot, size_t ub, int *assump);
  * - If `min_bound > max_bound`.
  * - If the encoding ran out of memory
  */
-void tot_encode_lb(struct DbTotalizer *tot,
+void tot_encode_lb(struct Totalizer *tot,
                    size_t min_bound,
                    size_t max_bound,
                    uint32_t *n_vars_used,
@@ -669,7 +669,7 @@ void tot_encode_lb(struct DbTotalizer *tot,
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  */
-enum MaybeError tot_enforce_lb(struct DbTotalizer *tot, size_t ub, int *assump);
+enum MaybeError tot_enforce_lb(struct Totalizer *tot, size_t ub, int *assump);
 
 /**
  * Reserves all auxiliary variables that the encoding might need
@@ -681,16 +681,16 @@ enum MaybeError tot_enforce_lb(struct DbTotalizer *tot, size_t ub, int *assump);
  *
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  */
-void tot_reserve(struct DbTotalizer *tot, uint32_t *n_vars_used);
+void tot_reserve(struct Totalizer *tot, uint32_t *n_vars_used);
 
 /**
- * Frees the memory associated with a [`DbTotalizer`]
+ * Frees the memory associated with a [`Totalizer`]
  *
  * # Safety
  *
  * `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
  */
-void tot_drop(struct DbTotalizer *tot);
+void tot_drop(struct Totalizer *tot);
 
 /**
  * Creates a new [`Bimander`] at-most-one encoding

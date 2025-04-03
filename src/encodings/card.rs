@@ -47,9 +47,6 @@ pub use totalizer::Totalizer;
 
 pub mod simulators;
 
-pub mod dbtotalizer;
-pub use dbtotalizer::DbTotalizer;
-
 #[cfg(feature = "proof-logging")]
 pub mod cert;
 
