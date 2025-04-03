@@ -30,8 +30,10 @@ jobs:
       - name: Build rust docs
         run: |
           mkdir -p _site/
-          cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --no-deps --features=all,internals -- --cfg docsrs
+          cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --no-deps --features=all,internals
           mv target/doc/ _site/main/
+        env:
+          RUSTDOCFLAGS: "-Dwarnings --cfg docsrs"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
