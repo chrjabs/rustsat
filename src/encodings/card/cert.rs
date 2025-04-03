@@ -5,13 +5,17 @@ use std::ops::RangeBounds;
 use pigeons::AbsConstraintId;
 
 use crate::{
+    clause,
     encodings::cert::{CollectClauses, ConstraintEncodingError, EncodingError},
     instances::ManageVars,
     types::{
         constraints::{CardConstraint, CardEqConstr, CardLbConstr, CardUbConstr},
         Lit,
     },
+    utils::unreachable_err,
 };
+
+use super::DbTotalizer;
 
 /// Trait for certified cardinality encodings that allow upper bounding of the form `sum of lits <=
 /// ub`
@@ -254,5 +258,127 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
         self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
         self.encode_lb_change_cert(range, collector, var_manager, proof)?;
         Ok(())
+    }
+}
+
+/// The default upper bound encoding. For now this is a [`DbTotalizer`].
+pub type DefUpperBounding = DbTotalizer;
+/// The default lower bound encoding. For now this is a [`DbTotalizer`].
+pub type DefLowerBounding = DbTotalizer;
+/// The default encoding for both bounds. For now this is a [`DbTotalizer`].
+pub type DefBothBounding = DbTotalizer;
+/// The default incremental upper bound encoding. For now this is a [`DbTotalizer`].
+pub type DefIncUpperBounding = DbTotalizer;
+/// The default incremental lower bound encoding. For now this is a [`DbTotalizer`].
+pub type DefIncLowerBounding = DbTotalizer;
+/// The default incremental encoding for both bounds. For now this is a [`DbTotalizer`].
+pub type DefIncBothBounding = DbTotalizer;
+
+/// Constructs a default upper bounding cardinality encoding.
+#[must_use]
+pub fn new_default_ub() -> impl BoundUpper {
+    DefUpperBounding::default()
+}
+
+/// Constructs a default lower bounding cardinality encoding.
+#[must_use]
+pub fn new_default_lb() -> impl BoundLower {
+    DefLowerBounding::default()
+}
+
+/// Constructs a default double bounding cardinality encoding.
+#[must_use]
+pub fn new_default_both() -> impl BoundBoth {
+    DefBothBounding::default()
+}
+
+/// Constructs a default incremental upper bounding cardinality encoding.
+#[must_use]
+pub fn new_default_inc_ub() -> impl BoundUpperIncremental {
+    DefIncUpperBounding::default()
+}
+
+/// Constructs a default incremental lower bounding cardinality encoding.
+#[must_use]
+pub fn new_default_inc_lb() -> impl BoundLower {
+    DefIncLowerBounding::default()
+}
+
+/// Constructs a default incremental double bounding cardinality encoding.
+#[must_use]
+pub fn new_default_inc_both() -> impl BoundBoth {
+    DefIncBothBounding::default()
+}
+
+/// A default encoder for any cardinality constraint. This uses a
+/// [`DefBothBounding`] to encode non-trivial constraints.
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, or writing the proof fails
+pub fn default_encode_cardinality_constraint<Col: CollectClauses, W: std::io::Write>(
+    constr: (CardConstraint, AbsConstraintId),
+    collector: &mut Col,
+    var_manager: &mut dyn ManageVars,
+    proof: &mut pigeons::Proof<W>,
+) -> Result<(), EncodingError> {
+    encode_cardinality_constraint::<DefBothBounding, Col, W>(constr, collector, var_manager, proof)
+}
+
+/// An encoder for any cardinality constraint with an encoding of choice
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, or writing the proof fails
+pub fn encode_cardinality_constraint<
+    CE: BoundBoth + FromIterator<Lit>,
+    Col: CollectClauses,
+    W: std::io::Write,
+>(
+    constr: (CardConstraint, AbsConstraintId),
+    collector: &mut Col,
+    var_manager: &mut dyn ManageVars,
+    proof: &mut pigeons::Proof<W>,
+) -> Result<(), EncodingError> {
+    let (constr, mut id) = constr;
+    if constr.is_tautology() {
+        return Ok(());
+    }
+    if constr.is_unsat() {
+        let empty = clause![];
+        let unsat_id = proof.reverse_unit_prop(&empty, [id.into()])?;
+        collector.add_cert_clause(empty, unsat_id)?;
+        return Ok(());
+    }
+    if constr.is_positive_assignment() {
+        for lit in constr.into_lits() {
+            let unit = clause![lit];
+            let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
+            collector.add_cert_clause(unit, unit_id)?;
+        }
+        return Ok(());
+    }
+    if constr.is_negative_assignment() {
+        if matches!(constr, CardConstraint::Eq(_)) {
+            id += 1;
+        }
+        for lit in constr.into_lits() {
+            let unit = clause![!lit];
+            let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
+            collector.add_cert_clause(unit, unit_id)?;
+        }
+        return Ok(());
+    }
+    if constr.is_clause() {
+        let clause = unreachable_err!(constr.into_clause());
+        let cl_id = proof.reverse_unit_prop(&clause, [id.into()])?;
+        collector.add_cert_clause(clause, cl_id)?;
+        return Ok(());
+    }
+    match CE::encode_constr_cert((constr, id), collector, var_manager, proof) {
+        Ok(()) => Ok(()),
+        Err(ConstraintEncodingError::OutOfMemory(err)) => Err(err.into()),
+        Err(ConstraintEncodingError::Proof(err)) => Err(err.into()),
+        Err(ConstraintEncodingError::Unsat) => unreachable!(),
     }
 }

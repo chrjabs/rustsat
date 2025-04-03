@@ -5,13 +5,20 @@ use std::ops::RangeBounds;
 use pigeons::AbsConstraintId;
 
 use crate::{
-    encodings::cert::{CollectClauses, ConstraintEncodingError, EncodingError},
+    clause,
+    encodings::{
+        card,
+        cert::{CollectClauses, ConstraintEncodingError, EncodingError},
+    },
     instances::ManageVars,
     types::{
         constraints::{PbConstraint, PbEqConstr, PbLbConstr, PbUbConstr},
         Lit,
     },
+    utils::unreachable_err,
 };
+
+use super::{simulators, DbGte};
 
 /// Trait for certified PB encodings that allow upper bounding of the form `sum of lits <=
 /// ub`
@@ -254,5 +261,137 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
         self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
         self.encode_lb_change_cert(range, collector, var_manager, proof)?;
         Ok(())
+    }
+}
+
+/// The default upper bound encoding. For now this is a [`DbGte`].
+pub type DefUpperBounding = DbGte;
+/// The default lower bound encoding. For now this is an inverted [`DbGte`].
+pub type DefLowerBounding = simulators::Inverted<DbGte>;
+/// The default encoding for both bounds. For now this is a doubled [`DbGte`].
+pub type DefBothBounding = simulators::Double<DbGte, simulators::Inverted<DbGte>>;
+/// The default incremental upper bound encoding. For now this is a [`DbGte`].
+pub type DefIncUpperBounding = DbGte;
+/// The default incremental lower bound encoding. For now this is an inverted [`DbGte`].
+pub type DefIncLowerBounding = simulators::Inverted<DbGte>;
+/// The default incremental encoding for both bounds. For now this is a doubled [`DbGte`].
+pub type DefIncBothBounding = simulators::Double<DbGte, simulators::Inverted<DbGte>>;
+
+/// Constructs a default upper bounding pseudo-boolean encoding.
+#[must_use]
+pub fn new_default_ub() -> impl BoundUpper + Extend<(Lit, usize)> {
+    DefUpperBounding::default()
+}
+
+/// Constructs a default lower bounding pseudo-boolean encoding.
+#[must_use]
+pub fn new_default_lb() -> impl BoundLower + Extend<(Lit, usize)> {
+    DefLowerBounding::default()
+}
+
+/// Constructs a default double bounding pseudo-boolean encoding.
+#[must_use]
+pub fn new_default_both() -> impl BoundBoth + Extend<(Lit, usize)> {
+    DefBothBounding::default()
+}
+
+/// Constructs a default incremental upper bounding pseudo-boolean encoding.
+#[must_use]
+pub fn new_default_inc_ub() -> impl BoundUpperIncremental + Extend<(Lit, usize)> {
+    DefIncUpperBounding::default()
+}
+
+/// Constructs a default incremental lower bounding pseudo-boolean encoding.
+#[must_use]
+pub fn new_default_inc_lb() -> impl BoundLower + Extend<(Lit, usize)> {
+    DefIncLowerBounding::default()
+}
+
+/// Constructs a default incremental double bounding pseudo-boolean encoding.
+#[must_use]
+pub fn new_default_inc_both() -> impl BoundBoth + Extend<(Lit, usize)> {
+    DefIncBothBounding::default()
+}
+
+/// A default encoder for any pseudo-boolean constraint. This uses a
+/// [`DefBothBounding`] to encode true pseudo-boolean constraints and
+/// [`card::cert::default_encode_cardinality_constraint`] for cardinality constraints.
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, or writing the proof fails
+pub fn default_encode_pb_constraint<Col: CollectClauses, W: std::io::Write>(
+    constr: (PbConstraint, AbsConstraintId),
+    collector: &mut Col,
+    var_manager: &mut dyn ManageVars,
+    proof: &mut pigeons::Proof<W>,
+) -> Result<(), EncodingError> {
+    encode_pb_constraint::<DefBothBounding, Col, W>(constr, collector, var_manager, proof)
+}
+
+/// An encoder for any pseudo-boolean constraint with an encoding of choice
+///
+/// # Errors
+///
+/// If the clause collector runs out of memory, or writing the proof fails
+pub fn encode_pb_constraint<
+    PBE: BoundBoth + FromIterator<(Lit, usize)>,
+    Col: CollectClauses,
+    W: std::io::Write,
+>(
+    constr: (PbConstraint, AbsConstraintId),
+    collector: &mut Col,
+    var_manager: &mut dyn ManageVars,
+    proof: &mut pigeons::Proof<W>,
+) -> Result<(), EncodingError> {
+    let (constr, mut id) = constr;
+    if constr.is_tautology() {
+        return Ok(());
+    }
+    if constr.is_unsat() {
+        let empty = clause![];
+        let unsat_id = proof.reverse_unit_prop(&empty, [id.into()])?;
+        collector.add_cert_clause(empty, unsat_id)?;
+        return Ok(());
+    }
+    if constr.is_positive_assignment() {
+        for (lit, _) in constr.into_lits() {
+            let unit = clause![lit];
+            let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
+            collector.add_cert_clause(unit, unit_id)?;
+        }
+        return Ok(());
+    }
+    if constr.is_negative_assignment() {
+        if matches!(constr, PbConstraint::Eq(_)) {
+            id += 1;
+        }
+        for (lit, _) in constr.into_lits() {
+            let unit = clause![!lit];
+            let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
+            collector.add_cert_clause(unit, unit_id)?;
+        }
+        return Ok(());
+    }
+    if constr.is_clause() {
+        let clause = unreachable_err!(constr.into_clause());
+        let cl_id = proof.reverse_unit_prop(&clause, [id.into()])?;
+        collector.add_cert_clause(clause, cl_id)?;
+        return Ok(());
+    }
+    if constr.is_card() {
+        let card = unreachable_err!(constr.into_card_constr());
+        return card::cert::default_encode_cardinality_constraint(
+            (card, id),
+            collector,
+            var_manager,
+            proof,
+        );
+    }
+    match PBE::encode_constr_cert((constr, id), collector, var_manager, proof) {
+        Ok(()) => Ok(()),
+        Err(ConstraintEncodingError::OutOfMemory(err)) => Err(err.into()),
+        Err(ConstraintEncodingError::Proof(err)) => Err(err.into()),
+        Err(ConstraintEncodingError::Unsat) => unreachable!(),
     }
 }
