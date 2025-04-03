@@ -104,9 +104,18 @@ compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
 ipasir-display = []
-serde = ["dep:serde"]
+serde = ["dep:serde", "pigeons/serde"]
 proof-logging = ["dep:pigeons"]
-all = ["multiopt", "compression", "rand", "fxhash", "serde", "proof-logging"]
+verbose-proofs = ["proof-logging"]
+all = [
+  "multiopt",
+  "compression",
+  "rand",
+  "fxhash",
+  "serde",
+  "proof-logging",
+  "verbose-proofs",
+]
 
 [package.metadata.docs.rs]
 features = ["all", "internals"]

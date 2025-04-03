@@ -16,6 +16,10 @@ use super::{
     CollectClauses,
 };
 
+#[cfg(feature = "proof-logging")]
+#[path = "totdb/cert.rs"]
+pub mod cert;
+
 #[inline]
 fn con_idx(idx: usize, con: NodeCon) -> usize {
     con.rev_map(idx + 1) - 1
@@ -45,6 +49,8 @@ pub struct Db {
     lookup_leaf: RsHashMap<Lit, NodeId>,
     /// Dummy Node ID
     dummy_id: Option<NodeId>,
+    #[cfg(feature = "proof-logging")]
+    semantic_defs: RsHashMap<cert::SemDefId, cert::SemDefs>,
 }
 
 impl NodeById for Db {

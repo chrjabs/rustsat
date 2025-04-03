@@ -158,6 +158,17 @@ jobs:
       - name: Limit cmake parallelism
         if: matrix.os == 'macos-latest'
         run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          python-version: 3.12
+      - name: Install VeriPB
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -e
+          sudo apt-get install libgmp-dev
+          pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
+          echo "VERIPB_CHECKER=$(which veripb)" >> "$GITHUB_ENV"
       - name: Test suite
         run: cargo nextest run --profile ci -p rustsat --verbose --features=all
       - name: CaDiCaL external solver

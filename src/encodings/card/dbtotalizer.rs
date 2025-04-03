@@ -82,6 +82,26 @@ impl DbTotalizer {
         self.root.map_or(0, |root| self.db[root].depth())
     }
 
+    /// Gets the details of a totalizer output related to proof logging
+    ///
+    /// # Errors
+    ///
+    /// If the requested output is not encoded
+    #[cfg(feature = "proof-logging")]
+    pub fn output_proof_details(
+        &self,
+        value: usize,
+    ) -> Result<(Lit, totdb::cert::SemDefs), NotEncoded> {
+        match self.root {
+            None => Err(NotEncoded),
+            Some(root) => self
+                .db
+                .get_semantics(root, self.offset, value + self.offset)
+                .map(|sem| (self.db[root][value + self.offset], sem))
+                .ok_or(NotEncoded),
+        }
+    }
+
     /// Gets the number of output literals in the totalizer
     ///
     /// This will only differ from [`Self::n_lits`] if the encoding has an offset
@@ -356,6 +376,292 @@ impl Extend<Lit> for DbTotalizer {
         self.lit_buffer.extend(iter);
     }
 }
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpper for DbTotalizer {
+    fn encode_ub_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        use super::cert::BoundUpperIncremental;
+        self.db.reset_encoded(totdb::Semantics::If);
+        self.encode_ub_change_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_ub_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardUbConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
+    {
+        use pigeons::{OperationLike, OperationSequence};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, ub) = constr.decompose();
+        if ub > lits.len() {
+            return Ok(());
+        }
+        let mut enc = Self::from_iter(lits);
+        enc.encode_ub_cert(ub..=ub, collector, var_manager, proof)?;
+        let (olit, sem_defs) = enc
+            .output_proof_details(ub + 1)
+            .expect("encoded just before, so should be fine");
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![!olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundUpperIncremental for DbTotalizer {
+    fn encode_ub_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_ub_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
+        if range.is_empty() {
+            return Ok(());
+        }
+        self.extend_tree();
+        if let Some(id) = self.root {
+            let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
+            let mut leaves_init = false;
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                (_, leaves_init) = self.db.define_unweighted_cert(
+                    id,
+                    idx + self.offset,
+                    totdb::Semantics::If,
+                    collector,
+                    var_manager,
+                    proof,
+                    (&mut leaves, leaves_init, false),
+                )?;
+            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
+        };
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundLower for DbTotalizer {
+    fn encode_lb_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        use super::cert::BoundLowerIncremental;
+        self.db.reset_encoded(totdb::Semantics::OnlyIf);
+        self.encode_lb_change_cert(range, collector, var_manager, proof)
+    }
+
+    fn encode_lb_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardLBConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::ConstraintEncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
+    {
+        use pigeons::{OperationLike, OperationSequence};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, lb) = constr.decompose();
+        if lb > lits.len() {
+            return Err(crate::encodings::cert::ConstraintEncodingError::Unsat);
+        }
+        let mut enc = Self::from_iter(lits);
+        enc.encode_lb_cert(lb..=lb, collector, var_manager, proof)?;
+        let (olit, sem_defs) = enc
+            .output_proof_details(lb)
+            .expect("encoded right before, so should be fine");
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundLowerIncremental for DbTotalizer {
+    fn encode_lb_change_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize>,
+        W: std::io::Write,
+    {
+        let range = super::prepare_lb_range(self, range);
+        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
+        if range.is_empty() {
+            return Ok(());
+        }
+        self.extend_tree();
+        if let Some(id) = self.root {
+            let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
+            let mut leaves_init = false;
+            let n_vars_before = var_manager.n_used();
+            let n_clauses_before = collector.n_clauses();
+            for idx in range {
+                (_, leaves_init) = self.db.define_unweighted_cert(
+                    id,
+                    idx - 1 + self.offset,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                    proof,
+                    (&mut leaves, leaves_init, false),
+                )?;
+            }
+            self.n_clauses += collector.n_clauses() - n_clauses_before;
+            self.n_vars += var_manager.n_used() - n_vars_before;
+        };
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundBoth for DbTotalizer {
+    fn encode_both_cert<Col, R, W>(
+        &mut self,
+        range: R,
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::EncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        R: RangeBounds<usize> + Clone,
+        W: std::io::Write,
+    {
+        use super::cert::{BoundLowerIncremental, BoundUpperIncremental};
+
+        self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
+        self.encode_lb_change_cert(range, collector, var_manager, proof)?;
+        Ok(())
+    }
+
+    fn encode_eq_constr_cert<Col, W>(
+        constr: (
+            crate::types::constraints::CardEQConstr,
+            pigeons::AbsConstraintId,
+        ),
+        collector: &mut Col,
+        var_manager: &mut dyn ManageVars,
+        proof: &mut pigeons::Proof<W>,
+    ) -> Result<(), crate::encodings::cert::ConstraintEncodingError>
+    where
+        Col: crate::encodings::cert::CollectClauses,
+        W: std::io::Write,
+        Self: FromIterator<Lit> + Sized,
+    {
+        use pigeons::{OperationLike, OperationSequence};
+
+        use crate::types::Var;
+
+        // TODO: properly take care of constraints where no structure is built
+
+        let (constr, id) = constr;
+        let (lits, b) = constr.decompose();
+        if b > lits.len() {
+            return Err(crate::encodings::cert::ConstraintEncodingError::Unsat);
+        }
+        let mut enc = Self::from_iter(lits);
+        enc.encode_both_cert(b..=b, collector, var_manager, proof)?;
+        // UB
+        let (olit, sem_defs) = enc
+            .output_proof_details(b + 1)
+            .expect("encoded just before, so should be fine");
+        let unit_id = proof.operations(
+            &(OperationSequence::<Var>::from(id + 1) + sem_defs.only_if_def.unwrap()).saturate(),
+        )?;
+        let unit_cl = crate::clause![!olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        // LB
+        let (olit, sem_defs) = enc
+            .output_proof_details(b)
+            .expect("encoded just before, so should be fine");
+        let unit_id = proof.operations(
+            &((OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate()),
+        )?;
+        let unit_cl = crate::clause![olit];
+        #[cfg(feature = "verbose-proofs")]
+        proof.equals(&unit_cl, Some(unit_id.into()))?;
+        collector.add_cert_clause(unit_cl, unit_id)?;
+        enc.db.delete_semantics(proof)?;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl super::cert::BoundBothIncremental for DbTotalizer {}
 
 /// Totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "internals")]
@@ -666,5 +972,87 @@ mod tests {
         let mut cnf = Cnf::new();
         tot.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 12);
+    }
+
+    #[cfg(feature = "proof-logging")]
+    mod proofs {
+        use std::{
+            fs::File,
+            io::{BufRead, BufReader},
+            path::Path,
+            process::Command,
+        };
+
+        use crate::{
+            encodings::card::cert::BoundBoth,
+            instances::{Cnf, SatInstance},
+            types::{constraints::CardConstraint, Var},
+        };
+
+        fn print_file<P: AsRef<Path>>(path: P) {
+            println!();
+            for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+                println!("{}", line.unwrap());
+            }
+            println!();
+        }
+
+        fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+            if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
+                println!("start checking proof");
+                let out = Command::new(veripb)
+                    .arg(instance.as_ref())
+                    .arg(proof.as_ref())
+                    .output()
+                    .expect("failed to run veripb");
+                print_file(proof);
+                if out.status.success() {
+                    return;
+                }
+                panic!("verification failed: {out:?}")
+            } else {
+                println!("`$VERIPB_CHECKER` not set, omitting proof checking");
+            }
+        }
+
+        fn new_proof(
+            num_constraints: usize,
+            optimization: bool,
+        ) -> pigeons::Proof<tempfile::NamedTempFile> {
+            let file =
+                tempfile::NamedTempFile::new().expect("failed to create temporary proof file");
+            pigeons::Proof::new(file, num_constraints, optimization).expect("failed to start proof")
+        }
+
+        #[test]
+        fn constraint() {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let inst_path = format!("{manifest}/data/single-card-eq.opb");
+            let constr: SatInstance = SatInstance::from_opb_path(
+                &inst_path,
+                crate::instances::fio::opb::Options::default(),
+            )
+            .unwrap();
+            let (constr, mut vm) = constr.into_pbs();
+            assert_eq!(constr.len(), 1);
+            let constr = constr.into_iter().next().unwrap();
+            let constr = constr.into_card_constr().unwrap();
+            let CardConstraint::Eq(constr) = constr else {
+                panic!()
+            };
+            let mut cnf = Cnf::new();
+            let mut proof = new_proof(2, false);
+            super::DbTotalizer::encode_eq_constr_cert(
+                (constr, pigeons::AbsConstraintId::new(1)),
+                &mut cnf,
+                &mut vm,
+                &mut proof,
+            )
+            .unwrap();
+            let proof_file = proof
+                .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+                .unwrap();
+            verify_proof(&inst_path, proof_file.path());
+        }
     }
 }
