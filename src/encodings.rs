@@ -2,8 +2,6 @@
 //!
 //! CNF encodings for cardinality and pseudo-boolean constraints.
 
-use thiserror::Error;
-
 use crate::types::{Clause, Lit};
 
 pub mod am1;
@@ -34,15 +32,37 @@ pub trait CollectClauses {
     }
 }
 
-/// Errors from encodings
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum Error {
+/// Usage error for operations where the encoding would first have to be built
+#[derive(thiserror::Error, Debug, PartialEq, Eq, Clone, Copy)]
+#[error("the encoding is not built for this operation")]
+pub struct NotEncoded;
+
+/// Usage errors for methods enforcing a bound
+#[derive(thiserror::Error, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum EnforceError {
     /// Encode was not called before using the encoding
     #[error("not encoded to enforce bound")]
     NotEncoded,
     /// The requested encoding is unsatisfiable
     #[error("encoding is unsat")]
     Unsat,
+}
+
+impl From<NotEncoded> for EnforceError {
+    fn from(_: NotEncoded) -> Self {
+        EnforceError::NotEncoded
+    }
+}
+
+/// Error type for encoding a constraint
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
+pub enum ConstraintEncodingError {
+    /// The constraint is unsatisfiable
+    #[error("constraint is unsat")]
+    Unsat,
+    /// Building the constraint encoding ran out of memory
+    #[error("out of memory error: {0}")]
+    OutOfMemory(#[from] crate::OutOfMemory),
 }
 
 /// Trait for encodings that track statistics.

@@ -14,7 +14,7 @@ use super::{
     BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{card, CollectClauses, EncodeStats, Error, IterInputs, IterWeightedInputs},
+    encodings::{card, CollectClauses, EncodeStats, EnforceError, IterInputs, IterWeightedInputs},
     instances::ManageVars,
     types::{Lit, RsHashMap},
 };
@@ -152,7 +152,7 @@ where
         )
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
         let lb = if self.weight_sum > ub {
             self.weight_sum - ub
         } else {
@@ -183,11 +183,11 @@ where
         )
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         let ub = if self.weight_sum >= lb {
             self.weight_sum - lb
         } else {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         };
         self.pb_enc.enforce_ub(ub)
     }
@@ -214,11 +214,11 @@ where
         )
     }
 
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EnforceError> {
         let b = if self.weight_sum >= b {
             self.weight_sum - b
         } else {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         };
         self.pb_enc.enforce_eq(b)
     }
@@ -430,7 +430,7 @@ where
         self.ub_enc.encode_ub(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
         self.ub_enc.enforce_ub(ub)
     }
 }
@@ -453,7 +453,7 @@ where
         self.lb_enc.encode_lb(range, collector, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         self.lb_enc.enforce_lb(lb)
     }
 }
@@ -640,8 +640,8 @@ where
         self.card_enc.encode_ub(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
-        self.card_enc.enforce_ub(ub)
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
+        Ok(self.card_enc.enforce_ub(ub)?)
     }
 }
 
@@ -662,7 +662,7 @@ where
         self.card_enc.encode_lb(range, collector, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         self.card_enc.enforce_lb(lb)
     }
 }
@@ -686,7 +686,7 @@ where
         Ok(())
     }
 
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EnforceError> {
         self.card_enc.enforce_eq(b)
     }
 }

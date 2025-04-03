@@ -14,10 +14,10 @@
 
 use super::{
     BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-    BoundUpperIncremental, Encode, EncodeIncremental, Error,
+    BoundUpperIncremental, Encode, EncodeIncremental, EnforceError,
 };
 use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
+    encodings::{atomics, CollectClauses, EncodeStats, IterInputs, NotEncoded},
     instances::ManageVars,
     types::Lit,
 };
@@ -156,15 +156,15 @@ impl BoundUpper for Totalizer {
         Ok(())
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
         if ub >= self.in_lits.len() {
             return Ok(vec![]);
         };
         if self.not_enc_idx != self.in_lits.len() {
-            return Err(Error::NotEncoded);
+            return Err(NotEncoded);
         };
         match &self.root {
-            None => Err(Error::NotEncoded),
+            None => Err(NotEncoded),
             Some(root_node) => match root_node {
                 Node::Leaf { lit } => Ok(vec![!*lit]),
                 Node::Internal {
@@ -173,7 +173,7 @@ impl BoundUpper for Totalizer {
                     if ub_range.contains(&ub) {
                         Ok(vec![!out_lits[ub].unwrap()])
                     } else {
-                        Err(Error::NotEncoded)
+                        Err(NotEncoded)
                     }
                 }
             },
@@ -210,17 +210,17 @@ impl BoundLower for Totalizer {
         Ok(())
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         if self.not_enc_idx != self.in_lits.len() {
-            return Err(Error::NotEncoded);
+            return Err(EnforceError::NotEncoded);
         };
         if lb > self.in_lits.len() {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         } else if lb == 0 {
             return Ok(vec![]);
         };
         match &self.root {
-            None => Err(Error::NotEncoded),
+            None => Err(EnforceError::NotEncoded),
             Some(root_node) => match root_node {
                 Node::Leaf { lit } => Ok(vec![*lit]),
                 Node::Internal {
@@ -229,7 +229,7 @@ impl BoundLower for Totalizer {
                     if lb_range.contains(&lb) {
                         Ok(vec![out_lits[lb - 1].unwrap()])
                     } else {
-                        Err(Error::NotEncoded)
+                        Err(EnforceError::NotEncoded)
                     }
                 }
             },
@@ -923,7 +923,7 @@ mod tests {
                 BoundBoth, BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
                 EncodeIncremental,
             },
-            EncodeStats, Error,
+            EncodeStats, EnforceError, NotEncoded,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
         lit, var,
@@ -1127,8 +1127,8 @@ mod tests {
     fn tot_functions() {
         let mut tot = Totalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        assert_eq!(tot.enforce_ub(2), Err(Error::NotEncoded));
-        assert_eq!(tot.enforce_lb(2), Err(Error::NotEncoded));
+        assert_eq!(tot.enforce_ub(2), Err(NotEncoded));
+        assert_eq!(tot.enforce_lb(2), Err(EnforceError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();

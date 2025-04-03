@@ -8,7 +8,7 @@
 //!
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental, Error};
+use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental, EnforceError};
 use crate::{
     encodings::{atomics, CollectClauses, EncodeStats, IterWeightedInputs},
     instances::ManageVars,
@@ -188,7 +188,7 @@ impl BoundUpper for GeneralizedTotalizer {
         Ok(())
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
         if ub >= self.weight_sum {
             return Ok(vec![]);
         }
@@ -197,7 +197,7 @@ impl BoundUpper for GeneralizedTotalizer {
         let mut assumps = Vec::with_capacity(self.lit_buffer.len());
         self.lit_buffer.iter().try_for_each(|(_, &w)| {
             if w <= ub {
-                Err(Error::NotEncoded)
+                Err(EnforceError::NotEncoded)
             } else {
                 Ok(())
             }
@@ -231,7 +231,7 @@ impl BoundUpper for GeneralizedTotalizer {
                             .map(|(_, &l)| !l)
                             .collect()
                     } else {
-                        return Err(Error::NotEncoded);
+                        return Err(EnforceError::NotEncoded);
                     }
                 }
             },
@@ -727,7 +727,7 @@ mod tests {
         encodings::{
             card,
             pb::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
-            EncodeStats, Error,
+            EncodeStats, EnforceError,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
@@ -883,7 +883,7 @@ mod tests {
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
         gte.extend(lits);
-        assert_eq!(gte.enforce_ub(4), Err(Error::NotEncoded));
+        assert_eq!(gte.enforce_ub(4), Err(EnforceError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         gte.encode_ub(0..7, &mut Cnf::new(), &mut var_manager)
             .unwrap();

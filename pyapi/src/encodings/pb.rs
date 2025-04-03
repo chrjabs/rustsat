@@ -9,7 +9,7 @@ use rustsat::{
             BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DbGte,
             DynamicPolyWatchdog as RsDpw, Encode as PbEncode,
         },
-        EncodeStats, Error,
+        EncodeStats, EnforceError,
     },
     instances::{BasicVarManager, Cnf as RsCnf},
     types::Lit as RsLit,
@@ -22,12 +22,12 @@ use crate::{
 };
 
 #[allow(clippy::needless_pass_by_value)]
-fn convert_error(err: Error) -> PyErr {
+fn convert_error(err: EnforceError) -> PyErr {
     match err {
-        Error::NotEncoded => {
+        EnforceError::NotEncoded => {
             pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
         }
-        Error::Unsat => pyo3::exceptions::PyValueError::new_err("encoding is unsat"),
+        EnforceError::Unsat => pyo3::exceptions::PyValueError::new_err("encoding is unsat"),
     }
 }
 

@@ -31,7 +31,7 @@ use std::{
     ops::{Bound, Range, RangeBounds},
 };
 
-use super::{CollectClauses, Error};
+use super::{CollectClauses, ConstraintEncodingError, EnforceError, NotEncoded};
 use crate::{
     clause,
     instances::ManageVars,
@@ -66,7 +66,7 @@ pub trait BoundUpper: Encode {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
@@ -82,19 +82,19 @@ pub trait BoundUpper: Encode {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::NotEncoded`] if [`BoundUpper::encode_ub`] has not been called
-    /// adequately before.
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
+    /// If [`BoundUpper::encode_ub`] has not been called adequately.
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded>;
     /// Encodes an upper bound cardinality constraint to CNF
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the the collector runs out of memory. Note that upper bound constraints can never be
+    /// unsatisfiable because their bound is a [`usize`].
     fn encode_ub_constr<Col>(
         constr: CardUbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
@@ -122,7 +122,7 @@ pub trait BoundLower: Encode {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the collector runs out of memory.
     fn encode_lb<Col, R>(
         &mut self,
         range: R,
@@ -138,24 +138,27 @@ pub trait BoundLower: Encode {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEncoded`] if [`BoundLower::encode_lb`] has not been called adequately
-    /// - [`Error::Unsat`] if `lb` is higher than the number of literals in the encoding
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
+    /// If [`BoundLower::encode_lb`] has not been called adequately, or `lb` is larger than the
+    /// number literals in the encoding.
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError>;
     /// Encodes a lower bound cardinality constraint to CNF
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_lb_constr<Col>(
         constr: CardLbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
     {
         let (lits, lb) = constr.decompose();
+        if lb > lits.len() {
+            return Err(ConstraintEncodingError::Unsat);
+        }
         let mut enc = Self::from_iter(lits);
         enc.encode_lb(lb..=lb, collector, var_manager)?;
         collector.extend_clauses(
@@ -177,7 +180,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_both<Col, R>(
         &mut self,
         range: R,
@@ -199,9 +202,8 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEncoded`] if not adequately encoded
-    /// - [`Error::Unsat`] if `b` is higher than the number of literals in the encoding
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+    /// If not adequately encoded, or `b` is larger than the number literals in the encoding.
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EnforceError> {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
         Ok(assumps)
@@ -210,17 +212,20 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_eq_constr<Col>(
         constr: CardEqConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
     {
         let (lits, b) = constr.decompose();
+        if b > lits.len() {
+            return Err(ConstraintEncodingError::Unsat);
+        }
         let mut enc = Self::from_iter(lits);
         enc.encode_both(b..=b, collector, var_manager)?;
         collector.extend_clauses(
@@ -235,18 +240,21 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_constr<Col>(
         constr: CardConstraint,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<Lit> + Sized,
     {
         match constr {
-            CardConstraint::Ub(constr) => Self::encode_ub_constr(constr, collector, var_manager),
+            CardConstraint::Ub(constr) => {
+                Self::encode_ub_constr(constr, collector, var_manager)?;
+                Ok(())
+            }
             CardConstraint::Lb(constr) => Self::encode_lb_constr(constr, collector, var_manager),
             CardConstraint::Eq(constr) => Self::encode_eq_constr(constr, collector, var_manager),
         }
@@ -270,7 +278,7 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
@@ -292,7 +300,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_lb_change<Col, R>(
         &mut self,
         range: R,
@@ -313,7 +321,7 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_both_change<Col, R>(
         &mut self,
         range: R,
@@ -383,7 +391,7 @@ pub fn new_default_inc_both() -> impl BoundBoth {
 ///
 /// # Errors
 ///
-/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+/// If the clause collector runs out of memory.
 pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
@@ -396,7 +404,7 @@ pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
 ///
 /// # Errors
 ///
-/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+/// If the clause collector runs out of memory.
 pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: CollectClauses>(
     constr: CardConstraint,
     collector: &mut Col,
@@ -419,7 +427,8 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: Col
     }
     match CE::encode_constr(constr, collector, var_manager) {
         Ok(()) => Ok(()),
-        Err(err) => Err(unreachable_err!(err.downcast::<crate::OutOfMemory>())),
+        Err(ConstraintEncodingError::OutOfMemory(err)) => Err(err),
+        Err(ConstraintEncodingError::Unsat) => unreachable!(),
     }
 }
 

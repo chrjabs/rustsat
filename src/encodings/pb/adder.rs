@@ -19,7 +19,7 @@ use std::collections::VecDeque;
 
 use crate::{
     clause,
-    encodings::{CollectClauses, EncodeStats, Error},
+    encodings::{CollectClauses, EncodeStats, EnforceError},
     instances::ManageVars,
     types::{Clause, Lit, RsHashMap},
     OutOfMemory,
@@ -187,18 +187,18 @@ impl BoundUpper for BinaryAdder {
         self.encode_ub_change(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
         if ub >= self.weight_sum() {
             return Ok(vec![]);
         }
         let Some(structure) = &self.structure else {
-            return Err(Error::NotEncoded);
+            return Err(EnforceError::NotEncoded);
         };
         let Some(Some(Output {
             bit, enc_if: true, ..
         })) = structure.comparator.get(ub)
         else {
-            return Err(Error::NotEncoded);
+            return Err(EnforceError::NotEncoded);
         };
         Ok(vec![!*bit])
     }
@@ -300,15 +300,15 @@ impl BoundLower for BinaryAdder {
         self.encode_lb_change(range, collector, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         if lb > self.weight_sum() {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         }
         if lb == 0 {
             return Ok(vec![]);
         }
         let Some(structure) = &self.structure else {
-            return Err(Error::NotEncoded);
+            return Err(EnforceError::NotEncoded);
         };
         let Some(Some(Output {
             bit,
@@ -316,7 +316,7 @@ impl BoundLower for BinaryAdder {
             ..
         })) = structure.comparator.get(lb - 1)
         else {
-            return Err(Error::NotEncoded);
+            return Err(EnforceError::NotEncoded);
         };
         Ok(vec![*bit])
     }

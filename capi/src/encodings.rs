@@ -26,11 +26,17 @@ pub enum MaybeError {
     PrecisionDecreased,
 }
 
-impl From<encodings::Error> for MaybeError {
-    fn from(value: encodings::Error) -> Self {
+impl From<encodings::NotEncoded> for MaybeError {
+    fn from(_: encodings::NotEncoded) -> Self {
+        MaybeError::NotEncoded
+    }
+}
+
+impl From<encodings::EnforceError> for MaybeError {
+    fn from(value: encodings::EnforceError) -> Self {
         match value {
-            encodings::Error::NotEncoded => MaybeError::NotEncoded,
-            encodings::Error::Unsat => MaybeError::Unsat,
+            encodings::EnforceError::NotEncoded => MaybeError::NotEncoded,
+            encodings::EnforceError::Unsat => MaybeError::Unsat,
         }
     }
 }

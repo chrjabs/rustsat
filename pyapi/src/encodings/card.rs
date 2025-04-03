@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use rustsat::{
     encodings::{
         card::{BoundUpper, BoundUpperIncremental, DbTotalizer, Encode as CardEncode},
-        EncodeStats, Error,
+        EncodeStats,
     },
     instances::{BasicVarManager, Cnf as RsCnf},
     types::Lit as RsLit,
@@ -16,16 +16,6 @@ use crate::{
     instances::{Cnf, VarManager},
     types::Lit,
 };
-
-#[allow(clippy::needless_pass_by_value)]
-fn convert_error(err: Error) -> PyErr {
-    match err {
-        Error::NotEncoded => {
-            pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
-        }
-        Error::Unsat => pyo3::exceptions::PyValueError::new_err("encoding is unsat"),
-    }
-}
 
 macro_rules! implement_pyapi {
     ($type:ty, $rstype:ty) => {
@@ -89,8 +79,11 @@ macro_rules! implement_pyapi {
             /// Gets assumptions to enforce the given upper bound. Make sure that the required
             /// encoding is built first.
             fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> =
-                    unsafe { std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_error)?) };
+                let assumps: Vec<Lit> = unsafe {
+                    std::mem::transmute(self.0.enforce_ub(ub).map_err(|_| {
+                        pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
+                    })?)
+                };
                 Ok(assumps)
             }
         }

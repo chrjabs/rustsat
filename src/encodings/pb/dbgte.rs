@@ -8,7 +8,7 @@ use std::ops::RangeBounds;
 use crate::{
     encodings::{
         nodedb::{NodeById, NodeCon, NodeLike},
-        totdb, CollectClauses, EncodeStats, Error,
+        totdb, CollectClauses, EncodeStats, EnforceError,
     },
     instances::ManageVars,
     types::{Lit, RsHashMap},
@@ -208,7 +208,7 @@ impl BoundUpper for DbGte {
         self.encode_ub_change(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
         if ub >= self.weight_sum() {
             return Ok(vec![]);
         }
@@ -216,7 +216,7 @@ impl BoundUpper for DbGte {
         let mut assumps = vec![];
         self.lit_buffer.iter().try_for_each(|(&l, &w)| {
             if w <= ub {
-                Err(Error::NotEncoded)
+                Err(EnforceError::NotEncoded)
             } else {
                 assumps.push(!l);
                 Ok(())
@@ -258,7 +258,7 @@ impl BoundUpper for DbGte {
                         }
                         totdb::Node::Dummy => unreachable!(),
                     }
-                    Err(Error::NotEncoded)
+                    Err(EnforceError::NotEncoded)
                 })?;
         };
         Ok(assumps)
@@ -351,7 +351,7 @@ pub mod referenced {
         encodings::{
             nodedb::{NodeCon, NodeLike},
             pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
-            totdb, CollectClauses, Error,
+            totdb, CollectClauses, EnforceError,
         },
         instances::ManageVars,
         types::Lit,
@@ -496,7 +496,7 @@ pub mod referenced {
             self.encode_ub_change(range, collector, var_manager)
         }
 
-        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
             if ub >= self.weight_sum() {
                 return Ok(vec![]);
             }
@@ -540,7 +540,7 @@ pub mod referenced {
                         }
                         totdb::Node::Dummy => panic!(),
                     }
-                    Err(Error::NotEncoded)
+                    Err(EnforceError::NotEncoded)
                 })?;
             Ok(assumps)
         }
@@ -561,7 +561,7 @@ pub mod referenced {
             self.encode_ub_change(range, collector, var_manager)
         }
 
-        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
             if ub >= self.weight_sum() {
                 return Ok(vec![]);
             }
@@ -605,7 +605,7 @@ pub mod referenced {
                         }
                         totdb::Node::Dummy => unreachable!(),
                     }
-                    Err(Error::NotEncoded)
+                    Err(EnforceError::NotEncoded)
                 })?;
             Ok(assumps)
         }
@@ -679,7 +679,7 @@ mod tests {
         encodings::{
             card,
             pb::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
-            EncodeStats, Error,
+            EncodeStats, EnforceError,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
@@ -696,7 +696,7 @@ mod tests {
         lits.insert(lit![2], 3);
         lits.insert(lit![3], 3);
         gte.extend(lits);
-        assert_eq!(gte.enforce_ub(4), Err(Error::NotEncoded));
+        assert_eq!(gte.enforce_ub(4), Err(EnforceError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         gte.encode_ub(0..7, &mut Cnf::new(), &mut var_manager)
             .unwrap();

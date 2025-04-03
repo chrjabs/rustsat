@@ -12,7 +12,7 @@ use super::{
     BoundUpperIncremental, Encode, EncodeIncremental,
 };
 use crate::{
-    encodings::{CollectClauses, EncodeStats, Error, IterInputs},
+    encodings::{CollectClauses, EncodeStats, EnforceError, IterInputs, NotEncoded},
     instances::ManageVars,
     types::Lit,
 };
@@ -141,13 +141,17 @@ where
         )
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
         let lb = if self.n_lits > ub {
             self.n_lits - ub
         } else {
             return Ok(vec![]);
         };
-        self.card_enc.enforce_lb(lb)
+        match self.card_enc.enforce_lb(lb) {
+            Ok(assumps) => Ok(assumps),
+            Err(EnforceError::NotEncoded) => Err(NotEncoded),
+            Err(EnforceError::Unsat) => unreachable!(),
+        }
     }
 }
 
@@ -172,13 +176,13 @@ where
         )
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         let ub = if self.n_lits >= lb {
             self.n_lits - lb
         } else {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         };
-        self.card_enc.enforce_ub(ub)
+        Ok(self.card_enc.enforce_ub(ub)?)
     }
 }
 
@@ -203,11 +207,11 @@ where
         )
     }
 
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EnforceError> {
         let b = if self.n_lits >= b {
             self.n_lits - b
         } else {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         };
         self.card_enc.enforce_eq(b)
     }
@@ -408,7 +412,7 @@ where
         self.ub_enc.encode_ub(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
         self.ub_enc.enforce_ub(ub)
     }
 }
@@ -431,7 +435,7 @@ where
         self.lb_enc.encode_lb(range, collector, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         self.lb_enc.enforce_lb(lb)
     }
 }

@@ -8,7 +8,7 @@ use std::{cmp, ops::RangeBounds};
 use crate::{
     encodings::{
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        totdb, CollectClauses, EncodeStats, Error,
+        totdb, CollectClauses, EncodeStats, EnforceError, NotEncoded,
     },
     instances::ManageVars,
     types::Lit,
@@ -144,12 +144,12 @@ impl BoundUpper for DbTotalizer {
         self.encode_ub_change(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
         if ub >= self.n_lits() - self.offset {
             return Ok(vec![]);
         }
         if !self.lit_buffer.is_empty() {
-            return Err(Error::NotEncoded);
+            return Err(NotEncoded);
         }
         if let Some(id) = self.root {
             match &self.db[id] {
@@ -171,7 +171,7 @@ impl BoundUpper for DbTotalizer {
                 totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
         }
-        Err(Error::NotEncoded)
+        Err(NotEncoded)
     }
 }
 
@@ -226,15 +226,15 @@ impl BoundLower for DbTotalizer {
         self.encode_lb_change(range, collector, var_manager)
     }
 
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
         if lb <= self.offset {
             return Ok(vec![]);
         }
         if lb > self.n_lits() + self.offset {
-            return Err(Error::Unsat);
+            return Err(EnforceError::Unsat);
         }
         if !self.lit_buffer.is_empty() {
-            return Err(Error::NotEncoded);
+            return Err(EnforceError::NotEncoded);
         }
         if let Some(id) = self.root {
             match &self.db[id] {
@@ -256,7 +256,7 @@ impl BoundLower for DbTotalizer {
                 totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
         }
-        Err(Error::NotEncoded)
+        Err(EnforceError::NotEncoded)
     }
 }
 
@@ -366,7 +366,7 @@ pub mod referenced {
         encodings::{
             card::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
             nodedb::{NodeId, NodeLike},
-            totdb, CollectClauses, Error,
+            totdb, CollectClauses, NotEncoded,
         },
         instances::ManageVars,
         types::Lit,
@@ -469,7 +469,7 @@ pub mod referenced {
             self.encode_ub_change(range, collector, var_manager)
         }
 
-        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
             if ub >= self.n_lits() {
                 return Ok(vec![]);
             }
@@ -491,7 +491,7 @@ pub mod referenced {
                 }
                 totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
-            Err(Error::NotEncoded)
+            Err(NotEncoded)
         }
     }
 
@@ -510,7 +510,7 @@ pub mod referenced {
             self.encode_ub_change(range, collector, var_manager)
         }
 
-        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, NotEncoded> {
             if ub >= self.n_lits() {
                 return Ok(vec![]);
             }
@@ -532,7 +532,7 @@ pub mod referenced {
                 }
                 totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
             }
-            Err(Error::NotEncoded)
+            Err(NotEncoded)
         }
     }
 
@@ -599,7 +599,7 @@ mod tests {
     use crate::{
         encodings::{
             card::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
-            EncodeStats, Error,
+            EncodeStats, NotEncoded,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
         lit, var,
@@ -609,7 +609,7 @@ mod tests {
     fn functions() {
         let mut tot = DbTotalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
-        assert_eq!(tot.enforce_ub(2), Err(Error::NotEncoded));
+        assert_eq!(tot.enforce_ub(2), Err(NotEncoded));
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();

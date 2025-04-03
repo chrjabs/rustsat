@@ -25,7 +25,7 @@ use crate::{
     encodings::{
         atomics,
         nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        totdb, CollectClauses, EncodeStats, Error, IterWeightedInputs,
+        totdb, CollectClauses, EncodeStats, EnforceError, IterWeightedInputs,
     },
     instances::ManageVars,
     lit,
@@ -38,7 +38,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 type WeightQ = BTreeMap<usize, Vec<NodeCon>>;
 
 /// Errors related to incremental precision
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum PrecisionError {
     /// Precision divisor was not a power of 2
     #[error("precision divisor must be a power of 2")]
@@ -304,7 +304,7 @@ impl BoundUpper for DynamicPolyWatchdog {
         self.encode_ub_change(range, collector, var_manager)
     }
 
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
         if self.weight_sum() <= ub && self.prec_div <= 1 {
             return Ok(vec![]);
         }
@@ -312,7 +312,7 @@ impl BoundUpper for DynamicPolyWatchdog {
             if !self.weight_queue.is_empty()
                 && self.weight_queue.iter().next_back().unwrap().0 >= &self.prec_div
             {
-                return Err(Error::NotEncoded);
+                return Err(EnforceError::NotEncoded);
             }
             debug_assert!(structure.prec_div >= self.prec_div);
             let ub = ub
@@ -321,7 +321,7 @@ impl BoundUpper for DynamicPolyWatchdog {
             enforce_ub(structure, ub, &self.db)
         } else {
             if self.in_lits.len() > 1 {
-                return Err(Error::NotEncoded);
+                return Err(EnforceError::NotEncoded);
             }
             debug_assert_eq!(self.in_lits.len(), 1);
             let (l, w) = self.in_lits.iter().next().unwrap();
@@ -446,7 +446,7 @@ pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
-        encodings::{nodedb::NodeLike, totdb, CollectClauses, Error},
+        encodings::{nodedb::NodeLike, totdb, CollectClauses, EnforceError},
         instances::ManageVars,
         types::Lit,
     };
@@ -558,7 +558,7 @@ pub mod referenced {
             self.encode_ub_change(range, collector, var_manager)
         }
 
-        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
             enforce_ub(self.structure, ub, self.db)
         }
 
@@ -583,7 +583,7 @@ pub mod referenced {
             self.encode_ub_change(range, collector, var_manager)
         }
 
-        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error> {
+        fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
             enforce_ub(self.structure, ub, &self.db.borrow())
         }
 
@@ -1031,17 +1031,17 @@ where
 ///
 /// # Errors
 ///
-/// If `dpw` is not adequately encoded, returns [`Error::NotEncoded`].
+/// If `dpw` is not adequately encoded, returns [`EnforceError::NotEncoded`].
 #[cfg_attr(feature = "internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
-fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>, Error> {
+fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>, EnforceError> {
     let output_weight = 1 << (dpw.output_power());
     let oidx = ub / output_weight;
     if oidx >= tot_db[dpw.root()].max_val() {
         return Ok(vec![]);
     }
     let Some(&olit) = tot_db[dpw.root()].lit(oidx + 1) else {
-        return Err(Error::NotEncoded);
+        return Err(EnforceError::NotEncoded);
     };
     let mut assumps = vec![!olit];
     // inputs <= enforced_weight at this stage
