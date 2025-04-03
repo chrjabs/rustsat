@@ -904,8 +904,11 @@ mod tests {
     use super::DbTotalizer;
     use crate::{
         encodings::{
-            card::{BoundUpper, BoundUpperIncremental, EncodeIncremental},
-            EncodeStats, NotEncoded,
+            card::{
+                BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
+                EncodeIncremental,
+            },
+            EncodeStats, EnforceError, NotEncoded,
         },
         instances::{BasicVarManager, Cnf, ManageVars},
         lit, var,
@@ -916,6 +919,7 @@ mod tests {
         let mut tot = DbTotalizer::default();
         tot.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
         assert_eq!(tot.enforce_ub(2), Err(NotEncoded));
+        assert_eq!(tot.enforce_lb(2), Err(EnforceError::NotEncoded));
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
         let mut cnf = Cnf::new();
@@ -956,6 +960,27 @@ mod tests {
         let mut cnf2 = Cnf::new();
         tot2.encode_ub(0..3, &mut cnf2, &mut var_manager).unwrap();
         tot2.encode_ub_change(0..5, &mut cnf2, &mut var_manager)
+            .unwrap();
+        assert_eq!(cnf1.len(), cnf2.len());
+        assert_eq!(cnf1.len(), tot1.n_clauses());
+        assert_eq!(cnf2.len(), tot2.n_clauses());
+    }
+
+    #[test]
+    fn incremental_building_lb() {
+        let mut tot1 = DbTotalizer::default();
+        tot1.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let mut cnf1 = Cnf::new();
+        tot1.encode_lb(0..5, &mut cnf1, &mut var_manager).unwrap();
+        let mut tot2 = DbTotalizer::default();
+        tot2.extend(vec![lit![0], lit![1], lit![2], lit![3]]);
+        let mut var_manager = BasicVarManager::default();
+        var_manager.increase_next_free(var![4]);
+        let mut cnf2 = Cnf::new();
+        tot2.encode_lb(0..3, &mut cnf2, &mut var_manager).unwrap();
+        tot2.encode_lb_change(0..5, &mut cnf2, &mut var_manager)
             .unwrap();
         assert_eq!(cnf1.len(), cnf2.len());
         assert_eq!(cnf1.len(), tot1.n_clauses());
