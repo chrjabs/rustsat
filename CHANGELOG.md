@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [0.7.0] - 2025-04-03
 
+All `rustsat-` crates now follow the version number of the main crate.
+
 ### Bug Fixes
 
 - `ReindexingVarManager` map with identity with initialized with next free
@@ -17,16 +19,15 @@ All notable changes to this project will be documented in this file.
 ### Features
 
 - Add `Debug` implementations for everything
-- Initial library version (#337)
+- `pigeons` VeriPB library
 - Implement `pigeons` traits for types
 - [**breaking**] More functionality on constraint types
 - Reified cardinality/PB encodings in `atomics`
 - `Initialize` trait
-- Implementable proof tracers
 - `len` and `is_empty` for `Assignment`
 - Certified encoding traits
 - Implement certified encoding traits for simulators
-- Certified `DbTotalizer` and `DbGte`
+- Certified `Totalizer` and `GeneralizedTotalizer`
 - Default certified constraint encoders
 - Lower bounding traits for referencing DB totalizers
 - Lower bounding totalizers
@@ -34,7 +35,7 @@ All notable changes to this project will be documented in this file.
 
 ### Miscellaneous Tasks
 
-- [**breaking**] Code spell-checking
+- Code spell-checking
 - Bump MSRV to `1.75.0`
 - Remove all elements deprecated in 0.6.0 and before
 

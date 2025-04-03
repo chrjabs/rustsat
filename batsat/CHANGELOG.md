@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.6] - 2025-04-03
+## [0.7.0] - 2025-04-03
+
+All `rustsat-` crates now follow the version number of the main crate.
 
 ### Documentation
 
