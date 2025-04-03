@@ -1,6 +1,6 @@
 [package]
 name = "pigeons"
-version = "0.0.1"
+version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
@@ -9,7 +9,7 @@ keywords = ["sat", "satisfiability", "encodings", "proof-logging"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 include = ["CHANGELOG.md", "README.md", "/src/"]
-rust-version = "1.75.0"
+rust-version.workspace = true
 
 [dependencies]
 itertools.workspace = true

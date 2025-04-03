@@ -15,9 +15,10 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.6.6"
+version = "0.7.0"
 license = "MIT"
 edition = "2021"
+rust-version = "1.75.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 anyhow = "1.0.97"
@@ -34,15 +35,15 @@ git2 = "0.20.1"
 glob = "0.3.2"
 itertools = "0.14.0"
 nom = "7.1.3"
-pigeons = { version = "0.0.1", path = "./pigeons" }
+pigeons = { version = "0.1.0", path = "./pigeons" }
 termcolor = "1.4.1"
 thiserror = "2.0.12"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 rustc-hash = "2.1.1"
-rustsat = { version = "0.6.6", path = "./", default-features = false }
-rustsat-cadical = { version = "0.4.6", path = "./cadical" }
-rustsat-minisat = { version = "0.4.6", path = "./minisat" }
+rustsat = { version = "0.7.0", path = "./", default-features = false }
+rustsat-cadical = { version = "0.7.0", path = "./cadical" }
+rustsat-minisat = { version = "0.7.0", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
@@ -60,7 +61,7 @@ description = "This library aims to provide implementations of elements commonly
 keywords = ["sat", "satisfiability", "encodings"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
-rust-version = "1.75.0" # update the crate documentation if you change this
+rust-version.workspace = true
 include = [
   "LICENSE",
   "CHANGELOG.md",

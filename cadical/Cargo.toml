@@ -1,6 +1,6 @@
 [package]
 name = "rustsat-cadical"
-version = "0.4.6"
+version.workspace = true
 edition.workspace = true
 authors = ["Christoph Jabs <christoph.jabs@helsinki.fi>"]
 license.workspace = true
@@ -21,6 +21,7 @@ include = [
   "/cppsrc/LICENSE",
   "/cppsrc/VERSION",
 ]
+rust-version.workspace = true
 
 build = "build.rs"
 
