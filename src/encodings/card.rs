@@ -50,6 +50,9 @@ pub mod simulators;
 pub mod dbtotalizer;
 pub use dbtotalizer::DbTotalizer;
 
+#[cfg(feature = "proof-logging")]
+pub mod cert;
+
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait Encode {
     /// Gets the number of input literals in the encoding
