@@ -1310,6 +1310,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustsat-codegen"
+version = "0.7.0"
+
+[[package]]
 name = "rustsat-glucose"
 version = "0.7.0"
 dependencies = [

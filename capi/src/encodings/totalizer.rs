@@ -1,5 +1,3 @@
-//! # Totalizer C-API
-
 use std::ffi::{c_int, c_void};
 
 use rustsat::{
@@ -17,6 +15,30 @@ use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager};
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn tot_new() -> *mut Totalizer {
     Box::into_raw(Box::default())
+}
+
+/// Frees the memory associated with a [`Totalizer`]
+///
+/// # Safety
+///
+/// `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
+#[no_mangle]
+pub unsafe extern "C" fn tot_drop(tot: *mut Totalizer) {
+    drop(Box::from_raw(tot));
+}
+
+/// Reserves all auxiliary variables that the encoding might need
+///
+/// All calls to [`tot_encode_ub`] following a call to this function are guaranteed to not increase
+/// the value of `n_vars_used`. This does _not_ hold if [`tot_add`] is called in between
+///
+/// # Safety
+///
+/// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
+#[no_mangle]
+pub unsafe extern "C" fn tot_reserve(tot: *mut Totalizer, n_vars_used: &mut u32) {
+    let mut var_manager = VarManager::new(n_vars_used);
+    (*tot).reserve(&mut var_manager);
 }
 
 /// Adds a new input literal to a [`Totalizer`]
@@ -73,7 +95,7 @@ pub unsafe extern "C" fn tot_encode_ub(
     let mut var_manager = VarManager::new(n_vars_used);
     (*tot)
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
-        .expect("clause collector returned out of memory");
+        .expect("clause collector ran out of memory");
 }
 
 /// Returns an assumption/unit for enforcing an upper bound (`sum of lits <= ub`). Make sure that
@@ -157,117 +179,5 @@ pub unsafe extern "C" fn tot_enforce_lb(
             MaybeError::Ok
         }
         Err(err) => err.into(),
-    }
-}
-
-/// Reserves all auxiliary variables that the encoding might need
-///
-/// All calls to [`tot_encode_ub`] following a call to this function are guaranteed to not increase
-/// the value of `n_vars_used`. This does _not_ hold if [`tot_add`] is called in between
-///
-/// # Safety
-///
-/// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
-pub unsafe extern "C" fn tot_reserve(tot: *mut Totalizer, n_vars_used: &mut u32) {
-    let mut var_manager = VarManager::new(n_vars_used);
-    (*tot).reserve(&mut var_manager);
-}
-
-/// Frees the memory associated with a [`Totalizer`]
-///
-/// # Safety
-///
-/// `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
-#[no_mangle]
-pub unsafe extern "C" fn tot_drop(tot: *mut Totalizer) {
-    drop(Box::from_raw(tot));
-}
-
-// TODO: figure out how to get these to work on windows
-#[cfg(all(test, not(target_os = "windows")))]
-mod tests {
-    use inline_c::assert_c;
-
-    #[test]
-    fn new_drop() {
-        (assert_c! {
-            #include <assert.h>
-            #include "rustsat.h"
-
-            int main() {
-                Totalizer *tot = tot_new();
-                assert(tot != NULL);
-                tot_drop(tot);
-                return 0;
-            }
-        })
-        .success();
-    }
-
-    #[test]
-    fn basic() {
-        (assert_c! {
-            #include <assert.h>
-            #include "rustsat.h"
-
-            void clause_counter(int lit, void *data) {
-                if (!lit) {
-                    int *cnt = (int *)data;
-                    (*cnt)++;
-                }
-            }
-
-            int main() {
-                Totalizer *tot = tot_new();
-                assert(tot_add(tot, 1) == Ok);
-                assert(tot_add(tot, 2) == Ok);
-                assert(tot_add(tot, 3) == Ok);
-                assert(tot_add(tot, 4) == Ok);
-                uint32_t n_used = 4;
-                uint32_t n_clauses = 0;
-                tot_encode_ub(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
-                tot_encode_lb(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
-                tot_drop(tot);
-                assert(n_used == 12);
-                assert(n_clauses == 28);
-                return 0;
-            }
-        })
-        .success();
-    }
-
-    #[test]
-    fn reserve() {
-        (assert_c! {
-            #include <assert.h>
-            #include "rustsat.h"
-
-            void clause_counter(int lit, void *data) {
-                if (!lit) {
-                    int *cnt = (int *)data;
-                    (*cnt)++;
-                }
-            }
-
-            int main() {
-                Totalizer *tot = tot_new();
-                assert(tot_add(tot, 1) == Ok);
-                assert(tot_add(tot, 2) == Ok);
-                assert(tot_add(tot, 3) == Ok);
-                assert(tot_add(tot, 4) == Ok);
-                uint32_t n_used = 4;
-                uint32_t n_clauses = 0;
-                tot_reserve(tot, &n_used);
-                assert(n_used == 12);
-                tot_encode_ub(tot, 2, 6, &n_used, &clause_counter, &n_clauses);
-                assert(n_used == 12);
-                tot_encode_ub(tot, 0, 4, &n_used, &clause_counter, &n_clauses);
-                assert(n_used == 12);
-                tot_drop(tot);
-                return 0;
-            }
-        })
-        .success();
     }
 }

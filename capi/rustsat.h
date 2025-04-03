@@ -576,6 +576,27 @@ void gte_drop(struct GeneralizedTotalizer *gte);
 struct Totalizer *tot_new(void);
 
 /**
+ * Frees the memory associated with a [`Totalizer`]
+ *
+ * # Safety
+ *
+ * `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
+ */
+void tot_drop(struct Totalizer *tot);
+
+/**
+ * Reserves all auxiliary variables that the encoding might need
+ *
+ * All calls to [`tot_encode_ub`] following a call to this function are guaranteed to not increase
+ * the value of `n_vars_used`. This does _not_ hold if [`tot_add`] is called in between
+ *
+ * # Safety
+ *
+ * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
+ */
+void tot_reserve(struct Totalizer *tot, uint32_t *n_vars_used);
+
+/**
  * Adds a new input literal to a [`Totalizer`]
  *
  * # Errors
@@ -670,27 +691,6 @@ void tot_encode_lb(struct Totalizer *tot,
  * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
  */
 enum MaybeError tot_enforce_lb(struct Totalizer *tot, size_t ub, int *assump);
-
-/**
- * Reserves all auxiliary variables that the encoding might need
- *
- * All calls to [`tot_encode_ub`] following a call to this function are guaranteed to not increase
- * the value of `n_vars_used`. This does _not_ hold if [`tot_add`] is called in between
- *
- * # Safety
- *
- * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
- */
-void tot_reserve(struct Totalizer *tot, uint32_t *n_vars_used);
-
-/**
- * Frees the memory associated with a [`Totalizer`]
- *
- * # Safety
- *
- * `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
- */
-void tot_drop(struct Totalizer *tot);
 
 /**
  * Creates a new [`Bimander`] at-most-one encoding
