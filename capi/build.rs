@@ -5,38 +5,6 @@ extern crate cbindgen;
 use std::env;
 
 fn main() {
-    if std::env::var("DOCS_RS").is_ok() {
-        // exit the build script early on docs.rs because cbindgen needs network access
-        return;
-    }
-
-    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-
-    // Generate C-API header
-    cbindgen::Builder::new()
-        .with_config(
-            cbindgen::Config::from_file(format!("{crate_dir}/cbindgen.toml"))
-                .expect("could not read cbindgen.toml"),
-        )
-        .with_crate(crate_dir)
-        .with_after_include(format!(
-            "#define RUSTSAT_VERSION {version}
-#define RUSTSAT_VERSION_MAJOR {major}
-#define RUSTSAT_VERSION_MINOR {minor}
-#define RUSTSAT_VERSION_PATCH {patch}",
-            version = env!("CARGO_PKG_VERSION"),
-            major = env!("CARGO_PKG_VERSION_MAJOR"),
-            minor = env!("CARGO_PKG_VERSION_MINOR"),
-            patch = env!("CARGO_PKG_VERSION_PATCH"),
-        ))
-        .generate()
-        .expect("Unable to generate bindings")
-        .write_to_file("rustsat.h");
-
-    println!("cargo:rerun-if-changed=cbindgen.toml");
-    println!("cargo:rerun-if-changed=Cargo.toml");
-    println!("cargo:rerun-if-changed=src/");
-
     // Setup inline-c
     let include_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let ld_dir = target_dir().unwrap();

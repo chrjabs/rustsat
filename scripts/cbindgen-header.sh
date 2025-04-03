@@ -9,7 +9,7 @@ TMP_CONF=$(mktemp XXXXXXXXXX.cbindgen.toml)
 
 sed "s/after_includes = \"\"/after_includes = \"#define RUSTSAT_VERSION ${VERSION}\\\n#define RUSTSAT_VERSION_MAJOR ${MAJOR}\\\n#define RUSTSAT_VERSION_MINOR ${MINOR}\\\n#define RUSTSAT_VERSION_PATCH ${PATCH}\"/g" capi/cbindgen.toml > ${TMP_CONF}
 
-cbindgen -c ${TMP_CONF} --crate rustsat-capi -o capi/rustsat.h --verify
+cbindgen -c ${TMP_CONF} --crate rustsat-capi -o capi/rustsat.h "$@"
 RET=$?
 
 rm ${TMP_CONF}

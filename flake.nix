@@ -153,6 +153,7 @@
             git-subtree-cmd
             pr-merge-ff-cmd
             typos
+            rust-cbindgen
           ]
           ++ self.checks.${system}.pre-commit-check.enabledPackages;
         buildInputs = libs;
@@ -204,6 +205,15 @@
             };
             # Code spellchecker
             typos.enable = true;
+            # Check C-API header
+            capi-header = {
+              enable = true;
+              name = "C-API header up to date";
+              entry = "scripts/cbindgen-header.sh --verify";
+              language = "system";
+              files = "(capi/.+\\.(toml|h)|capi/src/.+\\.rs)";
+              pass_filenames = false;
+            };
             # TOML
             check-toml.enable = true;
             taplo.enable = true;

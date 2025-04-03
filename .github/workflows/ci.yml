@@ -347,7 +347,7 @@ jobs:
         run: cargo install --locked cbindgen
       - name: Check header
         shell: bash
-        run: scripts/verify-c-header.sh
+        run: scripts/cbindgen-header.sh --verify
 
   glucose-tests:
     name: Glucose test suite
