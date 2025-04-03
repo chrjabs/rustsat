@@ -43,9 +43,14 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize, validator::Validate)
+)]
 #[repr(transparent)]
+#[allow(clippy::unsafe_derive_deserialize)]
 pub struct Var {
+    #[cfg_attr(feature="serde", validate(range(max = Var::MAX_IDX)))]
     idx: u32,
 }
 
@@ -296,6 +301,7 @@ macro_rules! var {
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
+#[allow(clippy::unsafe_derive_deserialize)]
 pub struct Lit {
     lidx: u32,
 }
