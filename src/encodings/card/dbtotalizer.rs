@@ -502,7 +502,7 @@ impl super::cert::BoundLower for DbTotalizer {
 
     fn encode_lb_constr_cert<Col, W>(
         constr: (
-            crate::types::constraints::CardLBConstr,
+            crate::types::constraints::CardLbConstr,
             pigeons::AbsConstraintId,
         ),
         collector: &mut Col,
@@ -608,7 +608,7 @@ impl super::cert::BoundBoth for DbTotalizer {
 
     fn encode_eq_constr_cert<Col, W>(
         constr: (
-            crate::types::constraints::CardEQConstr,
+            crate::types::constraints::CardEqConstr,
             pigeons::AbsConstraintId,
         ),
         collector: &mut Col,

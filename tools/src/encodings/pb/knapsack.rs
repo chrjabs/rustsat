@@ -3,7 +3,7 @@
 use rustsat::{
     instances::fio::opb,
     lit,
-    types::{constraints::PBConstraint, Lit},
+    types::{constraints::PbConstraint, Lit},
 };
 
 use crate::encodings::knapsack::Knapsack;
@@ -69,7 +69,7 @@ impl Iterator for Encoding {
                 }
                 Line::Capacity => {
                     self.next_line = None;
-                    let cap_constr = PBConstraint::new_ub(
+                    let cap_constr = PbConstraint::new_ub(
                         self.data
                             .items
                             .iter()

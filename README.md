@@ -21,7 +21,7 @@ instance.add_binary(l1, l2);
 instance.add_binary(!l1, l2);
 instance.add_unit(l1);
 let mut solver = rustsat_minisat::core::Minisat::default();
-solver.add_cnf(instance.as_cnf().0).unwrap();
+solver.add_cnf(instance.into_cnf().0).unwrap();
 let res = solver.solve().unwrap();
 assert_eq!(res, SolverResult::Sat);
 let sol = solver.full_solution().unwrap();

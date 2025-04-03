@@ -264,7 +264,7 @@ where
 
     fn encode_lb_constr_cert<Col, W>(
         constr: (
-            crate::types::constraints::CardLBConstr,
+            crate::types::constraints::CardLbConstr,
             pigeons::AbsConstraintId,
         ),
         collector: &mut Col,
@@ -704,7 +704,7 @@ where
 
     fn encode_lb_constr_cert<Col, W>(
         constr: (
-            crate::types::constraints::CardLBConstr,
+            crate::types::constraints::CardLbConstr,
             pigeons::AbsConstraintId,
         ),
         collector: &mut Col,

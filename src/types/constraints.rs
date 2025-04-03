@@ -422,16 +422,6 @@ impl Cl {
             })
     }
 
-    /// Checks whether the clause is satisfied
-    #[must_use]
-    #[deprecated(
-        since = "0.6.0",
-        note = "use `evaluate` instead and check against `TernaryVal::True`"
-    )]
-    pub fn is_sat(&self, assignment: &Assignment) -> bool {
-        self.evaluate(assignment) == TernaryVal::True
-    }
-
     /// Checks whether the clause is tautological
     #[must_use]
     pub fn is_tautology(&self) -> bool {
@@ -754,17 +744,6 @@ impl CardConstraint {
     }
 
     /// Converts the constraint into a clause, if possible
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
-    )]
-    #[must_use]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn as_clause(self) -> Option<Clause> {
-        self.into_clause().ok()
-    }
-
-    /// Converts the constraint into a clause, if possible
     ///
     /// # Errors
     ///
@@ -819,16 +798,6 @@ impl CardConstraint {
             CardConstraint::Lb(CardLbConstr { b, .. }) => (range.start >= *b).into(),
             CardConstraint::Eq(CardEqConstr { b, .. }) => (range.start == *b).into(),
         }
-    }
-
-    /// Checks whether the cardinality constraint is satisfied by the given assignment
-    #[deprecated(
-        since = "0.6.0",
-        note = "use `evaluate` instead and check against `TernaryVal::True`"
-    )]
-    #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -923,12 +892,6 @@ pub struct CardUbConstr {
     b: usize,
 }
 
-#[deprecated(
-    since = "0.6.0",
-    note = "CardUBConstr has been renamed to CardUbConstr and will be removed in a future release"
-)]
-pub use CardUbConstr as CardUBConstr;
-
 impl fmt::Display for CardUbConstr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_lit_sum!(f, self.lits);
@@ -987,12 +950,6 @@ pub struct CardLbConstr {
     lits: Vec<Lit>,
     b: usize,
 }
-
-#[deprecated(
-    since = "0.6.0",
-    note = "CardLBConstr has been renamed to CardLbConstr and will be removed in a future release"
-)]
-pub use CardLbConstr as CardLBConstr;
 
 impl fmt::Display for CardLbConstr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1058,12 +1015,6 @@ pub struct CardEqConstr {
     lits: Vec<Lit>,
     b: usize,
 }
-
-#[deprecated(
-    since = "0.6.0",
-    note = "CardEQConstr has been renamed to CardEqConstr and will be removed in a future release"
-)]
-pub use CardEqConstr as CardEQConstr;
 
 impl fmt::Display for CardEqConstr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1132,12 +1083,6 @@ pub enum PbToCardError {
     Tautology,
 }
 
-#[deprecated(
-    since = "0.6.0",
-    note = "PBToCardError has been renamed to PbToCardError and will be removed in a future release"
-)]
-pub use PbToCardError as PBToCardError;
-
 /// Type representing a pseudo-boolean constraint. When literals are added to a
 /// constraint, the constraint is transformed so that all coefficients are
 /// positive.
@@ -1151,12 +1096,6 @@ pub enum PbConstraint {
     /// An equality pseudo-boolean constraint
     Eq(PbEqConstr),
 }
-
-#[deprecated(
-    since = "0.6.0",
-    note = "PBConstraint has been renamed to PbConstraint and will be removed in a future release"
-)]
-pub use PbConstraint as PBConstraint;
 
 impl fmt::Display for PbConstraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1443,17 +1382,6 @@ impl PbConstraint {
         }
     }
 
-    /// Converts the pseudo-boolean constraint into a cardinality constraint, if possible
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_card_constr has been renamed to into_card_constr"
-    )]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn as_card_constr(self) -> Result<CardConstraint, PbToCardError> {
-        self.into_card_constr()
-    }
-
     /// Converts the pseudo-boolean constraint into a cardinality constraint, only if the
     /// constraint is already a cardinality
     ///
@@ -1527,17 +1455,6 @@ impl PbConstraint {
             PbConstraint::Lb(constr) => CardConstraint::Lb(constr.extend_to_card_constr()),
             PbConstraint::Eq(constr) => CardConstraint::Eq(constr.extend_to_card_constr()),
         }
-    }
-
-    /// Converts the constraint into a clause, if possible
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_clause has been slightly changed and renamed to into_clause and will be removed in a future release"
-    )]
-    #[allow(clippy::wrong_self_convention)]
-    #[must_use]
-    pub fn as_clause(self) -> Option<Clause> {
-        self.into_clause().ok()
     }
 
     /// Converts the constraint into a clause, if possible
@@ -1625,16 +1542,6 @@ impl PbConstraint {
             (Err(_), Err(_)) => matches!(self, PbConstraint::Lb(_)).into(),
             (Err(_), Ok(_)) => unreachable!(), // since end >= start
         }
-    }
-
-    /// Checks whether the PB constraint is satisfied by the given assignment
-    #[deprecated(
-        since = "0.6.0",
-        note = "use `evaluate` instead and check against `TernaryVal::True`"
-    )]
-    #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        self.evaluate(assign) == TernaryVal::True
     }
 }
 
@@ -1745,12 +1652,6 @@ pub struct PbUbConstr {
     weight_sum: usize,
     b: isize,
 }
-
-#[deprecated(
-    since = "0.6.0",
-    note = "PBUBConstr has been renamed to PbUbConstr and will be removed in a future release"
-)]
-pub use PbUbConstr as PBUBConstr;
 
 impl fmt::Display for PbUbConstr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1881,12 +1782,6 @@ pub struct PbLbConstr {
     b: isize,
 }
 
-#[deprecated(
-    since = "0.6.0",
-    note = "PBLBConstr has been renamed to PbLbConstr and will be removed in a future release"
-)]
-pub use PbLbConstr as PBLBConstr;
-
 impl fmt::Display for PbLbConstr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_wlit_sum!(f, self.lits);
@@ -2014,12 +1909,6 @@ pub struct PbEqConstr {
     weight_sum: usize,
     b: isize,
 }
-
-#[deprecated(
-    since = "0.6.0",
-    note = "PBEQConstr has been renamed to PbEqConstr and will be removed in a future release"
-)]
-pub use PbEqConstr as PBEQConstr;
 
 impl fmt::Display for PbEqConstr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
