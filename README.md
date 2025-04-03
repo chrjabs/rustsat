@@ -1,7 +1,7 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat)](https://crates.io/crates/rustsat)
-[![docs.rs](https://img.shields.io/docsrs/rustsat)](https://docs.rs/rustsat)
-[![PyPI](https://img.shields.io/pypi/v/rustsat)](https://pypi.org/project/rustsat)
-[![License](https://img.shields.io/crates/l/rustsat)](./LICENSE)
+[![crates.io](https://img.shields.io/crates/v/rustsat?style=for-the-badge)](https://crates.io/crates/rustsat)
+[![docs.rs](https://img.shields.io/docsrs/rustsat?style=for-the-badge)](https://docs.rs/rustsat)
+[![PyPI](https://img.shields.io/pypi/v/rustsat?style=for-the-badge)](https://pypi.org/project/rustsat)
+[![License](https://img.shields.io/crates/l/rustsat?style=for-the-badge)](./LICENSE)
 
 <!-- cargo-rdme start -->
 

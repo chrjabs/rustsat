@@ -1,5 +1,5 @@
-[![PyPI](https://img.shields.io/pypi/v/rustsat)](https://pypi.org/project/rustsat)
-[![License](https://img.shields.io/crates/l/rustsat)](./LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/rustsat?style=for-the-badge)](https://pypi.org/project/rustsat)
+[![License](https://img.shields.io/crates/l/rustsat?style=for-the-badge)](./LICENSE)
 
 <!-- cargo-rdme start -->
 

@@ -1,6 +1,6 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat-batsat)](https://crates.io/crates/rustsat-batsat)
-[![docs.rs](https://img.shields.io/docsrs/rustsat-batsat)](https://docs.rs/rustsat-batsat)
-[![License](https://img.shields.io/crates/l/rustsat-batsat)](../LICENSE)
+[![crates.io](https://img.shields.io/crates/v/rustsat-batsat?style=for-the-badge)](https://crates.io/crates/rustsat-batsat)
+[![docs.rs](https://img.shields.io/docsrs/rustsat-batsat?style=for-the-badge)](https://docs.rs/rustsat-batsat)
+[![License](https://img.shields.io/crates/l/rustsat-batsat?style=for-the-badge)](../LICENSE)
 
 <!-- cargo-rdme start -->
 

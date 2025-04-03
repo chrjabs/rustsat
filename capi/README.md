@@ -1,4 +1,4 @@
-[![License](https://img.shields.io/crates/l/rustsat)](./LICENSE)
+[![License](https://img.shields.io/crates/l/rustsat?style=for-the-badge)](./LICENSE)
 
 <!-- cargo-rdme start -->
 

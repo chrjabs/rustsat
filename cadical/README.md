@@ -1,6 +1,6 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat-cadical)](https://crates.io/crates/rustsat-cadical)
-[![docs.rs](https://img.shields.io/docsrs/rustsat-cadical)](https://docs.rs/rustsat-cadical)
-[![License](https://img.shields.io/crates/l/rustsat-cadical)](../LICENSE)
+[![crates.io](https://img.shields.io/crates/v/rustsat-cadical?style=for-the-badge)](https://crates.io/crates/rustsat-cadical)
+[![docs.rs](https://img.shields.io/docsrs/rustsat-cadical?style=for-the-badge)](https://docs.rs/rustsat-cadical)
+[![License](https://img.shields.io/crates/l/rustsat-cadical?style=for-the-badge)](../LICENSE)
 
 <!-- cargo-rdme start -->
 

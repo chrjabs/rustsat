@@ -1,6 +1,6 @@
-[![crates.io](https://img.shields.io/crates/v/pigeons)](https://crates.io/crates/pigeons)
-[![docs.rs](https://img.shields.io/docsrs/pigeons)](https://docs.rs/pigeons)
-[![License](https://img.shields.io/crates/l/pigeons)](../LICENSE)
+[![crates.io](https://img.shields.io/crates/v/pigeons?style=for-the-badge)](https://crates.io/crates/pigeons)
+[![docs.rs](https://img.shields.io/docsrs/pigeons?style=for-the-badge)](https://docs.rs/pigeons)
+[![License](https://img.shields.io/crates/l/pigeons?style=for-the-badge)](../LICENSE)
 
 <!-- cargo-rdme start -->
 

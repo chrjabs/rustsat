@@ -1,6 +1,6 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat-ipasir)](https://crates.io/crates/rustsat-ipasir)
-[![docs.rs](https://img.shields.io/docsrs/rustsat-ipasir)](https://docs.rs/rustsat-ipasir)
-[![License](https://img.shields.io/crates/l/rustsat-cadical)](../LICENSE)
+[![crates.io](https://img.shields.io/crates/v/rustsat-ipasir?style=for-the-badge)](https://crates.io/crates/rustsat-ipasir)
+[![docs.rs](https://img.shields.io/docsrs/rustsat-ipasir?style=for-the-badge)](https://docs.rs/rustsat-ipasir)
+[![License](https://img.shields.io/crates/l/rustsat-cadical?style=for-the-badge)](../LICENSE)
 
 <!-- cargo-rdme start -->
 
