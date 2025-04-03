@@ -670,9 +670,12 @@ pub mod referenced {
 
     use crate::{
         encodings::{
-            card::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
+            card::{
+                BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
+                BoundUpperIncremental, Encode, EncodeIncremental,
+            },
             nodedb::{NodeId, NodeLike},
-            totdb, CollectClauses, NotEncoded,
+            totdb, CollectClauses, EnforceError, NotEncoded,
         },
         instances::ManageVars,
         types::Lit,
@@ -842,6 +845,88 @@ pub mod referenced {
         }
     }
 
+    impl BoundLower for Tot<'_> {
+        fn encode_lb<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.reset_encoded(totdb::Semantics::If);
+            self.encode_lb_change(range, collector, var_manager)
+        }
+
+        fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
+            if lb > self.n_lits() {
+                return Err(EnforceError::Unsat);
+            }
+            match &self.db[self.root] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(lb, 1);
+                    return Ok(vec![*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[lb - 1]
+                    {
+                        if semantics.has_only_if() {
+                            return Ok(vec![lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+            }
+            Err(EnforceError::NotEncoded)
+        }
+    }
+
+    impl BoundLower for TotCell<'_> {
+        fn encode_lb<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
+            self.encode_lb_change(range, collector, var_manager)
+        }
+
+        fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError> {
+            if lb > self.n_lits() {
+                return Err(EnforceError::Unsat);
+            }
+            match &self.db.borrow()[self.root] {
+                totdb::Node::Leaf(lit) => {
+                    debug_assert_eq!(lb, 1);
+                    return Ok(vec![*lit]);
+                }
+                totdb::Node::Unit(node) => {
+                    if let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[lb - 1]
+                    {
+                        if semantics.has_only_if() {
+                            return Ok(vec![lit]);
+                        }
+                    }
+                }
+                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+            }
+            Err(EnforceError::NotEncoded)
+        }
+    }
+
     impl BoundUpperIncremental for Tot<'_> {
         fn encode_ub_change<Col, R>(
             &mut self,
@@ -897,6 +982,100 @@ pub mod referenced {
             Ok(())
         }
     }
+
+    impl BoundLowerIncremental for Tot<'_> {
+        fn encode_lb_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_lb_range(self, range);
+            if range.is_empty() {
+                return Ok(());
+            }
+            for idx in range {
+                self.db.define_unweighted(
+                    self.root,
+                    idx - 1,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl BoundLowerIncremental for TotCell<'_> {
+        fn encode_lb_change<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize>,
+        {
+            let range = super::super::prepare_lb_range(self, range);
+            if range.is_empty() {
+                return Ok(());
+            }
+            for idx in range {
+                self.db.borrow_mut().define_unweighted(
+                    self.root,
+                    idx - 1,
+                    totdb::Semantics::OnlyIf,
+                    collector,
+                    var_manager,
+                )?;
+            }
+            Ok(())
+        }
+    }
+
+    impl BoundBoth for Tot<'_> {
+        fn encode_both<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize> + Clone,
+        {
+            self.encode_ub_change(range.clone(), collector, var_manager)?;
+            self.encode_lb_change(range, collector, var_manager)?;
+            Ok(())
+        }
+    }
+
+    impl BoundBoth for TotCell<'_> {
+        fn encode_both<Col, R>(
+            &mut self,
+            range: R,
+            collector: &mut Col,
+            var_manager: &mut dyn ManageVars,
+        ) -> Result<(), crate::OutOfMemory>
+        where
+            Col: CollectClauses,
+            R: std::ops::RangeBounds<usize> + Clone,
+        {
+            self.encode_ub_change(range.clone(), collector, var_manager)?;
+            self.encode_lb_change(range, collector, var_manager)?;
+            Ok(())
+        }
+    }
+
+    impl BoundBothIncremental for Tot<'_> {}
+
+    impl BoundBothIncremental for TotCell<'_> {}
 }
 
 #[cfg(test)]
