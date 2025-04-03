@@ -182,6 +182,34 @@
           settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
           hooks = let
             cargo-spellcheck = lib.getExe pkgs.cargo-spellcheck;
+            check-readme =
+              pkgs.writeShellScriptBin "check-readme"
+              /*
+              bash
+              */
+              ''
+                case $1 in
+                  src/lib.rs)
+                    package=rustsat
+                    ;;
+
+                  pigeons/src/lib.rs)
+                    package=pigeons
+                    ;;
+
+                  */src/lib.rs)
+                    package=rustsat-''${1%/src/lib.rs}
+                    ;;
+
+                  *)
+                    >&2 echo "can not determine package from lib path '$1'"
+                    exit 1
+                    ;;
+                esac
+
+                echo "package $package"
+                exec ${lib.getExe pkgs.cargo-rdme} -w "$package" -c
+              '';
           in {
             # Rust
             cargo-check = {
@@ -205,7 +233,7 @@
             };
             # Code spellchecker
             typos.enable = true;
-            # Check C-API header
+            # Check generated files
             capi-header = {
               enable = true;
               name = "C-API header up to date";
@@ -213,6 +241,14 @@
               language = "system";
               files = "(capi/.+\\.(toml|h)|capi/src/.+\\.rs)";
               pass_filenames = false;
+            };
+            check-readmes = {
+              enable = true;
+              name = "Check generated READMEs";
+              entry = lib.getExe check-readme;
+              language = "system";
+              files = ".+/src/lib\\.rs";
+              excludes = ["solvertests/lib\\.rs"];
             };
             # TOML
             check-toml.enable = true;
