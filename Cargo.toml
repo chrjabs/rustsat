@@ -47,6 +47,7 @@ rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
 tempfile = "3.19.1"
+validator = { version = "0.20.0", features = ["derive"] }
 visibility = "0.1.1"
 xz2 = "0.1.7"
 
@@ -84,6 +85,7 @@ rand = { workspace = true, optional = true }
 rustc-hash = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 tempfile.workspace = true
+validator = { workspace = true, optional = true }
 xz2 = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -104,7 +106,7 @@ compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
 bench = []
 ipasir-display = []
-serde = ["dep:serde", "pigeons/serde"]
+serde = ["dep:serde", "dep:validator", "pigeons/serde"]
 proof-logging = ["dep:pigeons"]
 verbose-proofs = ["proof-logging"]
 all = [
