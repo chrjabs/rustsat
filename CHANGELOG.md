@@ -327,12 +327,12 @@ guide](https://github.com/chrjabs/rustsat/blob/main/docs/0-5-0-migration-guide.m
 
 - Alternative totalizer implementation based on a totalizer database
 - Dynamic polynomial watchdog encoing
-- Changes to public API: changed some vectores to slices
+- Changes to public API: changed some vectors to slices
 - Changed internal variable/literal representation from `usize` to `u32`
 
 ## [0.2.x]
 
-Solver interfaces factored out into seperate crates.
+Solver interfaces factored out into separate crates.
 See detailed changes in [GitHub Releases](https://github.com/chrjabs/rustsat/releases).
 
 ## [0.1.2]

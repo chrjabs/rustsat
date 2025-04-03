@@ -25,7 +25,7 @@ use crate::{
 ///
 /// - Will Klieber and Gihwon Kwon: _Efficient CNF Encoding for Selecting 1 from N Objects, CFV
 ///   2007.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Commander<const N: usize = 4, Sub = super::Pairwise> {
     /// Input literals

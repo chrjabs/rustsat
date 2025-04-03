@@ -260,16 +260,6 @@ impl Cnf {
         }
         val
     }
-
-    /// Checks whether the CNF is satisfied by the given assignment
-    #[deprecated(
-        since = "0.6.0",
-        note = "use `evaluate` instead and check against `TernaryVal::True`"
-    )]
-    #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        self.evaluate(assign) == TernaryVal::True
-    }
 }
 
 impl<'slf> IntoIterator for &'slf Cnf {
@@ -319,6 +309,9 @@ impl CollectClauses for Cnf {
         Ok(())
     }
 }
+
+#[cfg(feature = "proof-logging")]
+impl crate::encodings::cert::CollectClauses for Cnf {}
 
 impl IntoIterator for Cnf {
     type Item = Clause;
@@ -548,15 +541,6 @@ impl<VM: ManageVars> Instance<VM> {
         &self.cnf
     }
 
-    /// Gets a reference to the variable manager
-    #[deprecated(
-        since = "0.5.0",
-        note = "var_manager has been renamed to var_manager_mut and will be removed in a future release"
-    )]
-    pub fn var_manager(&mut self) -> &mut VM {
-        &mut self.var_manager
-    }
-
     /// Gets a mutable reference to the variable manager
     pub fn var_manager_mut(&mut self) -> &mut VM {
         &mut self.var_manager
@@ -609,17 +593,6 @@ impl<VM: ManageVars> Instance<VM> {
 
     /// Converts the instance to a set of clauses.
     /// Uses the default encoders from the `encodings` module.
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_cnf has been renamed to into_cnf and will be removed in a future release"
-    )]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn as_cnf(self) -> (Cnf, VM) {
-        self.into_cnf()
-    }
-
-    /// Converts the instance to a set of clauses.
-    /// Uses the default encoders from the `encodings` module.
     ///
     /// See [`Self::convert_to_cnf`] for converting in place
     ///
@@ -658,25 +631,6 @@ impl<VM: ManageVars> Instance<VM> {
                     .expect("pb encoding ran out of memory");
             },
         );
-    }
-
-    /// Converts the instance to a set of clauses with explicitly specified
-    /// converters for non-clausal constraints.
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_cnf_with_encoders has been renamed to into_cnf_with_encoders and will be removed in a future release"
-    )]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn as_cnf_with_encoders<CardEnc, PBEnc>(
-        self,
-        card_encoder: CardEnc,
-        pb_encoder: PBEnc,
-    ) -> (Cnf, VM)
-    where
-        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
-    {
-        self.into_cnf_with_encoders(card_encoder, pb_encoder)
     }
 
     /// Converts the instance to a set of clauses with explicitly specified
@@ -810,63 +764,6 @@ impl<VM: ManageVars> Instance<VM> {
 
     /// Writes the instance to a DIMACS CNF file at a path
     ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        #[allow(deprecated)]
-        self.to_dimacs(&mut writer)
-    }
-
-    /// Writes the instance to DIMACS CNF
-    #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::missing_panics_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
-        #[allow(deprecated)]
-        self.to_dimacs_with_encoders(
-            |constr, cnf, vm| {
-                card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory");
-            },
-            |constr, cnf, vm| {
-                pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory");
-            },
-            writer,
-        )
-    }
-
-    /// Writes the instance to DIMACS CNF converting non-clausal constraints
-    /// with specific encoders.
-    #[deprecated(
-        since = "0.5.0",
-        note = "use convert_to_cnf_with_encoders and write_dimacs instead"
-    )]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
-        self,
-        card_encoder: CardEnc,
-        pb_encoder: PBEnc,
-        writer: &mut W,
-    ) -> Result<(), io::Error>
-    where
-        W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
-    {
-        let (cnf, vm) = self.into_cnf_with_encoders(card_encoder, pb_encoder);
-        fio::dimacs::write_cnf_annotated(writer, &cnf, vm.n_used())
-    }
-
-    /// Writes the instance to a DIMACS CNF file at a path
-    ///
     /// This requires that the instance is clausal, i.e., does not contain any non-converted
     /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
     /// [`Self::convert_to_cnf`] or [`Self::convert_to_cnf_with_encoders`] first.
@@ -900,36 +797,6 @@ impl<VM: ManageVars> Instance<VM> {
         }
         let n_vars = self.n_vars();
         Ok(fio::dimacs::write_cnf_annotated(writer, &self.cnf, n_vars)?)
-    }
-
-    /// Writes the instance to an OPB file at a path
-    ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_opb_path<P: AsRef<Path>>(
-        self,
-        path: P,
-        opts: fio::opb::Options,
-    ) -> Result<(), io::Error> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        #[allow(deprecated)]
-        self.to_opb(&mut writer, opts)
-    }
-
-    /// Writes the instance to an OPB file
-    #[deprecated(since = "0.5.0", note = "use write_opb instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_opb<W: io::Write>(
-        self,
-        writer: &mut W,
-        opts: fio::opb::Options,
-    ) -> Result<(), io::Error> {
-        fio::opb::write_sat(writer, &self, opts)
     }
 
     /// Writes the instance to an OPB file at a path
@@ -1074,16 +941,6 @@ impl<VM: ManageVars> Instance<VM> {
             }
         }
         val
-    }
-
-    /// Checks whether the instance is satisfied by the given assignment
-    #[deprecated(
-        since = "0.6.0",
-        note = "use `evaluate` instead and check against `TernaryVal::True`"
-    )]
-    #[must_use]
-    pub fn is_sat(&self, assign: &Assignment) -> bool {
-        self.evaluate(assign) == TernaryVal::True
     }
 
     /// Returns an unsatisfied constraint, if one exists

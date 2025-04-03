@@ -3,20 +3,22 @@
 use std::ffi::{c_int, c_void};
 
 use rustsat::{
-    encodings::pb::{BoundUpper, BoundUpperIncremental, DbGte, EncodeIncremental as _},
+    encodings::pb::{
+        BoundUpper, BoundUpperIncremental, EncodeIncremental as _, GeneralizedTotalizer,
+    },
     types::Lit,
 };
 
 use super::{CAssumpCollector, CClauseCollector, ClauseCollector, MaybeError, VarManager};
 
-/// Creates a new [`DbGte`] cardinality encoding
+/// Creates a new [`GeneralizedTotalizer`] cardinality encoding
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn gte_new() -> *mut DbGte {
+pub unsafe extern "C" fn gte_new() -> *mut GeneralizedTotalizer {
     Box::into_raw(Box::default())
 }
 
-/// Adds a new input literal to a [`DbGte`].
+/// Adds a new input literal to a [`GeneralizedTotalizer`].
 ///
 /// # Errors
 ///
@@ -27,7 +29,11 @@ pub unsafe extern "C" fn gte_new() -> *mut DbGte {
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
 #[no_mangle]
-pub unsafe extern "C" fn gte_add(gte: *mut DbGte, lit: c_int, weight: usize) -> MaybeError {
+pub unsafe extern "C" fn gte_add(
+    gte: *mut GeneralizedTotalizer,
+    lit: c_int,
+    weight: usize,
+) -> MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return MaybeError::InvalidLiteral;
     };
@@ -58,7 +64,7 @@ pub unsafe extern "C" fn gte_add(gte: *mut DbGte, lit: c_int, weight: usize) -> 
 /// - If the encoding ran out of memory
 #[no_mangle]
 pub unsafe extern "C" fn gte_encode_ub(
-    gte: *mut DbGte,
+    gte: *mut GeneralizedTotalizer,
     min_bound: usize,
     max_bound: usize,
     n_vars_used: &mut u32,
@@ -85,7 +91,7 @@ pub unsafe extern "C" fn gte_encode_ub(
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
 #[no_mangle]
 pub unsafe extern "C" fn gte_enforce_ub(
-    gte: *mut DbGte,
+    gte: *mut GeneralizedTotalizer,
     ub: usize,
     collector: CAssumpCollector,
     collector_data: *mut c_void,
@@ -110,19 +116,19 @@ pub unsafe extern "C" fn gte_enforce_ub(
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
 #[no_mangle]
-pub unsafe extern "C" fn gte_reserve(gte: *mut DbGte, n_vars_used: &mut u32) {
+pub unsafe extern "C" fn gte_reserve(gte: *mut GeneralizedTotalizer, n_vars_used: &mut u32) {
     let mut var_manager = VarManager::new(n_vars_used);
     (*gte).reserve(&mut var_manager);
 }
 
-/// Frees the memory associated with a [`DbGte`]
+/// Frees the memory associated with a [`GeneralizedTotalizer`]
 ///
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] and cannot be used
 /// afterwards again.
 #[no_mangle]
-pub unsafe extern "C" fn gte_drop(gte: *mut DbGte) {
+pub unsafe extern "C" fn gte_drop(gte: *mut GeneralizedTotalizer) {
     drop(Box::from_raw(gte));
 }
 
@@ -138,7 +144,7 @@ mod tests {
             #include "rustsat.h"
 
             int main() {
-                DbGte *gte = gte_new();
+                GeneralizedTotalizer *gte = gte_new();
                 assert(gte != NULL);
                 gte_drop(gte);
                 return 0;
@@ -162,7 +168,7 @@ mod tests {
             }
 
             int main() {
-                DbGte *gte = gte_new();
+                GeneralizedTotalizer *gte = gte_new();
                 assert(gte_add(gte, 1, 1) == Ok);
                 assert(gte_add(gte, 2, 2) == Ok);
                 assert(gte_add(gte, 3, 3) == Ok);
@@ -194,7 +200,7 @@ mod tests {
             }
 
             int main() {
-                DbGte *gte = gte_new();
+                GeneralizedTotalizer *gte = gte_new();
                 assert(gte_add(gte, 1, 1) == Ok);
                 assert(gte_add(gte, 2, 1) == Ok);
                 assert(gte_add(gte, 3, 2) == Ok);

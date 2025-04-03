@@ -42,6 +42,7 @@ pub(crate) fn digits(mut number: usize, mut basis: u8) -> u32 {
 /// A wrapper around an iterator to only yield a limited number of elements and then stop
 ///
 /// As opposed to [`std::iter::Take`] this does not take ownership of the original iterator
+#[derive(Debug)]
 pub struct LimitedIter<'iter, I> {
     iter: &'iter mut I,
     remaining: usize,

@@ -17,7 +17,7 @@ use crate::{
 /// # References
 ///
 /// - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
-#[derive(Default)]
+#[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pairwise {
     /// Input literals

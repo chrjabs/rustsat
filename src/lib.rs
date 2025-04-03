@@ -15,7 +15,7 @@
 //! instance.add_binary(!l1, l2);
 //! instance.add_unit(l1);
 //! let mut solver = rustsat_minisat::core::Minisat::default();
-//! solver.add_cnf(instance.as_cnf().0).unwrap();
+//! solver.add_cnf(instance.into_cnf().0).unwrap();
 //! let res = solver.solve().unwrap();
 //! assert_eq!(res, SolverResult::Sat);
 //! let sol = solver.full_solution().unwrap();
@@ -66,7 +66,7 @@
 //!
 //! ## Minimum Supported Rust Version (MSRV)
 //!
-//! Currently, the MSRV of RustSAT is 1.74.0, the plan is to always support an MSRV that is at
+//! Currently, the MSRV of RustSAT is 1.75.0, the plan is to always support an MSRV that is at
 //! least a year old.
 //!
 //! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
@@ -77,6 +77,7 @@
 #![cfg_attr(feature = "bench", feature(test))]
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use std::collections::TryReserveError;
 

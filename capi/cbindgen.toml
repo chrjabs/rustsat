@@ -51,9 +51,9 @@ cpp_compat = true
 
 [export]
 include = [
-  "DbTotalizer",
+  "Totalizer",
   "DynamicPolyWatchdog",
-  "DbGte",
+  "GeneralizedTotalizer",
   "BinaryAdder",
   "Pairwise",
   "Ladder",

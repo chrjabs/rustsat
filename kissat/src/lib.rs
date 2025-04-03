@@ -38,6 +38,7 @@
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
 
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
@@ -90,6 +91,24 @@ pub struct Kissat<'term> {
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     stats: SolverStats,
+}
+
+impl fmt::Debug for Kissat<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Kissat")
+            .field("handle", &self.handle)
+            .field("state", &self.state)
+            .field(
+                "terminate_cb",
+                if self.terminate_cb.is_some() {
+                    &"some callback"
+                } else {
+                    &"no callback"
+                },
+            )
+            .field("stats", &self.stats)
+            .finish()
+    }
 }
 
 unsafe impl Send for Kissat<'_> {}
@@ -415,6 +434,7 @@ impl Interrupt for Kissat<'_> {
 }
 
 /// An Interrupter for the Kissat solver
+#[derive(Debug)]
 pub struct Interrupter {
     /// The C API handle
     handle: *mut ffi::kissat,
@@ -504,13 +524,15 @@ impl fmt::Display for Limit {
     }
 }
 
-extern "C" fn panic_instead_of_abort() {
+extern "C" fn rustsat_kissat_panic_instead_of_abort() {
     panic!("kissat called kissat_abort");
 }
 
 /// Changes Kissat's abort behavior to cause a Rust panic instead
-pub fn panic_intead_of_abort() {
-    unsafe { ffi::kissat_call_function_instead_of_abort(Some(panic_instead_of_abort)) };
+pub fn panic_instead_of_abort() {
+    unsafe {
+        ffi::kissat_call_function_instead_of_abort(Some(rustsat_kissat_panic_instead_of_abort));
+    };
 }
 
 /// Changes Kissat's abort behavior to call the given function instead

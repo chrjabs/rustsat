@@ -463,6 +463,7 @@ pub trait Propagate {
 }
 
 /// A result returned from the [`Propagate`] trait
+#[derive(Debug)]
 #[must_use]
 pub struct PropagateResult {
     /// The list of propagated literals
@@ -483,7 +484,7 @@ type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
 type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
 /// Solver statistics
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug)]
 pub struct SolverStats {
     /// The number of satisfiable queries executed
     pub n_sat: usize,
@@ -666,5 +667,26 @@ impl<S: Solve + SolveStats> CollectClauses for S {
     fn add_clause(&mut self, cl: Clause) -> Result<(), crate::OutOfMemory> {
         pass_oom_or_panic!(self.add_clause(cl));
         Ok(())
+    }
+}
+
+/// Trait for types that allow for initializing a solver or other types
+///
+/// This is very similar to the [`Default`] trait, but allows for implementing multiple
+/// initializers for the same solver. Having this as a trait rather than simply a function allows
+/// for more flexibility with generics.
+pub trait Initialize<T> {
+    /// Generates a new instance
+    fn init() -> T;
+}
+
+/// An initializer that simply calls the [`Default`] method of another type
+#[derive(Debug)]
+pub struct DefaultInitializer;
+
+impl<T: Default> Initialize<T> for DefaultInitializer {
+    #[inline]
+    fn init() -> T {
+        T::default()
     }
 }

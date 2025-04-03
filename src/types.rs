@@ -739,7 +739,7 @@ pub enum InvalidVLine {
 
 /// Different possible `v`-line formats
 enum VLineFormat {
-    /// Assignment specified as a space-spearated sequence of IPASIR literals. This is the format
+    /// Assignment specified as a space-separated sequence of IPASIR literals. This is the format
     /// used in the SAT competition.
     SatComp,
     /// Assignment specified as a sequence of zeroes and ones. This is the format used in the
@@ -759,6 +759,18 @@ pub struct Assignment {
 }
 
 impl Assignment {
+    /// Gets the length of the assignment
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.assignment.len()
+    }
+
+    /// Checks whether the assignment is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.assignment.is_empty()
+    }
+
     /// Get the value that the solution assigns to a variable.
     /// If the variable is not included in the solution, will return `TernaryVal::DontCare`.
     #[must_use]
@@ -1101,6 +1113,45 @@ impl<I: IntoIterator<Item = (Clause, usize)>> WClsIter for I {}
 pub trait IWLitIter: IntoIterator<Item = (Lit, isize)> {}
 impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 
+#[cfg(feature = "proof-logging")]
+mod pigeons {
+    use std::fmt;
+
+    /// A formatter for [`super::Var`] for use with the [`pigeons`] library to ensure same
+    /// variable formatting as in VeriPB
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[repr(transparent)]
+    pub struct PidgeonVarFormatter(super::Var);
+
+    impl From<super::Var> for PidgeonVarFormatter {
+        fn from(value: super::Var) -> Self {
+            PidgeonVarFormatter(value)
+        }
+    }
+
+    impl fmt::Display for PidgeonVarFormatter {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "x{}", self.0.idx() + 1)
+        }
+    }
+
+    impl pigeons::VarLike for super::Var {
+        type Formatter = PidgeonVarFormatter;
+    }
+
+    impl From<super::Lit> for pigeons::Axiom<super::Var> {
+        fn from(value: super::Lit) -> Self {
+            use pigeons::VarLike;
+
+            if value.is_pos() {
+                value.var().pos_axiom()
+            } else {
+                value.var().neg_axiom()
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{mem::size_of, num::ParseIntError};
@@ -1143,6 +1194,14 @@ mod tests {
         let lit = Lit::positive(idx);
         let var = Var::new(idx);
         assert_eq!(lit.var(), var);
+    }
+
+    #[cfg(feature = "proof-logging")]
+    #[test]
+    fn proof_log_var() {
+        use pigeons::VarLike;
+        let var = Var::new(3);
+        assert_eq!(&format!("{}", <Var as VarLike>::Formatter::from(var)), "x4");
     }
 
     #[test]
@@ -1332,9 +1391,9 @@ mod tests {
         assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
         assert_eq!(
             {
-                let mut asign = Assignment::default();
-                asign.extend_from_vline(vline).unwrap();
-                asign
+                let mut assign = Assignment::default();
+                assign.extend_from_vline(vline).unwrap();
+                assign
             },
             ground_truth
         );
@@ -1354,9 +1413,9 @@ mod tests {
         assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
         assert_eq!(
             {
-                let mut asign = Assignment::default();
-                asign.extend_from_vline(vline).unwrap();
-                asign
+                let mut assign = Assignment::default();
+                assign.extend_from_vline(vline).unwrap();
+                assign
             },
             ground_truth
         );
@@ -1376,9 +1435,9 @@ mod tests {
         assert_eq!(Assignment::from_vline(vline).unwrap(), ground_truth);
         assert_eq!(
             {
-                let mut asign = Assignment::default();
-                asign.extend_from_vline(vline).unwrap();
-                asign
+                let mut assign = Assignment::default();
+                assign.extend_from_vline(vline).unwrap();
+                assign
             },
             ground_truth
         );

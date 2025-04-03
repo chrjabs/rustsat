@@ -11,6 +11,9 @@
     nix-tools.url = "github:gleachkr/nix-tools";
     nix-tools.inputs.nixpkgs.follows = "nixpkgs";
 
+    nix-config.url = "github:chrjabs/nix-config";
+    nix-config.inputs.nixpkgs.follows = "nixpkgs";
+
     git-hooks.url = "github:chrjabs/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -24,6 +27,7 @@
     systems,
     rust-overlay,
     nix-tools,
+    nix-config,
     git-hooks,
     nix-github-actions,
   }: let
@@ -32,7 +36,7 @@
     pkgsFor = rust-overlay-fn:
       lib.genAttrs (import systems) (system: (import nixpkgs {
         inherit system;
-        overlays = [(import rust-overlay) nix-tools.overlays.default rust-overlay-fn];
+        overlays = [(import rust-overlay) nix-tools.overlays.default rust-overlay-fn] ++ builtins.attrValues nix-config.overlays;
       }));
     rust-toolchain-overlay = _: super: {
       rust-toolchain = super.symlinkJoin {
@@ -145,14 +149,17 @@
             jq
             maturin
             kani
+            veripb
             git-subtree-cmd
             pr-merge-ff-cmd
+            typos
           ]
           ++ self.checks.${system}.pre-commit-check.enabledPackages;
         buildInputs = libs;
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         LD_LIBRARY_PATH = lib.makeLibraryPath libs;
         PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig/";
+        VERIPB_CHECKER = lib.getExe pkgs.veripb;
       };
   in {
     devShells = forAllSystems (system: {
@@ -195,6 +202,8 @@
               language = "system";
               files = "(.+\\.rs|docs/.+\\.md)$";
             };
+            # Code spellchecker
+            typos.enable = true;
             # TOML
             check-toml.enable = true;
             taplo.enable = true;

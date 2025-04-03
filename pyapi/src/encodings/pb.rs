@@ -6,10 +6,10 @@ use rustsat::{
     encodings::{
         pb::{
             BinaryAdder as RsAdder, BoundBoth, BoundBothIncremental, BoundLower,
-            BoundLowerIncremental, BoundUpper as PbBU, BoundUpperIncremental as PbBUI, DbGte,
-            DynamicPolyWatchdog as RsDpw, Encode as PbEncode,
+            BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DynamicPolyWatchdog as RsDpw,
+            Encode as PbEncode, GeneralizedTotalizer as RsGte,
         },
-        EncodeStats, Error,
+        EncodeStats,
     },
     instances::{BasicVarManager, Cnf as RsCnf},
     types::Lit as RsLit,
@@ -21,15 +21,7 @@ use crate::{
     types::Lit,
 };
 
-#[allow(clippy::needless_pass_by_value)]
-fn convert_error(err: Error) -> PyErr {
-    match err {
-        Error::NotEncoded => {
-            pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
-        }
-        Error::Unsat => pyo3::exceptions::PyValueError::new_err("encoding is unsat"),
-    }
-}
+use super::convert_enforce_error;
 
 macro_rules! shared_pyapi {
     (derive_from, $type:ty, $rstype:ty) => {
@@ -83,7 +75,7 @@ macro_rules! shared_pyapi {
     (ub, $type:ty) => {
         #[pymethods]
         impl $type {
-            /// Incrementally builds the encoding to that upper bounds in the range
+            /// Incrementally builds the encoding so that upper bounds in the range
             /// `min_ub..=max_ub` can be enforced. New variables will be taken from `var_manager`.
             fn encode_ub(
                 &mut self,
@@ -102,8 +94,9 @@ macro_rules! shared_pyapi {
             /// Gets assumptions to enforce the given upper bound. Make sure that the required
             /// encoding is built first.
             fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> =
-                    unsafe { std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_error)?) };
+                let assumps: Vec<Lit> = unsafe {
+                    std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_enforce_error)?)
+                };
                 Ok(assumps)
             }
         }
@@ -111,7 +104,7 @@ macro_rules! shared_pyapi {
     (lb, $type:ty) => {
         #[pymethods]
         impl $type {
-            /// Incrementally builds the encoding to that lower bounds in the range `min_lb..=max_lb`
+            /// Incrementally builds the encoding so that lower bounds in the range `min_lb..=max_lb`
             /// can be enforced. New variables will be taken from `var_manager`.
             fn encode_lb(
                 &mut self,
@@ -130,15 +123,17 @@ macro_rules! shared_pyapi {
             /// Gets assumptions to enforce the given lower bound. Make sure that the required encoding
             /// is built first.
             fn enforce_lb(&self, lb: usize) -> PyResult<Vec<Lit>> {
-                let assumps = self.0.enforce_lb(lb).map_err(convert_error)?;
-                Ok(assumps.into_iter().map(Into::into).collect())
+                let assumps: Vec<Lit> = unsafe {
+                    std::mem::transmute(self.0.enforce_lb(lb).map_err(convert_enforce_error)?)
+                };
+                Ok(assumps)
             }
         }
     };
     (both, $type:ty) => {
         #[pymethods]
         impl $type {
-            /// Incrementally builds the encoding to that both bounds in the range
+            /// Incrementally builds the encoding so that both bounds in the range
             /// `min_bound..=max_bound` can be enforced. New variables will be taken from
             /// `var_manager`.
             fn encode_both(
@@ -160,8 +155,10 @@ macro_rules! shared_pyapi {
             /// Gets assumptions to enforce the given equality bound. Make sure that the required
             /// encoding is built first.
             fn enforce_eq(&self, val: usize) -> PyResult<Vec<Lit>> {
-                let assumps = self.0.enforce_eq(val).map_err(convert_error)?;
-                Ok(assumps.into_iter().map(Into::into).collect())
+                let assumps: Vec<Lit> = unsafe {
+                    std::mem::transmute(self.0.enforce_eq(val).map_err(convert_enforce_error)?)
+                };
+                Ok(assumps)
             }
         }
     };
@@ -202,9 +199,9 @@ macro_rules! implement_pyapi {
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[pyclass]
 #[repr(transparent)]
-pub struct GeneralizedTotalizer(DbGte);
+pub struct GeneralizedTotalizer(RsGte);
 
-implement_pyapi!(ub, GeneralizedTotalizer, DbGte);
+implement_pyapi!(ub, GeneralizedTotalizer, RsGte);
 
 /// Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
 ///

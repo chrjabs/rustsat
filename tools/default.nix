@@ -41,6 +41,8 @@ in
           ../minisat/build.rs
           ../minisat/src
           ../minisat/cppsrc
+          ../pigeons/Cargo.toml
+          ../pigeons/src
           ../pyapi/Cargo.toml
           ../pyapi/src
           ../solvertests/Cargo.toml

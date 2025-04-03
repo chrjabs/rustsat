@@ -37,7 +37,7 @@ use std::{
     ops::{Bound, Range, RangeBounds},
 };
 
-use super::{card, CollectClauses, Error};
+use super::{card, CollectClauses, ConstraintEncodingError, EnforceError};
 use crate::{
     clause,
     instances::ManageVars,
@@ -61,11 +61,11 @@ pub type DoubleGeneralizedTotalizer =
 pub mod dpw;
 pub use dpw::DynamicPolyWatchdog;
 
-pub mod dbgte;
-pub use dbgte::DbGte;
-
 pub mod adder;
 pub use adder::BinaryAdder;
+
+#[cfg(feature = "proof-logging")]
+pub mod cert;
 
 /// Trait for all pseudo-boolean encodings of form `weighted sum of lits <> rhs`
 pub trait Encode {
@@ -93,7 +93,7 @@ pub trait BoundUpper: Encode {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
@@ -109,25 +109,27 @@ pub trait BoundUpper: Encode {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::NotEncoded`] if [`BoundUpper::encode_ub`] has not been called
-    /// adequately before.
-    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, Error>;
+    /// If [`BoundUpper::encode_ub`] has not been called adequately, or `lb` is larger than the
+    /// sum of weights in the encoding.
+    fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError>;
     /// Encodes an upper bound pseudo-boolean constraint to CNF
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_ub_constr<Col>(
         constr: PbUbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
     {
         let (lits, ub) = constr.decompose();
-        anyhow::ensure!(ub >= 0, Error::Unsat);
+        if ub < 0 {
+            return Err(ConstraintEncodingError::Unsat);
+        }
         let ub = ub.unsigned_abs();
         let mut enc = Self::from_iter(lits);
         enc.encode_ub(ub..=ub, collector, var_manager)?;
@@ -147,8 +149,8 @@ pub trait BoundUpper: Encode {
     }
 }
 
-/// Trait for pseudo-boolean encodings that allow upper bounding of the form `sum
-/// of lits <= ub`
+/// Trait for pseudo-boolean encodings that allow lower bounding of the form `sum
+/// of lits >= lb`
 pub trait BoundLower: Encode {
     /// Lazily builds the pseudo-boolean encoding to enable lower bounds in a
     /// given range. `var_manager` is the variable manager to use for tracking
@@ -157,7 +159,7 @@ pub trait BoundLower: Encode {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the collector runs out of memory.
     fn encode_lb<Col, R>(
         &mut self,
         range: R,
@@ -173,19 +175,19 @@ pub trait BoundLower: Encode {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEncoded`] if [`BoundLower::encode_lb`] has not been called adequately
-    /// - [`Error::Unsat`] if `lb` is higher than the weighted sum of literals in the encoding
-    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, Error>;
+    /// If [`BoundLower::encode_lb`] has not been called adequately, or `lb` is larger than the
+    /// sum of weights in the encoding.
+    fn enforce_lb(&self, lb: usize) -> Result<Vec<Lit>, EnforceError>;
     /// Encodes a lower bound pseudo-boolean constraint to CNF
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_lb_constr<Col>(
         constr: PbLbConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
@@ -196,6 +198,9 @@ pub trait BoundLower: Encode {
         } else {
             lb.unsigned_abs()
         };
+        if lb > lits.iter().fold(0, |sum, (_, w)| sum + *w) {
+            return Err(ConstraintEncodingError::Unsat);
+        }
         let mut enc = Self::from_iter(lits);
         enc.encode_lb(lb..=lb, collector, var_manager)?;
         collector.extend_clauses(
@@ -222,7 +227,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the collector runs out of memory.
     fn encode_both<Col, R>(
         &mut self,
         range: R,
@@ -244,9 +249,8 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEncoded`] if not adequately encoded
-    /// - [`Error::Unsat`] if `b` is higher than the weighted sum of literals in the encoding
-    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, Error> {
+    /// If not adequately encoded, or `b` is larger than the sum of weights in the encoding.
+    fn enforce_eq(&self, b: usize) -> Result<Vec<Lit>, EnforceError> {
         let mut assumps = self.enforce_ub(b)?;
         assumps.extend(self.enforce_lb(b)?);
         Ok(assumps)
@@ -255,19 +259,24 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_eq_constr<Col>(
         constr: PbEqConstr,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
     {
         let (lits, b) = constr.decompose();
-        anyhow::ensure!(b >= 0, Error::Unsat);
+        if b < 0 {
+            return Err(ConstraintEncodingError::Unsat);
+        }
         let b = b.unsigned_abs();
+        if b > lits.iter().fold(0, |sum, (_, w)| sum + *w) {
+            return Err(ConstraintEncodingError::Unsat);
+        }
         let mut enc = Self::from_iter(lits);
         enc.encode_both(b..=b, collector, var_manager)?;
         collector.extend_clauses(
@@ -282,12 +291,12 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ///
     /// # Errors
     ///
-    /// Either an [`enum@Error`] or [`crate::OutOfMemory`]
+    /// If the constraint is unsatisfiable or the collector runs out of memory.
     fn encode_constr<Col>(
         constr: PbConstraint,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
         Self: FromIterator<(Lit, usize)> + Sized,
@@ -299,10 +308,6 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         }
     }
 }
-
-/// Default implementation of [`BoundBoth`] for every encoding that does upper
-/// and lower bounding
-impl<PBE> BoundBoth for PBE where PBE: BoundUpper + BoundLower {}
 
 /// Trait for all pseudo-boolean encodings of form `sum of lits <> rhs`
 pub trait EncodeIncremental: Encode {
@@ -321,7 +326,7 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
@@ -333,8 +338,8 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
         R: RangeBounds<usize>;
 }
 
-/// Trait for incremental pseudo-boolean encodings that allow upper bounding of the
-/// form `sum of lits <= ub`
+/// Trait for incremental pseudo-boolean encodings that allow lower bounding of the
+/// form `sum of lits >= lb`
 pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable lower
     /// bounds within the range. `var_manager` is the variable manager to use
@@ -343,7 +348,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_lb_change<Col, R>(
         &mut self,
         range: R,
@@ -356,7 +361,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
-pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
+pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + BoundBoth {
     /// Lazily builds the _change in_ pseudo-boolean encoding to enable both
     /// bounds from `min_b` to `max_b`. `var_manager` is the variable manager to
     /// use for tracking new variables. A specific encoding might ignore the
@@ -364,7 +369,7 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
     ///
     /// # Errors
     ///
-    /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+    /// If the clause collector runs out of memory.
     fn encode_both_change<Col, R>(
         &mut self,
         range: R,
@@ -380,10 +385,6 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental {
         Ok(())
     }
 }
-
-/// Default implementation of [`BoundBothIncremental`] for every encoding that
-/// does incremental upper and lower bounding
-impl<PBE> BoundBothIncremental for PBE where PBE: BoundUpperIncremental + BoundLowerIncremental {}
 
 /// The default upper bound encoding. For now this is a [`GeneralizedTotalizer`].
 pub type DefUpperBounding = GeneralizedTotalizer;
@@ -440,7 +441,7 @@ pub fn new_default_inc_both() -> impl BoundBoth + Extend<(Lit, usize)> {
 ///
 /// # Errors
 ///
-/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+/// If the clause collector runs out of memory.
 pub fn default_encode_pb_constraint<Col: CollectClauses>(
     constr: PbConstraint,
     collector: &mut Col,
@@ -453,7 +454,7 @@ pub fn default_encode_pb_constraint<Col: CollectClauses>(
 ///
 /// # Errors
 ///
-/// If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
+/// If the clause collector runs out of memory.
 pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: CollectClauses>(
     constr: PbConstraint,
     collector: &mut Col,
@@ -482,7 +483,8 @@ pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: Co
     }
     match PBE::encode_constr(constr, collector, var_manager) {
         Ok(()) => Ok(()),
-        Err(err) => Err(unreachable_err!(err.downcast::<crate::OutOfMemory>())),
+        Err(ConstraintEncodingError::OutOfMemory(err)) => Err(err),
+        Err(ConstraintEncodingError::Unsat) => unreachable!(),
     }
 }
 
@@ -502,6 +504,18 @@ fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> 
     (match range.start_bound() {
         Bound::Included(b) => cmp::max(*b, 1),
         Bound::Excluded(b) => cmp::max(b + 1, 1),
+        Bound::Unbounded => 1,
+    })..match range.end_bound() {
+        Bound::Included(b) => cmp::min(b + 1, enc.weight_sum() + 1),
+        Bound::Excluded(b) => cmp::min(*b, enc.weight_sum() + 1),
+        Bound::Unbounded => enc.weight_sum() + 1,
+    }
+}
+
+fn prepare_both_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+    (match range.start_bound() {
+        Bound::Included(b) => *b,
+        Bound::Excluded(b) => b + 1,
         Bound::Unbounded => 1,
     })..match range.end_bound() {
         Bound::Included(b) => cmp::min(b + 1, enc.weight_sum() + 1),

@@ -1,0 +1,15 @@
+[default.extend-words]
+lits = "lits"
+Thay = "Thay"
+Ines = "Ines"
+Linz = "Linz"
+
+[files]
+extend-exclude = [
+  "data/**",
+  "cadical/cppsrc/**",
+  "cadical/patches/**",
+  "glucose/cppsrc/**",
+  "kissat/csrc/**",
+  "minisat/cppsrc/**",
+]

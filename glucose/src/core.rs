@@ -18,6 +18,7 @@ use rustsat::{
 use super::{ffi, handle_oom, InternalSolverState, InvalidApiReturn, Limit};
 
 /// The Glucose 4 solver type without preprocessing
+#[derive(Debug)]
 pub struct Glucose {
     handle: *mut ffi::CGlucose4,
     state: InternalSolverState,
@@ -251,6 +252,7 @@ impl Interrupt for Glucose {
 }
 
 /// An Interrupter for the Glucose 4 Core solver
+#[derive(Debug)]
 pub struct Interrupter {
     /// The C API handle
     handle: *mut ffi::CGlucose4,

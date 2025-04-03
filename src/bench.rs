@@ -8,7 +8,7 @@ mod card_enc {
     use test::Bencher;
 
     use crate::{
-        encodings::card::{BoundBoth, BoundLower, BoundUpper, DbTotalizer, Totalizer},
+        encodings::card::{BoundBoth, BoundLower, BoundUpper, Totalizer},
         instances::{BasicVarManager, Cnf, ManageVars},
         types::{Lit, Var},
     };
@@ -52,11 +52,6 @@ mod card_enc {
     fn totalizer_both(b: &mut Bencher) {
         b.iter(|| build_full_both::<Totalizer>(1000));
     }
-
-    #[bench]
-    fn dbtotalizer_ub(b: &mut Bencher) {
-        b.iter(|| build_full_ub::<DbTotalizer>(1000));
-    }
 }
 
 mod pb_enc {
@@ -65,9 +60,7 @@ mod pb_enc {
     use test::Bencher;
 
     use crate::{
-        encodings::pb::{
-            BinaryAdder, BoundUpper, DbGte, DynamicPolyWatchdog, GeneralizedTotalizer,
-        },
+        encodings::pb::{BinaryAdder, BoundUpper, DynamicPolyWatchdog, GeneralizedTotalizer},
         instances::{BasicVarManager, Cnf, ManageVars},
         lit,
         types::{Lit, Var},
@@ -253,11 +246,6 @@ mod pb_enc {
     }
 
     #[bench]
-    fn dbgte_ub(b: &mut Bencher) {
-        b.iter(|| build_full_ub::<DbGte>(&lits!(small)));
-    }
-
-    #[bench]
     fn dpw_ub(b: &mut Bencher) {
         b.iter(|| build_full_ub::<DynamicPolyWatchdog>(&lits!(small)));
     }
@@ -270,11 +258,6 @@ mod pb_enc {
     #[bench]
     fn gte_ub_large(b: &mut Bencher) {
         b.iter(|| build_full_ub::<GeneralizedTotalizer>(&lits!(large)));
-    }
-
-    #[bench]
-    fn dbgte_ub_large(b: &mut Bencher) {
-        b.iter(|| build_full_ub::<DbGte>(&lits!(large)));
     }
 
     #[bench]

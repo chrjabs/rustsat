@@ -3,11 +3,7 @@
 use std::{collections::BTreeSet, io, path::Path};
 
 use crate::{
-    encodings::{card, pb},
-    types::{
-        constraints::{CardConstraint, PbConstraint},
-        Assignment, Lit, TernaryVal, Var, WClsIter, WLitIter,
-    },
+    types::{Assignment, Lit, TernaryVal, Var, WClsIter, WLitIter},
     RequiresClausal, RequiresSoftLits,
 };
 
@@ -69,15 +65,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
-    #[deprecated(
-        since = "0.5.0",
-        note = "get_constraints has been renamed to constraints_mut and will be removed in a future release"
-    )]
-    pub fn get_constraints(&mut self) -> &mut SatInstance<VM> {
-        &mut self.constrs
-    }
-
-    /// Gets a mutable reference to the hard constraints for modifying them
     pub fn constraints_mut(&mut self) -> &mut SatInstance<VM> {
         &mut self.constrs
     }
@@ -103,18 +90,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// for `inst.get_constraints().var_manager().max_var()`.
     pub fn max_var(&self) -> Option<Var> {
         self.constraints_ref().var_manager_ref().max_var()
-    }
-
-    /// Gets a mutable reference to the first objective for modifying it.
-    /// Make sure `obj_idx` does not exceed the number of objectives in the instance.
-    #[deprecated(
-        since = "0.5.0",
-        note = "get_objective has been renamed to objective_mut and will be removed in a future release"
-    )]
-    #[allow(clippy::missing_panics_doc)]
-    pub fn get_objective(&mut self, obj_idx: usize) -> &mut Objective {
-        assert!(obj_idx < self.objs.len());
-        &mut self.objs[obj_idx]
     }
 
     /// Gets a mutable reference to the objective with index `obj_idx` for modifying it.
@@ -150,16 +125,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Converts the instance to a set of hard and soft clauses
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_hard_cls_soft_cls has been renamed to into_hard_cls_soft_cls and will be removed in a future release"
-    )]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn as_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
-        self.into_hard_cls_soft_cls()
-    }
-
-    /// Converts the instance to a set of hard and soft clauses
     ///
     /// # Panic
     ///
@@ -179,16 +144,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             .map(Objective::into_soft_cls)
             .collect();
         (cnf, soft_cls, vm)
-    }
-
-    /// Converts the instance to a set of hard clauses and soft literals
-    #[deprecated(
-        since = "0.5.0",
-        note = "as_hard_cls_soft_lits has been renamed to into_hard_cls_soft_lits and will be removed in a future release"
-    )]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn as_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
-        self.into_hard_cls_soft_lits()
     }
 
     /// Converts the instance to a set of hard clauses and soft literals
@@ -284,66 +239,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
 
     /// Writes the instance to a DIMACS MCNF file at a path
     ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    #[deprecated(since = "0.5.0", note = "use write_dimacs_path instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_dimacs_path<P: AsRef<Path>>(self, path: P) -> Result<(), io::Error> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        #[allow(deprecated)]
-        self.to_dimacs(&mut writer)
-    }
-
-    /// Write to DIMACS MCNF
-    #[deprecated(since = "0.5.0", note = "use write_dimacs instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::missing_panics_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_dimacs<W: io::Write>(self, writer: &mut W) -> Result<(), io::Error> {
-        #[allow(deprecated)]
-        self.to_dimacs_with_encoders(
-            |constr, cnf, vm| {
-                card::default_encode_cardinality_constraint(constr, cnf, vm)
-                    .expect("cardinality encoding ran out of memory");
-            },
-            |constr, cnf, vm| {
-                pb::default_encode_pb_constraint(constr, cnf, vm)
-                    .expect("pb encoding ran out of memory");
-            },
-            writer,
-        )
-    }
-
-    /// Writes the instance to DIMACS MCNF converting non-clausal constraints
-    /// with specific encoders.
-    #[deprecated(
-        since = "0.5.0",
-        note = "use convert_to_cnf_with_encoders and write_dimacs instead"
-    )]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_dimacs_with_encoders<W, CardEnc, PBEnc>(
-        self,
-        card_encoder: CardEnc,
-        pb_encoder: PBEnc,
-        writer: &mut W,
-    ) -> Result<(), io::Error>
-    where
-        W: io::Write,
-        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
-    {
-        let (cnf, vm) = self
-            .constrs
-            .into_cnf_with_encoders(card_encoder, pb_encoder);
-        let soft_cls = self.objs.into_iter().map(Objective::into_soft_cls);
-        fio::dimacs::write_mcnf_annotated(writer, &cnf, soft_cls, Some(vm.n_used()))
-    }
-
-    /// Writes the instance to a DIMACS MCNF file at a path
-    ///
     /// This requires that the instance is clausal, i.e., does not contain any non-converted
     /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
     /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
@@ -386,46 +281,6 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
             iter,
             Some(n_vars),
         )?)
-    }
-
-    /// Writes the instance to an OPB file at a path
-    ///
-    /// # Performance
-    ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
-    #[deprecated(since = "0.5.0", note = "use write_opb_path instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_opb_path<P: AsRef<Path>>(
-        self,
-        path: P,
-        opts: fio::opb::Options,
-    ) -> Result<(), io::Error> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
-        #[allow(deprecated)]
-        self.to_opb(&mut writer, opts)
-    }
-
-    /// Writes the instance to an OPB file
-    #[deprecated(since = "0.5.0", note = "use write_opb instead")]
-    #[allow(clippy::missing_errors_doc)]
-    #[allow(clippy::missing_panics_doc)]
-    #[allow(clippy::wrong_self_convention)]
-    pub fn to_opb<W: io::Write>(
-        mut self,
-        writer: &mut W,
-        opts: fio::opb::Options,
-    ) -> Result<(), io::Error> {
-        for obj in &mut self.objs {
-            let vm = self.constrs.var_manager_mut();
-            let hardened = obj.convert_to_soft_lits(vm);
-            self.constrs.cnf.extend(hardened);
-        }
-        let objs = self.objs.iter().map(|o| {
-            let offset = o.offset();
-            (o.iter_soft_lits().unwrap(), offset)
-        });
-        fio::opb::write_multi_opt::<W, VM, _, _>(writer, &self.constrs, objs, opts)
     }
 
     /// Writes the instance to an OPB file at a path

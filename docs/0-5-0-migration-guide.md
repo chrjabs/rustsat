@@ -34,7 +34,7 @@ There have been some API changes to improve usability, even though they are brea
   a specific format of the instance is expected but the instance does not satisfy
   this requirement.
 - File reading methods: all file reading methods (DIMACS and OPB, on
-  `SatInsatnce`, etc) now require a `BufRead` type as input. Previously, the
+  `SatInstance`, etc) now require a `BufRead` type as input. Previously, the
   reader was internally wrapped in a
   [`BufReader`](https://doc.rust-lang.org/stable/std/io/struct.BufReader.html)
   object. This now has to be done externally to avoid potentially double

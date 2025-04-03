@@ -6,8 +6,8 @@ mod file_file {
         {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let slv = std::env::var("RS_EXT_SOLVER").expect(
-            "please set the `RS_EXT_SOLVER` enviroment variable to run tests for external solvers",
-        );
+                "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+            );
             ExternalSolver::new(
                 Command::new(slv),
                 external::InputVia::file_last(format!(
@@ -33,8 +33,8 @@ mod file_pipe {
         {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let slv = std::env::var("RS_EXT_SOLVER").expect(
-            "please set the `RS_EXT_SOLVER` enviroment variable to run tests for external solvers",
-        );
+                "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+            );
             ExternalSolver::new(
                 Command::new(slv),
                 external::InputVia::file_last(format!(
@@ -57,8 +57,8 @@ mod tempfile_pipe {
     rustsat_solvertests::base_tests!(
         {
             let slv = std::env::var("RS_EXT_SOLVER").expect(
-            "please set the `RS_EXT_SOLVER` enviroment variable to run tests for external solvers",
-        );
+                "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+            );
             ExternalSolver::new(
                 Command::new(slv),
                 external::InputVia::tempfile_last(),
@@ -79,8 +79,8 @@ mod pipe_pipe {
     rustsat_solvertests::base_tests!(
         {
             let slv = std::env::var("RS_EXT_SOLVER").expect(
-            "please set the `RS_EXT_SOLVER` enviroment variable to run tests for external solvers",
-        );
+                "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+            );
             ExternalSolver::new(
                 Command::new(slv),
                 external::InputVia::pipe(),
@@ -101,8 +101,8 @@ mod pipe_file {
     rustsat_solvertests::base_tests!(
         {
             let slv = std::env::var("RS_EXT_SOLVER").expect(
-            "please set the `RS_EXT_SOLVER` enviroment variable to run tests for external solvers",
-        );
+                "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+            );
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             ExternalSolver::new(
                 Command::new(slv),

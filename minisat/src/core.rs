@@ -18,6 +18,7 @@ use rustsat::{
 use super::{ffi, handle_oom, InternalSolverState, InvalidApiReturn, Limit};
 
 /// The Minisat solver type without preprocessing
+#[derive(Debug)]
 pub struct Minisat {
     handle: *mut ffi::CMinisat,
     state: InternalSolverState,
@@ -251,6 +252,7 @@ impl Interrupt for Minisat {
 }
 
 /// An Interrupter for the Minisat Core solver
+#[derive(Debug)]
 pub struct Interrupter {
     /// The C API handle
     handle: *mut ffi::CMinisat,
