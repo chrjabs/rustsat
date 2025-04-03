@@ -536,7 +536,7 @@ impl CaDiCaL<'_, '_> {
     ///
     /// If the provided path contains a nul byte
     // We know that the set options exist and that this should therefore never panic
-    #[expect(clippy::missing_panics_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn trace_proof<P: AsRef<Path>>(
         &mut self,
         path: P,
