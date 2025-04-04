@@ -16,7 +16,7 @@ build = "build.rs"
 
 [dependencies]
 rustsat = { workspace = true, features = ["fxhash"] }
-pyo3 = { version = "0.24.0", features = [
+pyo3 = { version = "0.24.1", features = [
   "extension-module",
   "abi3",
   "abi3-py37",
@@ -24,7 +24,7 @@ pyo3 = { version = "0.24.0", features = [
 ] }
 
 [build-dependencies]
-pyo3-build-config = { version = "0.24.0" }
+pyo3-build-config = { version = "0.24.1" }
 
 [lib]
 crate-type = ["cdylib"]
