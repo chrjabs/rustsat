@@ -8,15 +8,20 @@ description = "C-API for the RustSAT library"
 keywords = ["sat", "satisfiability", "encodings"]
 rust-version.workspace = true
 
-build = "build.rs"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 rustsat = { workspace = true, features = ["internals", "fxhash"] }
 
 [dev-dependencies]
-inline-c = "0.1.8"
+cc.workspace = true
+libtest-mimic.workspace = true
+target-lexicon = "0.13.2"
 
 [lib]
 crate-type = ["staticlib"]
+
+[[test]]
+name = "c-tests"
+path = "tests/c-tests.rs"
+harness = false

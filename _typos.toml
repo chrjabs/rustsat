@@ -1,3 +1,7 @@
+[default]
+# disable spellcheck for specific lines with trailing `// spellchecker:disable-line`
+extend-ignore-re = ["(?Rm)^.*(#|//)\\s*spellchecker:disable-line$"]
+
 [default.extend-words]
 lits = "lits"
 Thay = "Thay"

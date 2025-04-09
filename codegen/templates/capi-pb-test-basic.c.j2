@@ -1,0 +1,32 @@
+{% include 'codegen-header.j2' %}
+
+#include <assert.h>
+
+#include "rustsat.h"
+
+void clause_counter(int lit, void *data) {
+  if (!lit) {
+    int *cnt = (int *)data;
+    (*cnt)++;
+  }
+}
+
+int main() {
+  {{ enc.name }} *{{ enc.id }} = {{ enc.id }}_new();
+  assert({{ enc.id }}_add({{ enc.id }}, 1, 1) == Ok);
+  assert({{ enc.id }}_add({{ enc.id }}, 2, 2) == Ok);
+  assert({{ enc.id }}_add({{ enc.id }}, 3, 3) == Ok);
+  assert({{ enc.id }}_add({{ enc.id }}, 4, 4) == Ok);
+  uint32_t n_used = 4;
+  uint32_t n_clauses = 0;
+  {%- if enc.ub %}
+  {{ enc.id }}_encode_ub({{ enc.id }}, 0, 10, &n_used, &clause_counter, &n_clauses);
+  {%- endif -%}
+  {%- if enc.lb %}
+  {{ enc.id }}_encode_lb({{ enc.id }}, 0, 10, &n_used, &clause_counter, &n_clauses);
+  {%- endif %}
+  {{ enc.id }}_drop({{ enc.id }});
+  assert(n_used == {{ enc.n_vars }});
+  assert(n_clauses == {{ enc.n_clauses }});
+  return 0;
+}

@@ -53,8 +53,10 @@ fn main() {
         },
     ];
     let path = "capi/src/encodings/am1.rs";
-    capi_am1(path, &am1_encs, &templates).expect("failed to write am1 bindings");
+    capi_enc_bindings(path, "capi-am1.rs.j2", &am1_encs, &templates)
+        .expect("failed to write am1 bindings");
     rustfmt(path);
+    capi_tests("am1", &am1_encs, &templates).expect("failed to write am1 tests");
 
     let card_encs = [Card {
         name: "Totalizer",
@@ -65,8 +67,10 @@ fn main() {
         n_clauses: 28,
     }];
     let path = "capi/src/encodings/card.rs";
-    capi_card(path, &card_encs, &templates).expect("failed to write card bindings");
+    capi_enc_bindings(path, "capi-card.rs.j2", &card_encs, &templates)
+        .expect("failed to write card bindings");
     rustfmt(path);
+    capi_tests("card", &card_encs, &templates).expect("failed to write card tests");
 
     let pb_encs = [
         Pb {
@@ -104,8 +108,10 @@ fn main() {
         },
     ];
     let path = "capi/src/encodings/pb.rs";
-    capi_pb(path, &pb_encs, &templates).expect("failed to write pb bindings");
+    capi_enc_bindings(path, "capi-pb.rs.j2", &pb_encs, &templates)
+        .expect("failed to write pb bindings");
     rustfmt(path);
+    capi_tests("pb", &pb_encs, &templates).expect("failed to write pb tests");
 
     capi_header();
 }
@@ -122,7 +128,6 @@ fn file(path: &str) -> impl std::io::Write {
 
 /// Runs `rustfmt` on a generated file
 fn rustfmt(path: &str) {
-    // Run rustfmt on the generated file
     let status = std::process::Command::new("rustfmt")
         .arg(path)
         .status()
@@ -130,6 +135,85 @@ fn rustfmt(path: &str) {
 
     if !status.success() {
         eprintln!("rustfmt failed on file {path} with exit code: {status}");
+    }
+}
+
+/// Runs `clang-format` on a generated file
+fn clang_format(path: &str) {
+    let status = std::process::Command::new("clang-format")
+        .args(["-i", path])
+        .status()
+        .expect("Failed to execute clang-format");
+
+    if !status.success() {
+        eprintln!("clang-format failed on file {path} with exit code: {status}");
+    }
+}
+
+fn capi_enc_bindings<E: Enc>(
+    path: &str,
+    template: &str,
+    encs: &[E],
+    templates: &Environment<'static>,
+) -> std::io::Result<()> {
+    let mut writer = file(path);
+    let tmpl = templates.get_template(template).expect("missing template");
+    let ub = encs.iter().any(|enc| enc.ub());
+    let lb = encs.iter().any(|enc| enc.lb());
+    writeln!(
+        writer,
+        "{}",
+        tmpl.render(context!(encodings => encs, ub => ub, lb => lb))
+            .expect("missing template context")
+    )
+}
+
+fn capi_tests<E: Enc>(
+    id: &str,
+    encs: &[E],
+    templates: &Environment<'static>,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir("codegen/templates/").expect("failed to iteratre over template")
+    {
+        let entry = entry.unwrap();
+        let file_type = entry.file_type().unwrap();
+        if file_type.is_file() {
+            let filename = entry.file_name();
+            let filename = filename.to_str().unwrap();
+            if let Some(name) = filename.strip_prefix(&format!("capi-{id}-test-")) {
+                let name = name.trim_end_matches(".j2");
+                let tmpl = templates.get_template(filename).expect("missing template");
+                for enc in encs {
+                    if enc.skip(name) {
+                        continue;
+                    }
+                    let path = format!("capi/tests/{}-{name}", enc.id());
+                    let mut writer = file(&path);
+                    writeln!(
+                        writer,
+                        "{}",
+                        tmpl.render(context!(enc => enc))
+                            .expect("missing template context")
+                    )?;
+                    drop(writer);
+                    clang_format(&path);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+trait Enc: serde::Serialize {
+    fn id(&self) -> &str;
+    fn ub(&self) -> bool {
+        false
+    }
+    fn lb(&self) -> bool {
+        false
+    }
+    fn skip(&self, _key: &str) -> bool {
+        false
     }
 }
 
@@ -142,17 +226,10 @@ struct Am1<'a> {
     n_clauses: usize,
 }
 
-fn capi_am1(path: &str, encs: &[Am1], templates: &Environment<'static>) -> std::io::Result<()> {
-    let mut writer = file(path);
-    let tmpl = templates
-        .get_template("capi-am1.rs.j2")
-        .expect("missing template");
-    writeln!(
-        writer,
-        "{}",
-        tmpl.render(context!(encodings => encs))
-            .expect("missing template context")
-    )
+impl Enc for Am1<'_> {
+    fn id(&self) -> &str {
+        self.id
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -165,19 +242,16 @@ struct Card<'a> {
     n_clauses: usize,
 }
 
-fn capi_card(path: &str, encs: &[Card], templates: &Environment<'static>) -> std::io::Result<()> {
-    let mut writer = file(path);
-    let tmpl = templates
-        .get_template("capi-card.rs.j2")
-        .expect("missing template");
-    let ub = encs.iter().any(|card| card.ub);
-    let lb = encs.iter().any(|card| card.lb);
-    writeln!(
-        writer,
-        "{}",
-        tmpl.render(context!(encodings => encs, ub, lb))
-            .expect("missing template context")
-    )
+impl Enc for Card<'_> {
+    fn id(&self) -> &str {
+        self.id
+    }
+    fn ub(&self) -> bool {
+        self.ub
+    }
+    fn lb(&self) -> bool {
+        self.lb
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -193,19 +267,22 @@ struct Pb<'a> {
     skip_reserve: bool,
 }
 
-fn capi_pb(path: &str, encs: &[Pb], templates: &Environment<'static>) -> std::io::Result<()> {
-    let mut writer = file(path);
-    let tmpl = templates
-        .get_template("capi-pb.rs.j2")
-        .expect("missing template");
-    let ub = encs.iter().any(|card| card.ub);
-    let lb = encs.iter().any(|card| card.lb);
-    writeln!(
-        writer,
-        "{}",
-        tmpl.render(context!(encodings => encs, ub, lb))
-            .expect("missing template context")
-    )
+impl Enc for Pb<'_> {
+    fn id(&self) -> &str {
+        self.id
+    }
+    fn ub(&self) -> bool {
+        self.ub
+    }
+    fn lb(&self) -> bool {
+        self.lb
+    }
+    fn skip(&self, key: &str) -> bool {
+        if key == "reserve.c" {
+            return self.skip_reserve;
+        }
+        false
+    }
 }
 
 /// Generates the C-API header

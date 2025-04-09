@@ -1,5 +1,14 @@
+experimental = ['setup-scripts']
+
+[script.setup-capi-tests]
+command = ['bash', 'scripts/setup-capi-tests.sh']
+
 [profile.default]
 final-status-level = "slow"
+
+[[profile.default.scripts]]
+filter = 'package(rustsat-capi)'
+setup = 'setup-capi-tests'
 
 [profile.ci]
 fail-fast = false
@@ -9,3 +18,7 @@ fail-fast = false
 platform = 'cfg(target_os = "macos")'
 filter = 'package(rustsat) and (binary(pb_encodings) or binary(card_encodings) or binary(am1_encodings))'
 retries = { count = 5, backoff = "exponential", delay = "5s" }
+
+[[profile.ci.scripts]]
+filter = 'package(rustsat-capi)'
+setup = 'setup-capi-tests'
