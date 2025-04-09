@@ -250,6 +250,14 @@
               files = ".+/src/lib\\.rs";
               excludes = ["solvertests/lib\\.rs"];
             };
+            check-codegen = {
+              enable = true;
+              name = "Check generated code";
+              entry = "${lib.getExe' pkgs.rust-toolchain "cargo"} run -p rustsat-codegen";
+              language = "system";
+              files = "(codegen|capi/src/encodings/(am1|card|pb))";
+              pass_filenames = false;
+            };
             # TOML
             check-toml.enable = true;
             taplo.enable = true;
