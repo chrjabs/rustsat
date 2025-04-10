@@ -15,47 +15,7 @@ in
       pname = manifest.name;
       version = workspace-manifest.version;
 
-      src = lib.fileset.toSource {
-        root = ../.;
-        fileset = lib.fileset.unions [
-          ../Cargo.lock
-          # Need all workspace packages for build to work
-          ../Cargo.toml
-          ../src
-          ../batsat/Cargo.toml
-          ../batsat/src
-          ../capi/Cargo.toml
-          ../capi/src
-          ../cadical/Cargo.toml
-          ../cadical/build.rs
-          ../cadical/src
-          ../cadical/cppsrc
-          ../cadical/cpp-extension
-          ../glucose/Cargo.toml
-          ../glucose/src
-          ../ipasir/Cargo.toml
-          ../ipasir/src
-          ../kissat/Cargo.toml
-          ../kissat/src
-          ../minisat/Cargo.toml
-          ../minisat/build.rs
-          ../minisat/src
-          ../minisat/cppsrc
-          ../pigeons/Cargo.toml
-          ../pigeons/src
-          ../pyapi/Cargo.toml
-          ../pyapi/src
-          ../solvertests/Cargo.toml
-          ../solvertests/src
-          # Additional stuff required for build to work
-          ../examples
-          ../data
-          ./data
-          # The actual source of the project
-          ./Cargo.toml
-          ./src
-        ];
-      };
+      src = ../.;
       buildAndTestSubdir = "tools";
       cargoLock.lockFile = ../Cargo.lock;
 
