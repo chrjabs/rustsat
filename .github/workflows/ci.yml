@@ -191,7 +191,7 @@ jobs:
           RS_EXT_SOLVER=./gimsatul-1-1-2 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
 
   rustsat-msrv:
-    name: RustSAT MSRV
+    name: Check MSRV
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -211,7 +211,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
       - name: Test suite
-        run: cargo +${{ steps.rust-versions.outputs.msrv }} nextest run --profile ci -p rustsat --verbose --features=all
+        run: cargo +${{ steps.rust-versions.outputs.msrv }} nextest run --profile ci --workspace --exclude rustsat-pyapi --exclude rustsat-capi --exclude rustsat-codegen --verbose --features=all
 
   rustsat-kani:
     name: RustSAT Kani
