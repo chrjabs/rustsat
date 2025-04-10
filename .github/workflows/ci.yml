@@ -39,6 +39,7 @@ jobs:
       - docs
       - formatting
       - code-spelling
+      - codegen
     if: ${{ success() || failure() }}  # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
@@ -63,6 +64,7 @@ jobs:
           echo "docs: ${{ needs.docs.result }}"
           echo "formatting: ${{ needs.formatting.result }}"
           echo "code-spelling: ${{ needs.code-spelling.result }}"
+          echo "codegen: ${{ needs.codegen.result }}"
       # Fail this required job if any of its dependent jobs have failed.
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
@@ -106,6 +108,8 @@ jobs:
       - if: ${{ needs.formatting.result != 'success' }}
         run: exit 1
       - if: ${{ needs.code-spelling.result != 'success' }}
+        run: exit 1
+      - if: ${{ needs.codegen.result != 'success' }}
         run: exit 1
 
   build-workspace:
@@ -572,9 +576,6 @@ jobs:
         run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
       - name: Cargo doc
         run: cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --no-deps --features=all,internals
         env:
@@ -626,3 +627,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: crate-ci/typos@b1a1ef3893ff35ade0cfa71523852a49bfd05d19 # v1.31.1
+
+  codegen:
+    name: Check generated code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: Run codegen
+        run: cargo run -p rustsat-codegen
+      - name: Check changed files
+        run: test -z "$(git status --porcelain)"
