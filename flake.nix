@@ -232,7 +232,10 @@
               files = "(.+\\.rs|docs/.+\\.md)$";
             };
             # Code spellchecker
-            typos.enable = true;
+            typos = {
+              enable = true;
+              entry = "${lib.getExe pkgs.typos} --config _typos.toml --force-exclude";
+            };
             # Check generated files
             capi-header = {
               enable = true;
@@ -241,6 +244,9 @@
               language = "system";
               files = "(capi/.+\\.(toml|h)|capi/src/.+\\.rs)";
               pass_filenames = false;
+              extraPackages = with pkgs; [
+                rust-cbindgen
+              ];
             };
             check-readmes = {
               enable = true;

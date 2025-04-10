@@ -2,7 +2,7 @@
 
 # Description of the Contribution
 
-<!-- Describe the implementet feature or bugfix -->
+<!-- Describe the implemented feature or bugfix -->
 
 <!-- If this PR resolves an open issue, please add a line "resolves #id" referencing the issue -->
 
