@@ -35,23 +35,3 @@ git_release_latest = true
 [[package]]
 name = "rustsat-tools"
 semver_check = false   # versions follow main crate
-
-[[package]]
-name = "rustsat-solvertests"
-release = false
-git_release_enable = false
-
-[[package]]
-name = "rustsat-capi"
-release = false
-git_release_enable = false
-
-[[package]]
-name = "rustsat-pyapi"
-release = false
-git_release_enable = false
-
-[[package]]
-name = "rustsat-codegen"
-release = false
-git_release_enable = false

@@ -5,6 +5,9 @@ license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+# This is only intended to be used in this repo
+publish = false
+
 [dependencies]
 cbindgen = "0.28.0"
 minijinja = { version = "2.9.0", default-features = false, features = [
