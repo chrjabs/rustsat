@@ -832,14 +832,46 @@ impl NodeLike for Node {
             NonZeroUsize::get,
         );
         if general {
-            let lvals: Vec<_> = db[left.id]
-                .vals(left.offset() + 1..)
-                .map(|val| left.map(val))
-                .collect();
-            let rvals: Vec<_> = db[right.id]
-                .vals(right.offset() + 1..)
-                .map(|val| right.map(val))
-                .collect();
+            let lvals: Vec<_> = if let Some(limit) = left.len_limit {
+                db[left.id]
+                    .vals(left.offset() + 1..)
+                    .take(limit.into())
+                    .map(|val| left.map(val))
+                    .collect()
+            } else {
+                db[left.id]
+                    .vals(left.offset() + 1..)
+                    .map(|val| left.map(val))
+                    .collect()
+            };
+            debug_assert!('assert: {
+                for (idx, &val) in lvals.iter().enumerate().skip(1) {
+                    if val <= lvals[idx - 1] {
+                        break 'assert false;
+                    }
+                }
+                true
+            });
+            let rvals: Vec<_> = if let Some(limit) = right.len_limit {
+                db[right.id]
+                    .vals(right.offset() + 1..)
+                    .take(limit.into())
+                    .map(|val| right.map(val))
+                    .collect()
+            } else {
+                db[right.id]
+                    .vals(right.offset() + 1..)
+                    .map(|val| right.map(val))
+                    .collect()
+            };
+            debug_assert!('assert: {
+                for (idx, &val) in rvals.iter().enumerate().skip(1) {
+                    if val <= rvals[idx - 1] {
+                        break 'assert false;
+                    }
+                }
+                true
+            });
             return Node::General(GeneralNode::new(
                 &lvals, &rvals, depth, n_leaves, left, right,
             ));
@@ -1136,6 +1168,14 @@ impl GeneralNode {
         lits.shrink_to_fit();
         let max_val = lits.last().unwrap().0;
         debug_assert!(lits[0].0 > 0);
+        debug_assert!('assert: {
+            for (idx, &(val, _)) in lits.iter().enumerate().skip(1) {
+                if val <= lits[idx - 1].0 {
+                    break 'assert false;
+                }
+            }
+            true
+        });
         Self {
             lits,
             depth,
@@ -1798,5 +1838,33 @@ mod tests {
             leaves
         );
         assert_eq!(leaves.len(), db[c].n_leaves());
+    }
+
+    #[test]
+    fn weighted_vals() {
+        // Mock up a DB with a single weighted node to test the `NodeLike::vals` implementation
+        let db = Db {
+            nodes: vec![
+                Node::Dummy,
+                Node::General(super::GeneralNode::new(
+                    &[6, 8, 12],
+                    &[6, 9, 13],
+                    1,
+                    4,
+                    NodeCon::full(super::NodeId(0)),
+                    NodeCon::full(super::NodeId(0)),
+                )),
+            ],
+            dummy_id: Some(super::NodeId(0)),
+            ..Db::default()
+        };
+        let node = &db[super::NodeId(1)];
+        assert!(node
+            .vals(..)
+            .eq([6, 8, 9, 12, 13, 14, 15, 17, 18, 19, 21, 25]));
+        assert!(node.vals(0..6).next().is_none());
+        assert!(node.vals(0..=5).next().is_none());
+        assert!(node.vals(9..17).eq([9, 12, 13, 14, 15]));
+        assert!(node.vals(9..=17).eq([9, 12, 13, 14, 15, 17]));
     }
 }
