@@ -40,7 +40,7 @@ jobs:
       - formatting
       - code-spelling
       - codegen
-    if: ${{ success() || failure() }}  # Run this job even if a dependency has failed.
+    if: ${{ always() }}  # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
         run: |
