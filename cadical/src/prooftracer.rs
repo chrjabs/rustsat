@@ -328,3 +328,19 @@ impl CaDiCaLAssignment<'_> {
         self.iter().collect()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::CaDiCaL;
+
+    struct Tracer;
+
+    impl super::TraceProof for Tracer {}
+
+    #[test]
+    fn connect_tracer() {
+        let mut slv = CaDiCaL::default();
+        let handle = slv.connect_proof_tracer(Tracer, false);
+        let _ = slv.disconnect_proof_tracer(handle).unwrap();
+    }
+}
