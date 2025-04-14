@@ -150,3 +150,7 @@ int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path) {
   return ((Wrapper *)wrapper)->solver->trace_proof(path);
 }
 }
+
+#ifdef TRACER
+#include "ctracer.cpp"
+#endif
