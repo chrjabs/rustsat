@@ -16,7 +16,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.7.0"
+version = "0.7.1"
 license = "MIT"
 edition = "2021"
 rust-version = "1.75.0" # update the crate documentation if you change this
@@ -43,9 +43,9 @@ thiserror = "2.0.12"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 rustc-hash = "2.1.1"
-rustsat = { version = "0.7.0", path = "./", default-features = false }
-rustsat-cadical = { version = "0.7.0", path = "./cadical" }
-rustsat-minisat = { version = "0.7.0", path = "./minisat" }
+rustsat = { version = "0.7.1", path = "./", default-features = false }
+rustsat-cadical = { version = "0.7.1", path = "./cadical" }
+rustsat-minisat = { version = "0.7.1", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.219", features = ["derive"] }
 signal-hook = "0.3.17"
