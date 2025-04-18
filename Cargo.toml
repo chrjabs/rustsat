@@ -22,12 +22,12 @@ edition = "2021"
 rust-version = "1.75.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
-anyhow = "1.0.97"
+anyhow = "1.0.98"
 bindgen = "0.71.1"
 bzip2 = "0.5.2"
 cc = { version = "1.2.19", features = ["parallel"] }
 chrono = "0.4.40"
-clap = { version = "4.5.36", features = ["derive", "cargo"] }
+clap = { version = "4.5.37", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
@@ -40,7 +40,7 @@ nom = "7.1.3"
 pigeons = { version = "0.1.0", path = "./pigeons" }
 termcolor = "1.4.1"
 thiserror = "2.0.12"
-rand = "0.9.0"
+rand = "0.9.1"
 rand_chacha = "0.9.0"
 rustc-hash = "2.1.1"
 rustsat = { version = "0.7.0", path = "./", default-features = false }
