@@ -113,15 +113,21 @@ fn get_kissat_src(version: Version) -> PathBuf {
         // cloned
         return PathBuf::from("csrc");
     }
-    let mut kissat_src_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    kissat_src_dir.push("kissat");
-    update_repo(
-        &kissat_src_dir,
-        "https://github.com/arminbiere/kissat.git",
-        "master",
-        version.reference(),
-    );
-    kissat_src_dir
+
+    #[cfg(feature = "git")]
+    {
+        let mut kissat_src_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        kissat_src_dir.push("kissat");
+        update_repo(
+            &kissat_src_dir,
+            "https://github.com/arminbiere/kissat.git",
+            "master",
+            version.reference(),
+        );
+        kissat_src_dir
+    }
+    #[cfg(not(feature = "git"))]
+    unreachable!("non-default features enable the git feature")
 }
 
 /// Generates Rust FFI bindings
@@ -220,6 +226,7 @@ fn build(version: Version) -> PathBuf {
 }
 
 /// Returns true if there were changes, false if not
+#[cfg(feature = "git")]
 fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
     let mut changed = false;
     let repo = if let Ok(repo) = git2::Repository::open(path) {

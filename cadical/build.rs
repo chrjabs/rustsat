@@ -1,11 +1,10 @@
 #![warn(clippy::pedantic)]
 
-use git2::Repository;
 use glob::glob;
 use std::{
     env,
     fs::{self, File},
-    io::{Read, Write},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
     str,
@@ -169,6 +168,7 @@ impl Version {
         }
     }
 
+    #[cfg(feature = "git")]
     fn patch(self) -> &'static str {
         #![allow(clippy::enum_glob_use)]
         use Version::*;
@@ -383,7 +383,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
         .expect("Could not write ffi bindings");
 }
 
-fn get_cadical_dir(version: Version, remote: Option<(&str, &str)>) -> String {
+fn get_cadical_dir(version: Version, _remote: Option<(&str, &str)>) -> String {
     if let Ok(src_dir) = std::env::var("CADICAL_SRC_DIR") {
         if version_set_manually!() {
             println!("cargo:warning=Both version feature and CADICAL_SRC_DIR. It is your responsibility to ensure that they make sense together.");
@@ -397,18 +397,23 @@ fn get_cadical_dir(version: Version, remote: Option<(&str, &str)>) -> String {
         return String::from("cppsrc");
     }
 
-    let mut src_dir = env::var("OUT_DIR").unwrap();
-    src_dir.push_str("/cadical");
-    if let Some((repo, branch)) = remote {
-        update_repo(
-            Path::new(&src_dir),
-            repo,
-            branch,
-            version.reference(),
-            Path::new("patches").join(version.patch()),
-        );
+    #[cfg(feature = "git")]
+    {
+        let mut src_dir = env::var("OUT_DIR").unwrap();
+        src_dir.push_str("/cadical");
+        if let Some((repo, branch)) = _remote {
+            update_repo(
+                Path::new(&src_dir),
+                repo,
+                branch,
+                version.reference(),
+                Path::new("patches").join(version.patch()),
+            );
+        }
+        src_dir
     }
-    src_dir
+    #[cfg(not(feature = "git"))]
+    unreachable!("non-default features enable the git feature")
 }
 
 fn build(repo: &str, branch: &str, version: Version) {
@@ -476,6 +481,7 @@ fn build(repo: &str, branch: &str, version: Version) {
         .compile("cadical");
 }
 
+#[cfg(feature = "git")]
 fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: PathBuf) {
     let repo = if let Ok(repo) = git2::Repository::open(repo_path) {
         if repo.find_reference(reference).is_err() {
@@ -526,7 +532,10 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
 }
 
 /// Applies a patch to the repository
-fn apply_patch<P: AsRef<Path>>(repo: &Repository, patch: P) {
+#[cfg(feature = "git")]
+fn apply_patch<P: AsRef<Path>>(repo: &git2::Repository, patch: P) {
+    use std::io::Read;
+
     let mut f = File::open(patch).unwrap();
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).unwrap();
