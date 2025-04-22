@@ -53,4 +53,11 @@ customize the Cpp source code that CaDiCaL is built from.
     patches, the user is responsible for applying the appropriate and necessary patches from the
     [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
 
+## MSRV
+
+Note that the specified minimum-supported Rust version only applies if the _newest_ version of
+CaDiCaL is build.
+Older versions are pulled down via the [`git2`](https://crates.io/crates/git2) crate, which has
+transitive dependencies that have a higher MSRV.
+
 <!-- cargo-rdme end -->

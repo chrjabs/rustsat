@@ -35,6 +35,13 @@
 //! In order to build a custom version of Kissat, this crate supports the `KISSAT_SRC_DIR`
 //! environment variable.
 //! If this is set, Kissat will be built from the path specified there.
+//!
+//! ## MSRV
+//!
+//! Note that the specified minimum-supported Rust version only applies if the _newest_ version of
+//! CaDiCaL is build.
+//! Older versions are pulled down via the [`git2`](https://crates.io/crates/git2) crate, which has
+//! transitive dependencies that have a higher MSRV.
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
