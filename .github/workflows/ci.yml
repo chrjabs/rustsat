@@ -120,13 +120,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
@@ -147,13 +141,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -202,20 +190,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.msrv }}
+      - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
       - name: Limit cmake parallelism
         if: matrix.os == 'macos-latest'
         run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
       - name: Test suite
-        run: cargo +${{ steps.rust-versions.outputs.msrv }} nextest run --profile ci -p rustsat --verbose --features=all
+        run: cargo hack nextest run --rust-version --profile ci --workspace --exclude rustsat-pyapi --exclude rustsat-capi --exclude rustsat-codegen --verbose --features=all
 
   rustsat-kani:
     name: RustSAT Kani
@@ -238,13 +220,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -263,13 +239,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -286,20 +256,15 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
+      - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
           save-if: false
       - name: Test all features
-        run: scripts/check-all-features.sh -v -t -n -p rustsat-cadical
+        run: cargo hack nextest run --each-feature --no-dev-deps -p rustsat-cadical
 
   capi-tests:
     name: C-API test suite
@@ -311,13 +276,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -331,13 +290,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
@@ -358,13 +311,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
@@ -386,13 +333,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -409,20 +350,15 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
+      - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
           save-if: false
       - name: Test all features
-        run: scripts/check-all-features.sh -v -t -n -p rustsat-kissat
+        run: cargo hack nextest run --each-feature --no-dev-deps -p rustsat-kissat
 
   minisat-tests:
     name: MiniSat test suite
@@ -434,13 +370,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -459,13 +389,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
         with:
@@ -495,10 +419,6 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
@@ -540,13 +460,7 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: "toolchain-workspace"
@@ -565,10 +479,6 @@ jobs:
       - build-workspace
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: Cargo doc
