@@ -29,15 +29,16 @@ build = "build.rs"
 debug = []
 safe = []
 quiet = []
+git = ["dep:git2"]
 v4-0-2 = []
-v4-0-1 = []
-v4-0-0 = []
-v3-1-1 = []
-v3-1-0 = []
-v3-0-0 = []
-sc2022-light = []
-sc2022-hyper = []
-sc2022-bulky = []
+v4-0-1 = ["git"]
+v4-0-0 = ["git"]
+v3-1-1 = ["git"]
+v3-1-0 = ["git"]
+v3-0-0 = ["git"]
+sc2022-light = ["git"]
+sc2022-hyper = ["git"]
+sc2022-bulky = ["git"]
 
 [dependencies]
 anyhow.workspace = true
@@ -49,7 +50,7 @@ rustsat.workspace = true
 bindgen.workspace = true
 cc.workspace = true
 chrono.workspace = true
-git2.workspace = true
+git2 = { workspace = true, optional = true }
 glob.workspace = true
 
 [dev-dependencies]

@@ -46,6 +46,13 @@
 //!     there is used instead. Note that when using this variable, the crate will not apply any
 //!     patches, the user is responsible for applying the appropriate and necessary patches from the
 //!     [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
+//!
+//! ## MSRV
+//!
+//! Note that the specified minimum-supported Rust version only applies if the _newest_ version of
+//! CaDiCaL is build.
+//! Older versions are pulled down via the [`git2`](https://crates.io/crates/git2) crate, which has
+//! transitive dependencies that have a higher MSRV.
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
