@@ -9,7 +9,7 @@ jobs:
   # Release unpublished packages
   release-plz-release:
     name: Release-plz release
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: ${{ github.repository_owner == 'chrjabs' }}
     permissions:
       contents: write
@@ -27,8 +27,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
         uses: MarcoIeni/release-plz-action@v0.5
         with:
@@ -40,7 +38,7 @@ jobs:
   # Create a PR with the new versions and changelog, preparing the next release
   release-plz-pr:
     name: Release-plz PR
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: ${{ github.repository_owner == 'chrjabs' }}
     permissions:
       contents: write
@@ -62,8 +60,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.generate-token.outputs.token }}
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
         id: release-plz
         uses: MarcoIeni/release-plz-action@v0.5

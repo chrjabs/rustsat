@@ -1762,6 +1762,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::many_single_char_names)]
     fn leaf_iter_pseudo_leaf() {
         let mut vm = BasicVarManager::from_next_free(var![3]);
         let mut db = Db::default();

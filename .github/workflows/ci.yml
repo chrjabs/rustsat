@@ -19,617 +19,108 @@ jobs:
     name: All CI stages
     runs-on: ubuntu-latest
     needs:
-      - build-workspace
-      - rustsat-tests
-      - rustsat-msrv
-      - rustsat-kani
-      - batsat-tests
-      - cadical-tests
-      - cadical-test-all-features
-      - capi-tests
-      - capi-header
-      - glucose-tests
-      - kissat-tests
-      - kissat-test-all-features
-      - minisat-tests
-      - pigeons-tests
-      - pyapi-tests
-      - pyapi-stubs
-      - tools-tests
+      - tests
+      - msrv-build
+      - code-quality
+      - python-api
       - docs
-      - formatting
-      - code-spelling
-      - codegen
+      - cadical-each-feature
+      - kissat-each-feature
     if: ${{ always() }}  # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
         run: |
-          echo "build-workspace: ${{ needs.build-workspace.result }}"
-          echo "rustsat-tests: ${{ needs.rustsat-tests.result }}"
-          echo "rustsat-msrv: ${{ needs.rustsat-msrv.result }}"
-          echo "rustsat-kani: ${{ needs.rustsat-kani.result }}"
-          echo "batsat-tests: ${{ needs.batsat-tests.result }}"
-          echo "cadical-tests: ${{ needs.cadical-tests.result }}"
-          echo "cadical-test-all-features: ${{ needs.cadical-test-all-features.result }}"
-          echo "capi-tests: ${{ needs.capi-tests.result }}"
-          echo "capi-header: ${{ needs.capi-header.result }}"
-          echo "glucose-tests: ${{ needs.glucose-tests.result }}"
-          echo "kissat-tests: ${{ needs.kissat-tests.result }}"
-          echo "kissat-test-all-features: ${{ needs.kissat-test-all-features.result }}"
-          echo "minisat-tests: ${{ needs.minisat-tests.result }}"
-          echo "pigeons-tests: ${{ needs.pigeons-tests.result }}"
-          echo "pyapi-tests: ${{ needs.pyapi-tests.result }}"
-          echo "pyapi-stubs: ${{ needs.pyapi-stubs.result }}"
-          echo "tools-tests: ${{ needs.tools-tests.result }}"
-          echo "docs: ${{ needs.docs.result }}"
-          echo "formatting: ${{ needs.formatting.result }}"
-          echo "code-spelling: ${{ needs.code-spelling.result }}"
-          echo "codegen: ${{ needs.codegen.result }}"
+          echo "🧪 Workspace tests: ${{ needs.tests.result }}"
+          echo "🏗️ MSRV build: ${{ needs.msrv-build.result }}"
+          echo "✨ Code Quality: ${{ needs.code-quality.result }}"
+          echo "🐍 Python API: ${{ needs.python-api.result }}"
+          echo "📑 Check documentation: ${{ needs.docs.result }}"
+          echo "🧪 CaDiCaL test each feature: ${{ needs.cadical-each-feature.result }}"
+          echo "🧪 Kissat test each feature: ${{ needs.kissat-each-feature.result }}"
       # Fail this required job if any of its dependent jobs have failed.
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
       # Multi-line `if` clauses are not evaluated properly.
-      - if: ${{ needs.build-workspace.result != 'success' }}
+      - if: ${{ needs.tests.result != 'success' }}
         run: exit 1
-      - if: ${{ needs.rustsat-tests.result != 'success' }}
+      - if: ${{ needs.msrv-build.result != 'success' }}
         run: exit 1
-      - if: ${{ needs.rustsat-msrv.result != 'success' }}
+      - if: ${{ needs.code-quality.result != 'success' }}
         run: exit 1
-      - if: ${{ needs.rustsat-kani.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.batsat-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.cadical-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.cadical-test-all-features.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.capi-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.capi-header.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.glucose-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.kissat-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.kissat-test-all-features.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.minisat-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.pigeons-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.pyapi-tests.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.pyapi-stubs.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.tools-tests.result != 'success' }}
+      - if: ${{ needs.python-api.result != 'success' }}
         run: exit 1
       - if: ${{ needs.docs.result != 'success' }}
         run: exit 1
-      - if: ${{ needs.formatting.result != 'success' }}
+      - if: ${{ needs.cadical-each-feature.result == 'failure' }}
         run: exit 1
-      - if: ${{ needs.code-spelling.result != 'success' }}
-        run: exit 1
-      - if: ${{ needs.codegen.result != 'success' }}
+      - if: ${{ needs.kissat-each-feature.result == 'failure' }}
         run: exit 1
 
-  build-workspace:
-    name: Build workspace
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  tests:
+    name: 🧪 Workspace tests
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-      - name: Build entire workspace
-        if: matrix.os != 'windows-latest'
-        run: cargo build --workspace --features=all --verbose
-      - name: Build entire workspace
-        if: matrix.os == 'windows-latest'
-        run: cargo build --workspace --features=all --exclude rustsat-cadical --exclude rustsat-kissat --verbose
+      - name: 🧪 Run tests
+        run: just test-ci
 
-  rustsat-tests:
-    name: RustSAT test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
+  msrv-build:
+    name: 🏗️ MSRV build
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Limit cmake parallelism
-        if: matrix.os == 'macos-latest'
-        run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
-      - uses: actions/setup-python@v5
-        if: matrix.os == 'ubuntu-latest'
-        with:
-          python-version: 3.12
-      - name: Install VeriPB
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          set -e
-          sudo apt-get install libgmp-dev
-          pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
-          echo "VERIPB_CHECKER=$(which veripb)" >> "$GITHUB_ENV"
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat --verbose --features=all
-      - name: CaDiCaL external solver
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          curl -O https://media.christophjabs.info/cadical-2-0-0
-          chmod +x cadical-2-0-0
-          RS_EXT_SOLVER=./cadical-2-0-0 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
-      - name: Kissat external solver
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          curl -O https://media.christophjabs.info/kissat-3-1-1
-          chmod +x kissat-3-1-1
-          RS_EXT_SOLVER=./kissat-3-1-1 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
-      - name: Gimsatul external solver
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          curl -O https://media.christophjabs.info/gimsatul-1-1-2
-          chmod +x gimsatul-1-1-2
-          RS_EXT_SOLVER=./gimsatul-1-1-2 cargo nextest run --profile ci -p rustsat --test external_solver --verbose -- --ignored
+      - name: 🏗️ Build
+        run: just msrv-ci
 
-  rustsat-msrv:
-    name: RustSAT MSRV
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  code-quality:
+    name: ✨ Code Quality
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.msrv }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-      - name: Limit cmake parallelism
-        if: matrix.os == 'macos-latest'
-        run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
-      - name: Test suite
-        run: cargo +${{ steps.rust-versions.outputs.msrv }} nextest run --profile ci -p rustsat --verbose --features=all
+      - name: ✨ Run code quality checks
+        run: just code-quality-ci
 
-  rustsat-kani:
-    name: RustSAT Kani
-    runs-on: ubuntu-24.04
+  python-api:
+    name: 🐍 Python API
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - name: Cargo kani
-        uses: model-checking/kani-github-action@v1
-        with:
-          args: '-p rustsat'
-
-  batsat-tests:
-    name: Batsat test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-batsat --verbose
-
-  cadical-tests:
-    name: CaDiCaL test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-cadical --verbose
-
-  cadical-test-all-features:
-    name: CaDiCaL test all features
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test all features
-        run: scripts/check-all-features.sh -v -t -n -p rustsat-cadical
-
-  capi-tests:
-    name: C-API test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-capi --verbose
-
-  capi-header:
-    name: Check C-API header
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Install cbindgen
-        run: cargo install --locked cbindgen
-      - name: Check header
-        shell: bash
-        run: scripts/cbindgen-header.sh --verify
-
-  glucose-tests:
-    name: Glucose test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - uses: taiki-e/install-action@nextest
-      - name: Limit cmake parallelism
-        if: matrix.os == 'macos-latest'
-        run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-glucose --verbose
-
-  kissat-tests:
-    name: Kissat test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-kissat --verbose
-
-  kissat-test-all-features:
-    name: Kissat test all features
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test all features
-        run: scripts/check-all-features.sh -v -t -n -p rustsat-kissat
-
-  minisat-tests:
-    name: MiniSat test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-minisat --verbose
-
-  pigeons-tests:
-    name: Pigeons test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: taiki-e/install-action@nextest
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.12
-      - name: Install VeriPB
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          set -e
-          sudo apt-get install libgmp-dev
-          pip install https://gitlab.com/MIAOresearch/software/VeriPB/-/archive/version2/VeriPB-version2.zip
-          echo "VERIPB_CHECKER=$(which veripb)" >> "$GITHUB_ENV"
-      - name: Test suite
-        run: cargo nextest run --profile ci -p pigeons --verbose
-
-  pyapi-tests:
-    name: PyAPI test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - name: Build Python package
-        uses: PyO3/maturin-action@v1
-        with:
-          args: -i python --manifest-path pyapi/Cargo.toml
-      - name: Install Python package
-        run: pip install --no-index --find-links target/wheels/ rustsat
-      - name: Test PyAPI example
-        run: python pyapi/examples/pyapi-dpw.py
-
-  pyapi-stubs:
-    name: Test Python stubs
-    runs-on: ubuntu-latest
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - uses: install-pinned/maturin@43b39b11faf67ba5f8922a76d274cfe7795778fd
-      - name: Install Python project
-        run: maturin build -m pyapi/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
-      - uses: install-pinned/mypy@75779f141592e4909d64e13f8a1861f06aa9cd8d
-      - name: Test stubs
-        run: stubtest --mypy-config-file pyapi/pyproject.toml --allowlist pyapi/stubtest-allowlist.txt rustsat
-
-  tools-tests:
-    name: Tools test suite
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    needs:
-      - build-workspace
-    steps:
-      - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ steps.rust-versions.outputs.toolchain }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: "toolchain-workspace"
-          save-if: false
-      - uses: taiki-e/install-action@nextest
-      - name: Limit cmake parallelism
-        if: matrix.os == 'macos-latest'
-        run: echo "CMAKE_BUILD_PARALLEL_LEVEL=4" >> "$GITHUB_ENV"
-      - name: Test suite
-        run: cargo nextest run --profile ci -p rustsat-tools --verbose
+      - name: ✨ Run Python API checks
+        run: just python-api-ci
 
   docs:
-    name: Check documentation
-    runs-on: ubuntu-latest
-    needs:
-      - build-workspace
+    name: 📑 Check documentation
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - name: Determine Rust version
-        id: rust-versions
-        shell: bash
-        run: scripts/rust-versions.sh >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
-      - name: Cargo doc
-        run: cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --no-deps --features=all,internals
-        env:
-          RUSTDOCFLAGS: "-Dwarnings --cfg docsrs"
-      - name: Doc tests
-        run: cargo +nightly test --doc --workspace --verbose
-      - uses: taiki-e/install-action@cargo-spellcheck
-      - name: Spellcheck documentation
-        run: cargo spellcheck --code 1
-      - uses: taiki-e/install-action@cargo-rdme
-      - name: RustSAT README
-        run: cargo rdme --check
-      - name: Batsat README
-        run: cd batsat && cargo rdme --check
-      - name: CaDiCaL README
-        run: cd cadical && cargo rdme --check
-      - name: C-API README
-        run: cd capi && cargo rdme --check
-      - name: Glucose README
-        run: cd glucose && cargo rdme --check
-      - name: IPASIR README
-        run: cd ipasir && cargo rdme --check
-      - name: Kissat README
-        run: cd kissat && cargo rdme --check
-      - name: MiniSat README
-        run: cd minisat && cargo rdme --check
-      - name: Python API README
-        run: cd pyapi && cargo rdme --check
-      - name: Tools README
-        run: cd tools && cargo rdme --check
+      - name: ✨ Run docs checks
+        run: just docs-ci
 
-  formatting:
-    name: Check formatting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - name: Run cargo fmt
-        run: cargo fmt --all -- --check
+  # TODO: Kani
 
-  code-spelling:
-    name: Spell check with typos
-    runs-on: ubuntu-latest
+  feature-powerset:
+    name: 🔌 Test feature powerset
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'heavy-tests')
     steps:
       - uses: actions/checkout@v4
-      - uses: crate-ci/typos@b1a1ef3893ff35ade0cfa71523852a49bfd05d19 # v1.31.1
+      - name: ✨ Run feature powerset checks
+        run: just feature-powerset-ci
 
-  codegen:
-    name: Check generated code
-    runs-on: ubuntu-latest
+  cadical-each-feature:
+    name: 🧪 CaDiCaL test each feature
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
     steps:
       - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
-      - name: Run codegen
-        run: cargo run -p rustsat-codegen
-      - name: Check changed files
-        run: test -z "$(git status --porcelain)"
+      - name: 🧪 Test each feature
+        run: just cadical-each-feature-ci
+
+  kissat-each-feature:
+    name: 🧪 Kissat test each feature
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🧪 Test each feature
+        run: just kissat-each-feature-ci

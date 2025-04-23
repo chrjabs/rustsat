@@ -11,6 +11,14 @@
 //!
 //! The version of Minisat in this crate is Version 2.2.0.
 //! The used Cpp source repository can be found [here](https://github.com/chrjabs/minisat).
+//!
+//! ## Minimum Supported Rust Version (MSRV)
+//!
+//! Currently, the MSRV is 1.76.0, the plan is to always support an MSRV that is at least a year
+//! old.
+//!
+//! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
+//! sure to pin a precise version of RustSAT.
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]

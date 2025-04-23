@@ -43,6 +43,7 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
+#[allow(clippy::unsafe_derive_deserialize)] // temporary, proper fix is in the works
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct Var {
@@ -294,6 +295,7 @@ macro_rules! var {
 /// be used to index data structures with the two literals of a variable
 /// being close together.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
+#[allow(clippy::unsafe_derive_deserialize)] // temporary, proper fix is in the works
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct Lit {

@@ -61,77 +61,6 @@
     devShellSystemRustOverlay = system: rust-overlay-fn: let
       pkgs = (pkgsFor rust-overlay-fn).${system};
       libs = with pkgs; [openssl xz bzip2];
-      git-subtree-cmd =
-        pkgs.writeShellScriptBin "git-subtree"
-        /*
-        bash
-        */
-        ''
-          SUBTREE="$1"
-          CMD="$2"
-          REF="$3"
-
-          declare -A prefixes
-          prefixes=(
-            ["minisat"]="minisat/cppsrc"
-            ["glucose"]="glucose/cppsrc"
-            ["cadical"]="cadical/cppsrc"
-            ["kissat"]="kissat/csrc"
-          )
-
-          case $CMD in
-            pull)
-              echo "Pulling subtree $SUBTREE from ref $REF"
-              git subtree pull --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF" --squash -m "chore($SUBTREE): update subtree"
-              ;;
-
-            push)
-              echo "Pushing subtree $SUBTREE to ref $REF"
-              git subtree push --prefix "''${prefixes[$SUBTREE]}" "$SUBTREE" "$REF"
-              ;;
-
-            *)
-              2>&1 echo "Unknown command $CMD"
-              2>&1 echo "Usage: git-subtree <subtree> <command> <ref>"
-          esac
-        '';
-      pr-merge-ff-cmd =
-        pkgs.writeShellScriptBin "pr-merge-ff"
-        /*
-        bash
-        */
-        ''
-          set -e
-
-          if ! ${lib.getExe pkgs.gh} pr checks ; then
-            2>&1 echo "PR checks have not (yet) passed"
-            exit 1
-          fi
-
-          BASE=main
-          DELETE=false
-
-          case "$1" in
-            "-d")
-              DELETE=true
-              ;;
-
-            *)
-              echo "setting base branch to $1"
-              BASE="$1"
-          esac
-
-          BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-          git switch "$BASE"
-          git merge --ff-only "$BRANCH"
-
-          git push
-
-          if $DELETE ; then
-            git branch -d "$BRANCH"
-          fi
-        '';
     in
       pkgs.mkShell.override {stdenv = pkgs.clangStdenv;} rec {
         inherit (self.checks.${system}.pre-commit-check) shellHook;
@@ -145,13 +74,14 @@
             cargo-rdme
             cargo-nextest
             cargo-semver-checks
+            cargo-hack
+            cargo-spellcheck
+            just
             release-plz
             jq
             maturin
             kani
             veripb
-            git-subtree-cmd
-            pr-merge-ff-cmd
             typos
             rust-cbindgen
           ]
@@ -180,37 +110,7 @@
           src = ./.;
           tools.cargo = pkgs.rust-toolchain;
           settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {lockFile = ./Cargo.lock;};
-          hooks = let
-            cargo-spellcheck = lib.getExe pkgs.cargo-spellcheck;
-            check-readme =
-              pkgs.writeShellScriptBin "check-readme"
-              /*
-              bash
-              */
-              ''
-                case $1 in
-                  src/lib.rs)
-                    package=rustsat
-                    ;;
-
-                  pigeons/src/lib.rs)
-                    package=pigeons
-                    ;;
-
-                  */src/lib.rs)
-                    package=rustsat-''${1%/src/lib.rs}
-                    ;;
-
-                  *)
-                    >&2 echo "can not determine package from lib path '$1'"
-                    exit 1
-                    ;;
-                esac
-
-                echo "package $package"
-                exec ${lib.getExe pkgs.cargo-rdme} -w "$package" -c
-              '';
-          in {
+          hooks = {
             # Rust
             cargo-check = {
               enable = true;
@@ -224,45 +124,21 @@
               ];
             };
             rustfmt.enable = true;
-            cargo-spellcheck = {
+            # Just hooks
+            just-precommit = {
               enable = true;
-              name = "Spellchecking documentation";
-              entry = "${cargo-spellcheck} --code 1";
+              name = "just precommit";
+              entry = "${lib.getExe pkgs.just} precommit";
               language = "system";
-              files = "(.+\\.rs|docs/.+\\.md)$";
-            };
-            # Code spellchecker
-            typos = {
-              enable = true;
-              entry = "${lib.getExe pkgs.typos} --config _typos.toml --force-exclude";
-            };
-            # Check generated files
-            capi-header = {
-              enable = true;
-              name = "C-API header up to date";
-              entry = "scripts/cbindgen-header.sh --verify";
-              language = "system";
-              files = "(capi/.+\\.(toml|h)|capi/src/.+\\.rs)";
               pass_filenames = false;
-              extraPackages = with pkgs; [
-                rust-cbindgen
-              ];
             };
-            check-readmes = {
+            just-prepush = {
               enable = true;
-              name = "Check generated READMEs";
-              entry = lib.getExe check-readme;
+              name = "just prepush";
+              entry = "${lib.getExe pkgs.just} prepush";
               language = "system";
-              files = ".+/src/lib\\.rs";
-              excludes = ["solvertests/lib\\.rs"];
-            };
-            check-codegen = {
-              enable = true;
-              name = "Check generated code";
-              entry = "${lib.getExe' pkgs.rust-toolchain "cargo"} run -p rustsat-codegen";
-              language = "system";
-              files = "(codegen|capi/src/encodings/(am1|card|pb))";
               pass_filenames = false;
+              stages = ["pre-push"];
             };
             # TOML
             check-toml.enable = true;

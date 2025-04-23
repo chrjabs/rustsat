@@ -47,7 +47,13 @@
 //!     patches, the user is responsible for applying the appropriate and necessary patches from the
 //!     [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
 //!
-//! ## MSRV
+//! ## Minimum Supported Rust Version (MSRV)
+//!
+//! Currently, the MSRV is 1.77.0, the plan is to always support an MSRV that is at least a year
+//! old.
+//!
+//! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
+//! sure to pin a precise version of RustSAT.
 //!
 //! Note that the specified minimum-supported Rust version only applies if the _newest_ version of
 //! CaDiCaL is build.

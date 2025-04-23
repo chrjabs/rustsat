@@ -19,6 +19,9 @@ git_release_latest = false
 # labels for the release PR
 pr_labels = ["release"]
 
+# open release PR as draft
+pr_draft = true
+
 # needed because of committed files in kissat repo that are also in .gitignore
 allow_dirty = true
 

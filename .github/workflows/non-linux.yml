@@ -1,0 +1,75 @@
+name: Non-Linux CI
+
+on:
+  pull_request:
+    types: [review_requested, ready_for_review]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  RUSTDOCFLAGS: -Dwarnings
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-tests:
+    name: 🧪 MacOS workspace tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - name: 🧪 Run tests
+        run: cargo nextest run --profile ci --workspace --exclude rustsat-pyapi --verbose --features=all,internals
+
+  windows-tests:
+    name: 🧪 Windows workspace tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      - name: 🧪 Run tests
+        run: cargo nextest run --profile ci --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=all,internals
+
+  macos-msrv-build:
+    name: 🏗️ MacOS MSRV build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@nextest
+      - name: 🏗️ Build
+        run: cargo hack build --rust-version --workspace --verbose --features=all,internals --ignore-unknown-features
+
+  windows-msrv-build:
+    name: 🏗️ Windows MSRV build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@nextest
+      - name: 🏗️ Build
+        run: cargo hack build --rust-version --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=all,internals --ignore-unknown-features
+
+  python-api:
+    name: 🐍 Python API
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: install-pinned/maturin@43b39b11faf67ba5f8922a76d274cfe7795778fd
+      - name: 🏗️ Install Python API
+        run: maturin build -m pyapi/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
+      - name: 🧪 Test example
+        run: python pyapi/examples/pyapi-dpw.py
