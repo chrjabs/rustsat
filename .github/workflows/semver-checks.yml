@@ -3,45 +3,16 @@ name: Semver checks
 on:
   pull_request:
     branches: [ "main" ]
+    types: [review_requested, ready_for_review]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rustsat:
-    name: Semver checks
-    runs-on: ubuntu-latest
+  all:
+    name: 🛡️ Semver checks
+    runs-on: self-hosted
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-      - name: RustSAT
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat
-          feature-group: only-explicit-features
-          features: all
-      - name: CaDiCaL
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat-cadical
-          feature-group: default-features
-      - name: Minisat
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat-minisat
-      - name: Glucose
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat-glucose
-      - name: Kissat
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat-kissat
-      - name: IPASIR
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat-ipasir
-      - name: BatSat
-        uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: rustsat-batsat
+      - uses: actions/checkout@v4
+      - name: 🛡️ Run semver checks
+        run: just semver-checks-ci

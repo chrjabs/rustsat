@@ -21,7 +21,7 @@ include = [
   "/cppsrc/LICENSE",
   "/cppsrc/VERSION",
 ]
-rust-version.workspace = true
+rust-version = "1.77.0" # When changing, update crate documentation, build script, and tools MSRV
 
 build = "build.rs"
 

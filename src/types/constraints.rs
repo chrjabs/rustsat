@@ -371,12 +371,12 @@ impl Cl {
     /// Cl::new(&lits);
     /// ```
     pub fn new<S: AsRef<[Lit]> + ?Sized>(s: &S) -> &Cl {
-        unsafe { &*(s.as_ref() as *const [Lit] as *const Cl) }
+        unsafe { &*(std::ptr::from_ref::<[Lit]>(s.as_ref()) as *const Cl) }
     }
 
     /// Directly wraps a mutable literal slice as a [`Cl`]
     pub fn new_mut<S: AsMut<[Lit]> + ?Sized>(s: &mut S) -> &mut Cl {
-        unsafe { &mut *(s.as_mut() as *mut [Lit] as *mut Cl) }
+        unsafe { &mut *(std::ptr::from_mut::<[Lit]>(s.as_mut()) as *mut Cl) }
     }
 
     /// Gets the length of the clause

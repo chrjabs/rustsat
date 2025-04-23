@@ -14,4 +14,12 @@ BatSat is fully implemented in Rust which has advantages in restricted compilati
 
 The version of BatSat in this crate is Version 0.6.0.
 
+## Minimum Supported Rust Version (MSRV)
+
+Currently, the MSRV is 1.76.0, the plan is to always support an MSRV that is at least a year
+old.
+
+Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
+sure to pin a precise version of RustSAT.
+
 <!-- cargo-rdme end -->

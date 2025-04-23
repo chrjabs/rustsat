@@ -1,0 +1,15 @@
+services:
+  gha-runner:
+    build:
+      context: .
+      network: host
+    deploy:
+      replicas: 3
+    restart: unless-stopped
+    volumes:
+      - cache-volume:/runner/cache
+    environment:
+      - ACCESS_TOKEN=${RUSTSAT_ACCESS_TOKEN}
+
+volumes:
+  cache-volume:

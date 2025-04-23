@@ -17,7 +17,7 @@ include = [
   "/cppsrc/",
   "!/cppsrc/doc/",
 ]
-rust-version.workspace = true
+rust-version.workspace = true # When changing, update crate documentation, build script, and tools MSRV
 
 build = "build.rs"
 

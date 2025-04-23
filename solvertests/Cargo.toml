@@ -4,6 +4,7 @@ description = "Test code shared between sat solver crates"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 # This is only a dev dependency in this repo
 publish = false

@@ -19,7 +19,7 @@ resolver = "2"
 version = "0.7.0"
 license = "MIT"
 edition = "2021"
-rust-version = "1.75.0" # update the crate documentation if you change this
+rust-version = "1.76.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 anyhow = "1.0.98"
@@ -182,7 +182,3 @@ debug = 1
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
-
-# temporary workaround for https://github.com/obi1kenobi/cargo-semver-checks/issues/1200
-[package.metadata.cargo-semver-checks.lints]
-trait_newly_sealed = { level = "allow" }

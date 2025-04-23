@@ -36,10 +36,16 @@
 //! environment variable.
 //! If this is set, Kissat will be built from the path specified there.
 //!
-//! ## MSRV
+//! ## Minimum Supported Rust Version (MSRV)
+//!
+//! Currently, the MSRV is 1.77.0, the plan is to always support an MSRV that is at least a year
+//! old.
+//!
+//! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
+//! sure to pin a precise version of RustSAT.
 //!
 //! Note that the specified minimum-supported Rust version only applies if the _newest_ version of
-//! CaDiCaL is build.
+//! Kissat is build.
 //! Older versions are pulled down via the [`git2`](https://crates.io/crates/git2) crate, which has
 //! transitive dependencies that have a higher MSRV.
 
