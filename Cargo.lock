@@ -1145,6 +1145,7 @@ dependencies = [
  "rustsat-solvertests",
  "rustsat-tools",
  "serde",
+ "serde_json",
  "tempfile",
  "termcolor",
  "thiserror",
