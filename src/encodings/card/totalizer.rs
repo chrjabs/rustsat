@@ -1,7 +1,16 @@
-//! # Totalizer Encoding Based On a Node Database
+//! # Totalizer Encoding
 //!
-//! This is an alternative implementation of the
-//! [`crate::encodings::card::Totalizer`] encoding.
+//! Implementation of the binary adder tree totalizer encoding \[1\].
+//! The implementation is incremental as extended in \[2\].
+//! The implementation is based on a node database.
+//! For now, this implementation only supports upper bounding.
+//!
+//! # References
+//!
+//! - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
+//!   Constraints_, CP 2003.
+//! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
+//!   Cardinality Constraints for MaxSAT_, CP 2014.
 
 use std::{cmp, ops::RangeBounds};
 
@@ -27,9 +36,9 @@ use super::{
 /// # References
 ///
 /// - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
-///     Constraints_, CP 2003.
+///   Constraints_, CP 2003.
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
-///     Cardinality Constraints for MaxSAT_, CP 2014.
+///   Cardinality Constraints for MaxSAT_, CP 2014.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Totalizer {
@@ -226,7 +235,7 @@ impl BoundUpperIncremental for Totalizer {
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
-        };
+        }
         Ok(())
     }
 }
@@ -311,7 +320,7 @@ impl BoundLowerIncremental for Totalizer {
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
-        };
+        }
         Ok(())
     }
 }
@@ -478,7 +487,7 @@ impl super::cert::BoundUpperIncremental for Totalizer {
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
-        };
+        }
         Ok(())
     }
 }
@@ -582,7 +591,7 @@ impl super::cert::BoundLowerIncremental for Totalizer {
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
-        };
+        }
         Ok(())
     }
 }

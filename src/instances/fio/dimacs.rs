@@ -258,7 +258,7 @@ where
                     obj.add_soft_clause(w, clause);
                 }
             }
-        };
+        }
         buf.clear();
     }
     Ok((constrs, if obj.is_empty() { vec![] } else { vec![obj] }))
@@ -296,7 +296,7 @@ where
                 }
                 None => constrs.add_clause(clause),
             }
-        };
+        }
         buf.clear();
         let len = reader.read_line(&mut buf)?;
         if len == 0 {

@@ -428,7 +428,7 @@ fn build(repo: &str, branch: &str, version: Version) {
                     if name == "cadical.cpp" || name == "mobical.cpp" || name == "ipasir.cpp" {
                         return None; // Filter out application files and IPASIR interface
                     }
-                };
+                }
                 Some(p)
             } else {
                 None

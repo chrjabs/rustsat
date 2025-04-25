@@ -31,7 +31,7 @@ pub unsafe extern "C" fn pairwise_drop(pairwise: *mut Pairwise) {
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn ladder_drop(ladder: *mut Ladder) {
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn bitwise_drop(bitwise: *mut Bitwise) {
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn commander_drop(commander: *mut Commander) {
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///
@@ -284,7 +284,7 @@ pub unsafe extern "C" fn bimander_drop(bimander: *mut Bimander) {
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///

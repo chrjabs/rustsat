@@ -48,7 +48,7 @@ pub unsafe extern "C" fn tot_reserve(tot: *mut Totalizer, n_vars_used: &mut u32)
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///

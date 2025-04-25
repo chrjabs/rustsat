@@ -9,9 +9,9 @@
 //! ## References
 //!
 //! - \[1\] Joose P. Warners: _A linear-time transformation of linear inequalities into conjunctive
-//!     normal form_, Inf. Process. Lett. 1998.
+//!   normal form_, Inf. Process. Lett. 1998.
 //! - \[2\] Niklas Eén and Niklas Sörensson: _Translating Pseudo-Boolean Constraints into SAT_,
-//!     JSAT 2006.
+//!   JSAT 2006.
 
 #![allow(clippy::module_name_repetitions)]
 
@@ -36,9 +36,9 @@ use super::{
 /// ## References
 ///
 /// - \[1\] Joose P. Warners: _A linear-time transformation of linear inequalities into conjunctive
-///     normal form_, Inf. Process. Lett. 1998.
+///   normal form_, Inf. Process. Lett. 1998.
 /// - \[2\] Niklas Eén and Niklas Sörensson: _Translating Pseudo-Boolean Constraints into SAT_,
-///     JSAT 2006.
+///   JSAT 2006.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BinaryAdder {
@@ -457,7 +457,7 @@ impl Extend<(Lit, usize)> for BinaryAdder {
                 None => {
                     self.lit_buffer.insert(l, w);
                 }
-            };
+            }
         });
     }
 }

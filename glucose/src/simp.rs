@@ -77,7 +77,7 @@ impl Glucose {
             Limit::Propagations(limit) => unsafe {
                 ffi::cglucosesimp4_set_prop_limit(self.handle, limit);
             },
-        };
+        }
     }
 
     /// Gets the current number of assigned literals

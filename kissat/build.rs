@@ -176,7 +176,7 @@ fn build(version: Version) -> PathBuf {
                     {
                         return None; // Filter out application files
                     }
-                };
+                }
                 Some(p)
             } else {
                 None

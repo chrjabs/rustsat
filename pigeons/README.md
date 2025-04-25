@@ -35,7 +35,7 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `soli`: [`Proof::improve_solution`]
 - [x] `output`: [`Proof::output`], [`Proof::conclude`]
 - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
-    [`Proof::update_default_conclusion`]
+  [`Proof::update_default_conclusion`]
 - [x] Sub-proofs
 - [x] `e`: [`Proof::equals`]
 - [x] `ea`: [`Proof::equals_add`]

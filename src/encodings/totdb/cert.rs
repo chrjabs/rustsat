@@ -724,7 +724,7 @@ impl super::Db {
                         #[cfg(feature = "verbose-proofs")]
                         proof.equals(&clause, Some(id.into()))?;
                         collector.add_cert_clause(clause, id)?;
-                    };
+                    }
                 }
 
                 // Only now finally multiply the leaf weights since they won't be used at lower

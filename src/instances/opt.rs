@@ -888,7 +888,7 @@ impl Objective {
                 soft_lits.sort_unstable();
                 soft_clauses.sort_unstable();
             }
-        };
+        }
         self
     }
 
@@ -908,7 +908,7 @@ impl Objective {
                 (soft_lits[..]).shuffle(&mut rng);
                 (soft_clauses[..]).shuffle(&mut rng);
             }
-        };
+        }
         self
     }
 

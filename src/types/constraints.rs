@@ -662,7 +662,7 @@ impl CardConstraint {
             CardConstraint::Ub(CardUbConstr { b, .. })
             | CardConstraint::Lb(CardLbConstr { b, .. })
             | CardConstraint::Eq(CardEqConstr { b, .. }) => *b = bound,
-        };
+        }
     }
 
     /// Checks if the constraint is always satisfied
@@ -729,7 +729,7 @@ impl CardConstraint {
             CardConstraint::Ub(constr) => norm(&mut constr.lits),
             CardConstraint::Lb(constr) => norm(&mut constr.lits),
             CardConstraint::Eq(constr) => norm(&mut constr.lits),
-        };
+        }
         self
     }
 
@@ -1238,7 +1238,7 @@ impl PbConstraint {
             PbConstraint::Ub(PbUbConstr { b, .. })
             | PbConstraint::Lb(PbLbConstr { b, .. })
             | PbConstraint::Eq(PbEqConstr { b, .. }) => *b = bound,
-        };
+        }
     }
 
     /// Adds literals to the cardinality constraint

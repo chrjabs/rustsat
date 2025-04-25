@@ -76,7 +76,7 @@ impl Minisat {
             Limit::Propagations(limit) => unsafe {
                 ffi::cminisat_set_prop_limit(self.handle, limit);
             },
-        };
+        }
     }
 
     /// Gets the current number of assigned literals

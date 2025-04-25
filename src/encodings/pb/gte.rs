@@ -1,7 +1,16 @@
-//! # GTE Based On a Node Database
+//! # Generalized Totalizer Encoding
 //!
-//! This is an alternative implementation of the
-//! [`crate::encodings::pb::GeneralizedTotalizer`] encoding.
+//! Implementation of the binary adder tree generalized totalizer encoding
+//! \[1\]. The implementation is incremental. The implementation is recursive.
+//! This encoding only support upper bounding. Lower bounding can be achieved by
+//! negating the input literals. This is implemented in
+//! [`super::simulators::Inverted`].
+//! The implementation is based on a node database.
+//!
+//! # References
+//!
+//! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
+//!   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
 use std::ops::RangeBounds;
 
@@ -26,7 +35,7 @@ use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
 /// # References
 ///
 /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
-///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GeneralizedTotalizer {
@@ -284,7 +293,7 @@ impl BoundUpper for GeneralizedTotalizer {
                     }
                     Err(EnforceError::NotEncoded)
                 })?;
-        };
+        }
         Ok(assumps)
     }
 }
@@ -363,7 +372,7 @@ impl Extend<(Lit, usize)> for GeneralizedTotalizer {
                 None => {
                     self.lit_buffer.insert(l, w);
                 }
-            };
+            }
         });
     }
 }
@@ -529,7 +538,7 @@ pub mod referenced {
     /// ## References
     ///
     /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
-    ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
     #[derive(Debug)]
     pub struct Gte<'totdb> {
         /// A node connection to the root
@@ -546,7 +555,7 @@ pub mod referenced {
     /// ## References
     ///
     /// - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
-    ///     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+    ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
     #[derive(Debug)]
     pub struct GteCell<'totdb> {
         /// A node connection to the root

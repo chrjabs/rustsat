@@ -13,13 +13,13 @@ Armin Biere's SAT solver [CaDiCaL](https://github.com/arminbiere/cadical) to be 
 ## Features
 
 - `debug`: if this feature is enabled, the Cpp library will be built with debug and check
-    functionality if the Rust project is built in debug mode. API tracing via the
-    `CADICAL_API_TRACE` environment variable is also enabled in debug mode.
+  functionality if the Rust project is built in debug mode. API tracing via the
+  `CADICAL_API_TRACE` environment variable is also enabled in debug mode.
 - `safe`: disable writing through `popen` for more safe usage of the library in applications
 - `quiet`: exclude message and profiling code (logging too)
 - `logging`: include logging code (but disabled by default)
 - `tracing`: always include CaDiCaL API tracing via the `CADICAL_API_TRACE` environment
-    variable and the [`CaDiCaL::trace_api_calls`] method
+  variable and the [`CaDiCaL::trace_api_calls`] method
 
 ## CaDiCaL Versions
 
@@ -44,14 +44,14 @@ In order to build a custom version of CaDiCaL, this crate supports two environme
 customize the Cpp source code that CaDiCaL is built from.
 
 - `CADICAL_PATCHES` allows to specify a list of colon-separated paths to patch files that will
-    be applied to the CaDiCaL source repository before building it. These patches are applied
-    in order of appearance _after_ the patches of this crate have been applied.
+  be applied to the CaDiCaL source repository before building it. These patches are applied
+  in order of appearance _after_ the patches of this crate have been applied.
 - `CADICAL_SRC_DIR` allows for overriding where the Cpp library is built from. By default this
-    crate fetches the appropriate code from [the GitHub
-    repository](https://github.com/arminbiere/cadical). If this variable is set, the directory specified
-    there is used instead. Note that when using this variable, the crate will not apply any
-    patches, the user is responsible for applying the appropriate and necessary patches from the
-    [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
+  crate fetches the appropriate code from [the GitHub
+  repository](https://github.com/arminbiere/cadical). If this variable is set, the directory specified
+  there is used instead. Note that when using this variable, the crate will not apply any
+  patches, the user is responsible for applying the appropriate and necessary patches from the
+  [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
 
 ## Minimum Supported Rust Version (MSRV)
 

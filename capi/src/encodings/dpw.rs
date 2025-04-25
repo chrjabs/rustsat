@@ -30,7 +30,7 @@ pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize)
 ///
 /// - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
 /// - If `divisor` is larger than the last divisor, i.e., precision is attempted to be decreased,
-///     [`MaybeError::PrecisionDecreased`] is returned
+///   [`MaybeError::PrecisionDecreased`] is returned
 ///
 /// # Safety
 ///

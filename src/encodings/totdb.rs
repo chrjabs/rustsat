@@ -250,7 +250,7 @@ impl Db {
                         self.define_weighted(rcon.id, rcon.rev_map(val), collector, var_manager)?
                     {
                         collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
-                    };
+                    }
                 }
 
                 // Mark "if" semantics as encoded

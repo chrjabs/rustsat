@@ -120,14 +120,14 @@ impl ManageVars for BasicVarManager {
         if v > self.next_var {
             self.next_var = v;
             return true;
-        };
+        }
         false
     }
 
     fn combine(&mut self, other: Self) {
         if other.next_var > self.next_var {
             self.next_var = other.next_var;
-        };
+        }
     }
 
     fn n_used(&self) -> u32 {
@@ -219,14 +219,14 @@ impl ManageVars for ReindexingVarManager {
         if v > self.next_var {
             self.next_var = v;
             return true;
-        };
+        }
         false
     }
 
     fn combine(&mut self, other: Self) {
         if other.next_var > self.next_var {
             self.next_var = other.next_var;
-        };
+        }
         self.in_map.extend(other.in_map);
     }
 
@@ -304,14 +304,14 @@ impl ManageVars for ObjectVarManager {
         if v > self.next_var {
             self.next_var = v;
             return true;
-        };
+        }
         false
     }
 
     fn combine(&mut self, other: Self) {
         if other.next_var > self.next_var {
             self.next_var = other.next_var;
-        };
+        }
         self.object_map.extend(other.object_map);
     }
 
@@ -400,14 +400,14 @@ impl ManageVars for RandReindVarManager {
         if v > self.next_var {
             self.next_var = v;
             return true;
-        };
+        }
         false
     }
 
     fn combine(&mut self, other: Self) {
         if other.next_var > self.next_var {
             self.next_var = other.next_var;
-        };
+        }
         self.in_map.extend(other.in_map);
     }
 

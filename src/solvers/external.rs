@@ -149,11 +149,11 @@ impl Solver {
     /// # Notes
     ///
     /// - If input is passed via a file with a path that ends in a compression extension, RustSAT
-    ///     will write a compressed file
+    ///   will write a compressed file
     /// - If the solver output is processed via a file, compression is _not_ supported
     /// - If [`Command::env_clear`] was called on the command and the input is passed via a
-    ///     file as the first argument, the fact that the environment has been cleared might be
-    ///     forgotten
+    ///   file as the first argument, the fact that the environment has been cleared might be
+    ///   forgotten
     ///
     /// # Example
     ///

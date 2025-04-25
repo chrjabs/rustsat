@@ -65,9 +65,9 @@ typedef struct Bimander Bimander;
  * ## References
  *
  * - \[1\] Joose P. Warners: _A linear-time transformation of linear inequalities into conjunctive
- *     normal form_, Inf. Process. Lett. 1998.
+ *   normal form_, Inf. Process. Lett. 1998.
  * - \[2\] Niklas Eén and Niklas Sörensson: _Translating Pseudo-Boolean Constraints into SAT_,
- *     JSAT 2006.
+ *   JSAT 2006.
  */
 typedef struct BinaryAdder BinaryAdder;
 
@@ -106,7 +106,7 @@ typedef struct Commander Commander;
  * ## References
  *
  * - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
- *     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+ *   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
  */
 typedef struct DynamicPolyWatchdog DynamicPolyWatchdog;
 
@@ -121,7 +121,7 @@ typedef struct DynamicPolyWatchdog DynamicPolyWatchdog;
  * # References
  *
  * - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
- *     Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
+ *   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
  */
 typedef struct GeneralizedTotalizer GeneralizedTotalizer;
 
@@ -152,9 +152,9 @@ typedef struct Pairwise Pairwise;
  * # References
  *
  * - \[1\] Olivier Bailleux and Yacine Boufkhad: _Efficient CNF Encoding of Boolean Cardinality
- *     Constraints_, CP 2003.
+ *   Constraints_, CP 2003.
  * - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
- *     Cardinality Constraints for MaxSAT_, CP 2014.
+ *   Cardinality Constraints for MaxSAT_, CP 2014.
  */
 typedef struct Totalizer Totalizer;
 
@@ -186,7 +186,7 @@ void pairwise_drop(struct Pairwise *pairwise);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -234,7 +234,7 @@ void ladder_drop(struct Ladder *ladder);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -282,7 +282,7 @@ void bitwise_drop(struct Bitwise *bitwise);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -330,7 +330,7 @@ void commander_drop(struct Commander *commander);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -378,7 +378,7 @@ void bimander_drop(struct Bimander *bimander);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -438,7 +438,7 @@ void tot_reserve(struct Totalizer *tot, uint32_t *n_vars_used);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -547,7 +547,7 @@ size_t dpw_coarse_ub(struct DynamicPolyWatchdog *dpw, size_t ub);
  *
  * - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
  * - If `divisor` is larger than the last divisor, i.e., precision is attempted to be decreased,
- *     [`MaybeError::PrecisionDecreased`] is returned
+ *   [`MaybeError::PrecisionDecreased`] is returned
  *
  * # Safety
  *
@@ -643,7 +643,7 @@ void gte_reserve(struct GeneralizedTotalizer *gte, uint32_t *n_vars_used);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -730,7 +730,7 @@ void bin_adder_reserve(struct BinaryAdder *bin_adder,
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -864,7 +864,7 @@ void dpw_reserve(struct DynamicPolyWatchdog *dpw, uint32_t *n_vars_used);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *     [`MaybeError::InvalidLiteral`] is returned
+ *   [`MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *

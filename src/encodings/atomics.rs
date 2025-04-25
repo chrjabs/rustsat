@@ -185,7 +185,7 @@ pub fn lit_impl_pb(lit: Lit, pb: &PbConstraint) -> PbConstraint {
             pb.add([(!lit, pb.bound())]);
         }
         PbConstraint::Eq(_) => panic!("equality constraint cannot be trivially reified"),
-    };
+    }
     pb
 }
 

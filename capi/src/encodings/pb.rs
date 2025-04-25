@@ -48,7 +48,7 @@ pub unsafe extern "C" fn gte_reserve(gte: *mut GeneralizedTotalizer, n_vars_used
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///
@@ -167,7 +167,7 @@ pub unsafe extern "C" fn bin_adder_reserve(bin_adder: *mut BinaryAdder, n_vars_u
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///
@@ -351,7 +351,7 @@ pub unsafe extern "C" fn dpw_reserve(dpw: *mut DynamicPolyWatchdog, n_vars_used:
 /// # Errors
 ///
 /// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
-///     [`MaybeError::InvalidLiteral`] is returned
+///   [`MaybeError::InvalidLiteral`] is returned
 ///
 /// # Safety
 ///

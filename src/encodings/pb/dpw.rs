@@ -11,7 +11,7 @@
 //! ## References
 //!
 //! - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
-//!     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+//!   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 
 use std::{
     cmp,
@@ -59,7 +59,7 @@ pub enum PrecisionError {
 /// ## References
 ///
 /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
-///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DynamicPolyWatchdog {
@@ -218,7 +218,7 @@ impl DynamicPolyWatchdog {
                     )?;
                 }
             }
-        };
+        }
         Ok(())
     }
 }
@@ -400,7 +400,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
             }
             self.n_clauses += collector.n_clauses() - n_clauses_before;
             self.n_vars += var_manager.n_used() - n_vars_before;
-        };
+        }
         Ok(())
     }
 }
@@ -462,7 +462,7 @@ pub mod referenced {
     /// ## References
     ///
     /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
-    ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+    ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
     #[derive(Debug)]
     pub struct DynamicPolyWatchdog<'totdb> {
         /// The encoding root and the tares
@@ -477,7 +477,7 @@ pub mod referenced {
     /// ## References
     ///
     /// - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
-    ///     Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
+    ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
     #[derive(Debug)]
     pub struct DynamicPolyWatchdogCell<'totdb> {
         /// The encoding root and the tares

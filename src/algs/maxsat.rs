@@ -42,7 +42,7 @@ fn objective_value(obj: &[(Lit, usize)], sol: &Assignment) -> usize {
 /// # References
 ///
 /// - Fahiem Bacchus and Matti Järvisalo and Ruben Martins: _Maximum Satisfiability_, in Handbook
-///     of Satisfiability 2021.
+///   of Satisfiability 2021.
 ///
 /// # Panics
 ///
