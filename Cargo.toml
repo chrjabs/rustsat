@@ -23,7 +23,7 @@ rust-version = "1.76.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-bindgen = "0.71.1"
+bindgen = { version = "0.71.1", default-features = false }
 bzip2 = "0.5.2"
 cc = { version = "1.2.20", features = ["parallel"] }
 chrono = "0.4.40"
@@ -79,7 +79,7 @@ anyhow.workspace = true
 cpu-time.workspace = true
 nom.workspace = true
 thiserror.workspace = true
-visibility.workspace = true
+visibility = { workspace = true, optional = true }
 bzip2 = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 itertools.workspace = true
@@ -101,7 +101,7 @@ serde_json.workspace = true
 
 [features]
 default = ["optimization", "fxhash"]
-internals = []
+internals = ["dep:visibility"]
 fxhash = ["dep:rustc-hash"]
 optimization = []
 multiopt = ["optimization"]
