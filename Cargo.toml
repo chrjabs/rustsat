@@ -25,7 +25,7 @@ rust-version = "1.75.0" # update the crate documentation if you change this
 anyhow = "1.0.98"
 bindgen = "0.71.1"
 bzip2 = "0.5.2"
-cc = { version = "1.2.19", features = ["parallel"] }
+cc = { version = "1.2.20", features = ["parallel"] }
 chrono = "0.4.40"
 clap = { version = "4.5.37", features = ["derive", "cargo"] }
 cmake = "0.1.54"
