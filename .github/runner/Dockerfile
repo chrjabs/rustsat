@@ -94,11 +94,9 @@ ENV CACHE=/runner/cache
 USER runner
 
 # Setup Python-API job venv
-RUN python3 -m venv /runner/python-api-venv && . /runner/python-api-venv/bin/activate && \
-    pip install mypy && deactivate && \
+RUN python3 -m venv /runner/python-api-venv && /runner/python-api-venv/bin/python -m pip install mypy && \
     # Setup pages job venv
-    python3 -m venv /runner/pages-venv && . /runner/python-api-venv/bin/activate && \
-    pip install pdoc && deactivate
+    python3 -m venv /runner/pages-venv && /runner/pages-venv/bin/python -m pip install pdoc
 
 ENV PYTHON_API_VENV=/runner/python-api-venv
 ENV PAGES_VENV=/runner/pages-venv
