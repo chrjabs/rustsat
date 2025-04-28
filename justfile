@@ -111,6 +111,8 @@ semver-checks-ci: (ci-cache "restore --key ci-semver-checks") && (ci-cache "save
     cmd_group "just semver-checks"
 
 pages-ci:
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
     mkdir -p _site/
     cmd_group "just fancy-docs"
     mv target/doc/ _site/main/
