@@ -6,8 +6,8 @@ ENV CI=true
 RUN rustup component add clippy rustfmt && \
     # MSRVs
     rustup install --profile minimal 1.75 && rustup install --profile minimal 1.76 && rustup install --profile minimal 1.77 && \
-    # Nightly for docs
-    rustup install nightly
+    # Nightly for docs and coverage
+    rustup install nightly --component llvm-tools-preview
 
 # Install CI dependencies
 RUN apt-get update && apt-get install -y \
@@ -35,7 +35,7 @@ ENV CXX=clang++
 ARG GH_VERSION="2.70.0"
 
 # Install CI tools using cargo-binstall
-RUN cargo binstall -y cargo-nextest cargo-hack cargo-rdme cargo-spellcheck cargo-semver-checks just release-plz typos-cli && \
+RUN cargo binstall -y cargo-nextest cargo-hack cargo-rdme cargo-spellcheck cargo-semver-checks cargo-llvm-cov just release-plz typos-cli && \
     # Install Python tools with pipx
     mkdir /opt/pipx && export PIPX_HOME=/opt/pipx && export PIPX_BIN_DIR=/usr/local/bin && \
     pipx install maturin && \

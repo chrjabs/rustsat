@@ -96,6 +96,18 @@ jobs:
       - name: ✨ Run docs checks
         run: just docs-ci
 
+  coverage:
+    name: 📋 Test coverage
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: ✨ Generate coverage report
+        run: just coverage-ci
+      - name: ✨ Publish to Coveralls
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
   # TODO: Kani
 
   feature-powerset:

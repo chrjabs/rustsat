@@ -76,6 +76,7 @@
             cargo-semver-checks
             cargo-hack
             cargo-spellcheck
+            cargo-llvm-cov
             just
             release-plz
             jq

@@ -161,3 +161,14 @@ ci-cache *args:
     if [[ -x /runner/cache.sh ]]; then
         cmd_group "/runner/cache.sh {{ args }}"
     fi
+
+coverage *args:
+    cargo llvm-cov --html nextest --workspace --exclude rustsat-pyapi --features=all,internals {{ args }}
+
+coverage-ci:
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
+    cmd_group "cargo +nightly llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=all,internals"
+    cmd_group "cargo +nightly llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals"
+    mkdir coverage
+    cmd_group "cargo +nightly llvm-cov report --doctests --lcov --output-path coverage/lcov.info"
