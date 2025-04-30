@@ -163,7 +163,7 @@ ci-cache *args:
     fi
 
 coverage *args:
-    cargo llvm-cov --html nextest --workspace --exclude rustsat-pyapi --features=all,internals {{ args }}
+    cargo llvm-cov --html nextest --workspace --exclude rustsat-codegen --exclude rustsat-pyapi --features=all,internals {{ args }}
 
 coverage-ci:
     #!/usr/bin/env -S bash -euo pipefail
