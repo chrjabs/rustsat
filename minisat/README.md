@@ -1,5 +1,5 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat-minisat?style=for-the-badge)](https://crates.io/crates/rustsat-minisat)
-[![docs.rs](https://img.shields.io/docsrs/rustsat-minisat?style=for-the-badge)](https://docs.rs/rustsat-minisat)
+[![crates.io](https://img.shields.io/crates/v/rustsat-minisat?style=for-the-badge&logo=rust)](https://crates.io/crates/rustsat-minisat)
+[![docs.rs](https://img.shields.io/docsrs/rustsat-minisat?style=for-the-badge&logo=docsdotrs)](https://docs.rs/rustsat-minisat)
 [![License](https://img.shields.io/crates/l/rustsat-minisat?style=for-the-badge)](../LICENSE)
 
 <!-- cargo-rdme start -->

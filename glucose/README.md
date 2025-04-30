@@ -1,5 +1,5 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat-glucose?style=for-the-badge)](https://crates.io/crates/rustsat-glucose)
-[![docs.rs](https://img.shields.io/docsrs/rustsat-glucose?style=for-the-badge)](https://docs.rs/rustsat-glucose)
+[![crates.io](https://img.shields.io/crates/v/rustsat-glucose?style=for-the-badge&logo=rust)](https://crates.io/crates/rustsat-glucose)
+[![docs.rs](https://img.shields.io/docsrs/rustsat-glucose?style=for-the-badge&logo=docsdotrs)](https://docs.rs/rustsat-glucose)
 [![License](https://img.shields.io/crates/l/rustsat-glucose?style=for-the-badge)](../LICENSE)
 
 <!-- cargo-rdme start -->

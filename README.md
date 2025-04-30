@@ -1,6 +1,7 @@
-[![crates.io](https://img.shields.io/crates/v/rustsat?style=for-the-badge)](https://crates.io/crates/rustsat)
-[![docs.rs](https://img.shields.io/docsrs/rustsat?style=for-the-badge)](https://docs.rs/rustsat)
-[![PyPI](https://img.shields.io/pypi/v/rustsat?style=for-the-badge)](https://pypi.org/project/rustsat)
+[![crates.io](https://img.shields.io/crates/v/rustsat?style=for-the-badge&logo=rust)](https://crates.io/crates/rustsat)
+[![docs.rs](https://img.shields.io/docsrs/rustsat?style=for-the-badge&logo=docsdotrs)](https://docs.rs/rustsat)
+[![Coveralls](https://img.shields.io/coverallsCoverage/github/chrjabs/rustsat?style=for-the-badge&logo=coveralls)](https://coveralls.io/github/chrjabs/rustsat)
+[![PyPI](https://img.shields.io/pypi/v/rustsat?style=for-the-badge&logo=pypi&logoColor=%23ffffff)](https://pypi.org/project/rustsat)
 [![License](https://img.shields.io/crates/l/rustsat?style=for-the-badge)](./LICENSE)
 
 <!-- cargo-rdme start -->
