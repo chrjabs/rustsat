@@ -66,8 +66,6 @@ RUN mkdir /tmp/gimsatul && curl -o /tmp/gimsatul/src.zip -L https://github.com/a
 ENV CARGO_HOME=/runner/.cargo
 ENV CARGO_INCREMENTAL=0
 ENV CLICOLOR=1
-ENV FORCE_COLOR=1
-ENV CLICOLOR_FORCE=1
 ENV ORGANIZATION=chrjabs
 ENV REPOSITORY=rustsat
 
