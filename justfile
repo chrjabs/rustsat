@@ -21,8 +21,8 @@ msrv-ci: (ci-cache "restore --key ci-msrv-build") && (ci-cache "save --rust --ke
 doc-tests *args:
     cargo test --workspace --features=all,internals --doc {{ args }}
 
-clippy:
-    cargo clippy --workspace --all-targets --target-dir target/clippy --features=all,internals -- -Dwarnings
+clippy *args:
+    cargo clippy --workspace --all-targets --target-dir target/clippy --features=all,internals {{ args }} -- -Dwarnings
 
 gen *args:
     cargo run -p rustsat-codegen -- {{ args }}
@@ -68,17 +68,14 @@ python-api-ci: (ci-cache "restore --key ci-python-api") && (ci-cache "save --rus
     cmd_group "pip uninstall -y rustsat"
 
 docs *args:
-    cargo doc --workspace --features=all,internals {{ args }}
-
-fancy-docs:
-    cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --no-deps --features=all,internals
+    cargo doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --features=all,internals {{ args }}
 
 docs-ci: (ci-cache "restore --key ci-docs") && (ci-cache "save --rust --key ci-docs")
     #!/usr/bin/env -S bash -euo pipefail
     source .env
     export RUSTDOCFLAGS="-Dwarnings --cfg docsrs"
-    cmd_group "just fancy-docs"
-    cmd_group "cargo +nightly test --doc --workspace --features=all,internals"
+    cmd_group "just docs --no-deps"
+    cmd_group "cargo test --doc --workspace --features=all,internals"
 
 test-each-feature *args:
     cargo hack nextest run --each-feature {{ args }}
@@ -114,7 +111,7 @@ pages-ci:
     #!/usr/bin/env -S bash -euo pipefail
     source .env
     mkdir -p _site/
-    cmd_group "just fancy-docs"
+    cmd_group "just docs --no-deps"
     mv target/doc/ _site/main/
     source "$PAGES_VENV/bin/activate"
     cmd_group "just pyapi-build-install"
@@ -163,12 +160,14 @@ ci-cache *args:
     fi
 
 coverage *args:
-    cargo llvm-cov --html nextest --workspace --exclude rustsat-codegen --exclude rustsat-pyapi --features=all,internals {{ args }}
+    cargo llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=all,internals
+    cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals
+    cargo llvm-cov report --doctests --html {{ args }}
 
 coverage-ci:
     #!/usr/bin/env -S bash -euo pipefail
     source .env
-    cmd_group "cargo +nightly llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=all,internals"
-    cmd_group "cargo +nightly llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals"
+    cmd_group "cargo llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=all,internals"
+    cmd_group "cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals"
     mkdir coverage
-    cmd_group "cargo +nightly llvm-cov report --doctests --lcov --output-path coverage/lcov.info"
+    cmd_group "cargo llvm-cov report --doctests --lcov --output-path coverage/lcov.info"
