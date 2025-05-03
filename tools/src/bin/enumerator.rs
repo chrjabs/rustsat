@@ -164,7 +164,7 @@ fn main() -> anyhow::Result<()> {
     let enumerator = Enumerator { solver, max_var };
 
     for (cnt, sol) in enumerator.enumerate() {
-        println!("v {}", sol);
+        println!("v {sol}");
         if args.enumerate_until.is_some_and(|max| cnt + 1 >= max) {
             break;
         }

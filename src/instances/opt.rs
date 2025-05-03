@@ -853,7 +853,7 @@ impl Objective {
                 soft_clauses,
                 ..
             } => {
-                varset.extend(soft_lits.iter().map(|(l, _)| l.var()));
+                varset.extend(soft_lits.keys().map(|l| l.var()));
                 varset.extend(
                     soft_clauses
                         .iter()
