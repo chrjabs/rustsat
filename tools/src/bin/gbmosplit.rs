@@ -86,7 +86,7 @@ impl Cli {
         buffer.set_color(ColorSpec::new().set_bold(true)).unwrap();
         write!(&mut buffer, ": ").unwrap();
         buffer.reset().unwrap();
-        writeln!(&mut buffer, "{}", msg).unwrap();
+        writeln!(&mut buffer, "{msg}").unwrap();
         self.stdout.print(&buffer).unwrap();
     }
 
@@ -100,7 +100,7 @@ impl Cli {
         buffer.set_color(ColorSpec::new().set_bold(true)).unwrap();
         write!(&mut buffer, ": ").unwrap();
         buffer.reset().unwrap();
-        writeln!(&mut buffer, "{}", err).unwrap();
+        writeln!(&mut buffer, "{err}").unwrap();
         self.stdout.print(&buffer).unwrap();
     }
 
@@ -114,7 +114,7 @@ impl Cli {
         buffer.set_color(ColorSpec::new().set_bold(true)).unwrap();
         write!(&mut buffer, ": ").unwrap();
         buffer.reset().unwrap();
-        writeln!(&mut buffer, "{}", msg).unwrap();
+        writeln!(&mut buffer, "{msg}").unwrap();
         self.stdout.print(&buffer).unwrap();
     }
 
@@ -151,7 +151,7 @@ impl Cli {
             .unwrap();
         write!(buffer, "Objective").unwrap();
         buffer.reset().unwrap();
-        writeln!(buffer, " #{}", idx).unwrap();
+        writeln!(buffer, " #{idx}").unwrap();
         Self::print_parameter(buffer, "n-softs", stats.n_softs);
         Self::print_parameter(buffer, "weight-sum", stats.weight_sum);
         Self::print_parameter(buffer, "min-weight", stats.min_weight);
@@ -164,9 +164,9 @@ impl Cli {
         buffer
             .set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))
             .unwrap();
-        write!(buffer, "{}", name).unwrap();
+        write!(buffer, "{name}").unwrap();
         buffer.reset().unwrap();
-        writeln!(buffer, ": {}", val).unwrap();
+        writeln!(buffer, ": {val}").unwrap();
     }
 
     fn start_block(buffer: &mut Buffer) {
@@ -340,8 +340,7 @@ fn split<VM: ManageVars>(
 
     if offset != 0 {
         cli.warning(&format!(
-            "objective offset is not zero ({}), will be added to the lowest ranking objective",
-            offset
+            "objective offset is not zero ({offset}), will be added to the lowest ranking objective"
         ));
     }
 

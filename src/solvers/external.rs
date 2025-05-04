@@ -129,7 +129,7 @@ pub struct Solver {
 
 #[derive(Debug)]
 enum SolverState {
-    Pre(SolverPre),
+    Pre(Box<SolverPre>),
     Post(fio::SolverOutput),
 }
 
@@ -172,13 +172,13 @@ impl Solver {
     pub fn new(cmd: Command, input: InputVia, output: OutputVia, signature: &'static str) -> Self {
         Solver {
             signature,
-            state: SolverState::Pre(SolverPre {
+            state: SolverState::Pre(Box::new(SolverPre {
                 cmd,
                 input,
                 output,
                 cnf: Cnf::default(),
                 n_vars: 0,
-            }),
+            })),
         }
     }
 
@@ -225,7 +225,7 @@ impl Solve for Solver {
         else {
             unreachable!()
         };
-        let post = call_external(config)?;
+        let post = call_external(*config)?;
         let res = post.result();
         self.state = SolverState::Post(post);
         Ok(res)

@@ -3,11 +3,9 @@ FROM rust:1.86-bookworm
 ENV CI=true
 
 # Install Rust components and toolchains
-RUN rustup component add clippy rustfmt && \
+RUN rustup install nightly-2025-05-02 --component clippy,rustfmt,llvm-tools-preview && \
     # MSRVs
-    rustup install --profile minimal 1.75 && rustup install --profile minimal 1.76 && rustup install --profile minimal 1.77 && \
-    # Nightly for docs and coverage
-    rustup install nightly --component llvm-tools-preview
+    rustup install --profile minimal 1.75 && rustup install --profile minimal 1.76 && rustup install --profile minimal 1.77
 
 # Install CI dependencies
 RUN apt-get update && apt-get install -y \

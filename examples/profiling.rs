@@ -79,6 +79,6 @@ fn build_full_ub<PBE: BoundUpper + FromIterator<(Lit, usize)>>(lits: &[(Lit, usi
 fn main() {
     for idx in 0..1 {
         build_full_ub::<GeneralizedTotalizer>(&lits!());
-        println!("iteration {}", idx);
+        println!("iteration {idx}");
     }
 }

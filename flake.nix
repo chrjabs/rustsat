@@ -48,16 +48,6 @@
         '';
       };
     };
-    rust-nightly-overlay = _: super: {
-      rust-toolchain = super.symlinkJoin {
-        name = "rust-toolchain";
-        paths = [(super.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))];
-        buildInputs = [super.makeWrapper];
-        postBuild = ''
-          wrapProgram $out/bin/cargo --set LIBCLANG_PATH ${super.libclang.lib}/lib
-        '';
-      };
-    };
     devShellSystemRustOverlay = system: rust-overlay-fn: let
       pkgs = (pkgsFor rust-overlay-fn).${system};
       libs = with pkgs; [openssl xz bzip2];
@@ -66,7 +56,7 @@
         inherit (self.checks.${system}.pre-commit-check) shellHook;
         nativeBuildInputs = with pkgs;
           [
-            llvmPackages_12.bintools
+            llvmPackages.bintools
             pkg-config
             clang
             cmake
@@ -96,7 +86,6 @@
   in {
     devShells = forAllSystems (system: {
       default = devShellSystemRustOverlay system rust-toolchain-overlay;
-      nightly = devShellSystemRustOverlay system rust-nightly-overlay;
     });
 
     packages = forAllSystems (system: {

@@ -184,7 +184,7 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     assert_eq!(res, SolverResult::Unsat);
 
     let assumps = enc.enforce_lb(9).unwrap();
-    println!("{:?}", assumps);
+    println!("{assumps:?}");
     let res = solver.solve_assumps(dbg!(&assumps)).unwrap();
     assert_eq!(res, SolverResult::Sat);
 }
@@ -323,7 +323,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
         if decreasing {
             bound = max_val - bound;
         }
-        println!("bound: {}", bound);
+        println!("bound: {bound}");
 
         enc.encode_ub_change(bound..bound + 1, &mut solver, &mut var_manager)
             .unwrap();
@@ -460,7 +460,7 @@ mod dpw_inc_prec {
         lits.insert(lit![2], weights[2]);
         lits.insert(lit![3], weights[3]);
         for decreasing in [false, true] {
-            println!("decreasing: {}", decreasing);
+            println!("decreasing: {decreasing}");
             let mut solver = rustsat_minisat::core::Minisat::default();
             let mut enc = DynamicPolyWatchdog::from(lits.clone());
             let mut var_manager = BasicVarManager::default();
@@ -468,7 +468,7 @@ mod dpw_inc_prec {
 
             for prec in 0..3 {
                 let prec_div = 1 << (3 - prec);
-                println!("precision: {}", prec_div);
+                println!("precision: {prec_div}");
                 enc.set_precision(prec_div).unwrap();
 
                 let max_val = weights.iter().fold(0, |sum, &w| sum + (w / prec_div));
@@ -487,11 +487,11 @@ mod dpw_inc_prec {
                     if decreasing {
                         bound = max_val - bound;
                     }
-                    println!("bound: {}", bound);
+                    println!("bound: {bound}");
                     let mut cnf = Cnf::default();
                     enc.encode_ub_change(bound..bound + 1, &mut cnf, &mut var_manager)
                         .unwrap();
-                    println!("extending encoding: {:?}", cnf);
+                    println!("extending encoding: {cnf:?}");
                     solver.add_cnf(cnf).unwrap();
                     let assumps = enc.enforce_ub(bound).unwrap();
 
@@ -825,7 +825,7 @@ mod cert {
             if decreasing {
                 bound = max_val - bound;
             }
-            println!("bound: {}", bound);
+            println!("bound: {bound}");
 
             enc.encode_ub_change_cert(bound..bound + 1, &mut cnf, &mut var_manager, &mut proof)
                 .unwrap();
