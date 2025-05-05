@@ -1424,8 +1424,9 @@ impl Iterator for ValueIter<'_> {
                 let right = self.db[current].right().unwrap();
                 if self.cache[right.id.0] < usize::MAX {
                     // have also encountered the right child, so do not need to recurse further
-                    last.1 =
-                        Some(con.map(self.cache[con.id.0]) + right.map(self.cache[right.id.0]));
+                    let val = con.map(self.cache[con.id.0]) + right.map(self.cache[right.id.0]);
+                    last.1 = Some(val);
+                    self.cache[last.0.id.0] = val;
                     return Some((popped_con.id, popped_val));
                 }
                 // put right child in trace and continue
