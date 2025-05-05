@@ -23,7 +23,7 @@ rust-version = "1.76.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-bindgen = { version = "0.71.1", default-features = false }
+bindgen = { version = "0.71.1", default-features = false, features = ["runtime"] }
 bzip2 = "0.5.2"
 cc = { version = "1.2.21", features = ["parallel"] }
 chrono = "0.4.41"
