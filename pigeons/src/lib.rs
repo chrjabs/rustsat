@@ -1037,3 +1037,79 @@ where
         0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn new_with_conclusion() {
+        let (file, proof_file) = tempfile::NamedTempFile::new()
+            .expect("failed to create temporary proof file")
+            .into_parts();
+        let proof = super::Proof::new_with_conclusion::<&'static str>(
+            file,
+            0,
+            false,
+            super::OutputGuarantee::None,
+            &super::Conclusion::Unsat(Some(super::ConstraintId::last(1))),
+        )
+        .expect("failed to start proof");
+        drop(proof);
+        let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        assert_eq!(
+            output,
+            r"pseudo-Boolean proof version 2.0
+f 0
+output NONE
+conclusion UNSAT : -1
+end pseudo-Boolean proof
+"
+        );
+    }
+
+    #[test]
+    fn update_default_conclusion() {
+        let (file, proof_file) = tempfile::NamedTempFile::new()
+            .expect("failed to create temporary proof file")
+            .into_parts();
+        let mut proof = super::Proof::new(file, 0, false).expect("failed to start proof");
+        proof.update_default_conclusion::<&'static str>(
+            super::OutputGuarantee::None,
+            &super::Conclusion::Unsat(Some(super::ConstraintId::last(1))),
+        );
+        drop(proof);
+        let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        assert_eq!(
+            output,
+            r"pseudo-Boolean proof version 2.0
+f 0
+output NONE
+conclusion UNSAT : -1
+end pseudo-Boolean proof
+"
+        );
+    }
+
+    #[test]
+    fn multiline_comment() {
+        let (file, proof_file) = tempfile::NamedTempFile::new()
+            .expect("failed to create temporary proof file")
+            .into_parts();
+        let mut proof = super::Proof::new(file, 0, false).expect("failed to start proof");
+        proof
+            .multiline_comment("this is a\nmultiline comment")
+            .unwrap();
+        drop(proof);
+        let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        assert_eq!(
+            output,
+            r"pseudo-Boolean proof version 2.0
+f 0
+* this is a
+* multiline comment
+output NONE
+conclusion NONE
+end pseudo-Boolean proof
+"
+        );
+    }
+}
