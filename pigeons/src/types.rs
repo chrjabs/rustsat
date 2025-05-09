@@ -822,7 +822,14 @@ pub enum Conclusion<V: VarLike> {
     /// Unsatisfiability
     Unsat(Option<ConstraintId>),
     /// Bounds
-    Bounds(BoundsConclusion<V>),
+    Bounds {
+        /// The range of the bounds on the objective
+        range: Range<isize>,
+        /// Optional [`ConstraintId`] of the lower bound
+        lb_id: Option<ConstraintId>,
+        /// Optional solution witnessing the upper bound
+        ub_sol: Option<Vec<Axiom<V>>>,
+    },
 }
 
 impl<V: VarLike> fmt::Display for Conclusion<V> {
@@ -843,27 +850,23 @@ impl<V: VarLike> fmt::Display for Conclusion<V> {
                     write!(f, "UNSAT")
                 }
             }
-            Conclusion::Bounds(dat) => {
-                write!(f, "BOUNDS {}", dat.range.start)?;
-                if let Some(id) = dat.lb_id {
+            Conclusion::Bounds {
+                range,
+                lb_id,
+                ub_sol,
+            } => {
+                write!(f, "BOUNDS {}", range.start)?;
+                if let Some(id) = lb_id {
                     write!(f, " : {id}")?;
                 }
-                write!(f, " {}", dat.range.end)?;
-                if let Some(sol) = &dat.ub_sol {
+                write!(f, " {}", range.end - 1)?;
+                if let Some(sol) = &ub_sol {
                     write!(f, " : {}", sol.iter().format(" "))?;
                 }
                 Ok(())
             }
         }
     }
-}
-
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct BoundsConclusion<V: VarLike> {
-    pub(crate) range: Range<usize>,
-    pub(crate) lb_id: Option<ConstraintId>,
-    pub(crate) ub_sol: Option<Vec<Axiom<V>>>,
 }
 
 pub struct ObjFormatter<'o, V: VarLike, O: ObjectiveLike<V>> {
