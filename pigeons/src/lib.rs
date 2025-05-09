@@ -841,7 +841,7 @@ where
     ///
     /// # Proof Log
     ///
-    /// Writes an `is`-rule line.
+    /// Writes an `ia`-rule line.
     ///
     /// # Errors
     ///
