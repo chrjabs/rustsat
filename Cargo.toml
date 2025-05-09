@@ -25,14 +25,14 @@ rust-version = "1.76.0" # update the crate documentation if you change this
 anyhow = "1.0.98"
 bindgen = { version = "0.71.1", default-features = false, features = ["runtime"] }
 bzip2 = "0.5.2"
-cc = { version = "1.2.21", features = ["parallel"] }
+cc = { version = "1.2.22", features = ["parallel"] }
 chrono = "0.4.41"
 clap = { version = "4.5.37", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
 flate2 = { version = "1.1.1", features = ["zlib-ng"], default-features = false }
-git2 = "0.20.1"
+git2 = "0.20.2"
 glob = "0.3.2"
 itertools = "0.14.0"
 libtest-mimic = "0.8.1"
@@ -49,7 +49,7 @@ rustsat-minisat = { version = "0.7.1", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-signal-hook = "0.3.17"
+signal-hook = "0.3.18"
 tempfile = "3.19.1"
 visibility = "0.1.1"
 xz2 = "0.1.7"
