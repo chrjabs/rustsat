@@ -68,7 +68,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - uses: install-pinned/maturin@43b39b11faf67ba5f8922a76d274cfe7795778fd
+      - uses: install-pinned/maturin@67a067cc5e8a4b8638beea8b7b48825ddaf8cb44
       - name: 🏗️ Install Python API
         run: maturin build -m pyapi/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
       - name: 🧪 Test example
