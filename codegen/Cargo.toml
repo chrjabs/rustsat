@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 cbindgen = "0.28.0"
-minijinja = { version = "2.9.0", default-features = false, features = [
+minijinja = { version = "2.10.2", default-features = false, features = [
   "multi_template",
   "serde",
   "loader",
