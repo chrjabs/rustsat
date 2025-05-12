@@ -509,7 +509,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 // Propagate and check
 // This is based on the implementation in PySat
 // https://github.com/pysathq/pysat/blob/master/solvers/patches/minisat22.patch
-bool Solver::propCheck(const vec<Lit>& assumps, int psaving, void(*prop_cb)(void *, int), void *cb_data)
+bool Solver::propCheck(const Lit* assumps, int n_assumps, int psaving, void(*prop_cb)(void *, Lit), void *cb_data)
 {
     if (!ok) return false;
 
@@ -522,7 +522,7 @@ bool Solver::propCheck(const vec<Lit>& assumps, int psaving, void(*prop_cb)(void
     phase_saving = psaving;
 
     // propagate each assumption at a new decision level
-    for (int i = 0; !unsat && confl == CRef_Undef && i < assumps.size(); ++i) {
+    for (int i = 0; !unsat && confl == CRef_Undef && i < n_assumps; ++i) {
         Lit p = assumps[i];
 
         if (value(p) == l_False)
@@ -537,11 +537,11 @@ bool Solver::propCheck(const vec<Lit>& assumps, int psaving, void(*prop_cb)(void
     // copying the result
     if (decisionLevel() > level) {
         for (int c = trail_lim[level]; c < trail.size(); ++c)
-            prop_cb(cb_data, ipasir(trail[c]));
+            prop_cb(cb_data, trail[c]);
 
         // if there is a conflict, pushing the conflicting literal as well
         if (confl != CRef_Undef)
-            prop_cb(cb_data, ipasir(ca[confl][0]));
+            prop_cb(cb_data, ca[confl][0]);
 
         // backtracking
         cancelUntil(level);

@@ -48,6 +48,7 @@ public:
     void    releaseVar(Lit l);                                  // Make literal true and promise to never refer to variable again.
 
     bool    addClause (const vec<Lit>& ps);                     // Add a clause to the solver.
+    bool    addClause (const Lit* ps, int n_lits);              // Add a clause to the solver.
     bool    addEmptyClause();                                   // Add the empty clause, making the solver contradictory.
     bool    addClause (Lit p);                                  // Add a unit clause to the solver.
     bool    addClause (Lit p, Lit q);                           // Add a binary clause to the solver.
@@ -61,12 +62,13 @@ public:
     bool    simplify     ();                        // Removes already satisfied clauses.
     bool    solve        (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions.
     lbool   solveLimited (const vec<Lit>& assumps); // Search for a model that respects a given set of assumptions (With resource constraints).
+    lbool   solveLimited (const Lit* assumps, int n_assumps); // Search for a model that respects a given set of assumptions (With resource constraints).
     bool    solve        ();                        // Search without assumptions.
     bool    solve        (Lit p);                   // Search for a model that respects a single assumption.
     bool    solve        (Lit p, Lit q);            // Search for a model that respects two assumptions.
     bool    solve        (Lit p, Lit q, Lit r);     // Search for a model that respects three assumptions.
     bool    okay         () const;                  // FALSE means solver is in a conflicting state
-    bool    propCheck    (const vec<Lit>& assumps, int psaving, void(*prop_cb)(void *, int), void *cb_data); // compute a list of propagated literals given a set of assumptions
+    bool    propCheck    (const Lit* assumps, int n_assumps, int psaving, void(*prop_cb)(void *, Lit), void *cb_data); // compute a list of propagated literals given a set of assumptions
 
     bool    implies      (const vec<Lit>& assumps, vec<Lit>& out);
 
@@ -340,6 +342,7 @@ inline void Solver::checkGarbage(double gf){
 // NOTE: enqueue does not set the ok flag! (only public methods do)
 inline bool     Solver::enqueue         (Lit p, CRef from)      { return value(p) != l_Undef ? value(p) != l_False : (uncheckedEnqueue(p, from), true); }
 inline bool     Solver::addClause       (const vec<Lit>& ps)    { ps.copyTo(add_tmp); return addClause_(add_tmp); }
+inline bool     Solver::addClause       (const Lit *ps, int n_lits) { add_tmp.fromSlice(ps, n_lits); return addClause_(add_tmp); }
 inline bool     Solver::addEmptyClause  ()                      { add_tmp.clear(); return addClause_(add_tmp); }
 inline bool     Solver::addClause       (Lit p)                 { add_tmp.clear(); add_tmp.push(p); return addClause_(add_tmp); }
 inline bool     Solver::addClause       (Lit p, Lit q)          { add_tmp.clear(); add_tmp.push(p); add_tmp.push(q); return addClause_(add_tmp); }
@@ -390,6 +393,7 @@ inline bool     Solver::solve         (Lit p, Lit q)        { budgetOff(); assum
 inline bool     Solver::solve         (Lit p, Lit q, Lit r) { budgetOff(); assumptions.clear(); assumptions.push(p); assumptions.push(q); assumptions.push(r); return solve_() == l_True; }
 inline bool     Solver::solve         (const vec<Lit>& assumps){ budgetOff(); assumps.copyTo(assumptions); return solve_() == l_True; }
 inline lbool    Solver::solveLimited  (const vec<Lit>& assumps){ assumps.copyTo(assumptions); return solve_(); }
+inline lbool    Solver::solveLimited  (const Lit* assumps, int n_assumps){ assumptions.fromSlice(assumps, n_assumps); return solve_(); }
 inline bool     Solver::okay          ()      const   { return ok; }
 
 inline ClauseIterator Solver::clausesBegin() const { return ClauseIterator(ca, &clauses[0]); }
