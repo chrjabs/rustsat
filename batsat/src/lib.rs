@@ -166,6 +166,13 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
 
         Ok(())
     }
+
+    fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
+        while self.internal.num_vars() <= max_var.idx32() {
+            self.internal.new_var_default();
+        }
+        Ok(())
+    }
 }
 
 impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
