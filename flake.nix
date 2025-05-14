@@ -67,6 +67,7 @@
             cargo-hack
             cargo-spellcheck
             cargo-llvm-cov
+            cargo-valgrind
             just
             release-plz
             jq

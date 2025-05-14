@@ -171,3 +171,22 @@ coverage-ci:
     cmd_group "cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals"
     mkdir coverage
     cmd_group "cargo llvm-cov report --doctests --lcov --output-path coverage/lcov.info"
+
+valgrind *args:
+    cargo valgrind nextest run {{ args }}
+
+# note: something in libtest-mimic seems to be leaking memory
+capi-valgrind:
+    #!/usr/bin/env -S bash -euo pipefail
+    cargo nextest run -p rustsat-capi
+    for test in capi/tests/*.c; do
+        testname=$(basename "$test")
+        valgrind target/tmp/"${testname%.*}"
+    done
+
+all-valgrind *args: (valgrind "--workspace --exclude rustsat-pyapi --exclude rustsat-capi --features=all,internals" args) capi-valgrind
+
+miri *args:
+    MIRIFLAGS=-Zmiri-disable-isolation cargo miri nextest run {{ args }}
+
+all-miri *args: (miri "--workspace --exclude rustsat-pyapi --features=all,internals" args)

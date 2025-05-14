@@ -116,10 +116,16 @@ fn all_diff() {
 fn implication_weaker() {
     let mut proof = new_proof(1, false);
     proof
+        .implied(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::abs(1)))
+        .unwrap();
+    proof
         .implied_add(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::abs(1)))
         .unwrap();
     proof
         .equals(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::last(1)))
+        .unwrap();
+    proof
+        .equals_add(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::last(1)))
         .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
@@ -351,4 +357,126 @@ fn subproof() {
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/subproof.opb"), proof_file.path());
+}
+
+#[test]
+fn miniproof_polishnotation_1() {
+    let (file, proof_file) = tempfile::NamedTempFile::new()
+        .expect("failed to create temporary proof file")
+        .into_parts();
+    let mut proof = pigeons::Proof::new_with_conclusion::<&'static str>(
+        file,
+        5,
+        false,
+        OutputGuarantee::None,
+        &Conclusion::Unsat(Some(Id::abs(9))),
+    )
+    .expect("failed to start proof");
+    proof
+        .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1).saturate())
+        .unwrap();
+    proof
+        .equals(
+            &Constr::parse("1 x1 +1 x3 >= 1"),
+            Some(proof.first_proof_id().into()),
+        )
+        .unwrap();
+    let next_id = proof.next_id();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(6)))
+        .unwrap();
+    proof
+        .equals(
+            &Constr::parse("+2 x1 +2 x2 +2 x3 >= 3"),
+            Some(next_id.into()),
+        )
+        .unwrap();
+    proof
+        .operations(&((OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(6)) / 2))
+        .unwrap();
+    proof
+        .equals(&Constr::parse("1 x1 1 x2 1 x3 >= 2"), Some(Id::abs(8)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(5)) * 2 + OpsSeq::from(Id::abs(8)) * 2))
+        .unwrap();
+    proof
+        .equals(&Constr::parse(">= 2"), Some(Id::abs(9)))
+        .unwrap();
+    drop(proof);
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/miniProof_polishnotation_1.opb"),
+        proof_file,
+    );
+}
+
+#[test]
+fn decision_sat() {
+    let mut proof = new_proof(4, false);
+    proof
+        .solution([
+            "x1".pos_axiom(),
+            "x2".pos_axiom(),
+            "x3".pos_axiom(),
+            "x4".pos_axiom(),
+        ])
+        .unwrap();
+    let proof_file = proof
+        .conclude(
+            OutputGuarantee::None,
+            &Conclusion::Sat(Some(vec![
+                "x1".pos_axiom(),
+                "x2".pos_axiom(),
+                "x3".pos_axiom(),
+                "x4".pos_axiom(),
+            ])),
+        )
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/decision_sat.opb"),
+        proof_file.path(),
+    );
+}
+
+#[test]
+fn optimization_2() {
+    let mut proof = new_proof(3, true);
+    proof
+        .obj_equals(&[(-2, "x1"), (-2, "x2"), (-2, "x3")])
+        .unwrap();
+    proof
+        .operations(&((OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(3)) / 2))
+        .unwrap();
+    proof
+        .improve_solution(["x1".pos_axiom(), "x2".neg_axiom(), "x3".neg_axiom()])
+        .unwrap();
+    proof
+        .equals(
+            &Constr::parse("-2 ~x1 -2 ~x2 -2 ~x3 >= -3"),
+            Some(Id::abs(5)),
+        )
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(4)) * 2 + Id::abs(5)))
+        .unwrap();
+    proof
+        .reverse_unit_prop(&Constr::parse("2 ~x3 2 ~x2 2 ~x1 >= 4"), None)
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(
+            OutputGuarantee::None,
+            &Conclusion::Bounds {
+                range: -2..-1,
+                lb_id: None,
+                ub_sol: None,
+            },
+        )
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/optimization_2.opb"),
+        proof_file.path(),
+    )
 }
