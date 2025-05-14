@@ -2,9 +2,9 @@ extern crate proc_macro;
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Type;
+use syn::{LitStr, Type};
 
-pub fn basic(slv: Type, multi_threaded: bool) -> TokenStream {
+pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream {
     let mut ts = quote! {
         #[test]
         fn build_destroy() {
@@ -18,10 +18,111 @@ pub fn basic(slv: Type, multi_threaded: bool) -> TokenStream {
         }
 
         #[test]
+        fn signature() {
+            use rustsat::solvers::Solve;
+            let pat = #signature;
+            let sig = #slv::default().signature();
+            let mut pat_chars = pat.chars();
+            let mut sig_chars = sig.chars().peekable();
+            let mut alt_depth = 0;
+            while sig_chars.peek().is_some() {
+                let pat_char = pat_chars
+                    .next()
+                    .unwrap_or_else(|| panic!("signature `{sig}` does not match pattern `{pat}`"));
+                if pat_char == '(' {
+                    // patterns of form `(alt1|alt2)` represent alternatives
+                    // NOTE: the matcher does not backtrack, so the above example pattern will actually
+                    // match `aalt2`
+                    alt_depth += 1;
+                    continue;
+                }
+                if pat_char == ')' {
+                    assert!(alt_depth > 0, "malformed pattern `{pat}`");
+                    alt_depth -= 1;
+                    continue;
+                }
+                if pat_char == '[' {
+                    // blocks in square brackets match any sequence of numeric digits
+                    loop {
+                        match pat_chars.next() {
+                            Some(']') => break,
+                            None => panic!("signature `{sig}` does not match pattern `{pat}`"),
+                            _ => (),
+                        }
+                    }
+                    assert!(
+                        sig_chars.next().is_some_and(char::is_numeric),
+                        "signature `{sig}` does not match pattern `{pat}`"
+                    );
+                    loop {
+                        match sig_chars.peek() {
+                            Some(c) if !c.is_numeric() => break,
+                            Some(_) => pat_chars.next(),
+                            None => break,
+                        };
+                    }
+                    continue;
+                }
+                if sig_chars.peek().is_some_and(|c| *c == pat_char) {
+                    sig_chars.next().unwrap();
+                } else {
+                    assert!(
+                        alt_depth > 0,
+                        "signature `{sig}` does not match pattern `{pat}`"
+                    );
+                    // find next alternative
+                    let mut children = 0;
+                    loop {
+                        match pat_chars.next() {
+                            Some('|') => {
+                                if children == 0 {
+                                    break;
+                                }
+                            }
+                            Some('(') => children += 1,
+                            Some(')') => {
+                                assert!(
+                                    children > 0,
+                                    "signature `{sig}` does not match pattern `{pat}`"
+                                );
+                                children -= 1;
+                            }
+                            None => panic!("malformed pattern `{pat}`"),
+                            _ => (),
+                        }
+                    }
+                }
+            }
+            for _ in 0..alt_depth {
+                match pat_chars.next() {
+                    None => panic!("malformed pattern `{pat}`"),
+                    Some(')') => (),
+                    Some('|') => loop {
+                        match pat_chars.next() {
+                            Some(')') => break,
+                            None => panic!("malformed pattern `{pat}`"),
+                            _ => (),
+                        }
+                    },
+                    _ => panic!("signature `{sig}` does not match pattern `{pat}`"),
+                }
+            }
+            assert!(
+                pat_chars.next().is_none(),
+                "signature `{sig}` does not match pattern `{pat}`"
+            );
+        }
+
+        #[test]
         fn stats() {
             use rustsat::{lit, var, solvers::{Solve, SolveStats}};
 
             let mut solver = #slv::default();
+
+            assert_eq!(solver.n_clauses(), 0);
+            assert_eq!(solver.max_var(), None);
+            assert_eq!(solver.n_vars(), 0);
+
             solver.add_binary(lit![0], !lit![1]).unwrap();
             solver.add_binary(lit![1], !lit![2]).unwrap();
             solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -61,6 +162,7 @@ pub fn basic(slv: Type, multi_threaded: bool) -> TokenStream {
                 Err(e) => panic!("got error when solving: {}", e),
                 Ok(res) => assert_eq!(res, SolverResult::Sat),
             }
+            solver.full_solution().unwrap();
         }
 
         #[test]
@@ -77,6 +179,7 @@ pub fn basic(slv: Type, multi_threaded: bool) -> TokenStream {
                 Err(e) => panic!("got error when solving: {}", e),
                 Ok(res) => assert_eq!(res, SolverResult::Unsat),
             }
+            assert!(solver.full_solution().is_err());
         }
     };
     if multi_threaded {

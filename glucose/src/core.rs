@@ -414,7 +414,7 @@ mod test {
         var,
     };
 
-    rustsat_solvertests::basic_unittests!(Glucose);
+    rustsat_solvertests::basic_unittests!(Glucose, "Glucose [major].[minor].[patch]");
     rustsat_solvertests::propagating_unittests!(Glucose);
 
     #[test]

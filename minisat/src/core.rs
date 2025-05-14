@@ -414,7 +414,7 @@ mod test {
         var,
     };
 
-    rustsat_solvertests::basic_unittests!(Minisat);
+    rustsat_solvertests::basic_unittests!(Minisat, "Minisat [major].[minor].[patch]");
     rustsat_solvertests::propagating_unittests!(Minisat);
 
     #[test]

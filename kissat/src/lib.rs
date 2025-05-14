@@ -561,7 +561,10 @@ mod test {
         solvers::{Solve, SolverState, StateError},
     };
 
-    rustsat_solvertests::basic_unittests!(Kissat);
+    rustsat_solvertests::basic_unittests!(
+        Kissat,
+        "kissat-(sc2022-(light|hyper|bulky)|[major].[minor].[patch])"
+    );
 
     #[test]
     fn configure() {

@@ -1270,7 +1270,7 @@ mod test {
 
     use super::{CaDiCaL, Config, Limit, ProofFormat};
 
-    rustsat_solvertests::basic_unittests!(CaDiCaL);
+    rustsat_solvertests::basic_unittests!(CaDiCaL, "cadical-[major].[minor].[patch]");
     rustsat_solvertests::termination_unittests!(CaDiCaL);
     rustsat_solvertests::learner_unittests!(CaDiCaL);
     rustsat_solvertests::freezing_unittests!(CaDiCaL);
