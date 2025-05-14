@@ -33,10 +33,22 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+// Same as the internal literal representation
+typedef struct c_Lit {
+  int x;
+} c_Lit;
+// Same as the internal variable representation
+typedef int c_Var;
+
 // Glucose 4 C API
 // The API is roughly IPASIR-like
 
 const char *cglucose4_signature(void);
+
+// These values are returned from _val
+const int T_FALSE = -1;
+const int T_UNASSIGNED = 0;
+const int T_TRUE = 1;
 
 // This value is returned from _solve, _add, and _phase if the solver runs out
 // of memory
@@ -48,14 +60,15 @@ typedef struct CGlucose4 CGlucose4;
 CGlucose4 *cglucose4_init(void);
 void cglucose4_release(CGlucose4 *);
 
-int cglucose4_add(CGlucose4 *, int lit);
-void cglucose4_assume(CGlucose4 *, int lit);
-int cglucose4_solve(CGlucose4 *);
-int cglucose4_val(CGlucose4 *, int lit);
-int cglucose4_failed(CGlucose4 *, int lit);
+int cglucose4_reserve(CGlucose4 *, c_Var var);
+int cglucose4_add_clause(CGlucose4 *, const c_Lit *lits, size_t n_lits);
+int cglucose4_solve(CGlucose4 *, const c_Lit *assumps, size_t n_assumps);
+int cglucose4_val(CGlucose4 *, c_Lit lit);
+void cglucose4_conflict(CGlucose4 *, const c_Lit **conflict,
+                        size_t *conflict_len);
 
-int cglucose4_phase(CGlucose4 *, int lit);
-void cglucose4_unphase(CGlucose4 *, int lit);
+int cglucose4_phase(CGlucose4 *, c_Lit lit);
+void cglucose4_unphase(CGlucose4 *, c_Var var);
 
 int cglucose4_n_assigns(CGlucose4 *);
 int cglucose4_n_clauses(CGlucose4 *);
@@ -71,11 +84,12 @@ uint64_t cglucose4_decisions(CGlucose4 *);
 uint64_t cglucose4_propagations(CGlucose4 *);
 uint64_t cglucose4_conflicts(CGlucose4 *);
 
-// Propagates the assumptions set via `cglucose_assume`, returns 20 if a
+// Propagates the assumptions, returns 20 if a
 // conflict was encountered, 10 if not. The list of propagated literals is
 // returned via the `prop_cb`. If the solver runs out of memory, returns
 // `OUT_OF_MEM`.
-int cglucose4_propcheck(CGlucose4 *, int psaving, void (*prop_cb)(void *, int),
+int cglucose4_propcheck(CGlucose4 *, const c_Lit *assumps, size_t n_assumps,
+                        int psaving, void (*prop_cb)(void *, c_Lit),
                         void *cb_data);
 // -----------------------------------------------------------------------------
 
@@ -85,14 +99,16 @@ typedef struct CGlucoseSimp4 CGlucoseSimp4;
 CGlucoseSimp4 *cglucosesimp4_init(void);
 void cglucosesimp4_release(CGlucoseSimp4 *);
 
-int cglucosesimp4_add(CGlucoseSimp4 *, int lit);
-void cglucosesimp4_assume(CGlucoseSimp4 *, int lit);
-int cglucosesimp4_solve(CGlucoseSimp4 *);
-int cglucosesimp4_val(CGlucoseSimp4 *, int lit);
-int cglucosesimp4_failed(CGlucoseSimp4 *, int lit);
+int cglucosesimp4_reserve(CGlucoseSimp4 *, c_Var var);
+int cglucosesimp4_add_clause(CGlucoseSimp4 *, const c_Lit *lits, size_t n_lits);
+int cglucosesimp4_solve(CGlucoseSimp4 *, const c_Lit *assumps,
+                        size_t n_assumps);
+int cglucosesimp4_val(CGlucoseSimp4 *, c_Lit lit);
+void cglucosesimp4_conflict(CGlucoseSimp4 *, const c_Lit **conflict,
+                            size_t *conflict_len);
 
-int cglucosesimp4_phase(CGlucoseSimp4 *, int lit);
-void cglucosesimp4_unphase(CGlucoseSimp4 *, int lit);
+int cglucosesimp4_phase(CGlucoseSimp4 *, c_Lit lit);
+void cglucosesimp4_unphase(CGlucoseSimp4 *, c_Var var);
 
 int cglucosesimp4_n_assigns(CGlucoseSimp4 *);
 int cglucosesimp4_n_clauses(CGlucoseSimp4 *);
@@ -108,17 +124,18 @@ uint64_t cglucosesimp4_decisions(CGlucoseSimp4 *);
 uint64_t cglucosesimp4_propagations(CGlucoseSimp4 *);
 uint64_t cglucosesimp4_conflicts(CGlucoseSimp4 *);
 
-// Propagates the assumptions set via `cglucosesimp4_assume`, returns 20 if a
+// Propagates the assumptions, returns 20 if a
 // conflict was encountered, 10 if not. The list of propagated literals is
 // returned via the `prop_cb`. If the solver runs out of memory, returns
 // `OUT_OF_MEM`.
-int cglucosesimp4_propcheck(CGlucoseSimp4 *, int psaving,
-                            void (*prop_cb)(void *, int), void *cb_data);
+int cglucosesimp4_propcheck(CGlucoseSimp4 *, const c_Lit *assumps,
+                            size_t n_assumps, int psaving,
+                            void (*prop_cb)(void *, c_Lit), void *cb_data);
 
 // Simplification-specific functions
-void cglucosesimp4_set_frozen(CGlucoseSimp4 *, int var, int frozen);
-int cglucosesimp4_is_frozen(CGlucoseSimp4 *, int var);
-int cglucosesimp4_is_eliminated(CGlucoseSimp4 *, int var);
+void cglucosesimp4_set_frozen(CGlucoseSimp4 *, c_Var var, int frozen);
+int cglucosesimp4_is_frozen(CGlucoseSimp4 *, c_Var var);
+int cglucosesimp4_is_eliminated(CGlucoseSimp4 *, c_Var var);
 // -----------------------------------------------------------------------------
 
 #ifdef __cplusplus

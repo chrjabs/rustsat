@@ -23,6 +23,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 
 #include <assert.h>
 #include <new>
+#include <cstring>
 
 #include "mtl/IntTypes.h"
 #include "mtl/XAlloc.h"
@@ -70,6 +71,8 @@ public:
     void     growTo   (int size, const T& pad);
     void     clear    (bool dealloc = false);
 
+    const T* ptr () const { return data; }
+
     // Stack interface:
     void     push  (void)              { if (sz == cap) capacity(sz+1); new (&data[sz]) T(); sz++; }
     void     push  (const T& elem)     { if (sz == cap) capacity(sz+1); data[sz++] = elem; }
@@ -111,6 +114,7 @@ public:
         memcpy(copy.data,data,sizeof(T)*cap);
     }
 
+    void fromSlice(const T* elems, int n_elems) { clear(); growTo(n_elems); std::memcpy(data, elems, n_elems * sizeof(T)); }
 };
 
 

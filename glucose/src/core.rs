@@ -43,23 +43,6 @@ impl Default for Glucose {
 }
 
 impl Glucose {
-    fn get_core_assumps(&self, assumps: &[Lit]) -> Result<Vec<Lit>, InvalidApiReturn> {
-        let mut core = Vec::new();
-        for a in assumps {
-            match unsafe { ffi::cglucose4_failed(self.handle, a.to_ipasir()) } {
-                0 => (),
-                1 => core.push(!*a),
-                value => {
-                    return Err(InvalidApiReturn {
-                        api_call: "cglucose4_failed",
-                        value,
-                    })
-                }
-            }
-        }
-        Ok(core)
-    }
-
     #[allow(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
@@ -125,14 +108,14 @@ impl Solve for Glucose {
         if let InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
         }
-        if let InternalSolverState::Unsat(core) = &self.state {
-            if core.is_empty() {
+        if let InternalSolverState::Unsat(under_assumps) = &self.state {
+            if !under_assumps {
                 return Ok(SolverResult::Unsat);
             }
         }
         let start = ProcessTime::now();
         // Solve with glucose backend
-        let res = handle_oom!(unsafe { ffi::cglucose4_solve(self.handle) });
+        let res = handle_oom!(unsafe { ffi::cglucose4_solve(self.handle, std::ptr::null(), 0) });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -147,7 +130,7 @@ impl Solve for Glucose {
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(vec![]);
+                self.state = InternalSolverState::Unsat(false);
                 Ok(SolverResult::Unsat)
             }
             value => Err(InvalidApiReturn {
@@ -166,11 +149,10 @@ impl Solve for Glucose {
             }
             .into());
         }
-        let lit = lit.to_ipasir();
-        match unsafe { ffi::cglucose4_val(self.handle, lit) } {
-            0 => Ok(TernaryVal::DontCare),
-            p if p == lit => Ok(TernaryVal::True),
-            n if n == -lit => Ok(TernaryVal::False),
+        match unsafe { ffi::cglucose4_val(self.handle, lit.into()) } {
+            ffi::T_UNASSIGNED => Ok(TernaryVal::DontCare),
+            ffi::T_TRUE => Ok(TernaryVal::True),
+            ffi::T_FALSE => Ok(TernaryVal::False),
             value => Err(InvalidApiReturn {
                 api_call: "cglucose4_val",
                 value,
@@ -188,11 +170,17 @@ impl Solve for Glucose {
         self.stats.n_clauses += 1;
         self.update_avg_clause_len(clause);
         self.state = InternalSolverState::Input;
-        // Call glucose backend
-        for l in clause {
-            handle_oom!(unsafe { ffi::cglucose4_add(self.handle, l.to_ipasir()) });
-        }
-        handle_oom!(unsafe { ffi::cglucose4_add(self.handle, 0) });
+        handle_oom!(unsafe {
+            ffi::cglucose4_add_clause(self.handle, clause.as_ref().as_ptr().cast(), clause.len())
+        });
+        Ok(())
+    }
+
+    fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
+        handle_oom!(unsafe {
+            #[allow(clippy::cast_possible_wrap)]
+            ffi::cglucose4_reserve(self.handle, max_var.idx32() as c_int)
+        });
         Ok(())
     }
 }
@@ -201,10 +189,9 @@ impl SolveIncremental for Glucose {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         let start = ProcessTime::now();
         // Solve with glucose backend
-        for a in assumps {
-            unsafe { ffi::cglucose4_assume(self.handle, a.to_ipasir()) }
-        }
-        let res = handle_oom!(unsafe { ffi::cglucose4_solve(self.handle) });
+        let res = handle_oom!(unsafe {
+            ffi::cglucose4_solve(self.handle, assumps.as_ptr().cast(), assumps.len())
+        });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
@@ -219,7 +206,7 @@ impl SolveIncremental for Glucose {
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(self.get_core_assumps(assumps)?);
+                self.state = InternalSolverState::Unsat(true);
                 Ok(SolverResult::Unsat)
             }
             value => Err(InvalidApiReturn {
@@ -232,7 +219,19 @@ impl SolveIncremental for Glucose {
 
     fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
         match &self.state {
-            InternalSolverState::Unsat(core) => Ok(core.clone()),
+            InternalSolverState::Unsat(under_assumps) => {
+                if *under_assumps {
+                    let conflict = unsafe {
+                        let mut conflict = std::ptr::null::<ffi::c_Lit>();
+                        let mut conflict_len = 0;
+                        ffi::cglucose4_conflict(self.handle, &mut conflict, &mut conflict_len);
+                        std::slice::from_raw_parts(conflict.cast(), conflict_len)
+                    };
+                    Ok(conflict.to_vec())
+                } else {
+                    Ok(vec![])
+                }
+            }
             other => Err(StateError {
                 required_state: SolverState::Unsat,
                 actual_state: other.to_external(),
@@ -270,13 +269,22 @@ impl InterruptSolver for Interrupter {
 impl PhaseLit for Glucose {
     /// Forces the default decision phase of a variable to a certain value
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
-        handle_oom!(unsafe { ffi::cglucose4_phase(self.handle, lit.to_ipasir()) });
+        self.reserve(lit.var())?;
+        handle_oom!(unsafe { ffi::cglucose4_phase(self.handle, lit.into()) });
         Ok(())
     }
 
     /// Undoes the effect of a call to [`Glucose::phase_lit`]
     fn unphase_var(&mut self, var: Var) -> anyhow::Result<()> {
-        unsafe { ffi::cglucose4_unphase(self.handle, var.to_ipasir()) };
+        match self.max_var() {
+            None => return Ok(()),
+            Some(max) if max < var => return Ok(()),
+            _ => (),
+        }
+        unsafe {
+            #[allow(clippy::cast_possible_wrap)]
+            ffi::cglucose4_unphase(self.handle, var.idx32() as c_int);
+        };
         Ok(())
     }
 }
@@ -332,14 +340,13 @@ impl Propagate for Glucose {
         let start = ProcessTime::now();
         self.state = InternalSolverState::Input;
         // Propagate with glucose backend
-        for a in assumps {
-            unsafe { ffi::cglucose4_assume(self.handle, a.to_ipasir()) }
-        }
         let mut props = Vec::new();
         let ptr: *mut Vec<Lit> = &mut props;
         let res = handle_oom!(unsafe {
             ffi::cglucose4_propcheck(
                 self.handle,
+                assumps.as_ptr().cast(),
+                assumps.len(),
                 c_int::from(phase_saving),
                 Some(ffi::rustsat_glucose_collect_lits),
                 ptr.cast::<std::os::raw::c_void>(),

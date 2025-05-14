@@ -6,6 +6,13 @@ use std::{
 };
 
 fn main() {
+    if std::mem::size_of::<std::ffi::c_int>() != std::mem::size_of::<u32>() {
+        // NOTE: this is required for RustSAT and Glucose literals to have compatible memory
+        // layouts
+        println!("cargo:error=target architecture not supported since `c_int` is not 32 bits");
+        panic!("target architecture not supported since `c_int` is not 32 bits");
+    }
+
     // Build C++ library
     build();
 
