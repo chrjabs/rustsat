@@ -16,6 +16,12 @@
 //! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
 //! sure to pin a precise version of RustSAT.
 
+// NOTE: For some reason, batsat flipped the memory representation of the sign bit in the literal
+// representation compared to Minisat and therefore RustSAT
+// https://github.com/c-cube/batsat/commit/8563ae6e3a59478a0d414fe647d99ad9b989841f
+// For this reason we cannot transmute RustSAT literals to batsat literals and we have to recreate
+// the literals through batsat's API
+
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -78,13 +84,13 @@ impl<Cb: Callbacks> Solver<Cb> {
     }
 
     fn solve_track_stats(&mut self, assumps: &[Lit]) -> SolverResult {
-        let a = assumps
+        let assumps = assumps
             .iter()
-            .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32() + 1), l.is_pos()))
+            .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32()), l.is_pos()))
             .collect::<Vec<_>>();
 
         let start = ProcessTime::now();
-        let ret = match self.internal.solve_limited(&a) {
+        let ret = match self.internal.solve_limited(&assumps) {
             x if x == lbool::TRUE => {
                 self.n_sat += 1;
                 SolverResult::Sat
@@ -134,9 +140,9 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
     }
 
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
-        let l = batsat::Lit::new(batsat::Var::from_index(lit.vidx() + 1), lit.is_pos());
+        let lit = batsat::Lit::new(batsat::Var::from_index(lit.vidx()), lit.is_pos());
 
-        match self.internal.value_lit(l) {
+        match self.internal.value_lit(lit) {
             x if x == lbool::TRUE => Ok(TernaryVal::True),
             x if x == lbool::FALSE => Ok(TernaryVal::False),
             x if x == lbool::UNDEF => Ok(TernaryVal::DontCare),
@@ -151,12 +157,12 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
         let clause = clause.as_ref();
         self.update_avg_clause_len(clause);
 
-        let mut c: Vec<_> = clause
+        let mut clause: Vec<_> = clause
             .iter()
-            .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32() + 1), l.is_pos()))
+            .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32()), l.is_pos()))
             .collect();
 
-        self.internal.add_clause_reuse(&mut c);
+        self.internal.add_clause_reuse(&mut clause);
 
         Ok(())
     }
@@ -172,7 +178,7 @@ impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
             .internal
             .unsat_core()
             .iter()
-            .map(|l| Lit::new(l.var().idx() - 1, !l.sign()))
+            .map(|l| Lit::new(l.var().idx(), !l.sign()))
             .collect::<Vec<_>>())
     }
 }
@@ -209,8 +215,7 @@ impl<Cb: Callbacks> SolveStats for Solver<Cb> {
     fn max_var(&self) -> Option<Var> {
         let num = self.internal.num_vars();
         if num > 0 {
-            // BatSat returns a value that is off by one
-            Some(Var::new(num - 2))
+            Some(Var::new(num - 1))
         } else {
             None
         }
