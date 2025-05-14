@@ -31,17 +31,38 @@ use std::time::Duration;
 use batsat::{intmap::AsIndex, lbool, Callbacks, SolverInterface};
 use cpu_time::ProcessTime;
 use rustsat::{
-    solvers::{Solve, SolveIncremental, SolveStats, SolverResult, SolverStats},
+    solvers::{
+        Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
+    },
     types::{Cl, Clause, Lit, TernaryVal, Var},
 };
 
 /// RustSAT wrapper for [`batsat::BasicSolver`]
 pub type BasicSolver = Solver<batsat::BasicCallbacks>;
 
+#[derive(Debug, PartialEq, Eq, Default)]
+enum InternalSolverState {
+    #[default]
+    Input,
+    Sat,
+    Unsat(bool),
+}
+
+impl InternalSolverState {
+    fn to_external(&self) -> SolverState {
+        match self {
+            InternalSolverState::Input => SolverState::Input,
+            InternalSolverState::Sat => SolverState::Sat,
+            InternalSolverState::Unsat(_) => SolverState::Unsat,
+        }
+    }
+}
+
 /// RustSAT wrapper for a [`batsat::Solver`] Solver from BatSat
 #[derive(Default)]
 pub struct Solver<Cb: Callbacks> {
     internal: batsat::Solver<Cb>,
+    state: InternalSolverState,
     n_sat: usize,
     n_unsat: usize,
     n_terminated: usize,
@@ -53,6 +74,7 @@ impl<Cb: Callbacks> std::fmt::Debug for Solver<Cb> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solver")
             .field("internal", &"omitted")
+            .field("state", &self.state)
             .field("n_sat", &self.n_sat)
             .field("n_unsat", &self.n_unsat)
             .field("n_terminated", &self.n_terminated)
@@ -93,14 +115,17 @@ impl<Cb: Callbacks> Solver<Cb> {
         let ret = match self.internal.solve_limited(&assumps) {
             x if x == lbool::TRUE => {
                 self.n_sat += 1;
+                self.state = InternalSolverState::Sat;
                 SolverResult::Sat
             }
             x if x == lbool::FALSE => {
                 self.n_unsat += 1;
+                self.state = InternalSolverState::Unsat(!assumps.is_empty());
                 SolverResult::Unsat
             }
             x if x == lbool::UNDEF => {
                 self.n_terminated += 1;
+                self.state = InternalSolverState::Input;
                 SolverResult::Interrupted
             }
             _ => unreachable!(),
@@ -136,10 +161,27 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
     }
 
     fn solve(&mut self) -> anyhow::Result<SolverResult> {
+        // If already solved, return state
+        if let InternalSolverState::Sat = self.state {
+            return Ok(SolverResult::Sat);
+        }
+        if let InternalSolverState::Unsat(under_assumps) = &self.state {
+            if !under_assumps {
+                return Ok(SolverResult::Unsat);
+            }
+        }
         Ok(self.solve_track_stats(&[]))
     }
 
     fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+        if self.state != InternalSolverState::Sat {
+            return Err(StateError {
+                required_state: SolverState::Sat,
+                actual_state: self.state.to_external(),
+            }
+            .into());
+        }
+
         let lit = batsat::Lit::new(batsat::Var::from_index(lit.vidx()), lit.is_pos());
 
         match self.internal.value_lit(lit) {
@@ -181,12 +223,25 @@ impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
     }
 
     fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
-        Ok(self
-            .internal
-            .unsat_core()
-            .iter()
-            .map(|l| Lit::new(l.var().idx(), !l.sign()))
-            .collect::<Vec<_>>())
+        match &self.state {
+            InternalSolverState::Unsat(under_assumps) => {
+                if *under_assumps {
+                    Ok(self
+                        .internal
+                        .unsat_core()
+                        .iter()
+                        .map(|l| Lit::new(l.var().idx(), !l.sign()))
+                        .collect::<Vec<_>>())
+                } else {
+                    Ok(vec![])
+                }
+            }
+            other => Err(StateError {
+                required_state: SolverState::Unsat,
+                actual_state: other.to_external(),
+            }
+            .into()),
+        }
     }
 }
 
