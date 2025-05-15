@@ -24,6 +24,7 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include <assert.h>
 #include <limits>
 #include <new>
+#include <cstring>
 
 #include "minisat/mtl/IntTypes.h"
 #include "minisat/mtl/XAlloc.h"
@@ -70,6 +71,8 @@ public:
     void     growTo   (Size size, const T& pad);
     void     clear    (bool dealloc = false);
 
+    const T* ptr () const { return data; }
+
     // Stack interface:
     void     push  (void)              { if (sz == cap) capacity(sz+1); new (&data[sz]) T(); sz++; }
     //void     push  (const T& elem)     { if (sz == cap) capacity(sz+1); data[sz++] = elem; }
@@ -91,6 +94,8 @@ public:
     // Duplicatation (preferred instead):
     void copyTo(vec<T>& copy) const { copy.clear(); copy.growTo(sz); for (Size i = 0; i < sz; i++) copy[i] = data[i]; }
     void moveTo(vec<T>& dest) { dest.clear(true); dest.data = data; dest.sz = sz; dest.cap = cap; data = NULL; sz = 0; cap = 0; }
+
+    void fromSlice(const T* elems, Size n_elems) { clear(); growTo(n_elems); std::memcpy(data, elems, n_elems * sizeof(T)); }
 };
 
 

@@ -28,35 +28,6 @@
 #include "simp/SimpSolver.h"
 #include <new>
 
-#define IPASIR2MS(il) (mkLit(abs(il) - 1, il < 0))
-
-namespace Minisat {
-
-// Note: the memory layout of Wrapper and SimpWrapper needs to be the same
-// because we are casting SimpWrapper into Wrapper
-
-struct Wrapper {
-  Solver *solver;
-  vec<Lit> clause;
-  vec<Lit> assumps;
-
-  Wrapper() : solver(new Solver()), clause(), assumps() {}
-
-  ~Wrapper() { delete solver; }
-};
-
-struct SimpWrapper {
-  SimpSolver *solver;
-  vec<Lit> clause;
-  vec<Lit> assumps;
-
-  SimpWrapper() : solver(new SimpSolver()), clause(), assumps() {}
-
-  ~SimpWrapper() { delete solver; }
-};
-
-} // namespace Minisat
-
 using namespace Minisat;
 
 extern "C" {
@@ -67,7 +38,7 @@ const char *cminisat_signature(void) { return "Minisat 2.2.0"; }
 
 CMinisat *cminisat_init(void) {
   try {
-    return (CMinisat *)new Wrapper();
+    return (CMinisat *)new Solver();
   } catch (std::bad_alloc &) {
     return nullptr;
   } catch (OutOfMemoryException &) {
@@ -77,7 +48,7 @@ CMinisat *cminisat_init(void) {
 
 CMinisatSimp *cminisatsimp_init(void) {
   try {
-    return (CMinisatSimp *)new SimpWrapper();
+    return (CMinisatSimp *)new SimpSolver();
   } catch (std::bad_alloc &) {
     return nullptr;
   } catch (OutOfMemoryException &) {
@@ -85,52 +56,62 @@ CMinisatSimp *cminisatsimp_init(void) {
   }
 }
 
-void cminisat_release(CMinisat *handle) { delete (Wrapper *)handle; }
+void cminisat_release(CMinisat *handle) { delete (Solver *)handle; }
 
-void cminisatsimp_release(CMinisatSimp *handle) {
-  delete (SimpWrapper *)handle;
+void cminisatsimp_release(CMinisatSimp *handle) { delete (SimpSolver *)handle; }
+
+void cminisat_ensure_vars(Solver *solver, const Lit *lits, size_t n_lits) {
+  // find max variable in clause
+  Var max_v = 0;
+  for (size_t i = 0; i < n_lits; i++) {
+    if (var(lits[i]) > max_v) {
+      max_v = var(lits[i]);
+    }
+  }
+  // reserve variables in solver
+  while (max_v >= solver->nVars())
+    solver->newVar();
 }
 
-int cminisat_add(CMinisat *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
+int cminisat_reserve(CMinisat *handle, c_Var var) {
+  Solver *solver = (Solver *)handle;
   try {
-    if (lit) {
-      int var = abs(lit) - 1;
-      while (var >= wrapper->solver->nVars())
-        wrapper->solver->newVar();
-      wrapper->clause.push(IPASIR2MS(lit));
-      return 0;
-    }
-    wrapper->solver->addClause_(wrapper->clause);
-    wrapper->clause.clear();
+    while (var >= solver->nVars())
+      solver->newVar();
     return 0;
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
 }
 
-int cminisatsimp_add(CMinisatSimp *handle, int lit) {
-  return cminisat_add((CMinisat *)handle, lit);
+int cminisatsimp_reserve(CMinisatSimp *handle, c_Var var) {
+  return cminisat_reserve((CMinisat *)handle, var);
 }
 
-void cminisat_assume(CMinisat *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  int var = abs(lit) - 1;
-  while (var >= wrapper->solver->nVars())
-    wrapper->solver->newVar();
-  wrapper->assumps.push(IPASIR2MS(lit));
+int cminisat_add_clause(CMinisat *handle, const c_Lit *c_lits, size_t n_lits) {
+  Lit *lits = (Lit *)c_lits;
+  Solver *solver = (Solver *)handle;
+  try {
+    cminisat_ensure_vars(solver, lits, n_lits);
+    solver->addClause(lits, (int)n_lits);
+    return 0;
+  } catch (OutOfMemoryException &) {
+    return OUT_OF_MEM;
+  }
 }
 
-void cminisatsimp_assume(CMinisatSimp *handle, int lit) {
-  cminisat_assume((CMinisat *)handle, lit);
+int cminisatsimp_add_clause(CMinisatSimp *handle, const c_Lit *lits,
+                            size_t n_lits) {
+  return cminisat_add_clause((CMinisat *)handle, lits, n_lits);
 }
 
-int cminisat_solve(CMinisat *handle) {
-  Wrapper *wrapper = (Wrapper *)handle;
+int cminisat_solve(CMinisat *handle, const c_Lit *c_assumps, size_t n_assumps) {
+  Lit *assumps = (Lit *)c_assumps;
+  Solver *solver = (Solver *)handle;
   lbool res;
   try {
-    res = wrapper->solver->solveLimited(wrapper->assumps);
-    wrapper->assumps.clear();
+    cminisat_ensure_vars(solver, assumps, n_assumps);
+    res = solver->solveLimited(assumps, (int)n_assumps);
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
@@ -143,184 +124,180 @@ int cminisat_solve(CMinisat *handle) {
   return 0;
 }
 
-int cminisatsimp_solve(CMinisatSimp *handle) {
-  return cminisat_solve((CMinisat *)handle);
+int cminisatsimp_solve(CMinisatSimp *handle, const c_Lit *assumps,
+                       size_t n_assumps) {
+  return cminisat_solve((CMinisat *)handle, assumps, n_assumps);
 }
 
-int cminisat_val(CMinisat *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  Var v = abs(lit) - 1;
-  lbool val = wrapper->solver->modelValue(v);
+int cminisat_val(CMinisat *handle, c_Lit lit) {
+  Solver *solver = (Solver *)handle;
+  Var v = var(Lit{lit.x});
+  lbool val = solver->modelValue(v);
   if (val == l_True) {
-    return v + 1;
+    return T_TRUE;
   }
   if (val == l_False) {
-    return -(v + 1);
+    return T_FALSE;
   }
-  return 0;
+  return T_UNASSIGNED;
 }
 
-int cminisatsimp_val(CMinisatSimp *handle, int lit) {
+int cminisatsimp_val(CMinisatSimp *handle, c_Lit lit) {
   return cminisat_val((CMinisat *)handle, lit);
 }
 
-int cminisat_failed(CMinisat *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  Lit ms_lit = IPASIR2MS(-lit);
-  for (int i = 0; i < wrapper->solver->conflict.size(); ++i) {
-    if (wrapper->solver->conflict[i] == ms_lit) {
-      return 1;
-    }
-  }
-  return 0;
+void cminisat_conflict(CMinisat *handle, const c_Lit **conflict,
+                       size_t *conflict_len) {
+  Solver *solver = (Solver *)handle;
+  *conflict = (const c_Lit *)solver->conflict.toVec().ptr();
+  *conflict_len = solver->conflict.size();
 }
 
-int cminisatsimp_failed(CMinisatSimp *handle, int lit) {
-  return cminisat_failed((CMinisat *)handle, lit);
+void cminisatsimp_conflict(CMinisatSimp *handle, const c_Lit **conflict,
+                           size_t *conflict_len) {
+  return cminisat_conflict((CMinisat *)handle, conflict, conflict_len);
 }
 
-int cminisat_phase(CMinisat *handle, int lit) {
+int cminisat_phase(CMinisat *handle, c_Lit lit) {
   try {
-    ((Wrapper *)handle)->solver->phase(IPASIR2MS(lit));
+    ((Solver *)handle)->phase(Lit{lit.x});
     return 0;
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
 }
 
-int cminisatsimp_phase(CMinisatSimp *handle, int lit) {
+int cminisatsimp_phase(CMinisatSimp *handle, c_Lit lit) {
   try {
-    ((SimpWrapper *)handle)->solver->phase(IPASIR2MS(lit));
+    ((SimpSolver *)handle)->phase(Lit{lit.x});
     return 0;
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
 }
 
-void cminisat_unphase(CMinisat *handle, int lit) {
-  return ((Wrapper *)handle)->solver->unphase(var(IPASIR2MS(lit)));
+void cminisat_unphase(CMinisat *handle, c_Var var) {
+  return ((Solver *)handle)->unphase(var);
 }
 
-void cminisatsimp_unphase(CMinisatSimp *handle, int lit) {
-  return ((SimpWrapper *)handle)->solver->unphase(var(IPASIR2MS(lit)));
+void cminisatsimp_unphase(CMinisatSimp *handle, c_Var var) {
+  return ((SimpSolver *)handle)->unphase(var);
 }
 
 int cminisat_n_assigns(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->nAssigns();
+  return ((Solver *)handle)->nAssigns();
 }
 
 int cminisatsimp_n_assigns(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->nAssigns();
+  return ((SimpSolver *)handle)->nAssigns();
 }
 
 int cminisat_n_clauses(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->nClauses();
+  return ((Solver *)handle)->nClauses();
 }
 
 int cminisatsimp_n_clauses(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->nClauses();
+  return ((SimpSolver *)handle)->nClauses();
 }
 
 int cminisat_n_learnts(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->nLearnts();
+  return ((Solver *)handle)->nLearnts();
 }
 
 int cminisatsimp_n_learnts(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->nLearnts();
+  return ((SimpSolver *)handle)->nLearnts();
 }
 
-int cminisat_n_vars(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->nVars();
-}
+int cminisat_n_vars(CMinisat *handle) { return ((Solver *)handle)->nVars(); }
 
 int cminisatsimp_n_vars(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->nVars();
+  return ((SimpSolver *)handle)->nVars();
 }
 
 void cminisat_set_conf_limit(CMinisat *handle, int64_t limit) {
-  ((Wrapper *)handle)->solver->setConfBudget(limit);
+  ((Solver *)handle)->setConfBudget(limit);
 }
 
 void cminisatsimp_set_conf_limit(CMinisatSimp *handle, int64_t limit) {
-  ((SimpWrapper *)handle)->solver->setConfBudget(limit);
+  ((SimpSolver *)handle)->setConfBudget(limit);
 }
 
 void cminisat_set_prop_limit(CMinisat *handle, int64_t limit) {
-  ((Wrapper *)handle)->solver->setPropBudget(limit);
+  ((Solver *)handle)->setPropBudget(limit);
 }
 
 void cminisatsimp_set_prop_limit(CMinisatSimp *handle, int64_t limit) {
-  ((SimpWrapper *)handle)->solver->setPropBudget(limit);
+  ((SimpSolver *)handle)->setPropBudget(limit);
 }
 
 void cminisat_set_no_limit(CMinisat *handle) {
-  ((Wrapper *)handle)->solver->budgetOff();
+  ((Solver *)handle)->budgetOff();
 }
 
 void cminisatsimp_set_no_limit(CMinisatSimp *handle) {
-  ((SimpWrapper *)handle)->solver->budgetOff();
+  ((SimpSolver *)handle)->budgetOff();
 }
 
-void cminisat_interrupt(CMinisat *handle) {
-  ((Wrapper *)handle)->solver->interrupt();
-}
+void cminisat_interrupt(CMinisat *handle) { ((Solver *)handle)->interrupt(); }
 
 void cminisatsimp_interrupt(CMinisatSimp *handle) {
-  ((SimpWrapper *)handle)->solver->interrupt();
+  ((SimpSolver *)handle)->interrupt();
 }
 
 uint64_t cminisat_decisions(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->decisions;
+  return ((Solver *)handle)->decisions;
 }
 
 uint64_t cminisatsimp_decisions(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->decisions;
+  return ((SimpSolver *)handle)->decisions;
 }
 
 uint64_t cminisat_propagations(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->propagations;
+  return ((Solver *)handle)->propagations;
 }
 
 uint64_t cminisatsimp_propagations(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->propagations;
+  return ((SimpSolver *)handle)->propagations;
 }
 
 uint64_t cminisat_conflicts(CMinisat *handle) {
-  return ((Wrapper *)handle)->solver->conflicts;
+  return ((Solver *)handle)->conflicts;
 }
 
 uint64_t cminisatsimp_conflicts(CMinisatSimp *handle) {
-  return ((SimpWrapper *)handle)->solver->conflicts;
+  return ((SimpSolver *)handle)->conflicts;
 }
 
-void cminisatsimp_set_frozen(CMinisatSimp *handle, int var, int frozen) {
-  ((SimpWrapper *)handle)->solver->setFrozen(var - 1, frozen);
+void cminisatsimp_set_frozen(CMinisatSimp *handle, c_Var var, int frozen) {
+  ((SimpSolver *)handle)->setFrozen(var, frozen);
 }
 
-int cminisatsimp_is_frozen(CMinisatSimp *handle, int var) {
-  return ((SimpWrapper *)handle)->solver->isFrozen(var - 1);
+int cminisatsimp_is_frozen(CMinisatSimp *handle, c_Var var) {
+  return ((SimpSolver *)handle)->isFrozen(var);
 }
 
-int cminisatsimp_is_eliminated(CMinisatSimp *handle, int var) {
-  return ((SimpWrapper *)handle)->solver->isEliminated(var - 1);
+int cminisatsimp_is_eliminated(CMinisatSimp *handle, c_Var var) {
+  return ((SimpSolver *)handle)->isEliminated(var);
 }
 
-int cminisat_propcheck(CMinisat *handle, int psaving,
-                       void (*prop_cb)(void *, int), void *cb_data) {
-  Wrapper *wrapper = (Wrapper *)handle;
+int cminisat_propcheck(CMinisat *handle, const c_Lit *assumps, size_t n_assumps,
+                       int psaving, void (*prop_cb)(void *, c_Lit),
+                       void *cb_data) {
+  Solver *solver = (Solver *)handle;
   bool res;
   try {
-    res =
-        wrapper->solver->propCheck(wrapper->assumps, psaving, prop_cb, cb_data);
-    wrapper->assumps.clear();
+    res = solver->propCheck((Lit *)assumps, n_assumps, psaving,
+                            (void (*)(void *, Lit))prop_cb, cb_data);
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
   return res ? 10 : 20;
 }
 
-int cminisatsimp_propcheck(CMinisatSimp *handle, int psaving,
-                           void (*prop_cb)(void *, int), void *cb_data) {
-  return cminisat_propcheck((CMinisat *)handle, psaving, prop_cb, cb_data);
+int cminisatsimp_propcheck(CMinisatSimp *handle, const c_Lit *assumps,
+                           size_t n_assumps, int psaving,
+                           void (*prop_cb)(void *, c_Lit), void *cb_data) {
+  return cminisat_propcheck((CMinisat *)handle, assumps, n_assumps, psaving,
+                            prop_cb, cb_data);
 }
 }
