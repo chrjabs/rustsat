@@ -28,35 +28,6 @@
 #include "simp/SimpSolver.h"
 #include <new>
 
-#define IPASIR2MS(il) (mkLit(abs(il) - 1, il < 0))
-
-namespace Glucose {
-
-// Note: the memory layout of Wrapper and SimpWrapper needs to be the same
-// because we are casting SimpWrapper into Wrapper
-
-struct Wrapper {
-  Solver *solver;
-  vec<Lit> clause{};
-  vec<Lit> assumps{};
-
-  Wrapper() : solver(new Solver()) {}
-
-  ~Wrapper() { delete solver; }
-};
-
-struct SimpWrapper {
-  SimpSolver *solver;
-  vec<Lit> clause{};
-  vec<Lit> assumps{};
-
-  SimpWrapper() : solver(new SimpSolver()) {}
-
-  ~SimpWrapper() { delete solver; }
-};
-
-} // namespace Glucose
-
 using namespace Glucose;
 
 extern "C" {
@@ -67,7 +38,7 @@ const char *cglucose4_signature(void) { return "Glucose 4.2.1"; }
 
 CGlucose4 *cglucose4_init(void) {
   try {
-    return (CGlucose4 *)new Wrapper();
+    return (CGlucose4 *)new Solver();
   } catch (std::bad_alloc &) {
     return nullptr;
   } catch (OutOfMemoryException &) {
@@ -77,7 +48,7 @@ CGlucose4 *cglucose4_init(void) {
 
 CGlucoseSimp4 *cglucosesimp4_init(void) {
   try {
-    return (CGlucoseSimp4 *)new SimpWrapper();
+    return (CGlucoseSimp4 *)new SimpSolver();
   } catch (std::bad_alloc &) {
     return nullptr;
   } catch (OutOfMemoryException &) {
@@ -85,52 +56,66 @@ CGlucoseSimp4 *cglucosesimp4_init(void) {
   }
 }
 
-void cglucose4_release(CGlucose4 *handle) { delete (Wrapper *)handle; }
+void cglucose4_release(CGlucose4 *handle) { delete (Solver *)handle; }
 
 void cglucosesimp4_release(CGlucoseSimp4 *handle) {
-  delete (SimpWrapper *)handle;
+  delete (SimpSolver *)handle;
 }
 
-int cglucose4_add(CGlucose4 *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  try {
-    if (lit) {
-      int var = abs(lit) - 1;
-      while (var >= wrapper->solver->nVars())
-        wrapper->solver->newVar();
-      wrapper->clause.push(IPASIR2MS(lit));
-      return 0;
+void cglucose4_ensure_vars(Solver *solver, const Lit *lits, size_t n_lits) {
+  // find max variable in clause
+  Var max_v = 0;
+  for (size_t i = 0; i < n_lits; i++) {
+    if (var(lits[i]) > max_v) {
+      max_v = var(lits[i]);
     }
-    wrapper->solver->addClause_(wrapper->clause);
-    wrapper->clause.clear();
+  }
+  // reserve variables in solver
+  while (max_v >= solver->nVars())
+    solver->newVar();
+}
+
+int cglucose4_reserve(CGlucose4 *handle, c_Var var) {
+  Solver *solver = (Solver *)handle;
+  try {
+    while (var >= solver->nVars())
+      solver->newVar();
     return 0;
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
 }
 
-int cglucosesimp4_add(CGlucoseSimp4 *handle, int lit) {
-  return cglucose4_add((CGlucose4 *)handle, lit);
+int cglucosesimp4_reserve(CGlucoseSimp4 *handle, c_Var var) {
+  return cglucose4_reserve((CGlucose4 *)handle, var);
 }
 
-void cglucose4_assume(CGlucose4 *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  int var = abs(lit) - 1;
-  while (var >= wrapper->solver->nVars())
-    wrapper->solver->newVar();
-  wrapper->assumps.push(IPASIR2MS(lit));
+int cglucose4_add_clause(CGlucose4 *handle, const c_Lit *c_lits,
+                         size_t n_lits) {
+  Lit *lits = (Lit *)c_lits;
+  Solver *solver = (Solver *)handle;
+  try {
+    cglucose4_ensure_vars(solver, lits, n_lits);
+    solver->addClause(lits, (int)n_lits);
+    return 0;
+  } catch (OutOfMemoryException &) {
+    return OUT_OF_MEM;
+  }
 }
 
-void cglucosesimp4_assume(CGlucoseSimp4 *handle, int lit) {
-  cglucose4_assume((CGlucose4 *)handle, lit);
+int cglucosesimp4_add_clause(CGlucoseSimp4 *handle, const c_Lit *lits,
+                             size_t n_lits) {
+  return cglucose4_add_clause((CGlucose4 *)handle, lits, n_lits);
 }
 
-int cglucose4_solve(CGlucose4 *handle) {
-  Wrapper *wrapper = (Wrapper *)handle;
+int cglucose4_solve(CGlucose4 *handle, const c_Lit *c_assumps,
+                    size_t n_assumps) {
+  Lit *assumps = (Lit *)c_assumps;
+  Solver *solver = (Solver *)handle;
   lbool res;
   try {
-    res = wrapper->solver->solveLimited(wrapper->assumps);
-    wrapper->assumps.clear();
+    cglucose4_ensure_vars(solver, assumps, n_assumps);
+    res = solver->solveLimited(assumps, (int)n_assumps);
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
@@ -143,184 +128,180 @@ int cglucose4_solve(CGlucose4 *handle) {
   return 0;
 }
 
-int cglucosesimp4_solve(CGlucoseSimp4 *handle) {
-  return cglucose4_solve((CGlucose4 *)handle);
+int cglucosesimp4_solve(CGlucoseSimp4 *handle, const c_Lit *assumps,
+                        size_t n_assumps) {
+  return cglucose4_solve((CGlucose4 *)handle, assumps, n_assumps);
 }
 
-int cglucose4_val(CGlucose4 *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  Var v = abs(lit) - 1;
-  lbool val = wrapper->solver->modelValue(v);
+int cglucose4_val(CGlucose4 *handle, c_Lit lit) {
+  Solver *solver = (Solver *)handle;
+  Var v = var(Lit{lit.x});
+  lbool val = solver->modelValue(v);
   if (val == l_True) {
-    return v + 1;
+    return T_TRUE;
   }
   if (val == l_False) {
-    return -(v + 1);
+    return T_FALSE;
   }
-  return 0;
+  return T_UNASSIGNED;
 }
 
-int cglucosesimp4_val(CGlucoseSimp4 *handle, int lit) {
+int cglucosesimp4_val(CGlucoseSimp4 *handle, c_Lit lit) {
   return cglucose4_val((CGlucose4 *)handle, lit);
 }
 
-int cglucose4_failed(CGlucose4 *handle, int lit) {
-  Wrapper *wrapper = (Wrapper *)handle;
-  Lit ms_lit = IPASIR2MS(-lit);
-  for (int i = 0; i < wrapper->solver->conflict.size(); ++i) {
-    if (wrapper->solver->conflict[i] == ms_lit) {
-      return 1;
-    }
-  }
-  return 0;
+void cglucose4_conflict(CGlucose4 *handle, const c_Lit **conflict,
+                        size_t *conflict_len) {
+  Solver *solver = (Solver *)handle;
+  *conflict = (const c_Lit *)solver->conflict.ptr();
+  *conflict_len = solver->conflict.size();
 }
 
-int cglucosesimp4_failed(CGlucoseSimp4 *handle, int lit) {
-  return cglucose4_failed((CGlucose4 *)handle, lit);
+void cglucosesimp4_conflict(CGlucoseSimp4 *handle, const c_Lit **conflict,
+                            size_t *conflict_len) {
+  return cglucose4_conflict((CGlucose4 *)handle, conflict, conflict_len);
 }
 
-int cglucose4_phase(CGlucose4 *handle, int lit) {
+int cglucose4_phase(CGlucose4 *handle, c_Lit lit) {
   try {
-    ((Wrapper *)handle)->solver->phase(IPASIR2MS(lit));
+    ((Solver *)handle)->phase(Lit{lit.x});
     return 0;
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
 }
 
-int cglucosesimp4_phase(CGlucoseSimp4 *handle, int lit) {
+int cglucosesimp4_phase(CGlucoseSimp4 *handle, c_Lit lit) {
   try {
-    ((SimpWrapper *)handle)->solver->phase(IPASIR2MS(lit));
+    ((SimpSolver *)handle)->phase(Lit{lit.x});
     return 0;
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
 }
 
-void cglucose4_unphase(CGlucose4 *handle, int lit) {
-  return ((Wrapper *)handle)->solver->unphase(var(IPASIR2MS(lit)));
+void cglucose4_unphase(CGlucose4 *handle, c_Var var) {
+  return ((Solver *)handle)->unphase(var);
 }
 
-void cglucosesimp4_unphase(CGlucoseSimp4 *handle, int lit) {
-  return ((SimpWrapper *)handle)->solver->unphase(var(IPASIR2MS(lit)));
+void cglucosesimp4_unphase(CGlucoseSimp4 *handle, c_Var var) {
+  return ((SimpSolver *)handle)->unphase(var);
 }
 
 int cglucose4_n_assigns(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->nAssigns();
+  return ((Solver *)handle)->nAssigns();
 }
 
 int cglucosesimp4_n_assigns(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->nAssigns();
+  return ((SimpSolver *)handle)->nAssigns();
 }
 
 int cglucose4_n_clauses(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->nClauses();
+  return ((Solver *)handle)->nClauses();
 }
 
 int cglucosesimp4_n_clauses(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->nClauses();
+  return ((SimpSolver *)handle)->nClauses();
 }
 
 int cglucose4_n_learnts(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->nLearnts();
+  return ((Solver *)handle)->nLearnts();
 }
 
 int cglucosesimp4_n_learnts(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->nLearnts();
+  return ((SimpSolver *)handle)->nLearnts();
 }
 
-int cglucose4_n_vars(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->nVars();
-}
+int cglucose4_n_vars(CGlucose4 *handle) { return ((Solver *)handle)->nVars(); }
 
 int cglucosesimp4_n_vars(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->nVars();
+  return ((SimpSolver *)handle)->nVars();
 }
 
 void cglucose4_set_conf_limit(CGlucose4 *handle, int64_t limit) {
-  ((Wrapper *)handle)->solver->setConfBudget(limit);
+  ((Solver *)handle)->setConfBudget(limit);
 }
 
 void cglucosesimp4_set_conf_limit(CGlucoseSimp4 *handle, int64_t limit) {
-  ((SimpWrapper *)handle)->solver->setConfBudget(limit);
+  ((SimpSolver *)handle)->setConfBudget(limit);
 }
 
 void cglucose4_set_prop_limit(CGlucose4 *handle, int64_t limit) {
-  ((Wrapper *)handle)->solver->setPropBudget(limit);
+  ((Solver *)handle)->setPropBudget(limit);
 }
 
 void cglucosesimp4_set_prop_limit(CGlucoseSimp4 *handle, int64_t limit) {
-  ((SimpWrapper *)handle)->solver->setPropBudget(limit);
+  ((SimpSolver *)handle)->setPropBudget(limit);
 }
 
 void cglucose4_set_no_limit(CGlucose4 *handle) {
-  ((Wrapper *)handle)->solver->budgetOff();
+  ((Solver *)handle)->budgetOff();
 }
 
 void cglucosesimp4_set_no_limit(CGlucoseSimp4 *handle) {
-  ((SimpWrapper *)handle)->solver->budgetOff();
+  ((SimpSolver *)handle)->budgetOff();
 }
 
-void cglucose4_interrupt(CGlucose4 *handle) {
-  ((Wrapper *)handle)->solver->interrupt();
-}
+void cglucose4_interrupt(CGlucose4 *handle) { ((Solver *)handle)->interrupt(); }
 
 void cglucosesimp4_interrupt(CGlucoseSimp4 *handle) {
-  ((SimpWrapper *)handle)->solver->interrupt();
+  ((SimpSolver *)handle)->interrupt();
 }
 
 uint64_t cglucose4_decisions(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->decisions;
+  return ((Solver *)handle)->decisions;
 }
 
 uint64_t cglucosesimp4_decisions(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->decisions;
+  return ((SimpSolver *)handle)->decisions;
 }
 
 uint64_t cglucose4_propagations(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->propagations;
+  return ((Solver *)handle)->propagations;
 }
 
 uint64_t cglucosesimp4_propagations(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->propagations;
+  return ((SimpSolver *)handle)->propagations;
 }
 
 uint64_t cglucose4_conflicts(CGlucose4 *handle) {
-  return ((Wrapper *)handle)->solver->conflicts;
+  return ((Solver *)handle)->conflicts;
 }
 
 uint64_t cglucosesimp4_conflicts(CGlucoseSimp4 *handle) {
-  return ((SimpWrapper *)handle)->solver->conflicts;
+  return ((SimpSolver *)handle)->conflicts;
 }
 
-void cglucosesimp4_set_frozen(CGlucoseSimp4 *handle, int var, int frozen) {
-  ((SimpWrapper *)handle)->solver->setFrozen(var - 1, frozen);
+void cglucosesimp4_set_frozen(CGlucoseSimp4 *handle, c_Var var, int frozen) {
+  ((SimpSolver *)handle)->setFrozen(var, frozen);
 }
 
-int cglucosesimp4_is_frozen(CGlucoseSimp4 *handle, int var) {
-  return ((SimpWrapper *)handle)->solver->isFrozen(var - 1);
+int cglucosesimp4_is_frozen(CGlucoseSimp4 *handle, c_Var var) {
+  return ((SimpSolver *)handle)->isFrozen(var);
 }
 
-int cglucosesimp4_is_eliminated(CGlucoseSimp4 *handle, int var) {
-  return ((SimpWrapper *)handle)->solver->isEliminated(var - 1);
+int cglucosesimp4_is_eliminated(CGlucoseSimp4 *handle, c_Var var) {
+  return ((SimpSolver *)handle)->isEliminated(var);
 }
 
-int cglucose4_propcheck(CGlucose4 *handle, int psaving,
-                        void (*prop_cb)(void *, int), void *cb_data) {
-  Wrapper *wrapper = (Wrapper *)handle;
+int cglucose4_propcheck(CGlucose4 *handle, const c_Lit *assumps,
+                        size_t n_assumps, int psaving,
+                        void (*prop_cb)(void *, c_Lit), void *cb_data) {
+  Solver *solver = (Solver *)handle;
   bool res;
   try {
-    res =
-        wrapper->solver->propCheck(wrapper->assumps, psaving, prop_cb, cb_data);
-    wrapper->assumps.clear();
+    res = solver->propCheck((Lit *)assumps, n_assumps, psaving,
+                            (void (*)(void *, Lit))prop_cb, cb_data);
   } catch (OutOfMemoryException &) {
     return OUT_OF_MEM;
   }
   return res ? 10 : 20;
 }
 
-int cglucosesimp4_propcheck(CGlucoseSimp4 *handle, int psaving,
-                            void (*prop_cb)(void *, int), void *cb_data) {
-  return cglucose4_propcheck((CGlucose4 *)handle, psaving, prop_cb, cb_data);
+int cglucosesimp4_propcheck(CGlucoseSimp4 *handle, const c_Lit *assumps,
+                            size_t n_assumps, int psaving,
+                            void (*prop_cb)(void *, c_Lit), void *cb_data) {
+  return cglucose4_propcheck((CGlucose4 *)handle, assumps, n_assumps, psaving,
+                             prop_cb, cb_data);
 }
 }
