@@ -26,6 +26,11 @@ jobs:
       - docs
       - cadical-each-feature
       - kissat-each-feature
+      - cadical-valgrind
+      - kissat-valgrind
+      - minisat-valgrind
+      - glucose-valgrind
+      - capi-valgrind
     if: ${{ always() }}  # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
@@ -37,6 +42,11 @@ jobs:
           echo "📑 Check documentation: ${{ needs.docs.result }}"
           echo "🧪 CaDiCaL test each feature: ${{ needs.cadical-each-feature.result }}"
           echo "🧪 Kissat test each feature: ${{ needs.kissat-each-feature.result }}"
+          echo "🤖 CaDiCaL Valgrind: ${{ needs.cadical-valgrind.result }}"
+          echo "🤖 Kissat Valgrind: ${{ needs.kissat-valgrind.result }}"
+          echo "🤖 Minisat Valgrind: ${{ needs.minisat-valgrind.result }}"
+          echo "🤖 Glucose Valgrind: ${{ needs.glucose-valgrind.result }}"
+          echo "🤖 C-API Valgrind: ${{ needs.capi-valgrind.result }}"
       # Fail this required job if any of its dependent jobs have failed.
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
@@ -54,6 +64,16 @@ jobs:
       - if: ${{ needs.cadical-each-feature.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.kissat-each-feature.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.cadical-valgrind.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.kissat-valgrind.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.minisat-valgrind.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.glucose-valgrind.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.capi-valgrind.result == 'failure' }}
         run: exit 1
 
   tests:
@@ -131,8 +151,53 @@ jobs:
   kissat-each-feature:
     name: 🧪 Kissat test each feature
     runs-on: self-hosted
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
     steps:
       - uses: actions/checkout@v4
       - name: 🧪 Test each feature
         run: just kissat-each-feature-ci
+
+  cadical-valgrind:
+    name: 🤖 CaDiCaL Valgrind
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🧪 Tests through valgrind
+        run: just cadical-valgrind-ci
+
+  kissat-valgrind:
+    name: 🤖 Kissat Valgrind
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🧪 Tests through valgrind
+        run: just kissat-valgrind-ci
+
+  minisat-valgrind:
+    name: 🤖 Minisat Valgrind
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/minisat')
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🧪 Tests through valgrind
+        run: just minisat-valgrind-ci
+
+  glucose-valgrind:
+    name: 🤖 Glucose Valgrind
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'solvers/glucose')
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🧪 Tests through valgrind
+        run: just glucose-valgrind-ci
+
+  capi-valgrind:
+    name: 🤖 C-API Valgrind
+    runs-on: self-hosted
+    if: contains(github.event.pull_request.labels.*.name, 'c-api')
+    steps:
+      - uses: actions/checkout@v4
+      - name: 🧪 Tests through valgrind
+        run: just capi-valgrind-ci

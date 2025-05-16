@@ -10,6 +10,7 @@
 
     nix-tools.url = "github:gleachkr/nix-tools";
     nix-tools.inputs.nixpkgs.follows = "nixpkgs";
+    #nix-tools.inputs.rust-overlay.follows = "rust-overlay";
 
     nix-config.url = "github:chrjabs/nix-config";
     nix-config.inputs.nixpkgs.follows = "nixpkgs";
@@ -67,6 +68,16 @@
             cargo-hack
             cargo-spellcheck
             cargo-llvm-cov
+            (cargo-valgrind.overrideAttrs (old: rec {
+              version = "2.3.1";
+              src = fetchFromGitHub {
+                owner = "jfrimmel";
+                repo = "cargo-valgrind";
+                tag = version;
+                sha256 = "sha256-yUCDKklkfK+2n+THH4QlHb+FpeWfObXpmp4VozsFiUM=";
+              };
+            }))
+            valgrind
             just
             release-plz
             jq
