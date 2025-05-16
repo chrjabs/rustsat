@@ -171,3 +171,46 @@ coverage-ci:
     cmd_group "cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals"
     mkdir coverage
     cmd_group "cargo llvm-cov report --doctests --lcov --output-path coverage/lcov.info"
+
+valgrind *args:
+    cargo valgrind nextest run {{ args }}
+
+# note: something in libtest-mimic seems to be leaking memory
+capi-valgrind:
+    #!/usr/bin/env -S bash -euo pipefail
+    cargo nextest run -p rustsat-capi
+    for test in capi/tests/*.c; do
+        valgrind target/tmp/"$(basename -s .c "$test")"
+    done
+
+all-valgrind *args: (valgrind "--workspace --exclude rustsat-pyapi --exclude rustsat-capi --features=all,internals" args) capi-valgrind
+
+cadical-valgrind-ci: (ci-cache "restore --key ci-cadical-valgrind") && (ci-cache "save --rust --key ci-cadical-valgrind")
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
+    cmd_group "just valgrind --profile ci -p rustsat-cadical"
+
+kissat-valgrind-ci: (ci-cache "restore --key ci-kissat-valgrind") && (ci-cache "save --rust --key ci-kissat-valgrind")
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
+    cmd_group "just valgrind --profile ci -p rustsat-kissat"
+
+minisat-valgrind-ci: (ci-cache "restore --key ci-minisat-valgrind") && (ci-cache "save --rust --key ci-minisat-valgrind")
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
+    cmd_group "just valgrind --profile ci -p rustsat-minisat"
+
+glucose-valgrind-ci: (ci-cache "restore --key ci-glucose-valgrind") && (ci-cache "save --rust --key ci-glucose-valgrind")
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
+    cmd_group "just valgrind --profile ci -p rustsat-glucose"
+
+capi-valgrind-ci: (ci-cache "restore --key ci-capi-valgrind") && (ci-cache "save --rust --key ci-capi-valgrind")
+    #!/usr/bin/env -S bash -euo pipefail
+    source .env
+    cmd_group "just capi-valgrind"
+
+miri *args:
+    MIRIFLAGS=-Zmiri-disable-isolation cargo miri nextest run {{ args }}
+
+all-miri *args: (miri "--workspace --exclude rustsat-pyapi --features=all,internals" args)
