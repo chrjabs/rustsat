@@ -77,7 +77,10 @@ impl Glucose {
 
     /// Checks if a variable has been eliminated by preprocessing.
     pub fn var_eliminated(&mut self, var: Var) -> bool {
-        (unsafe { ffi::cglucosesimp4_is_eliminated(self.handle, var.to_ipasir()) } != 0)
+        (unsafe {
+            #[allow(clippy::cast_possible_wrap)]
+            ffi::cglucosesimp4_is_eliminated(self.handle, var.idx32() as c_int)
+        } != 0)
     }
 }
 
