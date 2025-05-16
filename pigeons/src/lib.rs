@@ -86,6 +86,7 @@ use crate::types::{ConstrFormatter, ObjFormatter};
 pub struct Proof<Writer: io::Write> {
     /// Where the proof is written to
     writer: Writer,
+    // NOTE: if anything is added here, make sure to manually drop it in [`Self::end`]
     /// The next free constraint ID
     next_id: AbsConstraintId,
     /// The next free proof-only variable
@@ -136,7 +137,7 @@ where
             first_proof_id: next_id,
             default_conclusion: (
                 OutputGuarantee::None,
-                format!("{}", Conclusion::<&str>::None),
+                format!("{}", Conclusion::<&'static str>::None),
             ),
         };
         if optimization {
@@ -705,7 +706,16 @@ where
     fn end(mut self) -> io::Result<Writer> {
         writeln!(self.writer, "end pseudo-Boolean proof")?;
         // wrap self in ManuallyDrop to avoid calling Drop on it
-        let nodrop = std::mem::ManuallyDrop::new(self);
+        let mut nodrop = std::mem::ManuallyDrop::new(self);
+        // manually drop everything but the writer, after this never use any of these fields in
+        // nnodrop
+        unsafe {
+            std::ptr::drop_in_place(&mut nodrop.next_id);
+            std::ptr::drop_in_place(&mut nodrop.next_pv);
+            std::ptr::drop_in_place(&mut nodrop.problem_type);
+            std::ptr::drop_in_place(&mut nodrop.first_proof_id);
+            std::ptr::drop_in_place(&mut nodrop.default_conclusion);
+        }
         // unsafely move writer out, after this never use writer in nodrop anymore
         let writer = unsafe { std::ptr::read(&nodrop.writer) };
         Ok(writer)
