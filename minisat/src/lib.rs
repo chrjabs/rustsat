@@ -10,7 +10,8 @@
 //! ## Minisat Version
 //!
 //! The version of Minisat in this crate is Version 2.2.0.
-//! The used Cpp source repository can be found [here](https://github.com/chrjabs/minisat).
+//! The used Cpp source can be found
+//! [here](https://github.com/chrjabs/rustsat/tree/main/minisat/cppsrc).
 //!
 //! ## Minimum Supported Rust Version (MSRV)
 //!

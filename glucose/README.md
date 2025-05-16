@@ -16,7 +16,8 @@ The Glucose SAT solver to be used with the [RustSAT](https://github.com/chrjabs/
 ## Glucose Version
 
 The version of Glucose in this crate is Version 4.2.1.
-The used Cpp source repository can be found [here](https://github.com/chrjabs/glucose4).
+The used Cpp source can be found
+[here](https://github.com/chrjabs/rustsat/tree/main/glucose/cppsrc).
 
 ## Minimum Supported Rust Version (MSRV)
 
