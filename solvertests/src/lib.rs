@@ -2,7 +2,9 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::{parse::Parse, parse_macro_input, punctuated::Punctuated, Expr, LitBool, Token, Type};
+use syn::{
+    parse::Parse, parse_macro_input, punctuated::Punctuated, Expr, LitBool, LitStr, Token, Type,
+};
 
 mod integration;
 mod unit;
@@ -51,19 +53,27 @@ impl Parse for IntegrationInput {
 
 struct BasicUnitInput {
     slv: Type,
+    signature: LitStr,
     mt: Option<bool>,
 }
 
 impl Parse for BasicUnitInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let slv: Type = input.parse()?;
+        let _: Token![,] = input.parse()?;
+        let signature: LitStr = input.parse()?;
         if input.is_empty() {
-            return Ok(Self { slv, mt: None });
+            return Ok(Self {
+                slv,
+                signature,
+                mt: None,
+            });
         }
         let _: Token![,] = input.parse()?;
         let mt: LitBool = input.parse()?;
         Ok(Self {
             slv,
+            signature,
             mt: Some(mt.value),
         })
     }
@@ -73,7 +83,7 @@ impl Parse for BasicUnitInput {
 pub fn basic_unittests(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as BasicUnitInput);
     let mt = input.mt.unwrap_or(true);
-    unit::basic(input.slv, mt).into()
+    unit::basic(input.slv, input.signature, mt).into()
 }
 
 #[proc_macro]
@@ -122,4 +132,10 @@ pub fn phasing_tests(tokens: TokenStream) -> TokenStream {
 pub fn flipping_tests(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as IntegrationInput);
     integration::flipping(input).into()
+}
+
+#[proc_macro]
+pub fn internal_stats_tests(tokens: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(tokens as IntegrationInput);
+    integration::internal_stats(input).into()
 }

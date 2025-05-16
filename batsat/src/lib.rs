@@ -294,5 +294,9 @@ impl<Cb: Callbacks> SolveStats for Solver<Cb> {
 
 #[cfg(test)]
 mod test {
-    rustsat_solvertests::basic_unittests!(super::BasicSolver, false);
+    rustsat_solvertests::basic_unittests!(
+        super::BasicSolver,
+        "BatSat [major].[minor].[patch]",
+        false
+    );
 }
