@@ -27,7 +27,7 @@ pyo3 = { version = "0.24.2", features = [
 ] }
 
 [build-dependencies]
-pyo3-build-config = { version = "0.24.2" }
+pyo3-build-config = { version = "0.25.0" }
 
 [lib]
 crate-type = ["cdylib"]
