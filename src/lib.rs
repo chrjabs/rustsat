@@ -36,6 +36,20 @@
 //! | `rustsat-ipasir` | [IPASIR](https://github.com/biotomas/ipasir) bindings to use any compliant solver with RustSAT. |
 //! | `pigeons` | A library for writing [VeriPB](https://gitlab.com/MIAOresearch/software/VeriPB) proofs. Used by RustSAT with the `proof-logging` feature. |
 //!
+//! ## Citing
+//!
+//! If you use RustSAT in your research, please cite the following system description paper.
+//!
+//! ```bibtex
+//! @misc{Jabs2025RustsatLibrarySat,
+//!   title       = {{RustSAT}: {A} Library For {SAT} Solving in Rust},
+//!   author      = {Jabs, Christoph},
+//!   year        = {2025},
+//!   eprint      = {2505.15221},
+//!   url         = {https://arxiv.org/abs/2505.15221},
+//! }
+//! ```
+//!
 //! ## Installation
 //!
 //! To use the RustSAT library as a dependency in your project, simply run `cargo add rustsat`.
