@@ -9,7 +9,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-cbindgen = "0.28.0"
+cbindgen = "0.29.0"
 minijinja = { version = "2.10.2", default-features = false, features = [
   "multi_template",
   "serde",
