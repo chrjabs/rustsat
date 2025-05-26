@@ -1067,7 +1067,7 @@ impl fmt::Display for Assignment {
     }
 }
 
-/// Turns the solution into an iterator over all true literals
+/// Turns the assignment into an iterator over all true literals
 impl IntoIterator for Assignment {
     type Item = Lit;
 
@@ -1079,6 +1079,27 @@ impl IntoIterator for Assignment {
     fn into_iter(self) -> Self::IntoIter {
         self.assignment
             .into_iter()
+            .enumerate()
+            .filter_map(|(idx, tv)| match tv {
+                TernaryVal::True => Some(Var::new(idx.try_into().unwrap()).pos_lit()),
+                TernaryVal::False => Some(Var::new(idx.try_into().unwrap()).neg_lit()),
+                TernaryVal::DontCare => None,
+            })
+    }
+}
+
+/// Turns the assignment reference into an iterator over all true literals
+impl<'a> IntoIterator for &'a Assignment {
+    type Item = Lit;
+
+    type IntoIter = std::iter::FilterMap<
+        std::iter::Enumerate<std::slice::Iter<'a, TernaryVal>>,
+        fn((usize, &TernaryVal)) -> Option<Lit>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.assignment
+            .iter()
             .enumerate()
             .filter_map(|(idx, tv)| match tv {
                 TernaryVal::True => Some(Var::new(idx.try_into().unwrap()).pos_lit()),
@@ -1573,6 +1594,36 @@ mod tests {
         assert_eq!(json, r#"{"lidx":11}"#);
         let roundtrip: Lit = serde_json::from_str(&json).unwrap();
         assert_eq!(roundtrip, lit);
+    }
+
+    #[test]
+    fn assign_into_iter() {
+        let assign = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+            TernaryVal::DontCare,
+            TernaryVal::True,
+            TernaryVal::False,
+        ]);
+        let lits: Vec<_> = assign.into_iter().collect();
+        assert_eq!(lits, vec![lit![0], !lit![1], lit![2], lit![4], !lit![5]]);
+    }
+
+    #[test]
+    fn assign_ref_into_iter() {
+        let assign = Assignment::from(vec![
+            TernaryVal::True,
+            TernaryVal::False,
+            TernaryVal::True,
+            TernaryVal::DontCare,
+            TernaryVal::True,
+            TernaryVal::False,
+        ]);
+        let lits: Vec<_> = (&assign).into_iter().collect();
+        assert_eq!(lits, vec![lit![0], !lit![1], lit![2], lit![4], !lit![5]]);
+        // ensure assign is still around, so we actually used a reference
+        assert_eq!(assign.len(), 6);
     }
 }
 
