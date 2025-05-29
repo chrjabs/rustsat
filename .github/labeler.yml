@@ -1,0 +1,43 @@
+github_actions:
+- changed-files:
+  - any-glob-to-any-file: ".github/**/*"
+
+c-api:
+- changed-files:
+  - any-glob-to-any-file: "capi/**/*"
+
+python-capi:
+- changed-files:
+  - any-glob-to-any-file: "pyapi/**/*"
+
+encodings:
+- changed-files:
+  - any-glob-to-any-file: "src/encodings/**/*"
+
+solvers:
+- changed-files:
+  - any-glob-to-any-file: ["batsat/**/*", "cadical/**/*", "glucose/**/*", "kissat/**/*", "minisat/**/*"]
+
+solvers/batsat:
+- changed-files:
+  - any-glob-to-any-file: "batsat/**/*"
+
+solvers/cadical:
+- changed-files:
+  - any-glob-to-any-file: "cadical/**/*"
+
+solvers/glucose:
+- changed-files:
+  - any-glob-to-any-file: "glucose/**/*"
+
+solvers/kissat:
+- changed-files:
+  - any-glob-to-any-file: "kissat/**/*"
+
+solvers/minisat:
+- changed-files:
+  - any-glob-to-any-file: "minisat/**/*"
+
+pigeons:
+- changed-files:
+  - any-glob-to-any-file: "pigeons/**/*"
