@@ -17,7 +17,7 @@ concurrency:
 jobs:
   ci-everything:
     name: All CI stages
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs:
       - tests
       - msrv-build
