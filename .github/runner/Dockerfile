@@ -3,7 +3,7 @@ FROM rust:1.86-bookworm
 ENV CI=true
 
 # Install Rust components and toolchains
-RUN rustup install nightly-2025-05-02 --component clippy,rustfmt,llvm-tools-preview && \
+RUN rustup install nightly-2025-05-02 --component clippy,rustfmt,llvm-tools-preview,miri && \
     # MSRVs
     rustup install --profile minimal 1.75 && rustup install --profile minimal 1.76 && rustup install --profile minimal 1.77
 
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     # Script dependencies
     curl git jq rsync \
     # Rust build dependencies
-    libssl-dev pkg-config \
+    libssl-dev pkg-config valgrind \
     # VeriPB dependencies
     libgmp-dev \
     # C(++) build dependencies
@@ -33,7 +33,7 @@ ENV CXX=clang++
 ARG GH_VERSION="2.70.0"
 
 # Install CI tools using cargo-binstall
-RUN cargo binstall -y cargo-nextest cargo-hack cargo-rdme cargo-spellcheck cargo-semver-checks cargo-llvm-cov just release-plz typos-cli && \
+RUN cargo binstall -y cargo-nextest cargo-hack cargo-rdme cargo-spellcheck cargo-semver-checks cargo-llvm-cov cargo-valgrind just release-plz typos-cli && \
     # Install Python tools with pipx
     mkdir /opt/pipx && export PIPX_HOME=/opt/pipx && export PIPX_BIN_DIR=/usr/local/bin && \
     pipx install maturin && \
