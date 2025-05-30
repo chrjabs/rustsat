@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [0.7.2] - 2025-05-30
 
+### Bug Fixes
+
+- Re-enable runtime feature flag for bindgen (#373)
+
 ### Documentation
 
 - Update minisat/glucose cpp source links (#384)

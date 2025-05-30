@@ -7,12 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Bug Fixes
 
 - Always cache node values in `ValueIter` (#374)
-- Re-enable runtime feature flag for bindgen (#373)
-- Update rust crate minijinja to 2.10.2 (#377)
 
 ### Documentation
 
-- Update minisat/glucose cpp source links (#384)
 - Citation instructions (#394)
 
 ### Features

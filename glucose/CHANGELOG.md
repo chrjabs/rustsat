@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
-- Incorrect usage of new C-API
 - Uninitialized memory
+- Re-enable runtime feature flag for bindgen (#373)
 
 ### Documentation
 
