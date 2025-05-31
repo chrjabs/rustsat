@@ -46,8 +46,6 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-extern crate core;
-
 use std::{
     fmt, io, num::NonZeroUsize,
     ops::{Bound, RangeBounds},
