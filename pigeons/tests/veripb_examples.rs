@@ -3,6 +3,7 @@
 use std::{
     fs::File,
     io::{BufRead, BufReader},
+    num::NonZeroUsize,
     path::Path,
     process::Command,
 };
@@ -222,7 +223,7 @@ fn g3_g5() {
             None,
         )
         .unwrap();
-    proof.set_level(1).unwrap();
+    proof.set_level(NonZeroUsize::new(2).unwrap()).unwrap();
     let sum = proof
         .operations(
             &[c, d, e, f, g, h, i, j, k, l]
@@ -241,14 +242,14 @@ fn g3_g5() {
             Some(Id::from(sum2)),
         )
         .unwrap();
-    proof.set_level(0).unwrap();
+    proof.set_level(NonZeroUsize::new(1).unwrap()).unwrap();
     proof
         .implied_add(
             &Constr::parse("1 ~x0_0 1 x1_1 1 x1_2 1 x1_3 1 x1_4 1 x1_5 1 x1_6 1 x1_7 1 x1_8 1 x1_9 1 x1_10 >= 1"),
             Some(Id::from(implied)),
         )
         .unwrap();
-    proof.wipe_level(1).unwrap();
+    proof.wipe_level(NonZeroUsize::new(2).unwrap()).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
         .unwrap();

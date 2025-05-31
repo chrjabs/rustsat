@@ -46,8 +46,10 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
+extern crate core;
+
 use std::{
-    fmt, io,
+    fmt, io, num::NonZeroUsize,
     ops::{Bound, RangeBounds},
 };
 
@@ -337,9 +339,6 @@ where
     ///
     /// If writing the proof fails.
     ///
-    /// # Panics
-    ///
-    /// If `hint` is not [`None`] but empty.
     pub fn reverse_unit_prop<V, C, I>(
         &mut self,
         constr: &C,
@@ -890,8 +889,8 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn set_level(&mut self, level: usize) -> io::Result<()> {
-        writeln!(self.writer, "# {level}")
+    pub fn set_level(&mut self, level: NonZeroUsize) -> io::Result<()> {
+        writeln!(self.writer, "# {}", level.get())
     }
 
     /// Wipes out constraints from the given `level` or higher
@@ -907,8 +906,8 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn wipe_level(&mut self, level: usize) -> io::Result<()> {
-        writeln!(self.writer, "w {level}")
+    pub fn wipe_level(&mut self, level: NonZeroUsize) -> io::Result<()> {
+        writeln!(self.writer, "w {}", level.get())
     }
 
     /// Defines a new order with a given name and a transitivity and optional reflexivity proof
