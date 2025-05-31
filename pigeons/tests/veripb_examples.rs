@@ -3,6 +3,7 @@
 use std::{
     fs::File,
     io::{BufRead, BufReader},
+    num::NonZeroUsize,
     path::Path,
     process::Command,
 };
@@ -49,7 +50,7 @@ impl<'slf> ConstraintLike<&'slf str> for Constr<'slf> {
         self.rhs
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<&'slf str>)> {
+    fn sum_iter(&self) -> impl Iterator<Item=(isize, pigeons::Axiom<&'slf str>)> {
         self.terms
             .iter()
             .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))
@@ -143,7 +144,7 @@ fn g3_g5() {
     let a = proof.redundant(
         &Constr::parse("-1 x0_0 -1 x1_0 -1 x2_0 -1 x3_0 -1 x4_0 -1 x5_0 -1 x6_0 -1 x7_0 -1 x8_0 -1 x9_0 >= -1"),
         [],
-        None
+        None,
     ).unwrap();
     let b = proof
         .redundant(
@@ -222,7 +223,7 @@ fn g3_g5() {
             None,
         )
         .unwrap();
-    proof.set_level(1).unwrap();
+    proof.set_level(NonZeroUsize::new(2).unwrap()).unwrap();
     let sum = proof
         .operations(
             &[c, d, e, f, g, h, i, j, k, l]
@@ -241,14 +242,14 @@ fn g3_g5() {
             Some(Id::from(sum2)),
         )
         .unwrap();
-    proof.set_level(0).unwrap();
+    proof.set_level(NonZeroUsize::new(1).unwrap()).unwrap();
     proof
         .implied_add(
             &Constr::parse("1 ~x0_0 1 x1_1 1 x1_2 1 x1_3 1 x1_4 1 x1_5 1 x1_6 1 x1_7 1 x1_8 1 x1_9 1 x1_10 >= 1"),
             Some(Id::from(implied)),
         )
         .unwrap();
-    proof.wipe_level(1).unwrap();
+    proof.wipe_level(NonZeroUsize::new(2).unwrap()).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
         .unwrap();
@@ -340,12 +341,12 @@ fn subproof() {
                         (OpsSeq::from(Id::last(1)) + "x6".pos_axiom()).into(),
                     ],
                 )
-                .into(),
+                    .into(),
                 ProofGoal::new(
                     ProofGoalId::from(Id::abs(1)),
                     [(OpsSeq::from(Id::last(1)) + Id::abs(2)).into()],
                 )
-                .into(),
+                    .into(),
             ],
         )
         .unwrap();
@@ -371,7 +372,7 @@ fn miniproof_polishnotation_1() {
         OutputGuarantee::None,
         &Conclusion::Unsat(Some(Id::abs(9))),
     )
-    .expect("failed to start proof");
+        .expect("failed to start proof");
     proof
         .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1).saturate())
         .unwrap();
