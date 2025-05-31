@@ -352,11 +352,12 @@ where
         } else {
             "rup"
         };
+        let hints_str = hints.into_iter().format(" ").to_string();
         writeln!(
             self.writer,
-            "{keyword} {} ; {}",
+            "{keyword} {} ;{}",
             ConstrFormatter::from(constr),
-            hints.into_iter().format(" ")
+            if hints_str.is_empty() { "" } else { format!(" {}", hints_str) }
         )?;
         Ok(self.new_id())
     }
