@@ -336,10 +336,6 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    ///
-    /// # Panics
-    ///
-    /// If `hint` is not [`None`] but empty.
     pub fn reverse_unit_prop<V, C, I>(
         &mut self,
         constr: &C,
@@ -883,10 +879,6 @@ where
     ///
     /// Writes a `#`-rule line.
     ///
-    /// # Panics
-    ///
-    /// If `level` is zero.
-    ///
     /// # Errors
     ///
     /// If writing the proof fails.
@@ -899,10 +891,6 @@ where
     /// # Proof Log
     ///
     /// Writes a `w`-rule line.
-    ///
-    /// # Panics
-    ///
-    /// If `level` is zero.
     ///
     /// # Errors
     ///
