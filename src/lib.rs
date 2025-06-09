@@ -26,6 +26,8 @@
 //! ## Crates
 //!
 //! The RustSAT project is split up into multiple crates that are all contained in [this repository](https://github.com/chrjabs/rustsat/).
+//! The general architecture is illustrated in [this architecture
+//! diagram](https://github.com/chrjabs/rustsat/blob/main/docs/architecture.png).
 //! These are the crates the project consists of:
 //!
 //! | Crate | Description |
@@ -36,17 +38,30 @@
 //! | `rustsat-ipasir` | [IPASIR](https://github.com/biotomas/ipasir) bindings to use any compliant solver with RustSAT. |
 //! | `pigeons` | A library for writing [VeriPB](https://gitlab.com/MIAOresearch/software/VeriPB) proofs. Used by RustSAT with the `proof-logging` feature. |
 //!
+//! ## Comparison to Other Libraries
+//!
+//! For a basic comparison of RustSAT to other libraries, you can have a look at [this benchmark
+//! repository](https://github.com/chrjabs/rustsat-benchmarks/) and the [RustSAT tool
+//! paper](https://media.christophjabs.info/papers/Jabs2025RustsatLibrarySat.pdf).
+//!
 //! ## Citing
 //!
 //! If you use RustSAT in your research, please cite the following system description paper.
 //!
 //! ```bibtex
-//! @misc{Jabs2025RustsatLibrarySat,
+//! @inproceedings{Jabs2025RustsatLibrarySat,
 //!   title       = {{RustSAT}: {A} Library For {SAT} Solving in Rust},
 //!   author      = {Jabs, Christoph},
+//!   booktitle   = {28th International Conference on Theory and Applications of Satisfiability
+//!   Testing ({SAT} 2025)},
+//!   editor      = {Berg, Jeremias and Nordstr{\"o}m, Jakob},
 //!   year        = {2025},
+//!   volume      = {341},
+//!   publisher   = {Schloss Dagstuhl---Leibniz-Zentrum f{\"{u}}r Informatik},
+//!   series      = {Leibniz International Proceedings in Informatics ({LIPIcs})},
+//!   pages       = {24:1--24:13},
+//!   doi         = {10.4230/LIPIcs.SAT.2025.24},
 //!   eprint      = {2505.15221},
-//!   url         = {https://arxiv.org/abs/2505.15221},
 //! }
 //! ```
 //!
