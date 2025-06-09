@@ -255,7 +255,7 @@ where
                 if w >= top {
                     constrs.add_clause(clause);
                 } else {
-                    obj.add_soft_clause(w, clause);
+                    obj.increase_soft_clause(w, clause);
                 }
             }
         }
@@ -292,7 +292,7 @@ where
                     if idx > objs.len() {
                         objs.resize(idx, Objective::new());
                     }
-                    objs[idx - 1].add_soft_clause(w, clause);
+                    objs[idx - 1].increase_soft_clause(w, clause);
                 }
                 None => constrs.add_clause(clause),
             }
@@ -1123,6 +1123,27 @@ mod tests {
 
     #[cfg(feature = "optimization")]
     #[test]
+    fn parse_wcnf_pre22_duplication() {
+        use crate::{instances::ManageVars, types::Var};
+
+        let data = "p wcnf 3 5 42\n1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\n42 -3 0\n";
+
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+
+        let mut true_constrs: SatInstance = SatInstance::new();
+        let mut true_obj = Objective::new();
+        true_constrs.add_clause(clause![ipasir_lit![-3]]);
+        true_constrs
+            .var_manager_mut()
+            .increase_next_free(Var::new(3));
+        true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_obj.add_soft_lit(10, ipasir_lit![3]);
+
+        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
+    }
+
+    #[cfg(feature = "optimization")]
+    #[test]
     fn parse_wcnf_post22() {
         let data = "h 1 2 0\n10 -3 4 5 0\n";
 
@@ -1132,6 +1153,23 @@ mod tests {
         let mut true_obj = Objective::new();
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+        assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
+    }
+
+    #[cfg(feature = "optimization")]
+    #[test]
+    fn parse_wcnf_post22_duplication() {
+        let data = "1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\nh -3 0\n";
+
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+
+        let mut true_constrs: SatInstance = SatInstance::new();
+        let mut true_obj = Objective::new();
+        true_constrs.add_clause(clause![ipasir_lit![-3]]);
+        true_constrs.var_manager_mut();
+        true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_obj.add_soft_lit(10, ipasir_lit![3]);
 
         assert_eq!(parsed_inst, (true_constrs, vec![true_obj]));
     }
@@ -1149,6 +1187,27 @@ mod tests {
         true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
         true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
         true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+
+        assert_eq!(parsed_inst, (true_constrs, vec![true_obj0, true_obj1]));
+    }
+
+    #[cfg(feature = "multiopt")]
+    #[test]
+    fn parse_mcnf_duplication() {
+        let data = "c test\nh 1 2 0\no2 10 -3 4 5 0\no2 10 -3 4 5 0\no1 3 -1 0\no1 3 -1 0";
+
+        let parsed_inst = parse_dimacs(&mut Cursor::new(data)).unwrap();
+
+        let mut true_constrs: SatInstance = SatInstance::new();
+        let mut true_obj0 = Objective::new();
+        let mut true_obj1 = Objective::new();
+        true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+        true_obj0.add_soft_lit(3, ipasir_lit![1]);
+        // increasing an existing soft literal or soft clause causes the instance to become weighted.
+        true_obj0.increase_soft_lit(3, ipasir_lit![1]);
+        true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+        true_obj1
+            .increase_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
 
         assert_eq!(parsed_inst, (true_constrs, vec![true_obj0, true_obj1]));
     }
