@@ -527,6 +527,9 @@ impl Objective {
     /// Increases the weight of a soft clause. Returns the old weight, if the
     /// clause was already in the objective.
     pub fn increase_soft_clause(&mut self, add_w: usize, cl: Clause) -> Option<usize> {
+        if cl.len() == 1 {
+            return self.increase_soft_lit(add_w, !cl[0]);
+        }
         if add_w == 0 {
             return self.clause_weight(&cl);
         }
