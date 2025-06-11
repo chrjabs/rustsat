@@ -1,6 +1,6 @@
 experimental = ['setup-scripts']
 
-[script.setup-capi-tests]
+[scripts.setup.capi-tests]
 command = ['bash', 'scripts/setup-capi-tests.sh']
 
 [profile.default]
@@ -8,7 +8,7 @@ final-status-level = "slow"
 
 [[profile.default.scripts]]
 filter = 'package(rustsat-capi)'
-setup = 'setup-capi-tests'
+setup = 'capi-tests'
 
 [profile.ci]
 fail-fast = false
@@ -21,4 +21,4 @@ retries = { count = 5, backoff = "exponential", delay = "5s" }
 
 [[profile.ci.scripts]]
 filter = 'package(rustsat-capi)'
-setup = 'setup-capi-tests'
+setup = 'capi-tests'
