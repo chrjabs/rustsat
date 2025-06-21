@@ -26,7 +26,7 @@ anyhow = "1.0.98"
 bindgen = { version = "0.72.0", default-features = false, features = [
   "runtime",
 ] }
-bzip2 = "0.5.2"
+bzip2 = "0.6.0"
 cc = { version = "1.2.27", features = ["parallel"] }
 chrono = "0.4.41"
 clap = { version = "4.5.40", features = ["derive", "cargo"] }
