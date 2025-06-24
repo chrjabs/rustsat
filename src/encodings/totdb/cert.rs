@@ -222,7 +222,7 @@ impl super::Db {
         {
             if self.get_semantics(id, 0, val).is_none() {
                 if true_leaves.is_empty() {
-                    true_leaves = self.leaf_iter(id).collect();
+                    true_leaves = self.leaf_iter(id).lits().collect();
                 }
                 self.define_real_semantics(id, val, true_leaves.iter().copied(), proof)?;
             }
@@ -801,7 +801,7 @@ impl super::Db {
 
     fn populate_weighted_leaves(&self, con: NodeCon, leaves: &mut [(Lit, usize)]) {
         if con.offset() == 0 && con.len_limit.is_none() {
-            for (idx, leaf) in self.leaf_iter(con.id).enumerate() {
+            for (idx, leaf) in self.leaf_iter(con.id).lits().enumerate() {
                 leaves[idx] = leaf;
             }
         } else {
@@ -1181,7 +1181,7 @@ impl super::Db {
 
 // This is a separate function to have a name for it while profiling
 fn collect_leaves_unweighted(db: &super::Db, id: NodeId) -> Vec<Lit> {
-    db.leaf_iter(id).map(|(l, _)| l).collect()
+    db.leaf_iter(id).lits().map(|(l, _)| l).collect()
 }
 
 /// The semantic definitions related to a totalizer output

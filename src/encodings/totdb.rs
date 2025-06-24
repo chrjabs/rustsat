@@ -1777,6 +1777,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "_internals", feature = "proof-logging"))]
     fn leaf_iter() {
         let mut lits = vec![(lit![0], 3), (lit![1], 2), (lit![2], 1), (lit![3], 42)];
         let mut db = Db::default();
@@ -1784,7 +1785,7 @@ mod tests {
         assert_eq!(con.multiplier(), 1);
         assert_eq!(con.divisor(), 1);
         assert_eq!(con.offset(), 0);
-        let mut leaves: Vec<_> = db.leaf_iter(con.id).collect();
+        let mut leaves: Vec<_> = db.leaf_iter(con.id).lits().collect();
         lits.sort_unstable();
         leaves.sort_unstable();
         assert_eq!(lits, leaves);
@@ -1792,6 +1793,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "_internals", feature = "proof-logging"))]
     #[allow(clippy::many_single_char_names)]
     fn leaf_iter_pseudo_leaf() {
         let mut vm = BasicVarManager::from_next_free(var![3]);
@@ -1799,7 +1801,7 @@ mod tests {
         let a = db.insert(Node::leaf(lit![0]));
         let b = db.insert(Node::leaf(lit![1]));
         let c = db.insert(Node::internal(NodeCon::full(a), NodeCon::full(b), &db));
-        let leaves: Vec<_> = db.leaf_iter(c).collect();
+        let leaves: Vec<_> = db.leaf_iter(c).lits().collect();
         assert_eq!(vec![(lit![0], 1), (lit![1], 1)], leaves);
         assert_eq!(leaves.len(), db[c].n_leaves());
         let d = db.insert(Node::leaf(lit![2]));
@@ -1809,12 +1811,13 @@ mod tests {
             &db,
         ));
         db[c].reserve_vars(2..=2, &mut vm);
-        let leaves: Vec<_> = db.leaf_iter(e).collect();
+        let leaves: Vec<_> = db.leaf_iter(e).lits().collect();
         assert_eq!(vec![(lit![2], 1), (db[c][2], 1)], leaves);
         assert_eq!(leaves.len(), db[e].n_leaves());
     }
 
     #[test]
+    #[cfg(any(feature = "_internals", feature = "proof-logging"))]
     fn leaf_iter_offset() {
         let mut vm = BasicVarManager::from_next_free(var![8]);
         let mut db = Db::default();
@@ -1829,7 +1832,7 @@ mod tests {
             NodeCon::offset_weighted(b, 1, 4),
             &db,
         ));
-        let leaves: Vec<_> = db.leaf_iter(c).collect();
+        let leaves: Vec<_> = db.leaf_iter(c).lits().collect();
         assert_eq!(
             vec![
                 (db[a][3], 2),
@@ -1844,6 +1847,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(any(feature = "_internals", feature = "proof-logging"))]
     fn leaf_iter_offset_weighted() {
         let mut vm = BasicVarManager::from_next_free(var![4]);
         let mut db = Db::default();
@@ -1856,7 +1860,7 @@ mod tests {
             NodeCon::full(b),
             &db,
         ));
-        let leaves: Vec<_> = db.leaf_iter(c).collect();
+        let leaves: Vec<_> = db.leaf_iter(c).lits().collect();
         assert_eq!(
             vec![
                 (db[a.id][3], 1),

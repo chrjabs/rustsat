@@ -10,7 +10,7 @@
 use std::{
     cmp, fmt,
     num::{NonZeroU8, NonZeroUsize},
-    ops::{self, Add, AddAssign, IndexMut, Range, RangeBounds, Sub, SubAssign},
+    ops::{self, Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
 };
 
 use crate::{types::Lit, utils::unreachable_none};
@@ -571,14 +571,15 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         self.merge_balanced(&merged_cons)
     }
 
-    /// Gets an iterator over the literals at the leaves of the sub-tree rooted at a given node and
-    /// the weight with which they appear at the given node
+    /// Gets an iterator over the leaf nodes of the sub-tree rooted at a given node. For each leaf
+    /// node, the [`NodeId`], the weight, offset, and length limit are returned.
     ///
-    /// For connections with an offset or limited length, the output literals of the child are
-    /// treated as leaves, in order for certification to work.
+    /// Nodes that are connected with an offset or limited length are considered as leaves, in
+    /// order for certification to work.
     ///
     /// This iterator can not be used if the sub-tree contains connections with a divisor greater
     /// than one.
+    #[cfg(any(feature = "_internals", feature = "proof-logging"))]
     fn leaf_iter(&self, node: NodeId) -> LeafIter<'_, Self>
     where
         Self: Sized,
@@ -589,18 +590,18 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
 /// An iterator over the leaves in a given sub-tree
 #[derive(Debug)]
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
 pub struct LeafIter<'db, Db> {
     /// The database that the tree is in
     db: &'db Db,
     /// The trace of the iterator. Everything left of the last node in the trace has already been
     /// explored.
     trace: Vec<(NodeId, bool, usize)>,
-    /// The range of literals to return as leaves from the current node
-    lit_range: Range<usize>,
-    /// The weight of the last literal returned from this node
-    last_val: usize,
+    /// The range of values to consider for the current node
+    val_range: std::ops::Range<usize>,
 }
 
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
 impl<'db, Db> LeafIter<'db, Db>
 where
     Db: NodeById,
@@ -610,18 +611,16 @@ where
         let mut trace = vec![(root, false, 1)];
         let mut current = root;
         let mut mult = 1;
-        let mut lit_range = 1..2;
-        let mut last_val = 0;
+        let mut val_range = 1..2;
         while let Some(con) = db[current].left() {
             debug_assert_eq!(con.divisor(), 1);
             mult *= con.multiplier();
             trace.push((con.id, false, mult));
             if con.offset() > 0 || con.len_limit.is_some() {
-                lit_range = con.offset() + 1
+                val_range = con.offset() + 1
                     ..con
                         .len_limit
                         .map_or(db[con.id].max_val() + 1, |lim| lim.get() + con.offset() + 1);
-                last_val = con.offset();
                 break;
             }
             current = con.id;
@@ -629,8 +628,7 @@ where
         Self {
             db,
             trace,
-            lit_range,
-            last_val,
+            val_range,
         }
     }
 
@@ -652,11 +650,10 @@ where
         let mut mult = unreachable_none!(self.trace.last()).2 * con.multiplier();
         self.trace.push((con.id, true, mult));
         if con.offset() > 0 || con.len_limit.is_some() {
-            self.lit_range = con.offset() + 1
+            self.val_range = con.offset() + 1
                 ..con.len_limit.map_or(self.db[con.id].max_val() + 1, |lim| {
                     lim.get() + con.offset() + 1
                 });
-            self.last_val = con.offset();
             return;
         }
         let mut current = con.id;
@@ -664,48 +661,111 @@ where
             mult *= con.multiplier();
             self.trace.push((con.id, false, mult));
             if con.offset() > 0 || con.len_limit.is_some() {
-                self.lit_range = con.offset() + 1
+                self.val_range = con.offset() + 1
                     ..con.len_limit.map_or(self.db[con.id].max_val() + 1, |lim| {
                         lim.get() + con.offset() + 1
                     });
-                self.last_val = con.offset();
                 return;
             }
             current = con.id;
         }
-        self.lit_range = 1..2;
-        self.last_val = 0;
+        self.val_range = 1..2;
+    }
+
+    /// Gets an iterator over the weighted literals at the leaf nodes
+    pub fn lits(self) -> LeafLitIter<'db, Db> {
+        LeafLitIter::new(self)
     }
 }
 
+/// Information about a (pseudo) leaf for a sub-tree
+#[derive(Debug, Clone)]
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
+pub struct LeafInfo {
+    /// The id of the leaf
+    pub id: NodeId,
+    /// The multiplier for the leaf
+    pub weight: usize,
+    /// The value range considered for the given leaf node
+    pub val_range: std::ops::Range<usize>,
+}
+
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
 impl<Db> Iterator for LeafIter<'_, Db>
+where
+    Db: NodeById,
+{
+    type Item = LeafInfo;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // get item to yield
+        let elem = *self.trace.last()?;
+
+        let info = LeafInfo {
+            id: elem.0,
+            weight: elem.2,
+            val_range: self.val_range.clone(),
+        };
+
+        self.find_next_leaf_node();
+
+        Some(info)
+    }
+}
+
+#[derive(Debug)]
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
+pub struct LeafLitIter<'db, Db> {
+    leaves: LeafIter<'db, Db>,
+    current: LeafInfo,
+    last_val: usize,
+}
+
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
+impl<'db, Db> LeafLitIter<'db, Db>
+where
+    Db: NodeById,
+{
+    fn new(leaves: LeafIter<'db, Db>) -> Self {
+        Self {
+            leaves,
+            current: LeafInfo {
+                id: NodeId(0),
+                weight: 0,
+                val_range: 0..0,
+            },
+            last_val: 0,
+        }
+    }
+}
+
+#[cfg(any(feature = "_internals", feature = "proof-logging"))]
+impl<Db> Iterator for LeafLitIter<'_, Db>
 where
     Db: NodeById,
 {
     type Item = (Lit, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        // get item to yield
-        let elem = *self.trace.last()?;
-
-        let (val, elem) = if let Some(val) = self.db[elem.0].vals(self.lit_range.clone()).next() {
-            (val, elem)
-        } else {
-            self.find_next_leaf_node();
-            let elem = *self.trace.last()?;
-            (
-                self.db[elem.0]
-                    .vals(self.lit_range.clone())
-                    .next()
-                    .expect("just progressed to new node, should have next val"),
-                elem,
-            )
+        if self.current.val_range.is_empty() {
+            self.current = self.leaves.next()?;
+            self.last_val = self.current.val_range.start - 1;
+        }
+        let val = loop {
+            let Some(val) = self.leaves.db[self.current.id]
+                .vals(self.current.val_range.clone())
+                .next()
+            else {
+                self.current = self.leaves.next()?;
+                self.last_val = self.current.val_range.start - 1;
+                continue;
+            };
+            break val;
         };
-        let lit = self.db[elem.0][val];
-        let weight = elem.2 * (val - self.last_val);
-        self.lit_range.start = val + 1;
+        let lit = self.leaves.db[self.current.id][val];
+        let weight = self.current.weight * (val - self.last_val);
+        self.current.val_range.start = val + 1;
         self.last_val = val;
-
         Some((lit, weight))
     }
 }
