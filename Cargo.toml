@@ -26,7 +26,10 @@ anyhow = "1.0.98"
 bindgen = { version = "0.72.0", default-features = false, features = [
   "runtime",
 ] }
-bzip2 = "0.6.0"
+# FIXME: switch to libbz2-rs-sys once MSRV > 1.82 is acceptable
+bzip2 = { version = "0.6.0", default-features = false, features = [
+  "bzip2-sys",
+] }
 cc = { version = "1.2.27", features = ["parallel"] }
 chrono = "0.4.41"
 clap = { version = "4.5.40", features = ["derive", "cargo"] }
