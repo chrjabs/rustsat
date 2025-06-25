@@ -206,7 +206,7 @@ impl ops::Deref for Clause {
     }
 }
 
-impl std::ops::DerefMut for Clause {
+impl ops::DerefMut for Clause {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Cl::new_mut(self)
     }
@@ -533,6 +533,18 @@ impl AsRef<Cl> for [Lit] {
 }
 
 impl AsMut<Cl> for [Lit] {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
+}
+
+impl AsRef<Cl> for Vec<Lit> {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl AsMut<Cl> for Vec<Lit> {
     fn as_mut(&mut self) -> &mut Cl {
         Cl::new_mut(self)
     }
