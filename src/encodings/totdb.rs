@@ -607,6 +607,17 @@ impl Db {
     ) -> AssignIter<'db> {
         AssignIter::new(self, root, assign)
     }
+
+    /// Computes the value of the node under a given assignment
+    #[cfg(feature = "internals")]
+    #[must_use]
+    pub fn value(&self, node: NodeId, assign: &Assignment) -> usize {
+        let (id, val) = ValueIter::new(self, node, assign)
+            .last()
+            .expect("node must have a value");
+        debug_assert_eq!(id, node);
+        val
+    }
 }
 
 /// Defines the semantics with which a totalizer output can be encoded
