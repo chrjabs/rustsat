@@ -1,4 +1,4 @@
-FROM rust:1.86-bookworm
+FROM rust:1.88-bookworm
 
 ENV CI=true
 
