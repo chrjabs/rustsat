@@ -5,6 +5,7 @@ use std::ffi::{c_int, c_void};
 use rustsat::{
     solvers::SolverResult,
     types::{Assignment, Clause, Lit},
+    utils::from_raw_parts_maybe_null,
 };
 
 use crate::ffi;
@@ -230,7 +231,7 @@ pub struct CaDiCaLClause<'slf> {
 impl CaDiCaLClause<'_> {
     pub(crate) fn new(cl_len: usize, cl_data: *const c_int) -> Self {
         Self {
-            lits: unsafe { std::slice::from_raw_parts(cl_data, cl_len) },
+            lits: unsafe { from_raw_parts_maybe_null(cl_data, cl_len) },
         }
     }
 
@@ -291,7 +292,7 @@ pub struct CaDiCaLAssignment<'slf> {
 impl CaDiCaLAssignment<'_> {
     pub(crate) fn new(assign_len: usize, assign_data: *const c_int) -> Self {
         Self {
-            lits: unsafe { std::slice::from_raw_parts(assign_data, assign_len) },
+            lits: unsafe { from_raw_parts_maybe_null(assign_data, assign_len) },
         }
     }
 

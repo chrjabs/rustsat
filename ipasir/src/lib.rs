@@ -435,8 +435,7 @@ where
 mod ffi {
     use super::{LearnCallbackPtr, TermCallbackPtr};
     use core::ffi::{c_char, c_int, c_void};
-    use rustsat::{solvers::ControlSignal, types::Lit};
-    use std::slice;
+    use rustsat::{solvers::ControlSignal, types::Lit, utils::from_raw_parts_maybe_null};
 
     #[repr(C)]
     pub struct IpasirHandle {
@@ -484,7 +483,7 @@ mod ffi {
                 cnt += 1;
             }
         }
-        let int_slice = unsafe { slice::from_raw_parts(clause, cnt) };
+        let int_slice = unsafe { from_raw_parts_maybe_null(clause, cnt) };
         let clause = int_slice
             .iter()
             .map(|il| {

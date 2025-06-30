@@ -288,6 +288,36 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
             assert_eq!(res, Unsat);
         }
     });
+    let ignore = ignoretok(2);
+    ts.extend(quote! {
+        #[test]
+        #ignore
+        fn assumption_empty() {
+            use rustsat::{
+                instances::{SatInstance},
+                lit,
+                solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
+            };
+
+            let testid = "assumption_empty";
+            let mut solver = init_slv!(#slv);
+            let mut instance: SatInstance = SatInstance::new();
+            let l1 = instance.new_lit();
+            let l2 = instance.new_lit();
+            instance.add_binary(l1, l2);
+            instance.add_binary(!l1, l2);
+            instance.add_binary(l1, !l2);
+            instance.add_binary(!l1, !l2);
+            solver.add_cnf(instance.into_cnf().0).unwrap();
+            let res = solver.solve().unwrap();
+            assert_eq!(res, Unsat);
+            let res = solver.solve_assumps(&[]).unwrap();
+            assert_eq!(res, Unsat);
+            let mut core = solver.core().unwrap();
+            assert_eq!(core, &[]);
+        }
+    });
+
     ts
 }
 
