@@ -21,14 +21,16 @@ enum Version {
     V311,
     V400,
     V401,
-    #[default]
     V402,
+    #[default]
+    V403,
 }
 
 /// Checks if the version was set manually via a feature
 macro_rules! version_set_manually {
     () => {
         cfg!(any(
+            feature = "v4-0-3",
             feature = "v4-0-2",
             feature = "v4-0-1",
             feature = "v4-0-0",
@@ -44,7 +46,9 @@ macro_rules! version_set_manually {
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v4-0-2") {
+        if cfg!(feature = "v4-0-3") {
+            Version::V403
+        } else if cfg!(feature = "v4-0-2") {
             Version::V402
         } else if cfg!(feature = "v4-0-1") {
             Version::V401
@@ -79,6 +83,7 @@ impl Version {
             Version::V400 => "refs/tags/rel-4.0.0",
             Version::V401 => "refs/tags/rel-4.0.1",
             Version::V402 => "refs/tags/rel-4.0.2",
+            Version::V403 => "refs/tags/rel-4.0.3",
         }
     }
 }
@@ -187,6 +192,8 @@ fn build(version: Version) -> PathBuf {
     if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
         kissat_build
             .opt_level(0)
+            // Silence warnings with newer GCC
+            .define("_FORTIFY_SOURCE", Some("0"))
             .define("DEBUG", None)
             .warnings(true)
             .debug(true);
