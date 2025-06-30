@@ -8,12 +8,9 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
 
-    nix-tools.url = "github:gleachkr/nix-tools";
-    nix-tools.inputs.nixpkgs.follows = "nixpkgs";
-    #nix-tools.inputs.rust-overlay.follows = "rust-overlay";
-
     nix-config.url = "github:chrjabs/nix-config";
     nix-config.inputs.nixpkgs.follows = "nixpkgs";
+    nix-config.inputs.rust-overlay.follows = "rust-overlay";
 
     git-hooks.url = "github:chrjabs/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
@@ -27,7 +24,6 @@
     nixpkgs,
     systems,
     rust-overlay,
-    nix-tools,
     nix-config,
     git-hooks,
     nix-github-actions,
@@ -37,7 +33,7 @@
     pkgsFor = rust-overlay-fn:
       lib.genAttrs (import systems) (system: (import nixpkgs {
         inherit system;
-        overlays = [(import rust-overlay) nix-tools.overlays.default rust-overlay-fn] ++ builtins.attrValues nix-config.overlays;
+        overlays = [(import rust-overlay) rust-overlay-fn] ++ builtins.attrValues nix-config.overlays;
       }));
     rust-toolchain-overlay = _: super: {
       rust-toolchain = super.symlinkJoin {
@@ -68,15 +64,7 @@
             cargo-hack
             cargo-spellcheck
             cargo-llvm-cov
-            (cargo-valgrind.overrideAttrs (old: rec {
-              version = "2.3.1";
-              src = fetchFromGitHub {
-                owner = "jfrimmel";
-                repo = "cargo-valgrind";
-                tag = version;
-                sha256 = "sha256-yUCDKklkfK+2n+THH4QlHb+FpeWfObXpmp4VozsFiUM=";
-              };
-            }))
+            cargo-valgrind
             valgrind
             just
             release-plz
