@@ -13,6 +13,7 @@ use rustsat::{
         SolverStats, StateError,
     },
     types::{Cl, Clause, Lit, TernaryVal, Var},
+    utils::from_raw_parts_maybe_null,
 };
 
 use super::{ffi, handle_oom, InternalSolverState, InvalidApiReturn, Limit};
@@ -225,7 +226,7 @@ impl SolveIncremental for Minisat {
                         let mut conflict = std::ptr::null::<ffi::c_Lit>();
                         let mut conflict_len = 0;
                         ffi::cminisat_conflict(self.handle, &mut conflict, &mut conflict_len);
-                        std::slice::from_raw_parts(conflict.cast(), conflict_len)
+                        from_raw_parts_maybe_null(conflict.cast(), conflict_len)
                     };
                     Ok(conflict.to_vec())
                 } else {

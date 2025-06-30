@@ -5,9 +5,8 @@
 #![allow(non_snake_case)]
 
 use core::ffi::{c_int, c_void};
-use std::slice;
 
-use rustsat::{solvers::ControlSignal, types::Lit};
+use rustsat::{solvers::ControlSignal, types::Lit, utils::from_raw_parts_maybe_null};
 
 use super::{LearnCallbackPtr, TermCallbackPtr};
 
@@ -31,7 +30,7 @@ pub unsafe extern "C" fn rustsat_ccadical_learn_cb(ptr: *mut c_void, clause: *mu
             cnt += 1;
         }
     }
-    let int_slice = slice::from_raw_parts(clause, cnt);
+    let int_slice = from_raw_parts_maybe_null(clause, cnt);
     let clause = int_slice
         .iter()
         .map(|il| Lit::from_ipasir(*il).expect("Invalid literal in learned clause from CaDiCaL"))
@@ -49,7 +48,7 @@ pub unsafe extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_i
 pub mod prooftracer {
     use std::os::raw::{c_int, c_void};
 
-    use rustsat::types::Lit;
+    use rustsat::{types::Lit, utils::from_raw_parts_maybe_null};
 
     use crate::CaDiCaLAssignment;
 
@@ -97,7 +96,7 @@ pub mod prooftracer {
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let clause = CaDiCaLClause::new(cl_len, cl_data);
-        let antecedents = unsafe { std::slice::from_raw_parts(an_data.cast::<ClauseId>(), an_len) };
+        let antecedents = unsafe { from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len) };
         tracer.add_derived_clause(ClauseId(id), redundant, &clause, antecedents);
     }
 
@@ -199,7 +198,7 @@ pub mod prooftracer {
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let clause = CaDiCaLClause::new(cl_len, cl_data);
-        let antecedents = unsafe { std::slice::from_raw_parts(an_data.cast::<ClauseId>(), an_len) };
+        let antecedents = unsafe { from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len) };
         tracer.add_assumption_clause(ClauseId(id), &clause, antecedents);
     }
 
@@ -210,7 +209,7 @@ pub mod prooftracer {
         fail_data: *const u64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let failing = std::slice::from_raw_parts(fail_data.cast::<ClauseId>(), fail_len);
+        let failing = from_raw_parts_maybe_null(fail_data.cast::<ClauseId>(), fail_len);
         let concl = match concl {
             super::CCaDiCaLConclusionType_CONFLICT => Conclusion::Conflict,
             super::CCaDiCaLConclusionType_ASSUMPTIONS => Conclusion::Assumptions,

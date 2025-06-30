@@ -39,6 +39,20 @@ pub(crate) fn digits(mut number: usize, mut basis: u8) -> u32 {
     digits
 }
 
+/// Helper function to create a slice from a pointer and size
+/// with special case when `cnt` is 0 (in which case `ptr` may be null)
+///
+/// # Safety
+///
+/// Same requirements as for [`std::slice::from_raw_parts`], with the exception that `ptr` is allowed to be null if `cnt == 0`.
+pub unsafe fn from_raw_parts_maybe_null<'a, T>(ptr: *const T, cnt: usize) -> &'a [T] {
+    if cnt == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(ptr, cnt)
+    }
+}
+
 /// A wrapper around an iterator to only yield a limited number of elements and then stop
 ///
 /// As opposed to [`std::iter::Take`] this does not take ownership of the original iterator
