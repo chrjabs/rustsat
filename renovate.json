@@ -62,6 +62,12 @@
       ],
       "matchCurrentValue": "/^\\d+(\\.\\d+)?$/",
       "rangeStrategy": "update-lockfile"
+    },
+    {
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "enabled": false
     }
   ],
   "lockFileMaintenance": {
