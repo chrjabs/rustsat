@@ -351,12 +351,17 @@ where
         } else {
             "rup"
         };
-        writeln!(
-            self.writer,
-            "{keyword} {} ; {}",
-            ConstrFormatter::from(constr),
-            hints.into_iter().format(" ")
-        )?;
+        let mut hints = hints.into_iter().peekable();
+        if hints.peek().is_some() {
+            writeln!(
+                self.writer,
+                "{keyword} {} ; {}",
+                ConstrFormatter::from(constr),
+                hints.format(" ")
+            )?;
+        } else {
+            writeln!(self.writer, "{keyword} {} ;", ConstrFormatter::from(constr))?;
+        }
         Ok(self.new_id())
     }
 
@@ -1038,6 +1043,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::VarLike;
+
     #[test]
     fn new_with_conclusion() {
         let (file, proof_file) = tempfile::NamedTempFile::new()
@@ -1108,6 +1115,69 @@ output NONE
 conclusion NONE
 end pseudo-Boolean proof
 "
+        );
+    }
+
+    struct Constr {
+        terms: Vec<(isize, bool, &'static str)>,
+        rhs: isize,
+    }
+
+    impl<'slf> super::ConstraintLike<&'slf str> for Constr {
+        fn rhs(&self) -> isize {
+            self.rhs
+        }
+
+        fn sum_iter(&self) -> impl Iterator<Item = (isize, super::Axiom<&'slf str>)> {
+            self.terms
+                .iter()
+                .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))
+        }
+    }
+
+    #[test]
+    fn rup() {
+        let (file, proof_file) = tempfile::NamedTempFile::new()
+            .expect("failed to create temporary proof file")
+            .into_parts();
+        let mut proof = super::Proof::new(file, 0, false).expect("failed to start proof");
+        proof
+            .reverse_unit_prop(
+                &Constr {
+                    terms: vec![(3, false, "x1"), (-42, true, "x2")],
+                    rhs: 2,
+                },
+                None,
+            )
+            .unwrap();
+        proof
+            .reverse_unit_prop(
+                &Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                },
+                [super::ConstraintId::last(1), super::ConstraintId::abs(42)],
+            )
+            .unwrap();
+        drop(proof);
+        let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        let keyword = if cfg!(feature = "short-keywords") {
+            "u"
+        } else {
+            "rup"
+        };
+        assert_eq!(
+            output,
+            format!(
+                "pseudo-Boolean proof version 2.0
+f 0
+{keyword} 3 x1 -42 ~x2 >= 2 ;
+{keyword} 5 x3 -12 ~x4 >= 3 ; -1 42
+output NONE
+conclusion NONE
+end pseudo-Boolean proof
+"
+            )
         );
     }
 }
