@@ -24,11 +24,11 @@ pub unsafe extern "C" fn rustsat_ccadical_terminate_cb(ptr: *mut c_void) -> c_in
 pub unsafe extern "C" fn rustsat_ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
     let cb = &mut *ptr.cast::<LearnCallbackPtr<'_>>();
 
-    let mut cnt = 0;
-    for n in 0.. {
-        if *clause.offset(n) != 0 {
-            cnt += 1;
-        }
+    let mut cnt: usize = 0;
+    while *clause.offset(isize::try_from(cnt).expect("learned clauses is longer than `isize::MAX`"))
+        != 0
+    {
+        cnt += 1;
     }
     let int_slice = from_raw_parts_maybe_null(clause, cnt);
     let clause = int_slice
