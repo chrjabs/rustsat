@@ -321,6 +321,53 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
     ts
 }
 
+pub fn learning(input: IntegrationInput) -> TokenStream {
+    let slv = input.slv;
+    let ignoretok = |idx: usize| -> Option<Attribute> {
+        if input.bools.len() > idx && input.bools[idx] {
+            Some(parse_quote! {#[ignore]})
+        } else {
+            None
+        }
+    };
+    let mut ts = quote! {
+        macro_rules! init_slv {
+            ($slv:ty) => {
+                <$slv>::default()
+            };
+            ($init:expr) => {
+                $init
+            };
+        }
+    };
+    let ignore = ignoretok(0);
+    ts.extend(quote! {
+        #[test]
+        #ignore
+        fn learner_callback() {
+            use rustsat::{
+                instances::{SatInstance},
+                lit,
+                solvers::{Learn, Solve, SolverResult::Unsat},
+                types::TernaryVal::{True, False},
+                var,
+            };
+            let mut n_learned = 0;
+            {
+                let mut solver = init_slv!(#slv);
+                let inst: SatInstance =
+                    SatInstance::from_dimacs_path("data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf").unwrap();
+                solver.add_cnf(inst.into_cnf().0).unwrap();
+                solver.attach_learner(|_| {n_learned += 1;}, 42);
+                let res = solver.solve().unwrap();
+                assert_eq!(res, Unsat);
+            }
+            assert!(n_learned > 0);
+        }
+    });
+    ts
+}
+
 pub fn phasing(input: IntegrationInput) -> TokenStream {
     let slv = input.slv;
     let ignoretok = |idx: usize| -> Option<Attribute> {

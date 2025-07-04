@@ -123,6 +123,12 @@ pub fn incremental_tests(tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn learning_tests(tokens: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(tokens as IntegrationInput);
+    integration::learning(input).into()
+}
+
+#[proc_macro]
 pub fn phasing_tests(tokens: TokenStream) -> TokenStream {
     let input = parse_macro_input!(tokens as IntegrationInput);
     integration::phasing(input).into()

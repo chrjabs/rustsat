@@ -455,35 +455,36 @@ mod ffi {
         pub fn ipasir_set_terminate(
             solver: *mut IpasirHandle,
             state: *const c_void,
-            terminate: Option<extern "C" fn(state: *const c_void) -> c_int>,
+            terminate: Option<unsafe extern "C" fn(state: *const c_void) -> c_int>,
         );
         pub fn ipasir_set_learn(
             solver: *mut IpasirHandle,
             state: *const c_void,
             max_length: c_int,
-            learn: Option<extern "C" fn(state: *const c_void, clause: *const c_int)>,
+            learn: Option<unsafe extern "C" fn(state: *const c_void, clause: *const c_int)>,
         );
     }
 
     // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn ipasir_terminate_cb(ptr: *const c_void) -> c_int {
-        let cb = unsafe { &mut *(ptr as *mut TermCallbackPtr<'_>) };
+    pub unsafe extern "C" fn ipasir_terminate_cb(ptr: *const c_void) -> c_int {
+        let cb = &mut *(ptr as *mut TermCallbackPtr<'_>);
         match cb() {
             ControlSignal::Continue => 0,
             ControlSignal::Terminate => 1,
         }
     }
 
-    pub extern "C" fn ipasir_learn_cb(ptr: *const c_void, clause: *const c_int) {
+    pub unsafe extern "C" fn ipasir_learn_cb(ptr: *const c_void, clause: *const c_int) {
         let cb = unsafe { &mut *(ptr as *mut LearnCallbackPtr<'_>) };
 
-        let mut cnt = 0;
-        for n in 0.. {
-            if unsafe { *clause.offset(n) } != 0 {
-                cnt += 1;
-            }
+        let mut cnt: usize = 0;
+        while *clause
+            .offset(isize::try_from(cnt).expect("learned clauses is longer than `isize::MAX`"))
+            != 0
+        {
+            cnt += 1;
         }
-        let int_slice = unsafe { from_raw_parts_maybe_null(clause, cnt) };
+        let int_slice = from_raw_parts_maybe_null(clause, cnt);
         let clause = int_slice
             .iter()
             .map(|il| {
