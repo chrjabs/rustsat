@@ -29,7 +29,7 @@ bindgen = { version = "0.72.0", default-features = false, features = [
 bzip2 = "0.5.2"
 cc = { version = "1.2.29", features = ["parallel"] }
 chrono = "0.4.41"
-clap = { version = "4.5.40", features = ["derive", "cargo"] }
+clap = { version = "4.5.41", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
