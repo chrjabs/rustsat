@@ -1,10 +1,8 @@
 name: Release-plz
-
 on:
   push:
     branches:
       - main
-
 jobs:
   # Release unpublished packages
   release-plz-release:
@@ -34,7 +32,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
   # Create a PR with the new versions and changelog, preparing the next release
   release-plz-pr:
     name: Release-plz PR

@@ -1,19 +1,15 @@
 name: CI
-
 on:
   push:
-    branches: [ "main", "next-major" ]
+    branches: ["main", "next-major"]
   pull_request:
-
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   ci-everything:
     name: All CI stages
@@ -31,7 +27,7 @@ jobs:
       - minisat-valgrind
       - glucose-valgrind
       - capi-valgrind
-    if: ${{ always() }}  # Run this job even if a dependency has failed.
+    if: ${{ always() }} # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
         run: |
@@ -75,7 +71,6 @@ jobs:
         run: exit 1
       - if: ${{ needs.capi-valgrind.result == 'failure' }}
         run: exit 1
-
   tests:
     name: 🧪 Workspace tests
     runs-on: self-hosted
@@ -83,7 +78,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Run tests
         run: just test-ci
-
   msrv-build:
     name: 🏗️ MSRV build
     runs-on: self-hosted
@@ -91,7 +85,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🏗️ Build
         run: just msrv-ci
-
   code-quality:
     name: ✨ Code Quality
     runs-on: self-hosted
@@ -99,7 +92,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: ✨ Run code quality checks
         run: just code-quality-ci
-
   python-api:
     name: 🐍 Python API
     runs-on: self-hosted
@@ -107,7 +99,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: ✨ Run Python API checks
         run: just python-api-ci
-
   docs:
     name: 📑 Check documentation
     runs-on: self-hosted
@@ -115,7 +106,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: ✨ Run docs checks
         run: just docs-ci
-
   coverage:
     name: 📋 Test coverage
     runs-on: self-hosted
@@ -127,9 +117,7 @@ jobs:
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
   # TODO: Kani
-
   feature-powerset:
     name: 🔌 Test feature powerset
     runs-on: self-hosted
@@ -138,7 +126,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: ✨ Run feature powerset checks
         run: just feature-powerset-ci
-
   cadical-each-feature:
     name: 🧪 CaDiCaL test each feature
     runs-on: self-hosted
@@ -147,7 +134,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Test each feature
         run: just cadical-each-feature-ci
-
   kissat-each-feature:
     name: 🧪 Kissat test each feature
     runs-on: self-hosted
@@ -156,7 +142,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Test each feature
         run: just kissat-each-feature-ci
-
   cadical-valgrind:
     name: 🤖 CaDiCaL Valgrind
     runs-on: self-hosted
@@ -165,7 +150,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Tests through valgrind
         run: just cadical-valgrind-ci
-
   kissat-valgrind:
     name: 🤖 Kissat Valgrind
     runs-on: self-hosted
@@ -174,7 +158,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Tests through valgrind
         run: just kissat-valgrind-ci
-
   minisat-valgrind:
     name: 🤖 Minisat Valgrind
     runs-on: self-hosted
@@ -183,7 +166,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Tests through valgrind
         run: just minisat-valgrind-ci
-
   glucose-valgrind:
     name: 🤖 Glucose Valgrind
     runs-on: self-hosted
@@ -192,7 +174,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 🧪 Tests through valgrind
         run: just glucose-valgrind-ci
-
   capi-valgrind:
     name: 🤖 C-API Valgrind
     runs-on: self-hosted
