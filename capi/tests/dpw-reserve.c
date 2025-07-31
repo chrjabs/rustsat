@@ -20,9 +20,9 @@ int main() {
   uint32_t n_used = 4;
   uint32_t n_clauses = 0;
   dpw_reserve(dpw, &n_used);
-  assert(n_used == 23);
+  assert(n_used == 19);
   dpw_encode_ub(dpw, 0, 6, &n_used, &clause_counter, &n_clauses);
-  assert(n_used == 23);
+  assert(n_used == 19);
   dpw_drop(dpw);
   return 0;
 }

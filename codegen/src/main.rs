@@ -102,7 +102,7 @@ fn main() {
             lb: false,
             extend: false,
             n_vars: 19,
-            n_vars_reserve: 23,
+            n_vars_reserve: 19,
             n_clauses: 21,
             skip_reserve: false,
         },

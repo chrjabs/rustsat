@@ -221,7 +221,7 @@ impl EncodeIncremental for GeneralizedTotalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.extend_tree(usize::MAX);
         if let Some(con) = self.root {
-            self.db.reserve_vars(con.id, var_manager);
+            self.db.reserve_vars(con, var_manager);
         }
     }
 }
@@ -646,13 +646,13 @@ pub mod referenced {
 
     impl EncodeIncremental for Gte<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.reserve_vars(self.root.id, var_manager);
+            self.db.reserve_vars(self.root, var_manager);
         }
     }
 
     impl EncodeIncremental for GteCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.borrow_mut().reserve_vars(self.root.id, var_manager);
+            self.db.borrow_mut().reserve_vars(self.root, var_manager);
         }
     }
 

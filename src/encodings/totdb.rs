@@ -7,7 +7,7 @@ use crate::{
     instances::ManageVars,
     lit,
     types::{Assignment, Lit, RsHashMap},
-    utils::unreachable_none,
+    utils::{unreachable_none, LimitedIter},
 };
 
 use super::{
@@ -545,16 +545,39 @@ impl Db {
     }
 
     /// Recursively reserves all variables in the sub-tree rooted at the given node
-    pub fn reserve_vars(&mut self, id: NodeId, var_manager: &mut dyn ManageVars) {
+    pub fn reserve_vars(&mut self, connection: NodeCon, var_manager: &mut dyn ManageVars) {
+        let NodeCon {
+            id,
+            offset,
+            divisor,
+            len_limit,
+            ..
+        } = connection;
+
         if matches!(self[id], Node::Leaf(_) | Node::Dummy) {
             return;
         }
 
         // Recurse
-        self.reserve_vars(unreachable_none!(self[id].left()).id, var_manager);
-        self.reserve_vars(unreachable_none!(self[id].right()).id, var_manager);
+        self.reserve_vars(unreachable_none!(self[id].left()), var_manager);
+        self.reserve_vars(unreachable_none!(self[id].right()), var_manager);
 
-        self[id].reserve_vars(.., var_manager);
+        if divisor.get() == 1 {
+            if let Some(limit) = len_limit {
+                for val in LimitedIter::new(&mut self[id].vals(offset..), limit.get()) {
+                    self[id].reserve_vars(val..=val, var_manager);
+                }
+            } else {
+                self[id].reserve_vars(offset.., var_manager);
+            }
+        } else {
+            debug_assert!(matches!(self[id], Node::Unit(_)));
+            let mut val = offset;
+            while val <= self[id].max_val() {
+                self[id].reserve_vars(val..=val, var_manager);
+                val += divisor.get() as usize;
+            }
+        }
     }
 
     /// Resets the status of what has already been encoded
@@ -975,7 +998,13 @@ impl Node {
         match self {
             Node::Unit(UnitNode { lits, .. }) => {
                 let range = match range.start_bound() {
-                    ops::Bound::Included(&v) => v - 1,
+                    ops::Bound::Included(&v) => {
+                        if v == 0 {
+                            0
+                        } else {
+                            v - 1
+                        }
+                    }
                     ops::Bound::Excluded(&v) => v,
                     ops::Bound::Unbounded => 0,
                 }..match range.end_bound() {
