@@ -153,7 +153,7 @@ impl EncodeIncremental for Totalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.extend_tree();
         if let Some(root) = self.root {
-            self.db.reserve_vars(root, var_manager);
+            self.db.reserve_vars(NodeCon::full(root), var_manager);
         }
     }
 }
@@ -685,7 +685,7 @@ pub mod referenced {
                 BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
                 BoundUpperIncremental, Encode, EncodeIncremental,
             },
-            nodedb::{NodeId, NodeLike},
+            nodedb::{NodeCon, NodeId, NodeLike},
             totdb, CollectClauses, EnforceError, NotEncoded,
         },
         instances::ManageVars,
@@ -764,13 +764,15 @@ pub mod referenced {
 
     impl EncodeIncremental for Tot<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.reserve_vars(self.root, var_manager);
+            self.db.reserve_vars(NodeCon::full(self.root), var_manager);
         }
     }
 
     impl EncodeIncremental for TotCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.borrow_mut().reserve_vars(self.root, var_manager);
+            self.db
+                .borrow_mut()
+                .reserve_vars(NodeCon::full(self.root), var_manager);
         }
     }
 

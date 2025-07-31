@@ -284,7 +284,8 @@ impl EncodeIncremental for DynamicPolyWatchdog {
             ));
         }
         if let Some(structure) = &self.structure {
-            self.db.reserve_vars(structure.root(), var_manager);
+            self.db
+                .reserve_vars(NodeCon::full(structure.root()), var_manager);
         }
     }
 }
@@ -446,7 +447,10 @@ pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
     use crate::{
-        encodings::{nodedb::NodeLike, totdb, CollectClauses, EnforceError},
+        encodings::{
+            nodedb::{NodeCon, NodeLike},
+            totdb, CollectClauses, EnforceError,
+        },
         instances::ManageVars,
         types::Lit,
     };
@@ -531,7 +535,8 @@ pub mod referenced {
 
     impl EncodeIncremental for DynamicPolyWatchdog<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
-            self.db.reserve_vars(self.structure.root(), var_manager);
+            self.db
+                .reserve_vars(NodeCon::full(self.structure.root()), var_manager);
         }
     }
 
@@ -539,7 +544,7 @@ pub mod referenced {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db
                 .borrow_mut()
-                .reserve_vars(self.structure.root(), var_manager);
+                .reserve_vars(NodeCon::full(self.structure.root()), var_manager);
         }
     }
 
@@ -1417,10 +1422,10 @@ mod tests {
             .collect();
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
         dpw.reserve(&mut var_manager);
-        assert_eq!(var_manager.n_used(), 23);
+        assert_eq!(var_manager.n_used(), 19);
         let mut cnf = Cnf::new();
         dpw.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
-        assert_eq!(var_manager.n_used(), 23);
+        assert_eq!(var_manager.n_used(), 19);
     }
 
     #[test]
