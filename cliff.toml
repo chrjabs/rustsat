@@ -36,17 +36,6 @@ body = """
           {% endif %}\
     {% endfor %}
 {% endfor %}\n
-### Commit Statistics\n
-- {{ statistics.commit_count }} commit(s) contributed to the release.
-- {{ statistics.links | length }} linked issue(s) detected in commits.
-{%- if statistics.links | length > 0 %}
-	{%- for link in statistics.links %}
-        {{ "  " }}- [{{ link.text }}]({{ link.href }}) (referenced {{ link.count }} time(s))
-	{%- endfor %}
-{%- endif %}
-{%- if statistics.days_passed_since_last_release %}
-	- {{ statistics.days_passed_since_last_release }} day(s) passed between releases.
-{%- endif %}\n\n
 """
 # remove the leading and trailing whitespace from the template
 trim = true
