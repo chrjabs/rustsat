@@ -151,6 +151,8 @@ impl super::CaDiCaL<'_, '_> {
     /// proof tracer. Ensure therefore that the handle is not dropped before the solver is not used
     /// anymore, or call [`Self::disconnect_proof_tracer`], if you do not need the proof tracer
     /// anymore.
+    // FIXME: Instead of freeing the tracer when dropping the handle, consider storing the handles
+    // of all connected tracers and freeing them when dropping the solver
     pub fn connect_proof_tracer<PT>(
         &mut self,
         tracer: PT,
