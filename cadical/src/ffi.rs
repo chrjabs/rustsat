@@ -229,3 +229,120 @@ pub mod prooftracer {
         tracer.conclude_sat(&assignment);
     }
 }
+
+#[cfg(cadical_feature = "ipasir-up")]
+pub mod ipasirup {
+    use std::os::raw::{c_int, c_void};
+
+    use rustsat::types::{Assignment, Clause, Lit};
+
+    use crate::ExternalPropagate;
+
+    pub struct Data {
+        pub prop: *mut dyn ExternalPropagate,
+        reason_buffer: Option<Clause>,
+        external_buffer: Option<Clause>,
+    }
+
+    impl Data {
+        pub fn new(prop: *mut dyn ExternalPropagate) -> Self {
+            Self {
+                prop,
+                reason_buffer: None,
+                external_buffer: None,
+            }
+        }
+    }
+
+    pub const DISPATCH_CALLBACKS: super::CCaDiCaLExternalPropagatorCallbacks =
+        super::CCaDiCaLExternalPropagatorCallbacks {
+            notify_assignment: Some(rustsat_cadical_notify_assignment),
+            notify_new_decision_level: Some(rustsat_cadical_notify_new_decision_level),
+            notify_backtrack: Some(rustsat_cadical_notify_backtrack),
+            cb_check_found_model: Some(rustsat_cadical_cb_check_found_model),
+            cb_decide: Some(rustsat_cadical_cb_decide),
+            cb_propagate: Some(rustsat_cadical_cb_propagate),
+            cb_add_reason_clause_lit: Some(rustsat_cadical_cb_add_reason_clause_lit),
+            cb_has_external_clause: Some(rustsat_cadical_cb_has_external_clause),
+            cb_add_external_clause_lit: Some(rustsat_cadical_cb_add_external_clause_lit),
+        };
+
+    #[cfg(not(cadical_feature = "old-ipasir-up"))]
+    unsafe extern "C" fn rustsat_cadical_notify_assignment(
+        data: *mut c_void,
+        lits: *const c_int,
+        len: usize,
+    ) {
+        let c_lits = std::slice::from_raw_parts(lits, len);
+        let mut lits = Vec::with_capacity(len);
+        for c_lit in c_lits {
+            lits.push(
+                Lit::from_ipasir(c_lit).expect("external propagator got invalid lit from CaDiCaL"),
+            );
+        }
+        (*(*data.cast::<Data>()).prop).assignment(&lits)
+    }
+
+    #[cfg(cadical_feature = "old-ipasir-up")]
+    unsafe extern "C" fn rustsat_cadical_notify_assignment(
+        data: *mut c_void,
+        lit: c_int,
+        _is_fixed: c_int,
+    ) {
+        (*(*data.cast::<Data>()).prop).assignment([
+            Lit::from_ipasir(lit).expect("external propagator got invalid lit from CaDiCaL")
+        ])
+    }
+
+    unsafe extern "C" fn rustsat_cadical_notify_new_decision_level(data: *mut c_void) {
+        (*(*data.cast::<Data>()).prop).new_decision_level()
+    }
+
+    unsafe extern "C" fn rustsat_cadical_notify_backtrack(data: *mut c_void, new_level: usize) {
+        (*(*data.cast::<Data>()).prop).backtrack(new_level)
+    }
+
+    unsafe extern "C" fn rustsat_cadical_cb_check_found_model(
+        data: *mut c_void,
+        model: *const c_int,
+        model_len: usize,
+    ) -> c_int {
+        let model = std::slice::from_raw_parts(model, model_len);
+        let sol: Assignment = model
+            .iter()
+            .map(|&l| {
+                Lit::from_ipasir(l).expect("external propagator got invalid lit from CaDiCaL")
+            })
+            .collect();
+        c_int::from((*(*data.cast::<Data>()).prop).check_found_solution(&sol))
+    }
+
+    unsafe extern "C" fn rustsat_cadical_cb_decide(data: *mut c_void) -> c_int {
+        (*(*data.cast::<Data>()).prop)
+            .decide()
+            .map(Lit::to_ipasir)
+            .unwrap_or(0)
+    }
+
+    unsafe extern "C" fn rustsat_cadical_cb_propagate(data: *mut c_void) -> c_int {
+        (*(*data.cast::<Data>()).prop)
+            .propagate()
+            .map(Lit::to_ipasir)
+            .unwrap_or(0)
+    }
+
+    unsafe extern "C" fn rustsat_cadical_cb_add_reason_clause_lit(
+        data: *mut c_void,
+        propagated_lit: c_int,
+    ) -> c_int {
+        todo!()
+    }
+
+    unsafe extern "C" fn rustsat_cadical_cb_has_external_clause(data: *mut c_void) -> c_int {
+        todo!()
+    }
+
+    unsafe extern "C" fn rustsat_cadical_cb_add_external_clause_lit(data: *mut c_void) -> c_int {
+        todo!()
+    }
+}
