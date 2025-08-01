@@ -42,6 +42,8 @@ CACHE_DIR="$CACHE/$KEY.cache/"
 
 case "$COMMAND" in
 "restore")
+  echo "🗑️ Deleting existing target directory"
+  rm -rf "target/"
   echo "🔎 Checking for matching cache"
   if [ -d "$CACHE_DIR" ]; then
     echo "🔙 Restoring cache from '$CACHE_DIR'"
