@@ -66,8 +66,8 @@ If you use RustSAT in your research, please cite the following system descriptio
   volume      = {341},
   publisher   = {Schloss Dagstuhl---Leibniz-Zentrum f{\"{u}}r Informatik},
   series      = {Leibniz International Proceedings in Informatics ({LIPIcs})},
-  pages       = {24:1--24:13},
-  doi         = {10.4230/LIPIcs.SAT.2025.24},
+  pages       = {15:1--15:13},
+  doi         = {10.4230/LIPIcs.SAT.2025.15},
   eprint      = {2505.15221},
 }
 ```
