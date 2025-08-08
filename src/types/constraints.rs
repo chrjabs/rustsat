@@ -252,6 +252,12 @@ impl From<&[Lit]> for Clause {
     }
 }
 
+impl From<Vec<Lit>> for Clause {
+    fn from(value: Vec<Lit>) -> Self {
+        Self { lits: value }
+    }
+}
+
 impl Extend<Lit> for Clause {
     fn extend<T: IntoIterator<Item = Lit>>(&mut self, iter: T) {
         self.lits.extend(iter);
