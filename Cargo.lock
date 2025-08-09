@@ -444,9 +444,9 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "hashbrown"
-version = "0.15.4"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5971ac85611da7067dbfcabef3c70ebb5606018acd9e2a3903a0da507521e0d5"
+checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 
 [[package]]
 name = "heck"
@@ -1092,7 +1092,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bzip2",
@@ -1119,7 +1119,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1131,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-cadical"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1150,7 +1150,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-capi"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "cc",
  "libtest-mimic",
@@ -1160,7 +1160,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-codegen"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "cbindgen",
  "minijinja",
@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-glucose"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-ipasir"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "cpu-time",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-kissat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1210,7 +1210,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-minisat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1225,7 +1225,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-pyapi"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-solvertests"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1244,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-tools"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1261,9 +1261,9 @@ dependencies = [
 
 [[package]]
 name = "rustversion"
-version = "1.0.21"
+version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a0d197bd2c9dc6e53b84da9556a69ba4cdfab8619eb41a8bd1cc2027a0f6b1d"
+checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "ryu"
