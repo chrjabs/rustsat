@@ -1,5 +1,20 @@
 {
   "nodes": {
+    "crane": {
+      "locked": {
+        "lastModified": 1754269165,
+        "narHash": "sha256-0tcS8FHd4QjbCVoxN9jI+PjHgA4vc/IjkUSp+N3zy0U=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "444e81206df3f7d92780680e45858e31d2f07a08",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": "nixpkgs-lib"
@@ -94,11 +109,11 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1754481534,
-        "narHash": "sha256-x88YxTTUSXinwskyHxYAD9d5hG2TAnJQv4EuuQm5h3c=",
+        "lastModified": 1755074187,
+        "narHash": "sha256-uaguGYlrQOU5IcGtrVq8H3hjG/A28GW32sTjfkTcHMc=",
         "owner": "chrjabs",
         "repo": "nur-packages",
-        "rev": "2e2e884e7b8e5826c2cf8a47c39999183321588e",
+        "rev": "7c00f3819bb6a2cb934f6cb45a3a699d9fb4fb37",
         "type": "github"
       },
       "original": {
@@ -109,6 +124,7 @@
     },
     "root": {
       "inputs": {
+        "crane": "crane",
         "flake-parts": "flake-parts",
         "nixpkgs": "nixpkgs",
         "nur-packages": "nur-packages",

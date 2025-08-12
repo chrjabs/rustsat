@@ -1,6 +1,8 @@
 use std::io::Write;
 
 use minijinja::{context, Environment};
+use similar::{ChangeTag, TextDiff};
+use tempfile::NamedTempFile;
 
 fn main() {
     // Check if current directory has a Cargo.toml with [workspace]
@@ -12,6 +14,9 @@ fn main() {
             "Cargo.toml does not contain [workspace] (you must run codegen from the workspace root)"
         );
     }
+
+    let do_check = std::env::args().any(|arg| arg == "--check");
+    let mut has_changes = false;
 
     let templates = template_env();
 
@@ -53,10 +58,13 @@ fn main() {
         },
     ];
     let path = "capi/src/encodings/am1.rs";
-    capi_enc_bindings(path, "capi-am1.rs.j2", &am1_encs, &templates)
-        .expect("failed to write am1 bindings");
-    rustfmt(path);
-    capi_tests("am1", &am1_encs, &templates).expect("failed to write am1 tests");
+    let generated = rustfmt(capi_enc_bindings("capi-am1.rs.j2", &am1_encs, &templates));
+    if do_check {
+        has_changes |= diff(path, &generated);
+    } else {
+        write!(file(path), "{generated}").unwrap();
+    }
+    has_changes |= capi_tests("am1", &am1_encs, &templates, do_check);
 
     let card_encs = [Card {
         name: "Totalizer",
@@ -67,10 +75,13 @@ fn main() {
         n_clauses: 28,
     }];
     let path = "capi/src/encodings/card.rs";
-    capi_enc_bindings(path, "capi-card.rs.j2", &card_encs, &templates)
-        .expect("failed to write card bindings");
-    rustfmt(path);
-    capi_tests("card", &card_encs, &templates).expect("failed to write card tests");
+    let generated = rustfmt(capi_enc_bindings("capi-card.rs.j2", &card_encs, &templates));
+    if do_check {
+        has_changes |= diff(path, &generated);
+    } else {
+        write!(file(path), "{generated}").unwrap();
+    }
+    has_changes |= capi_tests("card", &card_encs, &templates, do_check);
 
     let pb_encs = [
         Pb {
@@ -108,12 +119,19 @@ fn main() {
         },
     ];
     let path = "capi/src/encodings/pb.rs";
-    capi_enc_bindings(path, "capi-pb.rs.j2", &pb_encs, &templates)
-        .expect("failed to write pb bindings");
-    rustfmt(path);
-    capi_tests("pb", &pb_encs, &templates).expect("failed to write pb tests");
+    let generated = rustfmt(capi_enc_bindings("capi-pb.rs.j2", &pb_encs, &templates));
+    if do_check {
+        has_changes |= diff(path, &generated);
+    } else {
+        write!(file(path), "{generated}").unwrap();
+    }
+    has_changes |= capi_tests("pb", &pb_encs, &templates, do_check);
 
-    capi_header();
+    has_changes |= capi_header(do_check);
+
+    if has_changes && do_check {
+        std::process::exit(1);
+    }
 }
 
 fn template_env() -> Environment<'static> {
@@ -126,53 +144,98 @@ fn file(path: &str) -> impl std::io::Write {
     std::io::BufWriter::new(std::fs::File::create(path).expect("could not open file"))
 }
 
-/// Runs `rustfmt` on a generated file
-fn rustfmt(path: &str) {
-    let status = std::process::Command::new("rustfmt")
-        .arg(path)
-        .status()
-        .expect("Failed to execute rustfmt");
+/// Runs `rustfmt` on a generated string
+fn rustfmt(generated: String) -> String {
+    let mut fmt = std::process::Command::new("rustfmt")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn rustfmt");
 
-    if !status.success() {
-        eprintln!("rustfmt failed on file {path} with exit code: {status}");
+    fmt.stdin
+        .take()
+        .expect("Failed to get stdin")
+        .write_all(generated.as_bytes())
+        .expect("Failed to write to rustfmt stdin");
+
+    let formatted_output = fmt.wait_with_output().expect("Failed to wait for rustfmt");
+    if !formatted_output.status.success() {
+        eprintln!("rustfmt failed with exit code: {}", formatted_output.status);
+        std::process::exit(1);
     }
+
+    String::from_utf8(formatted_output.stdout).unwrap()
 }
 
-/// Runs `clang-format` on a generated file
-fn clang_format(path: &str) {
-    let status = std::process::Command::new("clang-format")
-        .args(["-i", path])
-        .status()
-        .expect("Failed to execute clang-format");
+/// Runs `clang-format` on a generated string
+fn clang_format(generated: String) -> String {
+    let mut fmt = std::process::Command::new("clang-format")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn clang-format");
 
-    if !status.success() {
-        eprintln!("clang-format failed on file {path} with exit code: {status}");
+    fmt.stdin
+        .take()
+        .expect("Failed to get stdin")
+        .write_all(generated.as_bytes())
+        .expect("Failed to write to clang-format stdin");
+
+    let formatted_output = fmt
+        .wait_with_output()
+        .expect("Failed to wait for clang-format");
+    if !formatted_output.status.success() {
+        eprintln!(
+            "clang-format failed with exit code: {}",
+            formatted_output.status
+        );
+        std::process::exit(1);
     }
+
+    String::from_utf8(formatted_output.stdout).unwrap()
+}
+
+fn diff(path: &str, generated: &str) -> bool {
+    let Ok(old) = std::fs::read(path) else {
+        eprintln!("Would create {path}");
+        return true;
+    };
+    let old = std::str::from_utf8(&old).unwrap();
+    if old == generated {
+        return false;
+    }
+    let diff = TextDiff::from_lines(old, generated);
+    eprintln!("Diff for {path}:");
+    for change in diff.iter_all_changes() {
+        let sign = match change.tag() {
+            ChangeTag::Delete => "-",
+            ChangeTag::Insert => "+",
+            ChangeTag::Equal => " ",
+        };
+        eprint!("{}{}", sign, change);
+    }
+    true
 }
 
 fn capi_enc_bindings<E: Enc>(
-    path: &str,
     template: &str,
     encs: &[E],
     templates: &Environment<'static>,
-) -> std::io::Result<()> {
-    let mut writer = file(path);
+) -> String {
     let tmpl = templates.get_template(template).expect("missing template");
     let ub = encs.iter().any(|enc| enc.ub());
     let lb = encs.iter().any(|enc| enc.lb());
-    writeln!(
-        writer,
-        "{}",
-        tmpl.render(context!(encodings => encs, ub => ub, lb => lb))
-            .expect("missing template context")
-    )
+    tmpl.render(context!(encodings => encs, ub => ub, lb => lb))
+        .expect("missing template context")
 }
 
 fn capi_tests<E: Enc>(
     id: &str,
     encs: &[E],
     templates: &Environment<'static>,
-) -> std::io::Result<()> {
+    do_check: bool,
+) -> bool {
+    let mut has_changes = false;
     for entry in std::fs::read_dir("codegen/templates/").expect("failed to iteratre over template")
     {
         let entry = entry.unwrap();
@@ -188,20 +251,20 @@ fn capi_tests<E: Enc>(
                         continue;
                     }
                     let path = format!("capi/tests/{}-{name}", enc.id());
-                    let mut writer = file(&path);
-                    writeln!(
-                        writer,
-                        "{}",
+                    let generated = clang_format(
                         tmpl.render(context!(enc => enc))
-                            .expect("missing template context")
-                    )?;
-                    drop(writer);
-                    clang_format(&path);
+                            .expect("missing template context"),
+                    );
+                    if do_check {
+                        has_changes |= diff(&path, &generated);
+                    } else {
+                        write!(file(&path), "{generated}").unwrap();
+                    }
                 }
             }
         }
     }
-    Ok(())
+    has_changes
 }
 
 trait Enc: serde::Serialize {
@@ -286,8 +349,17 @@ impl Enc for Pb<'_> {
 }
 
 /// Generates the C-API header
-fn capi_header() {
-    cbindgen::Builder::new()
+fn capi_header(do_check: bool) -> bool {
+    let mut temp_path = None;
+    let path = if do_check {
+        let path = NamedTempFile::new().unwrap().into_temp_path();
+        std::fs::copy("capi/rustsat.h", &path).unwrap();
+        temp_path = Some(path);
+        temp_path.as_ref().unwrap().to_str().unwrap()
+    } else {
+        "capi/rustsat.h"
+    };
+    let changed = cbindgen::Builder::new()
         .with_config(
             cbindgen::Config::from_file("capi/cbindgen.toml")
                 .expect("could not read cbindgen.toml"),
@@ -305,5 +377,12 @@ fn capi_header() {
         ))
         .generate()
         .expect("Unable to generate bindings")
-        .write_to_file("capi/rustsat.h");
+        .write_to_file(path);
+    if changed {
+        let generated = std::fs::read(path).unwrap();
+        let generated = std::str::from_utf8(&generated).unwrap();
+        diff("capi/rustsat.h", generated);
+    }
+    drop(temp_path);
+    changed
 }

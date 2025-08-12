@@ -8,8 +8,8 @@ env:
 jobs:
   all:
     name: 🛡️ Semver checks
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
     steps:
       - uses: actions/checkout@v4
       - name: 🛡️ Run semver checks
-        run: just semver-checks-ci
+        run: nix build --impure ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').semverChecks"

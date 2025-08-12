@@ -1,6 +1,6 @@
 {
   lib,
-  rustPlatform,
+  rust-toolchain-platform,
   openssl,
   pkg-config,
   cmake,
@@ -14,7 +14,7 @@ in
 assert lib.assertMsg (
   withCadical && !withMinisat || !withCadical && withMinisat
 ) "either withCadical or withMinisat, but not both must be set";
-rustPlatform.buildRustPackage {
+rust-toolchain-platform.buildRustPackage {
   pname = manifest.name;
   version = workspace-manifest.version;
 
@@ -28,7 +28,7 @@ rustPlatform.buildRustPackage {
 
   buildInputs = [
     openssl
-    rustPlatform.bindgenHook
+    rust-toolchain-platform.bindgenHook
   ];
   nativeBuildInputs = [
     pkg-config
