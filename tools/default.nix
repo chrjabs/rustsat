@@ -1,6 +1,6 @@
 {
   lib,
-  rustPlatform,
+  rust-toolchain-platform,
   openssl,
   pkg-config,
   cmake,
@@ -14,11 +14,25 @@ in
 assert lib.assertMsg (
   withCadical && !withMinisat || !withCadical && withMinisat
 ) "either withCadical or withMinisat, but not both must be set";
-rustPlatform.buildRustPackage {
+rust-toolchain-platform.buildRustPackage {
   pname = manifest.name;
   version = workspace-manifest.version;
 
-  src = ../.;
+  src =
+    let
+      filter =
+        path: type:
+        type == "directory"
+        || (
+          builtins.match ".*(src/(lib|main).rs|Cargo.lock|-source/(data/.*|examples/.*rs|src/.*rs)|tools/(src/.*rs|data/.*)|(minisat|cadical)/(build.rs|src/.*rs|cpp(src|-extension)/.*(cp?p?|hp?p?|CMakeLists.txt|VERSION))|toml)$" path
+          != null
+        );
+    in
+    lib.cleanSourceWith {
+      src = ../.;
+      inherit filter;
+      name = "source";
+    };
   buildAndTestSubdir = "tools";
   cargoLock.lockFile = ../Cargo.lock;
 
@@ -28,7 +42,7 @@ rustPlatform.buildRustPackage {
 
   buildInputs = [
     openssl
-    rustPlatform.bindgenHook
+    rust-toolchain-platform.bindgenHook
   ];
   nativeBuildInputs = [
     pkg-config

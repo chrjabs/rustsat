@@ -1,4 +1,7 @@
 /target
+/target-ci
+
+/result
 
 **/*.o
 **/*.out

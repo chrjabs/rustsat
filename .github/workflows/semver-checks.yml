@@ -8,8 +8,8 @@ env:
 jobs:
   all:
     name: 🛡️ Semver checks
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🛡️ Run semver checks
-        run: just semver-checks-ci
+        run: nix run nixpkgs#just semver-checks

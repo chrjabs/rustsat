@@ -15,15 +15,16 @@ concurrency:
 jobs:
   # Build job
   build:
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🏗️ Build pages
-        run: just pages-ci
+        run: nix build .#pages
       - name: ⬆️ Upload artifact
-        # Automatically uploads an artifact from the './_site' directory by default
         uses: actions/upload-pages-artifact@v3
+        with:
+          path: result/
   # Deployment job
   deploy:
     environment:

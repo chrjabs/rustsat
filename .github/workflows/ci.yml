@@ -19,7 +19,7 @@ jobs:
       - msrv-build
       - code-quality
       - python-api
-      - docs
+      - doc
       - cadical-each-feature
       - kissat-each-feature
       - cadical-valgrind
@@ -35,7 +35,7 @@ jobs:
           echo "🏗️ MSRV build: ${{ needs.msrv-build.result }}"
           echo "✨ Code Quality: ${{ needs.code-quality.result }}"
           echo "🐍 Python API: ${{ needs.python-api.result }}"
-          echo "📑 Check documentation: ${{ needs.docs.result }}"
+          echo "📑 Check documentation: ${{ needs.doc.result }}"
           echo "🧪 CaDiCaL test each feature: ${{ needs.cadical-each-feature.result }}"
           echo "🧪 Kissat test each feature: ${{ needs.kissat-each-feature.result }}"
           echo "🤖 CaDiCaL Valgrind: ${{ needs.cadical-valgrind.result }}"
@@ -55,7 +55,7 @@ jobs:
         run: exit 1
       - if: ${{ needs.python-api.result != 'success' }}
         run: exit 1
-      - if: ${{ needs.docs.result != 'success' }}
+      - if: ${{ needs.doc.result != 'success' }}
         run: exit 1
       - if: ${{ needs.cadical-each-feature.result == 'failure' }}
         run: exit 1
@@ -71,114 +71,168 @@ jobs:
         run: exit 1
       - if: ${{ needs.capi-valgrind.result == 'failure' }}
         run: exit 1
+  dev-deps:
+    name: 🏗️ Dev dependencies
+    runs-on: [self-hosted, nix]
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - name: 🏗️ Build dev dependencies
+        run: nix build .#devDeps
   tests:
     name: 🧪 Workspace tests
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Run tests
-        run: just test-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').tests"
+      - name: 🧪 Run tests for external solver CaDiCaL
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').externalCadical"
+      - name: 🧪 Run tests for external solver Kissat
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').externalKissat"
+      - name: 🧪 Run tests for external solver Gimsatul
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').externalGimsatul"
   msrv-build:
     name: 🏗️ MSRV build
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: 🏗️ Build
-        run: just msrv-ci
+      - name: 🏗️ Check MSRV builds
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').msrv"
   code-quality:
     name: ✨ Code Quality
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: ✨ Run code quality checks
-        run: just code-quality-ci
+      - name: ✨ Check formatting
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').treefmt"
+      - name: ✨ Check typos
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').typos"
+      - name: ✨ Check spelling
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').spellcheck"
+      - name: ✨ Check generated readmes
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').readmes"
+      - name: ✨ Check generated code
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').codegen"
   python-api:
     name: 🐍 Python API
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: ✨ Run Python API checks
-        run: just python-api-ci
-  docs:
+      - uses: actions/checkout@v4
+      - name: ✨ Build Python API and check
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').pyapi"
+  doc:
     name: 📑 Check documentation
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: ✨ Run docs checks
-        run: just docs-ci
+      - uses: actions/checkout@v4
+      - name: ✨ Build doc
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').doc"
+      - name: 🧪 Run doc tests
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').docTests"
   coverage:
     name: 📋 Test coverage
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - tests
+      - doc
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - name: ✨ Generate coverage report
-        run: just coverage-ci
+      - name: ✨ Collect coverage reports
+        run: |
+          nix build .#testCoverage
+          mkdir -p coverage
+          cp result/*.lcov coverage
+          rm result
       - name: ✨ Publish to Coveralls
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        run: nix run --inputs-from . nur-packages#coveralls
+        env:
+          COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # TODO: Kani
   feature-powerset:
     name: 🔌 Test feature powerset
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'heavy-tests')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Run feature powerset checks
-        run: just feature-powerset-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').featurePowerset"
   cadical-each-feature:
     name: 🧪 CaDiCaL test each feature
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Test each feature
-        run: just cadical-each-feature-ci
+        run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run --exclude-features logging nextest run -p rustsat-cadical
   kissat-each-feature:
     name: 🧪 Kissat test each feature
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Test each feature
-        run: just kissat-each-feature-ci
+        run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run nextest run -p rustsat-kissat
   cadical-valgrind:
     name: 🤖 CaDiCaL Valgrind
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
-        run: just cadical-valgrind-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').cadicalValgrind"
   kissat-valgrind:
     name: 🤖 Kissat Valgrind
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
-        run: just kissat-valgrind-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').kissatValgrind"
   minisat-valgrind:
     name: 🤖 Minisat Valgrind
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'solvers/minisat')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
-        run: just minisat-valgrind-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').minisatValgrind"
   glucose-valgrind:
     name: 🤖 Glucose Valgrind
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'solvers/glucose')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
-        run: just glucose-valgrind-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').glucoseValgrind"
   capi-valgrind:
     name: 🤖 C-API Valgrind
-    runs-on: self-hosted
+    runs-on: [self-hosted, nix]
+    needs:
+      - dev-deps
     if: contains(github.event.pull_request.labels.*.name, 'c-api')
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
-        run: just capi-valgrind-ci
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').capiValgrind"
