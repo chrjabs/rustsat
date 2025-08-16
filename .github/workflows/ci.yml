@@ -75,42 +75,42 @@ jobs:
     name: 🧪 Workspace tests
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Run tests
         run: just test-ci
   msrv-build:
     name: 🏗️ MSRV build
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🏗️ Build
         run: just msrv-ci
   code-quality:
     name: ✨ Code Quality
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Run code quality checks
         run: just code-quality-ci
   python-api:
     name: 🐍 Python API
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Run Python API checks
         run: just python-api-ci
   docs:
     name: 📑 Check documentation
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Run docs checks
         run: just docs-ci
   coverage:
     name: 📋 Test coverage
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Generate coverage report
         run: just coverage-ci
       - name: ✨ Publish to Coveralls
@@ -123,7 +123,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'heavy-tests')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Run feature powerset checks
         run: just feature-powerset-ci
   cadical-each-feature:
@@ -131,7 +131,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Test each feature
         run: just cadical-each-feature-ci
   kissat-each-feature:
@@ -139,7 +139,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Test each feature
         run: just kissat-each-feature-ci
   cadical-valgrind:
@@ -147,7 +147,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
         run: just cadical-valgrind-ci
   kissat-valgrind:
@@ -155,7 +155,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
         run: just kissat-valgrind-ci
   minisat-valgrind:
@@ -163,7 +163,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'solvers/minisat')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
         run: just minisat-valgrind-ci
   glucose-valgrind:
@@ -171,7 +171,7 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'solvers/glucose')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
         run: just glucose-valgrind-ci
   capi-valgrind:
@@ -179,6 +179,6 @@ jobs:
     runs-on: self-hosted
     if: contains(github.event.pull_request.labels.*.name, 'c-api')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
         run: just capi-valgrind-ci
