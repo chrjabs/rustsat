@@ -16,7 +16,7 @@ jobs:
       # Generating a GitHub token, so that PRs and tags created by
       # the release-plz-action can trigger actions workflows.
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@0f859bf9e69e887678d5bbfbee594437cb440ffe # v2
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2
         id: generate-token
         with:
           app-id: ${{ secrets.RELEASE_PLZ_ID }} # <-- GitHub App ID secret name
@@ -51,7 +51,7 @@ jobs:
       # Generating a GitHub token, so that PRs and tags created by
       # the release-plz-action can trigger actions workflows.
       - name: Generate GitHub token
-        uses: actions/create-github-app-token@0f859bf9e69e887678d5bbfbee594437cb440ffe # v2
+        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2
         id: generate-token
         with:
           app-id: ${{ secrets.RELEASE_PLZ_ID }} # <-- GitHub App ID secret name
