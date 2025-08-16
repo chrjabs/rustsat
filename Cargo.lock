@@ -109,7 +109,7 @@ version = "0.72.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f72209734318d0b619a5e0f5129918b848c416e122a3c4ce054e03cb87b726f"
 dependencies = [
- "bitflags 2.9.1",
+ "bitflags 2.9.2",
  "cexpr",
  "clang-sys",
  "itertools 0.13.0",
@@ -135,9 +135,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.9.1"
+version = "2.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
+checksum = "6a65b545ab31d687cff52899d4890855fec459eb6afe0da6417b8a18da87aa29"
 
 [[package]]
 name = "bumpalo"
@@ -427,7 +427,7 @@ version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2deb07a133b1520dc1a5690e9bd08950108873d7ed5de38dcc74d3b5ebffa110"
 dependencies = [
- "bitflags 2.9.1",
+ "bitflags 2.9.2",
  "libc",
  "libgit2-sys",
  "log",
@@ -444,9 +444,9 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "hashbrown"
-version = "0.15.4"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5971ac85611da7067dbfcabef3c70ebb5606018acd9e2a3903a0da507521e0d5"
+checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 
 [[package]]
 name = "heck"
@@ -679,9 +679,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.174"
+version = "0.2.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
+checksum = "6a82ae493e598baaea5209805c49bbf2ea7de956d50d7da0da1164f9c6d28543"
 
 [[package]]
 name = "libgit2-sys"
@@ -1083,7 +1083,7 @@ version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11181fbabf243db407ef8df94a6ce0b2f9a733bd8be4ad02b4eda9602296cac8"
 dependencies = [
- "bitflags 2.9.1",
+ "bitflags 2.9.2",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -1092,7 +1092,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bzip2",
@@ -1119,7 +1119,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1131,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-cadical"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1150,7 +1150,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-capi"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "cc",
  "libtest-mimic",
@@ -1160,7 +1160,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-codegen"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "cbindgen",
  "minijinja",
@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-glucose"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-ipasir"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "cpu-time",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-kissat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1210,7 +1210,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-minisat"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1225,7 +1225,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-pyapi"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-solvertests"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1244,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-tools"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1261,9 +1261,9 @@ dependencies = [
 
 [[package]]
 name = "rustversion"
-version = "1.0.21"
+version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a0d197bd2c9dc6e53b84da9556a69ba4cdfab8619eb41a8bd1cc2027a0f6b1d"
+checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "ryu"
@@ -1919,7 +1919,7 @@ version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
 dependencies = [
- "bitflags 2.9.1",
+ "bitflags 2.9.2",
 ]
 
 [[package]]
