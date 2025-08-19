@@ -522,7 +522,9 @@ mod dpw_inc_prec {
 
     #[test]
     fn incremental_precision_2() {
-        let inst: OptInstance = OptInstance::from_dimacs_path("./data/inc-sis-fails.wcnf").unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let inst: OptInstance =
+            OptInstance::from_dimacs_path(format!("{manifest}/data/inc-sis-fails.wcnf")).unwrap();
         let (constr, obj) = inst.decompose();
         let (cnf, mut vm) = constr.into_cnf();
         let (hardened, (softs, offset)) = obj.into_soft_lits(&mut vm);
@@ -565,7 +567,9 @@ mod dpw_inc_prec {
 
     #[test]
     fn incremental_precision_3() {
-        let inst: OptInstance = OptInstance::from_dimacs_path("./data/inc-sis-fails.wcnf").unwrap();
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let inst: OptInstance =
+            OptInstance::from_dimacs_path(format!("{manifest}/data/inc-sis-fails.wcnf")).unwrap();
         let (constr, obj) = inst.decompose();
         let (cnf, mut vm) = constr.into_cnf();
         let (hardened, (softs, offset)) = obj.into_soft_lits(&mut vm);

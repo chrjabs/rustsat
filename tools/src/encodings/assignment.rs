@@ -135,7 +135,10 @@ mod parsing {
 
         #[test]
         fn moolib() {
-            let reader = BufReader::new(File::open("./data/AP_p-3_n-5_ins-1.dat").unwrap());
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let reader = BufReader::new(
+                File::open(format!("{manifest}/data/AP_p-3_n-5_ins-1.dat")).unwrap(),
+            );
             super::parse_moolib(reader).unwrap();
         }
     }

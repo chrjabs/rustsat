@@ -124,7 +124,9 @@ mod parsing {
 
         #[test]
         fn voptlib() {
-            let reader = BufReader::new(File::open("./data/didactic1.txt").unwrap());
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let reader =
+                BufReader::new(File::open(format!("{manifest}/data/didactic1.txt")).unwrap());
             super::parse_voptlib(reader).unwrap();
         }
     }

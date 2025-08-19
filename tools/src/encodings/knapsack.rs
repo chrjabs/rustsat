@@ -238,13 +238,18 @@ mod parsing {
 
         #[test]
         fn moolib() {
-            let reader = BufReader::new(File::open("./data/KP_p-3_n-10_ins-1.dat").unwrap());
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let reader = BufReader::new(
+                File::open(format!("{manifest}/data/KP_p-3_n-10_ins-1.dat")).unwrap(),
+            );
             super::parse_moolib(reader).unwrap();
         }
 
         #[test]
         fn voptlib() {
-            let reader = BufReader::new(File::open("./data/F5050W01.dat").unwrap());
+            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let reader =
+                BufReader::new(File::open(format!("{manifest}/data/F5050W01.dat")).unwrap());
             super::parse_voptlib(reader).unwrap();
         }
     }
