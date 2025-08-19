@@ -1,5 +1,6 @@
 [package]
 name = "rustsat-codegen"
+description = "Automated code generation for the RustSAT project."
 version.workspace = true
 license.workspace = true
 edition.workspace = true
@@ -16,3 +17,5 @@ minijinja = { version = "2.11.0", default-features = false, features = [
   "loader",
 ] }
 serde.workspace = true
+similar = "2.7.0"
+tempfile.workspace = true
