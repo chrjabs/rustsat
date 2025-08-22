@@ -47,15 +47,15 @@ jobs:
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
       # Multi-line `if` clauses are not evaluated properly.
-      - if: ${{ needs.tests.result != 'success' }}
+      - if: ${{ needs.tests.result == 'failure' }}
         run: exit 1
-      - if: ${{ needs.msrv-build.result != 'success' }}
+      - if: ${{ needs.msrv-build.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.code-quality.result != 'success' }}
         run: exit 1
-      - if: ${{ needs.python-api.result != 'success' }}
+      - if: ${{ needs.python-api.result == 'failure' }}
         run: exit 1
-      - if: ${{ needs.doc.result != 'success' }}
+      - if: ${{ needs.doc.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.cadical-each-feature.result == 'failure' }}
         run: exit 1
@@ -83,6 +83,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
+    if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Run tests
@@ -96,6 +97,7 @@ jobs:
   msrv-build:
     name: 🏗️ MSRV build
     runs-on: [self-hosted, nix]
+    if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🏗️ Check MSRV builds
@@ -120,6 +122,7 @@ jobs:
   python-api:
     name: 🐍 Python API
     runs-on: [self-hosted, nix]
+    if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - uses: actions/checkout@v4
@@ -130,6 +133,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
+    if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - uses: actions/checkout@v4
@@ -161,7 +165,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'heavy-tests')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'heavy-tests')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Run feature powerset checks
@@ -171,7 +175,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/cadical')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Test each feature
@@ -181,7 +185,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/kissat')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Test each feature
@@ -191,7 +195,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/cadical')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/cadical')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
@@ -201,7 +205,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/kissat')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/kissat')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
@@ -211,7 +215,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/minisat')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/minisat')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
@@ -221,7 +225,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'solvers/glucose')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/glucose')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
@@ -231,7 +235,7 @@ jobs:
     runs-on: [self-hosted, nix]
     needs:
       - dev-deps
-    if: contains(github.event.pull_request.labels.*.name, 'c-api')
+    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/capi')"
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🧪 Tests through valgrind
