@@ -17,6 +17,7 @@ jobs:
     needs:
       - tests
       - msrv-build
+      - wasm-check
       - code-quality
       - python-api
       - doc
@@ -33,6 +34,7 @@ jobs:
         run: |
           echo "🧪 Workspace tests: ${{ needs.tests.result }}"
           echo "🏗️ MSRV build: ${{ needs.msrv-build.result }}"
+          echo "🏄 WASM check: ${{ needs.wasm-check.result }}"
           echo "✨ Code Quality: ${{ needs.code-quality.result }}"
           echo "🐍 Python API: ${{ needs.python-api.result }}"
           echo "📑 Check documentation: ${{ needs.doc.result }}"
@@ -50,6 +52,8 @@ jobs:
       - if: ${{ needs.tests.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.msrv-build.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.wasm-check.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.code-quality.result != 'success' }}
         run: exit 1
@@ -102,6 +106,14 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: 🏗️ Check MSRV builds
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').msrv"
+  wasm-check:
+    name: 🏄 WASM check
+    runs-on: [self-hosted, nix]
+    if: '!github.event.pull_request.draft'
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - name: 🏄 Check WASM compatibility
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').wasm"
   code-quality:
     name: ✨ Code Quality
     runs-on: [self-hosted, nix]

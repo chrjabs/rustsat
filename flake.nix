@@ -48,6 +48,7 @@
           stdenv = pkgs.clangStdenv;
 
           craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (p: p.rust-toolchain);
+          wasmCraneLib = (inputs.crane.mkLib pkgs).overrideToolchain (p: p.wasm-toolchain);
           src =
             let
               additionalSrcFilter =
@@ -88,6 +89,13 @@
                 cargo test --locked --workspace --features=all,internals --no-run --exclude rustsat-pyapi
                 ln -s "." "''${CARGO_TARGET_DIR:-target}/llvm-cov-target"
               '';
+            }
+          );
+          cargoWasmArtifacts = wasmCraneLib.buildDepsOnly (
+            commonArgs
+            // {
+              buildPhaseCargoCommand = "cargo check --locked --target wasm32-unknown-unknown -p rustsat-batsat";
+              checkPhaseCargoCommand = "";
             }
           );
 
@@ -166,6 +174,14 @@
               mkdir -p $out
             '';
           };
+          wasm = wasmCraneLib.mkCargoDerivation (
+            commonArgs
+            // {
+              pnameSuffix = "-check-wasm";
+              cargoArtifacts = cargoWasmArtifacts;
+              buildPhaseCargoCommand = "cargo check --locked --target wasm32-unknown-unknown -p rustsat-batsat";
+            }
+          );
           docTests = craneLib.mkCargoDerivation (
             commonArgs
             // {
@@ -335,6 +351,9 @@
                     cargo = final.rust-toolchain;
                     rustc = final.rust-toolchain;
                   };
+                  wasm-toolchain = (rustPkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
+                    targets = [ "wasm32-unknown-unknown" ];
+                  };
                 };
               in
               [
@@ -468,6 +487,7 @@
               featurePowerset
               msrv
               capiValgrind
+              wasm
               ;
             typos = typosCheck;
             cadicalValgrind = crateValgrind "rustsat-cadical";
