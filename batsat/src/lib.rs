@@ -29,12 +29,12 @@
 use std::time::Duration;
 
 use batsat::{intmap::AsIndex, lbool, Callbacks, SolverInterface};
-use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{
         Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
     },
     types::{Cl, Clause, Lit, TernaryVal, Var},
+    utils::Timer,
 };
 
 /// RustSAT wrapper for [`batsat::BasicSolver`]
@@ -111,7 +111,7 @@ impl<Cb: Callbacks> Solver<Cb> {
             .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32()), l.is_pos()))
             .collect::<Vec<_>>();
 
-        let start = ProcessTime::now();
+        let start = Timer::now();
         let ret = match self.internal.solve_limited(&assumps) {
             x if x == lbool::TRUE => {
                 self.n_sat += 1;

@@ -41,7 +41,6 @@
 
 use core::ffi::{c_int, c_void, CStr};
 
-use cpu_time::ProcessTime;
 use ffi::IpasirHandle;
 use rustsat::{
     solvers::{
@@ -49,6 +48,7 @@ use rustsat::{
         SolverStats, StateError, Terminate,
     },
     types::{Cl, Clause, Lit, TernaryVal},
+    utils::Timer,
 };
 use thiserror::Error;
 
@@ -184,7 +184,7 @@ impl Solve for IpasirSolver<'_, '_> {
                 return Ok(SolverResult::Unsat);
             }
         }
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with IPASIR backend
         let res = unsafe { ffi::ipasir_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();
@@ -263,7 +263,7 @@ impl SolveIncremental for IpasirSolver<'_, '_> {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         // If in error state, remain there
         // If not, need to resolve because assumptions might have changed
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with IPASIR backend
         for a in assumps {
             unsafe { ffi::ipasir_assume(self.handle, a.to_ipasir()) }

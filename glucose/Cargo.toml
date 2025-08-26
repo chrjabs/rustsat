@@ -29,7 +29,6 @@ default = ["quiet"]
 
 [dependencies]
 anyhow.workspace = true
-cpu-time.workspace = true
 thiserror.workspace = true
 rustsat.workspace = true
 

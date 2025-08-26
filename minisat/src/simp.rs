@@ -5,7 +5,6 @@
 
 use core::ffi::{c_int, CStr};
 
-use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{
         FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
@@ -13,7 +12,7 @@ use rustsat::{
         SolverState, SolverStats, StateError,
     },
     types::{Cl, Clause, Lit, TernaryVal, Var},
-    utils::from_raw_parts_maybe_null,
+    utils::{from_raw_parts_maybe_null, Timer},
 };
 
 use super::{ffi, handle_oom, AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
@@ -124,7 +123,7 @@ impl Solve for Minisat {
                 return Ok(SolverResult::Unsat);
             }
         }
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with minisat backend
         let res = handle_oom!(unsafe { ffi::cminisatsimp_solve(self.handle, std::ptr::null(), 0) });
         self.stats.cpu_solve_time += start.elapsed();
@@ -198,7 +197,7 @@ impl Solve for Minisat {
 
 impl SolveIncremental for Minisat {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with minisat backend
         for a in assumps {
             if self.var_eliminated(a.var()) {
@@ -389,7 +388,7 @@ impl Propagate for Minisat {
         assumps: &[Lit],
         phase_saving: bool,
     ) -> anyhow::Result<PropagateResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         self.state = InternalSolverState::Input;
         // Propagate with minisat backend
         let mut props = Vec::new();

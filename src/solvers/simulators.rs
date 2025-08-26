@@ -2,11 +2,10 @@
 //!
 //! This module contains generic code to simulate features that solvers might not support.
 
-use cpu_time::ProcessTime;
-
 use crate::{
     instances::Cnf,
     types::{Cl, Clause, Lit},
+    utils::Timer,
 };
 
 use super::Solve;
@@ -95,7 +94,7 @@ where
     }
 
     fn solve(&mut self) -> anyhow::Result<super::SolverResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         if !matches!(self.state, InternalSolverState::Init) {
             self.solver = Init::init();
             self.solver.add_cnf_ref(&self.clauses)?;
@@ -170,7 +169,7 @@ where
     Init: super::Initialize<S>,
 {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<super::SolverResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         if !matches!(self.state, InternalSolverState::Init) {
             self.solver = Init::init();
             self.solver.add_cnf_ref(&self.clauses)?;

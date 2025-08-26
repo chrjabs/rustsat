@@ -56,13 +56,13 @@
 use core::ffi::{c_int, c_uint, c_void, CStr};
 use std::{ffi::CString, fmt};
 
-use cpu_time::ProcessTime;
 use rustsat::{
     solvers::{
         ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
         SolverStats, StateError, Terminate,
     },
     types::{Cl, Clause, Lit, TernaryVal, Var},
+    utils::Timer,
 };
 use thiserror::Error;
 
@@ -304,7 +304,7 @@ impl Solve for Kissat<'_> {
         if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::Unsat);
         }
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with Kissat backend
         let res = unsafe { ffi::kissat_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();

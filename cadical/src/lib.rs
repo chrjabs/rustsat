@@ -73,13 +73,16 @@ use std::{
     path::Path,
 };
 
-use cpu_time::ProcessTime;
-use rustsat::solvers::{
-    ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn, LimitConflicts,
-    LimitDecisions, PhaseLit, Propagate, PropagateResult, Solve, SolveIncremental, SolveStats,
-    SolverResult, SolverState, SolverStats, StateError, Terminate,
-};
 use rustsat::types::{Cl, Clause, Lit, TernaryVal, Var};
+use rustsat::{
+    solvers::{
+        ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn,
+        LimitConflicts, LimitDecisions, PhaseLit, Propagate, PropagateResult, Solve,
+        SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
+        Terminate,
+    },
+    utils::Timer,
+};
 use thiserror::Error;
 
 mod ffi;
@@ -648,7 +651,7 @@ impl Solve for CaDiCaL<'_, '_> {
                 return Ok(SolverResult::Unsat);
             }
         }
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with CaDiCaL backend
         let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
@@ -719,7 +722,7 @@ impl Solve for CaDiCaL<'_, '_> {
 
 impl SolveIncremental for CaDiCaL<'_, '_> {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         // Solve with CaDiCaL backend
         for a in assumps {
             handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
@@ -990,7 +993,7 @@ impl Propagate for CaDiCaL<'_, '_> {
         assumps: &[Lit],
         _phase_saving: bool,
     ) -> anyhow::Result<PropagateResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         self.state = InternalSolverState::Input;
         // Propagate with cadical backend
         for a in assumps {
@@ -1049,7 +1052,7 @@ impl Propagate for CaDiCaL<'_, '_> {
         assumps: &[Lit],
         phase_saving: bool,
     ) -> anyhow::Result<PropagateResult> {
-        let start = ProcessTime::now();
+        let start = Timer::now();
         self.state = InternalSolverState::Input;
         // Propagate with cadical backend
         let assumps: Vec<_> = assumps.iter().map(|l| l.to_ipasir()).collect();

@@ -106,6 +106,56 @@ macro_rules! unreachable_err {
 }
 pub(crate) use unreachable_err;
 
+pub use timer::Timer;
+
+#[cfg(not(target_family = "wasm"))]
+mod timer {
+    /// A timer to measure execution time.
+    ///
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ProcessTime`, on `wasm` systems, it is
+    /// based on `std::time::Instant`.
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    pub struct Timer(cpu_time::ProcessTime);
+
+    impl Timer {
+        /// Gets the current time
+        #[must_use]
+        pub fn now() -> Self {
+            Timer(cpu_time::ProcessTime::now())
+        }
+
+        /// Gets the amount of time elapsed since the timer was initialized
+        #[must_use]
+        pub fn elapsed(&self) -> std::time::Duration {
+            self.0.elapsed()
+        }
+    }
+}
+
+#[cfg(target_family = "wasm")]
+mod timer {
+    /// A timer to measure execution time.
+    ///
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ProcessTime`, on `wasm` systems, it is
+    /// based on `std::time::Instant`.
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    pub struct Timer(std::time::Instant);
+
+    impl Timer {
+        /// Gets the current time
+        #[must_use]
+        pub fn now() -> Self {
+            Timer(std::time::Instant::now())
+        }
+
+        /// Gets the amount of time elapsed since the timer was initialized
+        #[must_use]
+        pub fn elapsed(&self) -> std::time::Duration {
+            self.0.elapsed()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
