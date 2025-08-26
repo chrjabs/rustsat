@@ -112,16 +112,16 @@ pub use timer::Timer;
 mod timer {
     /// A timer to measure execution time.
     ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ProcessTime`, on `wasm` systems, it is
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it is
     /// based on `std::time::Instant`.
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-    pub struct Timer(cpu_time::ProcessTime);
+    pub struct Timer(cpu_time::ThreadTime);
 
     impl Timer {
         /// Gets the current time
         #[must_use]
         pub fn now() -> Self {
-            Timer(cpu_time::ProcessTime::now())
+            Timer(cpu_time::ThreadTime::now())
         }
 
         /// Gets the amount of time elapsed since the timer was initialized
@@ -136,7 +136,7 @@ mod timer {
 mod timer {
     /// A timer to measure execution time.
     ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ProcessTime`, on `wasm` systems, it is
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it is
     /// based on `std::time::Instant`.
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
     pub struct Timer(std::time::Instant);
