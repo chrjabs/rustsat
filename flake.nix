@@ -94,7 +94,7 @@
           cargoWasmArtifacts = wasmCraneLib.buildDepsOnly (
             commonArgs
             // {
-              buildPhaseCargoCommand = "cargo check --locked --target wasm32-unknown-unknown -p rustsat-batsat";
+              buildPhaseCargoCommand = "cargo check --locked --target wasm32-unknown-unknown --features=web-time -p rustsat-batsat";
               checkPhaseCargoCommand = "";
             }
           );
@@ -179,7 +179,7 @@
             // {
               pnameSuffix = "-check-wasm";
               cargoArtifacts = cargoWasmArtifacts;
-              buildPhaseCargoCommand = "cargo check --locked --target wasm32-unknown-unknown -p rustsat-batsat";
+              buildPhaseCargoCommand = "cargo check --locked --target wasm32-unknown-unknown --features=web-time -p rustsat-batsat";
             }
           );
           docTests = craneLib.mkCargoDerivation (

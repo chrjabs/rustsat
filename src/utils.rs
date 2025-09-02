@@ -112,8 +112,9 @@ pub use timer::Timer;
 mod timer {
     /// A timer to measure execution time.
     ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it is
-    /// based on `std::time::Instant`.
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
+    /// is either a no-op (returning zero elapsed time always, or based on `web-time` with the
+    /// `web-time` feature.
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
     pub struct Timer(cpu_time::ThreadTime);
 
@@ -136,22 +137,31 @@ mod timer {
 mod timer {
     /// A timer to measure execution time.
     ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it is
-    /// based on `std::time::Instant`.
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
+    /// is either a no-op (returning zero elapsed time always, or based on `web-time` with the
+    /// `web-time` feature.
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-    pub struct Timer(std::time::Instant);
+    pub struct Timer(#[cfg(feature = "web-time")] web_time::Instant);
 
     impl Timer {
         /// Gets the current time
         #[must_use]
         pub fn now() -> Self {
-            Timer(std::time::Instant::now())
+            #[cfg(not(feature = "web-time"))]
+            let timer = Timer();
+            #[cfg(feature = "web-time")]
+            let timer = Timer(web_time::Instant::now());
+            timer
         }
 
         /// Gets the amount of time elapsed since the timer was initialized
         #[must_use]
         pub fn elapsed(&self) -> std::time::Duration {
-            self.0.elapsed()
+            #[cfg(not(feature = "web-time"))]
+            let duration = std::time::Duration::ZERO;
+            #[cfg(feature = "web-time")]
+            let duration = self.0.elapsed();
+            duration
         }
     }
 }
