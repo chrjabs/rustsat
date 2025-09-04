@@ -21,3 +21,6 @@ rustsat.workspace = true
 
 [dev-dependencies]
 rustsat-solvertests = { path = "../solvertests" }
+
+[features]
+web-time = ["rustsat/web-time"]
