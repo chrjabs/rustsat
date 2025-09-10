@@ -108,12 +108,12 @@ pub(crate) use unreachable_err;
 
 pub use timer::Timer;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(any(target_family = "unix", target_family = "windows"))]
 mod timer {
     /// A timer to measure execution time.
     ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it is
-    /// based on `std::time::Instant`.
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
+    /// is based on `web-time`
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
     pub struct Timer(cpu_time::ThreadTime);
 
@@ -132,20 +132,20 @@ mod timer {
     }
 }
 
-#[cfg(target_family = "wasm")]
+#[cfg(not(any(target_family = "unix", target_family = "windows")))]
 mod timer {
     /// A timer to measure execution time.
     ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it is
-    /// based on `std::time::Instant`.
+    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
+    /// is based on `web-time`
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-    pub struct Timer(std::time::Instant);
+    pub struct Timer(web_time::Instant);
 
     impl Timer {
         /// Gets the current time
         #[must_use]
         pub fn now() -> Self {
-            Timer(std::time::Instant::now())
+            Timer(web_time::Instant::now())
         }
 
         /// Gets the amount of time elapsed since the timer was initialized
