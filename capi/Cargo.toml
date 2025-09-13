@@ -20,7 +20,7 @@ rustsat = { workspace = true, features = ["internals", "fxhash"] }
 [dev-dependencies]
 cc.workspace = true
 libtest-mimic.workspace = true
-target-lexicon = "0.13.2"
+target-lexicon = "0.13.3"
 
 [lib]
 crate-type = ["staticlib"]

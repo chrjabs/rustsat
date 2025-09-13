@@ -27,8 +27,8 @@ bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
 ] }
 bzip2 = "0.5.2"
-cc = { version = "1.2.36", features = ["parallel"] }
-chrono = "0.4.41"
+cc = { version = "1.2.37", features = ["parallel"] }
+chrono = "0.4.42"
 clap = { version = "4.5.47", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
