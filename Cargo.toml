@@ -50,8 +50,8 @@ rustsat = { version = "0.7.3", path = "./", default-features = false }
 rustsat-cadical = { version = "0.7.3", path = "./cadical" }
 rustsat-minisat = { version = "0.7.3", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.143"
+serde = { version = "1.0.221", features = ["derive"] }
+serde_json = "1.0.144"
 signal-hook = "0.3.18"
 tempfile = "3.21.0"
 visibility = "0.1.1"
