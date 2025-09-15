@@ -852,3 +852,23 @@ mod cert {
         test_both_exhaustive::<Totalizer>()
     }
 }
+
+#[cfg(feature = "pindakaas")]
+mod pindakaas {
+    use rustsat::encodings::card::{
+        self,
+        simulators::{Double, Inverted},
+    };
+
+    type SortingNetwork = card::PindakaasEncoder<pindakaas::cardinality::SortingNetworkEncoder>;
+
+    #[test]
+    fn sorting_network() {
+        super::test_both_card::<Double<SortingNetwork, Inverted<SortingNetwork>>>()
+    }
+
+    #[test]
+    fn sorting_network_min_enc() {
+        super::test_both_card_min_enc::<Double<SortingNetwork, Inverted<SortingNetwork>>>()
+    }
+}

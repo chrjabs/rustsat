@@ -64,6 +64,11 @@ pub use dpw::DynamicPolyWatchdog;
 pub mod adder;
 pub use adder::BinaryAdder;
 
+#[cfg(feature = "pindakaas")]
+mod pindakaas;
+#[cfg(feature = "pindakaas")]
+pub use pindakaas::Encoder as PindakaasEncoder;
+
 #[cfg(feature = "proof-logging")]
 pub mod cert;
 

@@ -9,6 +9,9 @@ pub mod atomics;
 pub mod card;
 pub mod pb;
 
+#[cfg(feature = "pindakaas")]
+pub(crate) mod pindakaas;
+
 /// Trait for collecting clauses. Mainly used when generating encodings and implemented by
 /// [`crate::instances::Cnf`], and solvers.
 pub trait CollectClauses {

@@ -897,6 +897,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pindakaas"
+version = "0.1.0"
+source = "git+https://github.com/chrjabs/pindakaas.git?branch=push-prvmpqktuqrr#ec721a68eac2514b93714a380b63d81a91f6352d"
+dependencies = [
+ "itertools 0.14.0",
+ "rangelist",
+ "rustc-hash",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1042,6 +1052,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rangelist"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cbea042689e7f1183a1351064a3edfec35cf37fd51db6a6136f9a95b844ea06"
+
+[[package]]
 name = "regex"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1102,6 +1118,7 @@ dependencies = [
  "itertools 0.14.0",
  "nom",
  "pigeons",
+ "pindakaas",
  "rand",
  "rustc-hash",
  "rustsat-minisat",

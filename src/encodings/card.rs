@@ -50,6 +50,11 @@ pub mod simulators;
 #[cfg(feature = "proof-logging")]
 pub mod cert;
 
+#[cfg(feature = "pindakaas")]
+mod pindakaas;
+#[cfg(feature = "pindakaas")]
+pub use pindakaas::Encoder as PindakaasEncoder;
+
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait Encode {
     /// Gets the number of input literals in the encoding

@@ -189,7 +189,7 @@ fn test_pb_lb<PBE: BoundLower + From<RsHashMap<Lit, usize>>>() {
     assert_eq!(res, SolverResult::Sat);
 }
 
-fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
+fn test_pb_ub_min_enc<PBE: BoundUpper + FromIterator<(Lit, usize)>>() {
     // Set up instance
     let mut solver = rustsat_minisat::core::Minisat::default();
     let mut var_manager = BasicVarManager::default();
@@ -199,7 +199,7 @@ fn test_pb_ub_min_enc<PBE: BoundUpper + From<RsHashMap<Lit, usize>>>() {
     lits.insert(lit![0], 1);
     lits.insert(lit![1], 2);
     lits.insert(lit![2], 1);
-    let mut enc = PBE::from(lits);
+    let mut enc = PBE::from_iter(lits);
 
     enc.encode_ub(2..=2, &mut solver, &mut var_manager).unwrap();
     let mut assumps = enc.enforce_ub(2).unwrap();
@@ -907,4 +907,30 @@ mod cert {
     }
 
     super::generate_exhaustive!(dbgte, GeneralizedTotalizer);
+}
+
+#[cfg(feature = "pindakaas")]
+mod pindakaas {
+    use rustsat::encodings::pb;
+
+    #[test]
+    fn adder() {
+        super::test_pb_ub_min_enc::<pb::PindakaasEncoder<pindakaas::bool_linear::AdderEncoder>>()
+    }
+
+    #[test]
+    fn bdd() {
+        super::test_pb_ub_min_enc::<pb::PindakaasEncoder<pindakaas::bool_linear::BddEncoder>>()
+    }
+
+    #[test]
+    fn swc() {
+        super::test_pb_ub_min_enc::<pb::PindakaasEncoder<pindakaas::bool_linear::SwcEncoder>>()
+    }
+
+    #[test]
+    fn gte() {
+        super::test_pb_ub_min_enc::<pb::PindakaasEncoder<pindakaas::bool_linear::TotalizerEncoder>>(
+        )
+    }
 }

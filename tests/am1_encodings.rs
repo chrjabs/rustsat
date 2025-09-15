@@ -92,3 +92,23 @@ fn commander() {
 fn bimander() {
     test_am1::<am1::Bimander<2>>();
 }
+
+#[cfg(feature = "pindakaas")]
+mod pindakaas {
+    use rustsat::encodings::am1;
+
+    #[test]
+    fn ladder() {
+        super::test_am1::<am1::PindakaasEncoder<pindakaas::cardinality_one::LadderEncoder>>();
+    }
+
+    #[test]
+    fn bitwise() {
+        super::test_am1::<am1::PindakaasEncoder<pindakaas::cardinality_one::BitwiseEncoder>>();
+    }
+
+    #[test]
+    fn pairwise() {
+        super::test_am1::<am1::PindakaasEncoder<pindakaas::cardinality_one::PairwiseEncoder>>();
+    }
+}

@@ -38,6 +38,11 @@ pub use commander::Commander;
 mod bimander;
 pub use bimander::Bimander;
 
+#[cfg(feature = "pindakaas")]
+mod pindakaas;
+#[cfg(feature = "pindakaas")]
+pub use pindakaas::Encoder as PindakaasEncoder;
+
 /// Trait for all at-most-1 encodings
 pub trait Encode {
     /// Gets the number of literals in the encoding
