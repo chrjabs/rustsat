@@ -40,9 +40,18 @@ impl Encode for Pairwise {
         Col: CollectClauses,
     {
         let prev_clauses = collector.n_clauses();
-        let lits = &self.in_lits;
-        let clause_iter = (0..self.in_lits.len()).flat_map(|first| {
-            (first + 1..self.in_lits.len()).map(move |second| clause![!lits[first], !lits[second]])
+        let preprocessed = super::Preprocessed::new(self.in_lits.clone());
+        collector.extend_clauses(preprocessed.units())?;
+
+        if preprocessed.remaining.len() <= 1 {
+            self.n_clauses = collector.n_clauses() - prev_clauses;
+            return Ok(());
+        }
+
+        let lits = &preprocessed.remaining;
+        let clause_iter = (0..preprocessed.remaining.len()).flat_map(|first| {
+            (first + 1..preprocessed.remaining.len())
+                .map(move |second| clause![!lits[first], !lits[second]])
         });
         collector.extend_clauses(clause_iter)?;
         self.n_clauses = collector.n_clauses() - prev_clauses;

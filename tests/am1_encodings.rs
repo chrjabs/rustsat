@@ -92,3 +92,103 @@ fn commander() {
 fn bimander() {
     test_am1::<am1::Bimander<2>>();
 }
+
+fn test_am1_duplicate<AM1: am1::Encode + From<Vec<Lit>>>() {
+    let mut solver = rustsat_minisat::core::Minisat::default();
+    let mut var_manager = BasicVarManager::default();
+    var_manager.increase_next_free(var![4]);
+
+    let mut enc = AM1::from(vec![lit![0], lit![1], lit![0], lit![2]]);
+    let mut cnf = Cnf::new();
+    enc.encode(&mut cnf, &mut var_manager).unwrap();
+    println!("{cnf:?}");
+    solver.add_cnf(cnf).unwrap();
+
+    test_all!(
+        solver,
+        Vec::<Lit>::new(),
+        Unsat, // 111
+        Unsat, // 110
+        Unsat, // 101
+        Unsat, // 100
+        Unsat, // 011
+        Sat,   // 010
+        Sat,   // 001
+        Sat    // 000
+    );
+}
+
+#[test]
+fn pairwise_duplicate() {
+    test_am1_duplicate::<am1::Pairwise>();
+}
+
+#[test]
+fn ladder_duplicate() {
+    test_am1_duplicate::<am1::Ladder>();
+}
+
+#[test]
+fn bitwise_duplicate() {
+    test_am1_duplicate::<am1::Bitwise>();
+}
+
+#[test]
+fn commander_duplicate() {
+    test_am1_duplicate::<am1::Commander<2>>();
+}
+
+#[test]
+fn bimander_duplicate() {
+    test_am1_duplicate::<am1::Bimander<2>>();
+}
+
+fn test_am1_negated<AM1: am1::Encode + From<Vec<Lit>>>() {
+    let mut solver = rustsat_minisat::core::Minisat::default();
+    let mut var_manager = BasicVarManager::default();
+    var_manager.increase_next_free(var![4]);
+
+    let mut enc = AM1::from(vec![lit![0], lit![1], !lit![0], lit![2]]);
+    let mut cnf = Cnf::new();
+    enc.encode(&mut cnf, &mut var_manager).unwrap();
+    println!("{cnf:?}");
+    solver.add_cnf(cnf).unwrap();
+
+    test_all!(
+        solver,
+        Vec::<Lit>::new(),
+        Unsat, // 111
+        Unsat, // 110
+        Unsat, // 101
+        Sat,   // 100
+        Unsat, // 011
+        Unsat, // 010
+        Unsat, // 001
+        Sat    // 000
+    );
+}
+
+#[test]
+fn pairwise_negated() {
+    test_am1_negated::<am1::Pairwise>();
+}
+
+#[test]
+fn ladder_negated() {
+    test_am1_negated::<am1::Ladder>();
+}
+
+#[test]
+fn bitwise_negated() {
+    test_am1_negated::<am1::Bitwise>();
+}
+
+#[test]
+fn commander_negated() {
+    test_am1_negated::<am1::Commander<2>>();
+}
+
+#[test]
+fn bimander_negated() {
+    test_am1_negated::<am1::Bimander<2>>();
+}
