@@ -53,18 +53,24 @@ where
     where
         Col: CollectClauses,
     {
-        if self.in_lits.len() <= 1 {
-            return Ok(());
-        }
         let prev_clauses = collector.n_clauses();
         let prev_vars = var_manager.n_used();
 
-        let n_splits = self.in_lits.len().div_ceil(N);
+        let preprocessed = super::Preprocessed::new(self.in_lits.clone());
+        collector.extend_clauses(preprocessed.units())?;
+
+        if preprocessed.remaining.len() <= 1 {
+            self.n_clauses = collector.n_clauses() - prev_clauses;
+            return Ok(());
+        }
+
+        let n_splits = preprocessed.remaining.len().div_ceil(N);
 
         let commanders: Vec<_> = (0..n_splits).map(|_| var_manager.new_lit()).collect();
 
         for (split, &commander) in commanders.iter().enumerate() {
-            let lits = &self.in_lits[split * N..std::cmp::min(self.in_lits.len(), (split + 1) * N)];
+            let lits = &preprocessed.remaining
+                [split * N..std::cmp::min(preprocessed.remaining.len(), (split + 1) * N)];
             collector.extend_clauses(atomics::clause_impl_lit(lits, commander))?;
             let mut sub = lits.iter().copied().collect::<Sub>();
             sub.encode(collector, var_manager)?;

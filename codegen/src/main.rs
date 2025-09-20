@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{BufRead, Write};
 
 use minijinja::{context, Environment};
 use similar::{ChangeTag, TextDiff};
@@ -57,6 +57,7 @@ fn main() {
             n_clauses: 10,
         },
     ];
+
     let path = "capi/src/encodings/am1.rs";
     let generated = rustfmt(capi_enc_bindings("capi-am1.rs.j2", &am1_encs, &templates));
     if do_check {
@@ -65,6 +66,16 @@ fn main() {
         write!(file(path), "{generated}").unwrap();
     }
     has_changes |= capi_tests("am1", &am1_encs, &templates, do_check);
+
+    for enc in &am1_encs {
+        let path = format!("fuzz/fuzz_targets/{}.rs", enc.id);
+        let generated = rustfmt(fuzz_enc("fuzz-am1.rs.j2", enc, &templates));
+        if do_check {
+            has_changes |= diff(&path, &generated);
+        } else {
+            write!(file(&path), "{generated}").unwrap();
+        }
+    }
 
     let card_encs = [Card {
         name: "Totalizer",
@@ -128,6 +139,14 @@ fn main() {
     has_changes |= capi_tests("pb", &pb_encs, &templates, do_check);
 
     has_changes |= capi_header(do_check);
+
+    let path = "fuzz/Cargo.toml";
+    let generated = fuzz_toml(path, "fuzz-cargo.toml.j2", &am1_encs, &templates);
+    if do_check {
+        has_changes |= diff(path, &generated);
+    } else {
+        write!(file(path), "{generated}").unwrap();
+    }
 
     if has_changes && do_check {
         std::process::exit(1);
@@ -385,4 +404,36 @@ fn capi_header(do_check: bool) -> bool {
     }
     drop(temp_path);
     changed
+}
+
+fn fuzz_enc<E: Enc>(template: &str, enc: &E, templates: &Environment<'static>) -> String {
+    let tmpl = templates.get_template(template).expect("missing template");
+    tmpl.render(context!(enc => enc))
+        .expect("missing template context")
+}
+
+fn fuzz_toml<E: Enc>(
+    path: &str,
+    template: &str,
+    encs: &[E],
+    templates: &Environment<'static>,
+) -> String {
+    let mut rendered = String::new();
+    for line in
+        std::io::BufReader::new(std::fs::File::open(path).expect("could not open file")).lines()
+    {
+        let line = line.unwrap();
+        rendered.push_str(&line);
+        rendered.push('\n');
+        if line == "# === CODEGEN ===" {
+            break;
+        }
+    }
+    let tmpl = templates.get_template(template).expect("missing template");
+    rendered.push_str(
+        &tmpl
+            .render(context!(encodings => encs))
+            .expect("missing template context"),
+    );
+    rendered
 }

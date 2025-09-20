@@ -41,22 +41,27 @@ impl Encode for Ladder {
     where
         Col: CollectClauses,
     {
-        if self.in_lits.len() <= 1 {
-            return Ok(());
-        }
         let prev_clauses = collector.n_clauses();
 
-        let aux_lits: Vec<_> = (0..self.in_lits.len() - 1)
+        let preprocessed = super::Preprocessed::new(self.in_lits.clone());
+        collector.extend_clauses(preprocessed.units())?;
+
+        if preprocessed.remaining.len() <= 1 {
+            self.n_clauses = collector.n_clauses() - prev_clauses;
+            return Ok(());
+        }
+
+        let aux_lits: Vec<_> = (0..preprocessed.remaining.len() - 1)
             .map(|_| var_manager.new_lit())
             .collect();
         // ladder validity clauses
         collector.extend_clauses(
-            (0..self.in_lits.len() - 2)
+            (0..preprocessed.remaining.len() - 2)
                 .map(|idx| atomics::lit_impl_lit(aux_lits[idx + 1], aux_lits[idx])),
         )?;
         // channelling clauses
         let mut buf = [lit![0], lit![0]];
-        for idx in 0..self.in_lits.len() {
+        for idx in 0..preprocessed.remaining.len() {
             let mut cube_len = 0;
             if idx > 0 {
                 buf[cube_len] = aux_lits[idx - 1];
@@ -67,12 +72,12 @@ impl Encode for Ladder {
                 cube_len += 1;
             }
             let cube = &buf[0..cube_len];
-            let lit = self.in_lits[idx];
+            let lit = preprocessed.remaining[idx];
             collector.extend_clauses(atomics::lit_impl_cube(lit, cube))?;
         }
 
         self.n_clauses = collector.n_clauses() - prev_clauses;
-        self.n_vars += u32::try_from(self.in_lits.len())
+        self.n_vars += u32::try_from(preprocessed.remaining.len())
             .expect("cannot handle more than `u32::MAX` variables")
             - 1;
         Ok(())

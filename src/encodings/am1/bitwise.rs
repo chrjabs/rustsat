@@ -45,20 +45,26 @@ impl Encode for Bitwise {
     where
         Col: CollectClauses,
     {
-        if self.in_lits.len() <= 1 {
-            return Ok(());
-        }
         let prev_clauses = collector.n_clauses();
 
-        let p = utils::digits(self.in_lits.len() - 1, 2);
+        let preprocessed = super::Preprocessed::new(self.in_lits.clone());
+        collector.extend_clauses(preprocessed.units())?;
+
+        if preprocessed.remaining.len() <= 1 {
+            self.n_clauses = collector.n_clauses() - prev_clauses;
+            return Ok(());
+        }
+
+        let p = utils::digits(preprocessed.remaining.len() - 1, 2);
         let aux_vars: Vec<_> = (0..p).map(|_| var_manager.new_var()).collect();
 
         let clause = |idx: usize, k: usize| {
             let aux = aux_vars[k].lit(idx & (1 << k) == 0);
-            atomics::lit_impl_lit(self.in_lits[idx], aux)
+            atomics::lit_impl_lit(preprocessed.remaining[idx], aux)
         };
         collector.extend_clauses(
-            (0..self.in_lits.len()).flat_map(|idx| (0..p as usize).map(move |k| clause(idx, k))),
+            (0..preprocessed.remaining.len())
+                .flat_map(|idx| (0..p as usize).map(move |k| clause(idx, k))),
         )?;
 
         self.n_clauses = collector.n_clauses() - prev_clauses;

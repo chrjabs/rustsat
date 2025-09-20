@@ -1,0 +1,52 @@
+[package]
+name = "rustsat-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+fastrand = "2.3.0"
+libfuzzer-sys = "0.4"
+rustsat.workspace = true
+rustsat-cadical.workspace = true
+
+# File is automatically generated from here, do not edit
+# === CODEGEN ===
+
+[[bin]]
+name = "pairwise"
+path = "fuzz_targets/pairwise.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ladder"
+path = "fuzz_targets/ladder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bitwise"
+path = "fuzz_targets/bitwise.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commander"
+path = "fuzz_targets/commander.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bimander"
+path = "fuzz_targets/bimander.rs"
+test = false
+doc = false
+bench = false

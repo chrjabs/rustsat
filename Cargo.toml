@@ -12,6 +12,7 @@ members = [
   "batsat",
   "pigeons",
   "codegen",
+  "fuzz",
 ]
 resolver = "2"
 

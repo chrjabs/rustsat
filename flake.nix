@@ -196,7 +196,9 @@
                   --exclude rustsat-ipasir \
                   --exclude rustsat-capi \
                   --exclude rustsat-pyapi \
-                  --features=all,internals --lcov --output-path $out/coverage.lcov
+                  --features=all,internals --lcov --output-path $out/coverage.lcov \
+                  --exclude-from-report rustsat-codegen \
+                  --exclude-from-report rustsat-fuzz
               '';
             }
           );
@@ -207,7 +209,11 @@
               cargoNextestExtraArgs = "--exclude rustsat-pyapi";
               nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ jq ]);
               withLlvmCov = true;
-              cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov --exclude-from-report rustsat-codegen";
+              cargoLlvmCovExtraArgs = ''
+                --lcov --output-path $out/coverage.lcov \
+                  --exclude-from-report rustsat-codegen \
+                  --exclude-from-report rustsat-fuzz \
+              '';
             }
           );
 
@@ -428,6 +434,7 @@
                   cargo-spellcheck
                   cargo-llvm-cov
                   cargo-valgrind
+                  cargo-fuzz
                   valgrind
                   release-plz
                   maturin
