@@ -1,0 +1,39 @@
+build *args:
+    cargo afl build {{ args }}
+
+build-san *args:
+    RUSTFLAGS=-Zsanitizer=address,leak cargo afl build -Zbuild-std --profile=sanitizers --target x86_64-unknown-linux-gnu {{ args }}
+
+am1 target *args: (build "--bin" target)
+    cargo afl fuzz -a binary -i "$FUZZ_DATA_DIR/corpus/{{ target }}" \
+        -o "$FUZZ_DATA_DIR/artifacts/{{ target }}" -- \
+        "target/debug/{{ target }}" {{ args }}
+
+# Generates `num` seeds at different lengths
+# The lengths are designed so that at least some of the seeds are of a length
+# so that still all assignments can be evaluated
+# Note: an input Lit16 is 2 bytes wide, additionally a u64 seed is part of the
+# input, we test up to 256 assignments, so 8 literals.
+
+bin-seeds num='10':
+    #!/usr/bin/env -S bash -euo pipefail
+    mkdir -p "$FUZZ_DATA_DIR/corpus/random/"
+    for size in 12 20 64 256 512 1024; do
+        for i in $(seq "{{ num }}"); do
+            dd if=/dev/random of="$FUZZ_DATA_DIR/corpus/random/rand-$size-$i" bs="$size" count=1
+        done
+    done
+
+min corpus target minblock='1' *args: (build "--bin" target)
+    #!/usr/bin/env -S bash -euo pipefail
+    if [[ ! -d "$FUZZ_DATA_DIR/corpus/{{ target }}-cmin" ]]; then
+        cargo afl cmin -T all -i "$FUZZ_DATA_DIR/corpus/{{ corpus }}" \
+            -o "$FUZZ_DATA_DIR/corpus/{{ target }}-cmin" -- \
+            "target/debug/{{ target }}" {{ args }}
+    fi
+    mkdir -p "$FUZZ_DATA_DIR/corpus/{{ target }}/"
+    for input in $FUZZ_DATA_DIR/corpus/{{ target }}-cmin/*; do
+        cargo afl tmin -l "{{ minblock }}" -i "$input" \
+            -o "$FUZZ_DATA_DIR/corpus/{{ target }}/$(basename $input)" -- \
+            "target/debug/{{ target }}" {{ args }}
+    done

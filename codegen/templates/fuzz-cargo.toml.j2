@@ -1,0 +1,8 @@
+{% for enc in encodings %}
+[[bin]]
+name = "{{ enc.name | lower }}"
+path = "fuzz_targets/{{ enc.name | lower }}.rs"
+test = false
+doc = false
+bench = false
+{% endfor %}

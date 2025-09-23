@@ -1,0 +1,70 @@
+[package]
+name = "rustsat-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+afl = "0.15.22"
+arbitrary = "1.4.2"
+fastrand = "2.3.0"
+rustsat = { path = ".." }
+rustsat-cadical = { path = "../cadical" }
+
+[features]
+dbg = []
+
+[profile.sanitizers]
+inherits = "dev"
+
+# Use independent workspace for fuzzers
+[workspace]
+members = ["."]
+
+# File is automatically generated from here, do not edit
+# === CODEGEN ===
+
+[[bin]]
+name = "pairwise"
+path = "fuzz_targets/pairwise.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ladder"
+path = "fuzz_targets/ladder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bitwise"
+path = "fuzz_targets/bitwise.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "commander"
+path = "fuzz_targets/commander.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bimander"
+path = "fuzz_targets/bimander.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "totalizer"
+path = "fuzz_targets/totalizer.rs"
+test = false
+doc = false
+bench = false
