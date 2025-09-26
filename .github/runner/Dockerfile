@@ -1,9 +1,9 @@
-FROM rust:1.86-bookworm
+FROM rust:1.88-bookworm
 
 ENV CI=true
 
 # Install Rust components and toolchains
-RUN rustup install nightly-2025-05-02 --component clippy,rustfmt,llvm-tools-preview,miri && \
+RUN rustup install nightly-2025-07-29 --component clippy,rustfmt,llvm-tools-preview,miri && \
     # MSRVs
     rustup install --profile minimal 1.75 && rustup install --profile minimal 1.76 && rustup install --profile minimal 1.77
 
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y \
 ENV CC=clang
 ENV CXX=clang++
 
-ARG GH_VERSION="2.70.0"
+ARG GH_VERSION="2.76.2"
 
 # Install CI tools using cargo-binstall
 RUN cargo binstall -y cargo-nextest cargo-hack cargo-rdme cargo-spellcheck cargo-semver-checks cargo-llvm-cov cargo-valgrind just release-plz typos-cli && \
@@ -46,7 +46,7 @@ RUN cargo binstall -y cargo-nextest cargo-hack cargo-rdme cargo-spellcheck cargo
 
 ENV VERIPB_CHECKER=/usr/local/bin/veripb
 
-ARG KISSAT_VERSION="4.0.2"
+ARG KISSAT_VERSION="4.0.3"
 ARG CADICAL_VERSION="2.1.3"
 
 # Install some SAT solver binaries
@@ -67,7 +67,7 @@ ENV CLICOLOR=1
 ENV ORGANIZATION=chrjabs
 ENV REPOSITORY=rustsat
 
-ARG RUNNER_VERSION="2.323.0"
+ARG RUNNER_VERSION="2.326.0"
 ENV RUNNER_VERSION=${RUNNER_VERSION}
 
 # Create a work directory

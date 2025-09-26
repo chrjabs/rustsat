@@ -92,6 +92,11 @@ pub use prooftracer::{
     ProofTracerNotConnected, TraceProof,
 };
 
+#[cfg(cadical_feature = "ipasir-up")]
+mod ipasirup;
+#[cfg(cadical_feature = "ipasir-up")]
+pub use ipasirup::{AssignmentIter, ExternalClause, ExternalPropagate, PropagatorHandle};
+
 macro_rules! handle_oom {
     ($val:expr) => {{
         let val = $val;

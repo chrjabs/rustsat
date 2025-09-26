@@ -205,6 +205,10 @@ impl Version {
         self >= Version::V160
     }
 
+    fn has_old_ipasir_up(self) -> bool {
+        self < Version::V210
+    }
+
     fn has_propagate(self) -> bool {
         self >= Version::V213
     }
@@ -248,6 +252,9 @@ impl Version {
         if self.has_ipasir_up() {
             build.define("IPASIRUP", None);
         }
+        if self.has_old_ipasir_up() {
+            build.define("OLD_IPASIRUP", None);
+        }
         if self.has_propagate() {
             build.define("PROPAGATE", None);
         } else {
@@ -260,7 +267,7 @@ impl Version {
 
     /// Sets custom `rustc` `--cfg` arguments for features only present in some version
     fn set_cfgs(self) {
-        println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\", \"lrat\", \"frat\", \"idrup\", \"proof-tracer\"))");
+        println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\", \"lrat\", \"frat\", \"idrup\", \"proof-tracer\", \"ipasir-up\", \"old-ipasir-up\"))");
         if self.has_flip() {
             println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
         }
@@ -280,6 +287,12 @@ impl Version {
         }
         if self.has_proof_tracer() {
             println!("cargo:rustc-cfg=cadical_feature=\"proof-tracer\"");
+        }
+        if self.has_ipasir_up() {
+            println!("cargo:rustc-cfg=cadical_feature=\"ipasir-up\"");
+        }
+        if self.has_old_ipasir_up() {
+            println!("cargo:rustc-cfg=cadical_feature=\"old-ipasir-up\"");
         }
     }
 }
@@ -348,14 +361,20 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
         .blocklist_function("ccadical_close_proof")
         .blocklist_function("ccadical_conclude")
         .blocklist_function("ccadical_simplify");
-    let bindings = if version.has_proof_tracer() {
-        // in this case, `ccadical.h` is included from `ctracer.h`
-        bindings
-            .header("cpp-extension/ctracer.h")
-            .allowlist_file("cpp-extension/ctracer.h")
+    let mut contents = String::from("#include \"ccadical.h\"");
+    let bindings = if version.has_ipasir_up() {
+        contents.push_str("\n#include \"cipasirup.h\"");
+        bindings.allowlist_file("cpp-extension/cipasirup.h")
     } else {
-        bindings.header(&header_path)
+        bindings
     };
+    let bindings = if version.has_proof_tracer() {
+        contents.push_str("\n#include \"ctracer.h\"");
+        bindings.allowlist_file("cpp-extension/ctracer.h")
+    } else {
+        bindings
+    };
+    let bindings = bindings.header_contents("top_includes.h", &contents);
     #[cfg(not(feature = "tracing"))]
     let bindings = bindings.blocklist_function("ccadical_trace_api_calls");
     let bindings = if version.has_flip() {

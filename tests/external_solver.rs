@@ -118,3 +118,38 @@ mod pipe_file {
         true
     );
 }
+
+mod simulator {
+    use rustsat::solvers::{external, simulators, ExternalSolver, Initialize};
+    use std::process::Command;
+
+    struct Init;
+
+    impl Initialize<ExternalSolver> for Init {
+        fn init() -> ExternalSolver {
+            let slv = std::env::var("RS_EXT_SOLVER").expect(
+                "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+            );
+            ExternalSolver::new(
+                Command::new(slv),
+                external::InputVia::pipe(),
+                external::OutputVia::pipe(),
+                "extsolver",
+            )
+        }
+    }
+
+    rustsat_solvertests::base_tests!(
+        simulators::Incremental<ExternalSolver, Init>,
+        true,
+        true,
+        true
+    );
+
+    rustsat_solvertests::incremental_tests!(
+        simulators::Incremental<ExternalSolver, Init>,
+        true,
+        true,
+        true
+    );
+}

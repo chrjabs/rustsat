@@ -122,9 +122,9 @@ pub unsafe extern "C" fn gte_enforce_ub(
 ) -> MaybeError {
     match (*gte).enforce_ub(ub) {
         Ok(assumps) => {
-            assumps
-                .into_iter()
-                .for_each(|a| collector(a.to_ipasir(), collector_data));
+            for a in assumps {
+                collector(a.to_ipasir(), collector_data);
+            }
             MaybeError::Ok
         }
         Err(err) => err.into(),
@@ -241,9 +241,9 @@ pub unsafe extern "C" fn bin_adder_enforce_ub(
 ) -> MaybeError {
     match (*bin_adder).enforce_ub(ub) {
         Ok(assumps) => {
-            assumps
-                .into_iter()
-                .for_each(|a| collector(a.to_ipasir(), collector_data));
+            for a in assumps {
+                collector(a.to_ipasir(), collector_data);
+            }
             MaybeError::Ok
         }
         Err(err) => err.into(),
@@ -306,9 +306,9 @@ pub unsafe extern "C" fn bin_adder_enforce_lb(
 ) -> MaybeError {
     match (*bin_adder).enforce_lb(lb) {
         Ok(assumps) => {
-            assumps
-                .into_iter()
-                .for_each(|a| collector(a.to_ipasir(), collector_data));
+            for a in assumps {
+                collector(a.to_ipasir(), collector_data);
+            }
             MaybeError::Ok
         }
         Err(err) => err.into(),
@@ -428,9 +428,9 @@ pub unsafe extern "C" fn dpw_enforce_ub(
 ) -> MaybeError {
     match (*dpw).enforce_ub(ub) {
         Ok(assumps) => {
-            assumps
-                .into_iter()
-                .for_each(|a| collector(a.to_ipasir(), collector_data));
+            for a in assumps {
+                collector(a.to_ipasir(), collector_data);
+            }
             MaybeError::Ok
         }
         Err(err) => err.into(),

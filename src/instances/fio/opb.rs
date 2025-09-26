@@ -165,11 +165,13 @@ where
     let data = parse_opb_data(reader, opts)?;
     let mut sat_inst = SatInstance::<VM>::new();
     let mut objs = vec![];
-    data.into_iter().for_each(|d| match d {
-        OpbData::Cmt(_) => (),
-        OpbData::Constr(constr) => sat_inst.add_pb_constr(constr),
-        OpbData::Obj(obj) => objs.push(obj),
-    });
+    for d in data {
+        match d {
+            OpbData::Cmt(_) => (),
+            OpbData::Constr(constr) => sat_inst.add_pb_constr(constr),
+            OpbData::Obj(obj) => objs.push(obj),
+        }
+    }
     Ok(MultiOptInstance::compose(sat_inst, objs))
 }
 
@@ -326,8 +328,9 @@ fn objective(input: &str, opts: Options) -> IResult<&str, Objective> {
         )),
         |(_, _, wsl, _)| {
             let mut obj = Objective::new();
-            wsl.into_iter()
-                .for_each(|(l, w)| obj.increase_soft_lit_int(w, l));
+            for (l, w) in wsl {
+                obj.increase_soft_lit_int(w, l);
+            }
             Ok::<_, ()>(obj)
         },
     )(input)

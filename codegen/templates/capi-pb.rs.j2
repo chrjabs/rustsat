@@ -93,7 +93,9 @@ pub unsafe extern "C" fn {{ enc.id }}_enforce_ub(
 ) -> MaybeError {
     match (*{{ enc.id }}).enforce_ub(ub) {
         Ok(assumps) => {
-            assumps.into_iter().for_each(|a| collector(a.to_ipasir(), collector_data));
+            for a in assumps {
+                collector(a.to_ipasir(), collector_data);
+            }
             MaybeError::Ok
         }
         Err(err) => err.into(),
@@ -145,7 +147,9 @@ pub unsafe extern "C" fn {{ enc.id }}_enforce_lb(
 ) -> MaybeError {
     match (*{{ enc.id }}).enforce_lb(lb) {
         Ok(assumps) => {
-            assumps.into_iter().for_each(|a| collector(a.to_ipasir(), collector_data));
+            for a in assumps {
+                collector(a.to_ipasir(), collector_data);
+            }
             MaybeError::Ok
         }
         Err(err) => err.into(),

@@ -169,6 +169,7 @@ coverage-ci:
     source .env
     cmd_group "cargo llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=all,internals"
     cmd_group "cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals"
+    cmd_group "RS_EXT_SOLVER=$(which cadical) cargo llvm-cov --no-report nextest -p rustsat --test external_solver --verbose -- --ignored"
     mkdir coverage
     cmd_group "cargo llvm-cov report --doctests --lcov --output-path coverage/lcov.info"
 

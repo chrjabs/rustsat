@@ -6,7 +6,7 @@
 // A dummy solver type for the example
 class Solver {
 public:
-  void add_clause(std::vector<int> clause){};
+  void add_clause(std::vector<int> clause) {};
   int solve_assumps(std::vector<int> assumps) { return 0; };
 };
 

@@ -154,3 +154,7 @@ int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path) {
 #ifdef TRACER
 #include "ctracer.cpp"
 #endif
+
+#ifdef IPASIRUP
+#include "cipasirup.cpp"
+#endif

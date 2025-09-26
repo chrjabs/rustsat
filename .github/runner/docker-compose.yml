@@ -10,6 +10,5 @@ services:
       - cache-volume:/runner/cache
     environment:
       - ACCESS_TOKEN=${RUSTSAT_ACCESS_TOKEN}
-
 volumes:
   cache-volume:

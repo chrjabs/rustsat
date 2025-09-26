@@ -1,18 +1,14 @@
 name: Non-Linux CI
-
 on:
   pull_request:
     types: [review_requested, ready_for_review]
-
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   macos-tests:
     name: 🧪 MacOS workspace tests
@@ -23,7 +19,6 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: 🧪 Run tests
         run: cargo nextest run --profile ci --workspace --exclude rustsat-pyapi --verbose --features=all,internals
-
   windows-tests:
     name: 🧪 Windows workspace tests
     runs-on: windows-latest
@@ -33,7 +28,6 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: 🧪 Run tests
         run: cargo nextest run --profile ci --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=all,internals
-
   macos-msrv-build:
     name: 🏗️ MacOS MSRV build
     runs-on: macos-latest
@@ -44,7 +38,6 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: 🏗️ Build
         run: cargo hack build --rust-version --workspace --verbose --features=all,internals --ignore-unknown-features
-
   windows-msrv-build:
     name: 🏗️ Windows MSRV build
     runs-on: windows-latest
@@ -55,7 +48,6 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: 🏗️ Build
         run: cargo hack build --rust-version --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=all,internals --ignore-unknown-features
-
   python-api:
     name: 🐍 Python API
     strategy:
@@ -68,7 +60,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - uses: install-pinned/maturin@288b846aff4c6923b6db7a879da0e15e21c06a99
+      - uses: install-pinned/maturin@a6142e16d31c3112487eabfb98d9cda8f08ba35d
       - name: 🏗️ Install Python API
         run: maturin build -m pyapi/Cargo.toml && pip install --no-index --find-links target/wheels/ rustsat
       - name: 🧪 Test example

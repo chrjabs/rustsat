@@ -371,13 +371,13 @@ impl Objective {
                 soft_clauses,
             } => {
                 let mut soft_unit_lits = vec![];
-                soft_lits
-                    .drain()
-                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
+                for (l, w) in soft_lits.drain() {
+                    soft_unit_lits.resize(soft_unit_lits.len() + w, l);
+                }
                 let mut soft_unit_clauses = vec![];
-                soft_clauses
-                    .drain()
-                    .for_each(|(cl, w)| soft_unit_clauses.resize(soft_unit_clauses.len() + w, cl));
+                for (cl, w) in soft_clauses.drain() {
+                    soft_unit_clauses.resize(soft_unit_clauses.len() + w, cl);
+                }
                 *self = IntObj::Unweighted {
                     offset: *offset,
                     unit_weight: Some(1),
@@ -734,9 +734,9 @@ impl Objective {
             } => {
                 debug_assert!(soft_clauses.is_empty());
                 let mut soft_unit_lits = vec![];
-                soft_lits
-                    .into_iter()
-                    .for_each(|(l, w)| soft_unit_lits.resize(soft_unit_lits.len() + w, l));
+                for (l, w) in soft_lits {
+                    soft_unit_lits.resize(soft_unit_lits.len() + w, l);
+                }
                 (cnf, soft_unit_lits, 1, offset)
             }
             IntObj::Unweighted {
