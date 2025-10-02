@@ -74,7 +74,6 @@ const MAX_VAR_IDX: u32 = (u32::MAX - 1) / 2;
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
-#[allow(clippy::unsafe_derive_deserialize)] // temporary, proper fix is in the works
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 // this is fine because we are going through `LimitedU32`, which is deserialized via `try_from`
@@ -335,7 +334,6 @@ macro_rules! var {
 /// be used to index data structures with the two literals of a variable
 /// being close together.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
-#[allow(clippy::unsafe_derive_deserialize)] // temporary, proper fix is in the works
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 // this is fine because there aren't any invalid `Lit` representations, only invalid `Var` ones

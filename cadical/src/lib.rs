@@ -114,7 +114,6 @@ macro_rules! handle_oom {
         val
     }};
 }
-pub(crate) use handle_oom;
 
 /// Fatal error returned if the CaDiCaL API returns an invalid value
 #[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
@@ -1268,7 +1267,6 @@ mod test {
         lit,
         solvers::{Solve, SolverState, StateError},
         types::TernaryVal,
-        var,
     };
 
     use super::{CaDiCaL, Config, Limit, ProofFormat};
