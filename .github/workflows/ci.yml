@@ -123,6 +123,10 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: ✨ Check formatting
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').treefmt"
+      - name: ✨ Cargo deny bans licenses sources
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').deny"
+      - name: ✨ Cargo deny advisories
+        run: nix develop ".#cargoDeny" --command cargo deny --exclude-unpublished check advisories
       - name: ✨ Check typos
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').typos"
       - name: ✨ Check spelling

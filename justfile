@@ -108,3 +108,6 @@ miri *args:
     MIRIFLAGS=-Zmiri-disable-isolation cargo miri nextest run {{ args }}
 
 all-miri *args: (miri "--workspace --exclude rustsat-pyapi --features=all,internals" args)
+
+deny *args:
+    cargo deny --exclude-unpublished check {{ args }}

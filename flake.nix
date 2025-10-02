@@ -246,6 +246,14 @@
               cargoClippyExtraArgs = "--all-targets -- --deny warnings";
             }
           );
+          deny = craneLib.cargoDeny (
+            commonArgs
+            // {
+              inherit cargoArtifacts;
+              cargoDenyExtraArgs = "--exclude-unpublished --features=all,internals";
+              cargoExtraArgs = "";
+            }
+          );
           codegen = craneLib.mkCargoDerivation (
             commonArgs
             // {
@@ -426,6 +434,7 @@
               default = mkBaseShell {
                 nativeBuildInputs = with pkgs; [
                   # keep-sorted start
+                  cargo-deny
                   cargo-hack
                   cargo-llvm-cov
                   cargo-nextest
@@ -461,6 +470,12 @@
                   release-plz
                 ];
               };
+              cargoDeny = mkBaseShell {
+                nativeBuildInputs = with pkgs; [
+                  cargo-deny
+                  rust-toolchain
+                ];
+              };
               ci = mkBaseShell {
                 nativeBuildInputs = with pkgs; [
                   # keep-sorted start
@@ -485,6 +500,7 @@
               capiValgrind
               clippy
               codegen
+              deny
               doc
               docTests
               externalCadical
