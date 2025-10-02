@@ -1582,6 +1582,8 @@ mod tests {
     fn serde_var_invalid() {
         let failure: Result<Var, _> = serde_json::from_str("");
         assert!(failure.is_err());
+        let failure: Result<Var, _> = serde_json::from_str(&format!("{{\"idx\":{}}}", u32::MAX));
+        assert!(failure.is_err());
     }
 
     #[cfg(feature = "serde")]
