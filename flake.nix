@@ -128,17 +128,19 @@
 
           workspaceMsrv = (lib.importTOML ./Cargo.toml).workspace.package.rust-version;
           crateMsrvs = {
-            rustsat = workspaceMsrv;
-            rustsat-pyapi = workspaceMsrv;
-            rustsat-tools = (lib.importTOML ./tools/Cargo.toml).package.rust-version;
-            rustsat-kissat = (lib.importTOML ./kissat/Cargo.toml).package.rust-version;
+            # keep-sorted start
             pigeons = (lib.importTOML ./pigeons/Cargo.toml).package.rust-version;
-            rustsat-ipasir = workspaceMsrv;
+            rustsat = workspaceMsrv;
             rustsat-batsat = workspaceMsrv;
             rustsat-cadical = (lib.importTOML ./cadical/Cargo.toml).package.rust-version;
             rustsat-capi = workspaceMsrv;
             rustsat-glucose = workspaceMsrv;
+            rustsat-ipasir = workspaceMsrv;
+            rustsat-kissat = (lib.importTOML ./kissat/Cargo.toml).package.rust-version;
             rustsat-minisat = workspaceMsrv;
+            rustsat-pyapi = workspaceMsrv;
+            rustsat-tools = (lib.importTOML ./tools/Cargo.toml).package.rust-version;
+            # keep-sorted end
           };
           checkMsrv =
             crate:
@@ -262,6 +264,7 @@
               nativeBuildInputs = with pkgs; [ cargo-rdme ];
               buildPhaseCargoCommand = ''
                 cargo rdme --check
+                # keep-sorted start
                 cargo rdme --check --workspace-project pigeons
                 cargo rdme --check --workspace-project rustsat-batsat
                 cargo rdme --check --workspace-project rustsat-cadical
@@ -272,6 +275,7 @@
                 cargo rdme --check --workspace-project rustsat-minisat
                 cargo rdme --check --workspace-project rustsat-pyapi
                 cargo rdme --check --workspace-project rustsat-tools
+                # keep-sorted end
               '';
             }
           );
@@ -421,21 +425,23 @@
             {
               default = mkBaseShell {
                 nativeBuildInputs = with pkgs; [
-                  rust-toolchain
-                  cargo-rdme
-                  cargo-nextest
+                  # keep-sorted start
                   cargo-hack
-                  cargo-spellcheck
                   cargo-llvm-cov
+                  cargo-nextest
+                  cargo-rdme
+                  cargo-spellcheck
                   cargo-valgrind
-                  valgrind
-                  release-plz
-                  maturin
-                  kani
-                  veripb
-                  typos
-                  rust-cbindgen
                   config.treefmt.build.wrapper
+                  kani
+                  maturin
+                  release-plz
+                  rust-cbindgen
+                  rust-toolchain
+                  typos
+                  valgrind
+                  veripb
+                  # keep-sorted end
                 ];
                 VERIPB_CHECKER = lib.getExe pkgs.veripb;
                 RS_EXT_SOLVER = lib.getExe' pkgs.cadical "cadical";
@@ -457,10 +463,12 @@
               };
               ci = mkBaseShell {
                 nativeBuildInputs = with pkgs; [
-                  rust-toolchain
+                  # keep-sorted start
                   cargo-hack
                   cargo-nextest
                   craneLib.inheritCargoArtifactsHook
+                  rust-toolchain
+                  # keep-sorted end
                 ];
                 inherit cargoArtifacts;
                 shellHook = ''
@@ -473,21 +481,23 @@
 
           checks = {
             inherit
-              tests
-              externalCadical
-              externalKissat
-              externalGimsatul
-              doc
-              docTests
-              pyapi
+              # keep-sorted start
+              capiValgrind
               clippy
               codegen
-              readmes
-              spellcheck
+              doc
+              docTests
+              externalCadical
+              externalGimsatul
+              externalKissat
               featurePowerset
               msrv
-              capiValgrind
+              pyapi
+              readmes
+              spellcheck
+              tests
               wasm
+              # keep-sorted end
               ;
             typos = typosCheck;
             cadicalValgrind = crateValgrind "rustsat-cadical";
@@ -500,28 +510,30 @@
             settings.global = {
               on-unmatched = "error";
               excludes = [
+                # keep-sorted start
+                "**/.gitignore"
+                "*.bz2"
+                "*.gz"
+                "*.mk"
+                "*.png"
                 "cadical/cppsrc/**"
-                "kissat/csrc/**"
-                "minisat/cppsrc/minisat/core/**"
-                "minisat/cppsrc/minisat/mtl/**"
-                "minisat/cppsrc/minisat/simp/**"
-                "minisat/cppsrc/minisat/utils/**"
-                "minisat/cppsrc/LICENSE"
-                "minisat/cppsrc/README"
-                "minisat/cppsrc/doc/ReleaseNotes-2.2.0.txt"
+                "glucose/cppsrc/Changelog"
+                "glucose/cppsrc/LICENCE"
+                "glucose/cppsrc/README.md"
                 "glucose/cppsrc/core/**"
                 "glucose/cppsrc/mtl/**"
                 "glucose/cppsrc/parallel/**"
                 "glucose/cppsrc/simp/**"
                 "glucose/cppsrc/utils/**"
-                "glucose/cppsrc/Changelog"
-                "glucose/cppsrc/LICENCE"
-                "glucose/cppsrc/README.md"
-                "**/.gitignore"
-                "*.mk"
-                "*.png"
-                "*.gz"
-                "*.bz2"
+                "kissat/csrc/**"
+                "minisat/cppsrc/LICENSE"
+                "minisat/cppsrc/README"
+                "minisat/cppsrc/doc/ReleaseNotes-2.2.0.txt"
+                "minisat/cppsrc/minisat/core/**"
+                "minisat/cppsrc/minisat/mtl/**"
+                "minisat/cppsrc/minisat/simp/**"
+                "minisat/cppsrc/minisat/utils/**"
+                # keep-sorted end
               ];
             };
             programs = {
@@ -564,6 +576,8 @@
               just.enable = true;
               # Docker
               dockfmt.enable = true;
+              # Sorting lists
+              keep-sorted.enable = true;
             };
           };
         };

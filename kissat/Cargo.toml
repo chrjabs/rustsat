@@ -30,30 +30,38 @@ debug = []
 safe = []
 quiet = []
 git = ["dep:git2"]
-v4-0-3 = []
-v4-0-2 = ["git"]
-v4-0-1 = ["git"]
-v4-0-0 = ["git"]
-v3-1-1 = ["git"]
-v3-1-0 = ["git"]
-v3-0-0 = ["git"]
-sc2022-light = ["git"]
-sc2022-hyper = ["git"]
+# keep-sorted start
 sc2022-bulky = ["git"]
+sc2022-hyper = ["git"]
+sc2022-light = ["git"]
+v3-0-0 = ["git"]
+v3-1-0 = ["git"]
+v3-1-1 = ["git"]
+v4-0-0 = ["git"]
+v4-0-1 = ["git"]
+v4-0-2 = ["git"]
+v4-0-3 = []
+# keep-sorted end
 
 [dependencies]
+# keep-sorted start
 anyhow.workspace = true
-thiserror.workspace = true
 rustsat.workspace = true
+thiserror.workspace = true
+# keep-sorted end
 
 [build-dependencies]
+# keep-sorted start
 bindgen.workspace = true
 cc.workspace = true
 chrono.workspace = true
 git2 = { workspace = true, optional = true }
 glob.workspace = true
+# keep-sorted end
 
 [dev-dependencies]
+# keep-sorted start
 clap.workspace = true
 rustsat-solvertests.workspace = true
 signal-hook.workspace = true
+# keep-sorted end

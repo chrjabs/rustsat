@@ -18,9 +18,11 @@ publish = false
 rustsat = { workspace = true, features = ["internals", "fxhash"] }
 
 [dev-dependencies]
+# keep-sorted start
 cc.workspace = true
 libtest-mimic.workspace = true
 target-lexicon = "0.13.3"
+# keep-sorted end
 
 [lib]
 crate-type = ["staticlib"]

@@ -29,15 +29,21 @@ quiet = []
 default = ["quiet"]
 
 [dependencies]
+# keep-sorted start
 anyhow.workspace = true
-thiserror.workspace = true
 rustsat.workspace = true
+thiserror.workspace = true
+# keep-sorted end
 
 [build-dependencies]
+# keep-sorted start
 bindgen.workspace = true
 cmake.workspace = true
+# keep-sorted end
 
 [dev-dependencies]
+# keep-sorted start
 clap.workspace = true
-signal-hook.workspace = true
 rustsat-solvertests.workspace = true
+signal-hook.workspace = true
+# keep-sorted end

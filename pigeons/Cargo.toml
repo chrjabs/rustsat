@@ -12,9 +12,11 @@ include = ["CHANGELOG.md", "README.md", "/src/"]
 rust-version = "1.75.0"
 
 [dependencies]
+# keep-sorted start
 itertools.workspace = true
 rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
+# keep-sorted end
 
 [dev-dependencies]
 tempfile.workspace = true

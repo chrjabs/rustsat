@@ -1,11 +1,13 @@
 doc-valid-idents = [
-  "RustSAT",
+  # keep-sorted start
+  "AllDifferent",
+  "BatSat",
   "CaDiCaL",
   "MaxSAT",
-  "BatSat",
-  "AllDifferent",
   "ModRef",
+  "RustSAT",
   "VeriPB",
+  # keep-sorted end
   "..",
 ]
 avoid-breaking-exported-api = false

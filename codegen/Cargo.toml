@@ -10,6 +10,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+# keep-sorted start block=yes
 cbindgen = "0.29.0"
 minijinja = { version = "2.12.0", default-features = false, features = [
   "multi_template",
@@ -19,3 +20,4 @@ minijinja = { version = "2.12.0", default-features = false, features = [
 serde.workspace = true
 similar = "2.7.0"
 tempfile.workspace = true
+# keep-sorted end

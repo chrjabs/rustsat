@@ -28,13 +28,17 @@ quiet = []
 default = ["quiet"]
 
 [dependencies]
+# keep-sorted start
 anyhow.workspace = true
-thiserror.workspace = true
 rustsat.workspace = true
+thiserror.workspace = true
+# keep-sorted end
 
 [build-dependencies]
+# keep-sorted start
 bindgen.workspace = true
 cmake.workspace = true
+# keep-sorted end
 
 [dev-dependencies]
 rustsat-solvertests.workspace = true

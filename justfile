@@ -20,6 +20,7 @@ gen *args:
 
 readmes *args:
     cargo rdme {{ args }}
+    # keep-sorted start
     cargo rdme --workspace-project pigeons {{ args }}
     cargo rdme --workspace-project rustsat-batsat {{ args }}
     cargo rdme --workspace-project rustsat-cadical {{ args }}
@@ -30,6 +31,7 @@ readmes *args:
     cargo rdme --workspace-project rustsat-minisat {{ args }}
     cargo rdme --workspace-project rustsat-pyapi {{ args }}
     cargo rdme --workspace-project rustsat-tools {{ args }}
+    # keep-sorted end
 
 pyapi cmd *args:
     maturin {{ cmd }} -m pyapi/Cargo.toml {{ args }}
