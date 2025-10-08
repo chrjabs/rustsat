@@ -210,6 +210,7 @@
               nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ jq ]);
               withLlvmCov = true;
               cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov --exclude-from-report rustsat-codegen";
+              VERIPB_CHECKER = lib.getExe pkgs.veripb;
             }
           );
 
