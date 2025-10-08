@@ -443,6 +443,7 @@
                   cargo-spellcheck
                   cargo-valgrind
                   config.treefmt.build.wrapper
+                  git-cliff
                   kani
                   maturin
                   release-plz
