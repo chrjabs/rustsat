@@ -3,17 +3,17 @@ spellcheck *args:
     typos
 
 test *args:
-    cargo nextest run --workspace --exclude rustsat-pyapi --features=all,internals {{ args }}
+    cargo nextest run --workspace --exclude rustsat-pyapi --features=_test {{ args }}
 
 test-external-solver *args:
     echo "RS_EXT_SOLVER=$RS_EXT_SOLVER"
     cargo nextest run {{ args }} -p rustsat --test external_solver --verbose -- --ignored
 
 doc-tests *args:
-    cargo test --workspace --exclude rustsat-capi --exclude rustsat-pyapi --features=all,internals --doc {{ args }}
+    cargo test --workspace --exclude rustsat-capi --exclude rustsat-pyapi --features=_test --doc {{ args }}
 
 clippy *args:
-    cargo clippy --workspace --all-targets --target-dir target/clippy --features=all,internals {{ args }} -- -Dwarnings
+    cargo clippy --workspace --all-targets --target-dir target/clippy --features=_test {{ args }} -- -Dwarnings
 
 gen *args:
     cargo run -p rustsat-codegen -- {{ args }}
@@ -40,7 +40,7 @@ pyapi-build-install: (pyapi "build")
     pip install --no-index --find-links target/wheels/ rustsat
 
 docs *args:
-    cargo doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --features=all,internals {{ args }}
+    cargo doc -Zunstable-options -Zrustdoc-scrape-examples --workspace --features=_docs {{ args }}
 
 test-each-feature *args:
     cargo hack nextest run --each-feature {{ args }}
@@ -87,8 +87,8 @@ subtree tree cmd ref:
     esac
 
 coverage *args:
-    cargo llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=all,internals
-    cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=all,internals
+    cargo llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=_test
+    cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=_test
     cargo llvm-cov report --doctests --html {{ args }}
 
 valgrind *args:
@@ -102,12 +102,12 @@ capi-valgrind:
         valgrind target/tmp/"$(basename -s .c "$test")"
     done
 
-all-valgrind *args: (valgrind "--workspace --exclude rustsat-pyapi --exclude rustsat-capi --features=all,internals" args) capi-valgrind
+all-valgrind *args: (valgrind "--workspace --exclude rustsat-pyapi --exclude rustsat-capi --features=_test" args) capi-valgrind
 
 miri *args:
     MIRIFLAGS=-Zmiri-disable-isolation cargo miri nextest run {{ args }}
 
-all-miri *args: (miri "--workspace --exclude rustsat-pyapi --features=all,internals" args)
+all-miri *args: (miri "--workspace --exclude rustsat-pyapi --features=_test" args)
 
 deny *args:
     cargo deny --exclude-unpublished check {{ args }}

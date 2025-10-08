@@ -85,8 +85,8 @@ mod nodedbimpl;
 
 // Module defined inline to be able to dynamically change visibility
 // (non-inline modules in proc macro input are unstable)
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 mod nodedb {
     //! # Node Database Functionality For Universal Tree-Like Encodings
     //!
@@ -105,8 +105,8 @@ mod totdbimpl;
 
 // Module defined inline to be able to dynamically change visibility
 // (non-inline modules in proc macro input are unstable)
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 mod totdb {
     //! # Totalizer Database
     pub(crate) use super::totdbimpl::LitData;

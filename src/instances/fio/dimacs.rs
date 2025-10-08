@@ -488,7 +488,7 @@ fn parse_idx(input: &str) -> IResult<&str, usize> {
 /// # Errors
 ///
 /// If parsing fails
-#[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
 fn parse_lit(input: &str) -> IResult<&str, Lit> {
     context("invalid ipasir literal", map_res(i32, Lit::from_ipasir))(input)
 }

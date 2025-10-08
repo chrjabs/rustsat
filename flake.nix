@@ -70,7 +70,7 @@
               clang
               cmake
             ];
-            cargoExtraArgs = "--locked --workspace --features=all,internals";
+            cargoExtraArgs = "--locked --workspace --features=_test,_internals";
             cargoTestExtraArgs = "--no-run --exclude rustsat-pyapi";
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
             PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
@@ -84,9 +84,9 @@
               nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ cargo-llvm-cov ]);
               # Also build tests for llvm cov
               checkPhaseCargoCommand = ''
-                cargo test --locked --workspace --features=all,internals --no-run --exclude rustsat-pyapi
+                cargo test --locked --workspace --features=_test,_internals --no-run --exclude rustsat-pyapi
                 source <(cargo llvm-cov show-env --export-prefix)
-                cargo test --locked --workspace --features=all,internals --no-run --exclude rustsat-pyapi
+                cargo test --locked --workspace --features=_test,_internals --no-run --exclude rustsat-pyapi
                 ln -s "." "''${CARGO_TARGET_DIR:-target}/llvm-cov-target"
               '';
             }
@@ -198,7 +198,7 @@
                   --exclude rustsat-ipasir \
                   --exclude rustsat-capi \
                   --exclude rustsat-pyapi \
-                  --features=all,internals --lcov --output-path $out/coverage.lcov
+                  --features=_test,_internals --lcov --output-path $out/coverage.lcov
               '';
             }
           );
@@ -220,7 +220,7 @@
               commonArgs
               // {
                 inherit cargoArtifacts;
-                cargoExtraArgs = "--locked --features=all,internals";
+                cargoExtraArgs = "--locked --features=_test,_internals";
                 cargoNextestExtraArgs = "-p rustsat --test external_solver -- --ignored";
                 withLlvmCov = true;
                 cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov";
@@ -251,7 +251,7 @@
             commonArgs
             // {
               inherit cargoArtifacts;
-              cargoDenyExtraArgs = "--exclude-unpublished --features=all,internals";
+              cargoDenyExtraArgs = "--exclude-unpublished --features=_test,_internals";
               cargoExtraArgs = "";
             }
           );

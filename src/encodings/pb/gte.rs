@@ -56,7 +56,7 @@ pub struct GeneralizedTotalizer {
 
 impl GeneralizedTotalizer {
     /// Creates a generalized totalizer from its internal parts
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[must_use]
     pub fn from_raw(root: NodeCon, db: totdb::Db, max_leaf_weight: usize) -> Self {
         Self {
@@ -518,7 +518,7 @@ impl super::cert::BoundUpperIncremental for GeneralizedTotalizer {
 }
 
 /// Generalized totalizer encoding types that do not own but reference their [`totdb::Db`]
-#[cfg(feature = "internals")]
+#[cfg(feature = "_internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 

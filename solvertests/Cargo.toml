@@ -21,3 +21,6 @@ quote = "1.0"
 rustsat.workspace = true
 syn = "2.0"
 # keep-sorted end
+
+[features]
+_test = []

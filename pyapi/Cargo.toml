@@ -31,5 +31,8 @@ rustsat = { workspace = true, features = ["fxhash"] }
 [build-dependencies]
 pyo3-build-config = { version = "0.26.0" }
 
+[features]
+_test = []
+
 [lib]
 crate-type = ["cdylib"]

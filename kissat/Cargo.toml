@@ -30,6 +30,7 @@ debug = []
 safe = []
 quiet = []
 git = ["dep:git2"]
+_test = ["debug"]
 # keep-sorted start
 sc2022-bulky = ["git"]
 sc2022-hyper = ["git"]

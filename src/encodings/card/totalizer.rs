@@ -58,7 +58,7 @@ pub struct Totalizer {
 
 impl Totalizer {
     /// Creates a totalizer from its internal parts
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[must_use]
     pub fn from_raw(root: NodeId, offset: usize, db: totdb::Db) -> Self {
         Self {
@@ -675,7 +675,7 @@ impl super::cert::BoundBoth for Totalizer {
 impl super::cert::BoundBothIncremental for Totalizer {}
 
 /// Totalizer encoding types that do not own but reference their [`totdb::Db`]
-#[cfg(feature = "internals")]
+#[cfg(feature = "_internals")]
 pub mod referenced {
     use std::cell::RefCell;
 

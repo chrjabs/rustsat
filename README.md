@@ -94,7 +94,7 @@ To install the binary tools in `rustsat-tools` run `cargo install rustsat-tools`
 | `proof-logging` | Add proof logging / certification support to constraint encodings |
 | `verbose-proofs` | Make the generated proofs (see `proof-logging`) more verbose, for debugging and testing |
 | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
-| `internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
+| `_internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
 
 ## Examples
 

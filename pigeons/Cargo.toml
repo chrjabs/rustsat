@@ -24,4 +24,4 @@ tempfile.workspace = true
 [features]
 short-keywords = []
 serde = ["dep:serde"]
-all = ["short-keywords", "serde"]
+_test = ["short-keywords", "serde"]

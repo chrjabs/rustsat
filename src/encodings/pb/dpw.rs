@@ -96,7 +96,7 @@ impl DynamicPolyWatchdog {
     /// # Errors
     ///
     /// If any encode method has already been called.
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     pub fn add_input(&mut self, lit: Lit, weight: usize) -> Result<(), crate::NotAllowed> {
         if self.structure.is_some() {
             return Err(crate::NotAllowed(
@@ -224,8 +224,8 @@ impl DynamicPolyWatchdog {
 }
 
 /// Type containing information about the DPW encoding structure
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug)]
 pub(crate) struct Structure {
@@ -442,7 +442,7 @@ impl FromIterator<(Lit, usize)> for DynamicPolyWatchdog {
 }
 
 /// Dynamic polynomial watchdog encoding types that do not own but reference their [`totdb::Db`]
-#[cfg(feature = "internals")]
+#[cfg(feature = "_internals")]
 pub mod referenced {
     use std::{cell::RefCell, ops::RangeBounds};
 
@@ -662,8 +662,8 @@ type DpwIter<'a> = std::iter::Map<
 >;
 
 /// Builds a DPW [`Structure`] over weighted input literals
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(
     lits: LI,
     tot_db: &mut totdb::Db,
@@ -680,8 +680,8 @@ fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(
 /// # Panics
 ///
 /// If `cons` is empty
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn con_weight_queue<CI: Iterator<Item = NodeCon>>(cons: CI) -> WeightQ {
     let mut weight_queue: WeightQ = BTreeMap::new();
     for con in cons {
@@ -708,8 +708,8 @@ fn con_weight_queue<CI: Iterator<Item = NodeCon>>(cons: CI) -> WeightQ {
 /// # Panics
 ///
 /// - If `weight_queue` is empty
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn build_structure(
     weight_queue: &mut WeightQ,
     prec_div: usize,
@@ -839,8 +839,8 @@ fn build_structure(
 ///
 /// - If `bot_struct` has no bottom buckets
 #[allow(clippy::too_many_lines)]
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn merge_structures<Col>(
     bot_struct: &mut Structure,
     top_struct: Structure,
@@ -1007,8 +1007,8 @@ where
 /// # Errors
 ///
 /// If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn encode_output<Col>(
     dpw: &Structure,
     oidx: usize,
@@ -1037,8 +1037,8 @@ where
 /// # Errors
 ///
 /// If `dpw` is not adequately encoded, returns [`EnforceError::NotEncoded`].
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>, EnforceError> {
     let output_weight = 1 << (dpw.output_power());
     let oidx = ub / output_weight;

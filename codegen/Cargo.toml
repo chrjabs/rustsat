@@ -21,3 +21,6 @@ serde.workspace = true
 similar = "2.7.0"
 tempfile.workspace = true
 # keep-sorted end
+
+[features]
+_test = []

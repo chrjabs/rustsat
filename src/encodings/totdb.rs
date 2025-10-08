@@ -601,7 +601,7 @@ impl Db {
 
     /// Resets the reserved variables in the database. This also resets the
     /// status of what has already been encoded.
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     pub fn reset_vars(&mut self) {
         for node in &mut self.nodes {
             match node {
@@ -933,7 +933,7 @@ impl Node {
     }
 
     /// Checks if a given output value has "if" semantics encoded
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[must_use]
     pub fn semantics_if(&self, val: usize) -> bool {
         match &self {
@@ -950,7 +950,7 @@ impl Node {
     }
 
     /// Checks if a given output value has "if" semantics encoded
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[must_use]
     pub fn semantics_only_if(&self, val: usize) -> bool {
         match &self {
@@ -1120,7 +1120,7 @@ impl UnitNode {
     }
 
     /// Checks if a given value has "if" semantics encoded
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[inline]
     #[must_use]
     pub fn semantics_if(&self, val: usize) -> bool {
@@ -1128,7 +1128,7 @@ impl UnitNode {
     }
 
     /// Checks if a given value has "only if" semantics encoded
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[inline]
     #[must_use]
     pub fn semantics_only_if(&self, val: usize) -> bool {
@@ -1250,7 +1250,7 @@ impl GeneralNode {
     }
 
     /// Checks if a given value has the "if" semantics encoded
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[inline]
     #[must_use]
     pub fn semantics_if(&self, val: usize) -> bool {
@@ -1258,7 +1258,7 @@ impl GeneralNode {
     }
 
     /// Checks if a given value has the "only if" semantics encoded
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[inline]
     #[must_use]
     pub fn semantics_only_if(&self, val: usize) -> bool {
@@ -1294,7 +1294,7 @@ impl LitData {
         }
     }
 
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[inline]
     #[must_use]
     fn semantics_if(self) -> bool {
@@ -1304,7 +1304,7 @@ impl LitData {
         }
     }
 
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[inline]
     #[must_use]
     fn semantics_only_if(self) -> bool {

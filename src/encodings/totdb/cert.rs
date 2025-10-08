@@ -344,7 +344,7 @@ impl super::Db {
     /// # Errors
     ///
     /// If writing the proof fails, returns [`std::io::Error`]
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     pub fn ensure_semantics<W>(
         &mut self,
         id: NodeId,

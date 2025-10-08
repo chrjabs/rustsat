@@ -117,7 +117,7 @@ web-time.workspace = true
 
 [features]
 default = ["optimization", "fxhash"]
-internals = ["dep:visibility"]
+_internals = ["dep:visibility"]
 fxhash = ["dep:rustc-hash"]
 optimization = []
 multiopt = ["optimization"]
@@ -128,18 +128,33 @@ ipasir-display = []
 serde = ["dep:serde", "pigeons/serde"]
 proof-logging = ["dep:pigeons"]
 verbose-proofs = ["proof-logging"]
-all = [
-  "multiopt",
+_docs = [
+  # keep-sorted start
   "compression",
-  "rand",
   "fxhash",
-  "serde",
+  "multiopt",
   "proof-logging",
+  "rand",
+  "serde",
   "verbose-proofs",
+  # keep-sorted end
+  "_internals",
+]
+_test = [
+  # keep-sorted start
+  "compression",
+  "fxhash",
+  "multiopt",
+  "proof-logging",
+  "rand",
+  "serde",
+  "verbose-proofs",
+  # keep-sorted end
+  "_internals",
 ]
 
 [package.metadata.docs.rs]
-features = ["all", "internals"]
+features = ["_docs"]
 rustdoc-args = ["--cfg", "docsrs"]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 

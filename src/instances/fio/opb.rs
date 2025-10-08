@@ -223,7 +223,7 @@ fn variable(input: &str, opts: Options) -> IResult<&str, Var> {
 /// # Errors
 ///
 /// If parsing fails
-#[cfg_attr(feature = "internals", visibility::make(pub))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
 pub(crate) fn literal(input: &str, opts: Options) -> IResult<&str, Lit> {
     match alt::<_, _, NomError<_>, _>((tag("~"), tag("-")))(input) {
         Ok((input, _)) => map_res(|i| variable(i, opts), |v| Ok::<_, ()>(v.neg_lit()))(input),

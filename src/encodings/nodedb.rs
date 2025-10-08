@@ -206,7 +206,7 @@ impl NodeCon {
     /// # Panics
     ///
     /// If `weight` is 0.
-    #[cfg(any(test, feature = "internals"))]
+    #[cfg(any(test, feature = "_internals"))]
     #[must_use]
     pub fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
         NodeCon {
@@ -223,7 +223,7 @@ impl NodeCon {
     /// # Panics
     ///
     /// If `weight` is 0.
-    #[cfg(any(test, feature = "internals"))]
+    #[cfg(any(test, feature = "_internals"))]
     #[must_use]
     pub fn single(id: NodeId, output: usize, weight: usize) -> NodeCon {
         NodeCon {
@@ -241,7 +241,7 @@ impl NodeCon {
     ///
     /// - If `weight` is 0
     /// - If `n_lits` is 0
-    #[cfg(any(test, feature = "internals"))]
+    #[cfg(any(test, feature = "_internals"))]
     #[must_use]
     pub fn limited(id: NodeId, offset: usize, n_lits: usize, weight: usize) -> NodeCon {
         assert_ne!(n_lits, 0);
@@ -260,7 +260,7 @@ impl NodeCon {
     ///
     /// If `weight` is 0.
     #[inline]
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     #[must_use]
     pub fn reweight(self, weight: usize) -> NodeCon {
         NodeCon {
@@ -324,7 +324,7 @@ impl NodeCon {
     /// limit
     #[inline]
     #[must_use]
-    #[cfg(any(feature = "internals", feature = "proof-logging"))]
+    #[cfg(any(feature = "_internals", feature = "proof-logging"))]
     pub fn rev_map_no_limit(&self, val: usize) -> usize {
         val / self.multiplier() * self.divisor() + self.offset()
     }
@@ -531,7 +531,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// the connections by multiplier, then merge connections with equal
     /// multiplier, then merge resulting connections with
     /// [`NodeById::merge_balanced`].
-    #[cfg(feature = "internals")]
+    #[cfg(feature = "_internals")]
     fn merge_thorough(&mut self, cons: &mut [NodeCon]) -> NodeCon
     where
         Self: Sized,

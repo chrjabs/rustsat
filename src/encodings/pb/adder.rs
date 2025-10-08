@@ -57,8 +57,8 @@ pub struct BinaryAdder {
 }
 
 /// The structure of a binary adder encoding
-#[cfg_attr(feature = "internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "internals")))]
+#[cfg_attr(feature = "_internals", visibility::make(pub))]
+#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 struct Structure {

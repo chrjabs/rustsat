@@ -26,7 +26,7 @@ rustsat = { workspace = true, features = [
   "compression",
   "multiopt",
   "rand",
-  "internals",
+  "_internals",
 ] }
 rustsat-cadical = { workspace = true, optional = true }
 rustsat-minisat = { workspace = true, optional = true }
@@ -35,3 +35,4 @@ rustsat-minisat = { workspace = true, optional = true }
 default = ["minisat"]
 minisat = ["dep:rustsat-minisat"]
 cadical = ["dep:rustsat-cadical"]
+_test = []

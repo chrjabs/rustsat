@@ -15,7 +15,7 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsat = { workspace = true, features = ["internals", "fxhash"] }
+rustsat = { workspace = true, features = ["_internals", "fxhash"] }
 
 [dev-dependencies]
 # keep-sorted start
@@ -23,6 +23,9 @@ cc.workspace = true
 libtest-mimic.workspace = true
 target-lexicon = "0.13.3"
 # keep-sorted end
+
+[features]
+_test = []
 
 [lib]
 crate-type = ["staticlib"]

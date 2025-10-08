@@ -18,3 +18,6 @@ anyhow.workspace = true
 rustsat.workspace = true
 thiserror.workspace = true
 # keep-sorted end
+
+[features]
+_test = []

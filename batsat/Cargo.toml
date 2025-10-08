@@ -23,3 +23,6 @@ thiserror.workspace = true
 
 [dev-dependencies]
 rustsat-solvertests = { path = "../solvertests" }
+
+[features]
+_test = []

@@ -27,6 +27,7 @@ build = "build.rs"
 debug = []
 quiet = []
 default = ["quiet"]
+_test = ["debug"]
 
 [dependencies]
 # keep-sorted start
