@@ -83,7 +83,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
       - name: Manual fixup
         run: |
-          set -e
+          set -ex
 
           pr_number=${{ fromJSON(steps.release-plz.outputs.pr).number }}
           if [[ -n "$pr_number" ]]; then
@@ -92,10 +92,10 @@ jobs:
             scripts/update-capi-header-version.sh
             git commit -am "chore(capi): update version in header"
 
-            nix run --inputs-from . nur-packages#git-cliff -o capi/CHANGELOG.md --include-path 'capi/*'
+            nix run --inputs-from . nixpkgs#git-cliff -- -o capi/CHANGELOG.md --include-path 'capi/*'
             git commit -am "chore(capi): update changelog"
 
-            nix run --inputs-from . nur-packages#git-cliff -o pyapi/CHANGELOG.md --include-path 'pyapi/*'
+            nix run --inputs-from . nixpkgs#git-cliff -- -o pyapi/CHANGELOG.md --include-path 'pyapi/*'
             git commit -am "chore(pyapi): update changelog"
 
             git push
