@@ -81,7 +81,7 @@ jobs:
             echo "pr=$first_pr" >> "$GITHUB_OUTPUT"
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-      - name: Update C-API header
+      - name: Manual fixup
         run: |
           set -e
 
@@ -90,8 +90,13 @@ jobs:
             gh pr checkout "$pr_number"
 
             scripts/update-capi-header-version.sh
-
             git commit -am "chore(capi): update version in header"
+
+            nix run --inputs-from . nur-packages#git-cliff -o capi/CHANGELOG.md --include-path 'capi/*'
+            git commit -am "chore(capi): update changelog"
+
+            nix run --inputs-from . nur-packages#git-cliff -o pyapi/CHANGELOG.md --include-path 'pyapi/*'
+            git commit -am "chore(pyapi): update changelog"
 
             git push
           fi
