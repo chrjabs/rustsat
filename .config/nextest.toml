@@ -10,6 +10,11 @@ final-status-level = "slow"
 filter = 'package(rustsat-capi)'
 setup = 'capi-tests'
 
+# this test isn't for a crash, but for a deadlock if stdout isn't properly processed
+[[profile.default.overrides]]
+filter = 'package(rustsat) and binary(external_solver) and test(deadlock)'
+slow-timeout = { period = "30s", terminate-after = 2 }
+
 [profile.ci]
 fail-fast = false
 
@@ -22,3 +27,8 @@ retries = { count = 5, backoff = "exponential", delay = "5s" }
 [[profile.ci.scripts]]
 filter = 'package(rustsat-capi)'
 setup = 'capi-tests'
+
+# this test isn't for a crash, but for a deadlock if stdout isn't properly processed
+[[profile.ci.overrides]]
+filter = 'package(rustsat) and binary(external_solver) and test(deadlock)'
+slow-timeout = { period = "30s", terminate-after = 2 }

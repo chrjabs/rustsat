@@ -153,3 +153,33 @@ mod simulator {
         true
     );
 }
+
+#[test]
+#[ignore]
+fn gimsatul_deadlock() {
+    let slv = std::env::var("RS_EXT_SOLVER").expect(
+        "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
+    );
+    if !AsRef::<std::path::Path>::as_ref(&slv)
+        .file_name()
+        .is_some_and(|slv_name| slv_name == std::ffi::OsStr::new("gimsatul"))
+    {
+        print!("skipping because not using gimsatul");
+        return;
+    }
+    let mut cmd = std::process::Command::new(slv);
+    cmd.arg("--threads=20");
+    let mut slv = rustsat::solvers::ExternalSolver::new_default(cmd, "gimsatul-20");
+    let inst =
+        rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path(
+            format!(
+                "{}/data/gimsatul-deadlock.cnf",
+                std::env::var("CARGO_MANIFEST_DIR").unwrap()
+            ),
+        )
+        .expect("failed to parse instance");
+    rustsat::solvers::Solve::add_cnf_ref(&mut slv, inst.cnf())
+        .expect("failed to add cnf to solver");
+    let res = rustsat::solvers::Solve::solve(&mut slv).expect("failed solving");
+    assert_eq!(res, rustsat::solvers::SolverResult::Unsat);
+}

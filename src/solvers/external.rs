@@ -1,7 +1,8 @@
 //! # Solver Interface for External Executables
 
 use std::{
-    fs, io,
+    fs,
+    io::{self, BufRead},
     path::{Path, PathBuf},
     process::{self, Command},
 };
@@ -388,20 +389,22 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
                     // second thread for processing stdout to avoid blocking
                     let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
                     let output_handle =
-                        std::thread::spawn(move || -> anyhow::Result<(fio::SolverOutput, io::BufReader<process::ChildStdout>)> {
-                            // this thread passes stdout back to ensure that it remains open long
-                            // enough for the solver to terminate
+                        std::thread::spawn(move || -> anyhow::Result<fio::SolverOutput> {
                             let output = fio::parse_sat_solver_output(&mut stdout)?;
-                            Ok((output, stdout))
+                            // the above function returns early on detecting UNSAT
+                            // this processes the remaining output so that the pipe buffer does not
+                            // get full and block the solver
+                            for _ in stdout.lines() {}
+                            Ok(output)
                         });
                     // main thread writes input to stdin
                     fio::dimacs::write_cnf_annotated(&mut stdin, &config.cnf, config.n_vars)?;
+                    // this signals to the solver that the input is fully written
                     drop(stdin);
                     let exit = child.wait()?;
-                    let (output, stdout) = output_handle
+                    let output = output_handle
                         .join()
                         .expect("could not join output parsing thread")?;
-                    drop(stdout);
                     check_exit_code!(exit);
                     return Ok(output);
                 }
@@ -424,9 +427,11 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
             let mut child = cmd.stdout(process::Stdio::piped()).spawn()?;
             let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
             let output = fio::parse_sat_solver_output(&mut stdout)?;
+            // the above function returns early on detecting UNSAT
+            // this processes the remaining output so that the pipe buffer does not
+            // get full and block the solver
+            for _ in stdout.lines() {}
             check_exit_code!(child.wait()?);
-            // keep pipe open till after child has terminated
-            drop(stdout);
             output
         }
     };
