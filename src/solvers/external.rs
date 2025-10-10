@@ -99,6 +99,13 @@ enum OutputViaInt {
     /// The solver output is written to a file at the given path that is not automatically deleted
     File(PathBuf),
     /// The solver output is read directly through a pipe
+    ///
+    /// # Hint
+    ///
+    /// The only data parsed from the solvers output are the `s` and `v` lines specifying the
+    /// result and solution, it is therefore recommended to make the solver output as little
+    /// information as possible (via a `--quiet` flag or similar) to reduce the amount of text
+    /// RustSAT has to process.
     #[default]
     Pipe,
 }
@@ -111,6 +118,13 @@ impl OutputVia {
     }
 
     /// Process the solver output via a pipe from `<stdout>`
+    ///
+    /// # Hint
+    ///
+    /// The only data parsed from the solvers output are the `s` and `v` lines specifying the
+    /// result and solution, it is therefore recommended to make the solver output as little
+    /// information as possible (via a `--quiet` flag or similar) to reduce the amount of text
+    /// RustSAT has to process.
     #[must_use]
     pub fn pipe() -> Self {
         OutputVia(OutputViaInt::Pipe)
@@ -168,6 +182,13 @@ impl Solver {
     /// );
     /// ```
     /// After this initialization, the `solver` instance can be used with the [`Solve`] trait.
+    ///
+    /// # Hint
+    ///
+    /// The only data parsed from the solvers output are the `s` and `v` lines specifying the
+    /// result and solution. When using a pipe for the solver output, it is therefore recommended
+    /// to make the solver output as little information as possible (via a `--quiet` flag or
+    /// similar) to reduce the amount of text RustSAT has to process.
     #[must_use]
     pub fn new(cmd: Command, input: InputVia, output: OutputVia, signature: &'static str) -> Self {
         Solver {
@@ -198,6 +219,13 @@ impl Solver {
     /// );
     /// ```
     /// After this initialization, the `solver` instance can be used with the [`Solve`] trait.
+    ///
+    /// # Hint
+    ///
+    /// The only data parsed from the solvers output are the `s` and `v` lines specifying the
+    /// result and solution, it is therefore recommended to make the solver output as little
+    /// information as possible (via a `--quiet` flag or similar) to reduce the amount of text
+    /// RustSAT has to process.
     #[must_use]
     pub fn new_default(cmd: Command, signature: &'static str) -> Self {
         Solver::new(cmd, InputVia::default(), OutputVia::default(), signature)
