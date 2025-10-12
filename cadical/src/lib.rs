@@ -60,7 +60,6 @@
 //! Older versions are pulled down via the [`git2`](https://crates.io/crates/git2) crate, which has
 //! transitive dependencies that have a higher MSRV.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]

@@ -104,7 +104,6 @@
 //! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
 //! sure to pin a precise version of RustSAT.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "bench", feature(test))]
 #![warn(clippy::pedantic)]
