@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## rustsat-v0.7.4 - 2025-10-17
 
 [db3a792](db3a792c565ef9b032819d484c5236f7dbc446d0)...[bbba25f](bbba25f4fbca47839ca3d0b00ee1a89976ba05f2)
 
@@ -23,10 +23,6 @@ All notable changes to this project will be documented in this file.
 - Switch CI to nix ([7c73dcf](7c73dcfdb7358ed64a1b70442daeb92a6fa39621))
 - Update to pyo3 0.26.0 ([3167083](3167083835cd27593339989345429876146c9231))
 - Include keep-sorted formatter ([46e505c](46e505cca3e50b7743c47288b2fb2610da3f1952))
-
-### Refactor
-
-- Clearly mark internal features ([bbba25f](bbba25f4fbca47839ca3d0b00ee1a89976ba05f2))
 
 ## rustsat-v0.7.0 - 2025-04-03
 

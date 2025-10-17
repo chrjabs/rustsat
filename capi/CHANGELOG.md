@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## rustsat-v0.7.4 - 2025-10-17
 
 [b0343ca](b0343ca8feb853254afb02f3ee0f4fe480687417)...[66eafcd](66eafcd671099d2c66b2abb607176c925ed426d3)
 
