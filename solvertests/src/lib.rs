@@ -87,6 +87,12 @@ pub fn basic_unittests(tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn new_basic_unittests(tokens: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(tokens as BasicUnitInput);
+    unit::new::basic(input.slv, input.signature).into()
+}
+
+#[proc_macro]
 pub fn termination_unittests(tokens: TokenStream) -> TokenStream {
     let slv = parse_macro_input!(tokens as Type);
     unit::termination(slv).into()

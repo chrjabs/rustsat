@@ -351,3 +351,153 @@ pub fn propagate(slv: Type) -> TokenStream {
         }
     }
 }
+
+pub mod new {
+    use super::*;
+
+    pub fn basic(slv: Type, signature: LitStr) -> TokenStream {
+        let ts = quote! {
+            #[test]
+            fn build_destroy() {
+                let solver = <#slv as rustsat::solvers::sat::Solve>::Init::default();
+                drop(solver);
+                let solver = <#slv as rustsat::solvers::sat::Solve>::Input::default();
+                drop(solver);
+            }
+
+            #[test]
+            fn build_two() {
+                let solver1 = <#slv as rustsat::solvers::sat::Solve>::Init::default();
+                let solver2 = <#slv as rustsat::solvers::sat::Solve>::Init::default();
+                drop(solver1);
+                drop(solver2);
+            }
+
+            #[test]
+            fn signature() {
+                use rustsat::solvers::sat::Solve;
+                let pat = #signature;
+                let sig = #slv::signature();
+                let mut pat_chars = pat.chars();
+                let mut sig_chars = sig.chars().peekable();
+                let mut alt_depth = 0;
+                while sig_chars.peek().is_some() {
+                    let pat_char = pat_chars
+                        .next()
+                        .unwrap_or_else(|| panic!("signature `{sig}` does not match pattern `{pat}`"));
+                    if pat_char == '(' {
+                        // patterns of form `(alt1|alt2)` represent alternatives
+                        // NOTE: the matcher does not backtrack, so the above example pattern will actually
+                        // match `aalt2`
+                        alt_depth += 1;
+                        continue;
+                    }
+                    if pat_char == ')' {
+                        assert!(alt_depth > 0, "malformed pattern `{pat}`");
+                        alt_depth -= 1;
+                        continue;
+                    }
+                    if pat_char == '[' {
+                        // blocks in square brackets match any sequence of numeric digits
+                        loop {
+                            match pat_chars.next() {
+                                Some(']') => break,
+                                None => panic!("signature `{sig}` does not match pattern `{pat}`"),
+                                _ => (),
+                            }
+                        }
+                        assert!(
+                            sig_chars.next().is_some_and(char::is_numeric),
+                            "signature `{sig}` does not match pattern `{pat}`"
+                        );
+                        loop {
+                            match sig_chars.peek() {
+                                Some(c) if !c.is_numeric() => break,
+                                Some(_) => pat_chars.next(),
+                                None => break,
+                            };
+                        }
+                        continue;
+                    }
+                    if sig_chars.peek().is_some_and(|c| *c == pat_char) {
+                        sig_chars.next().unwrap();
+                    } else {
+                        assert!(
+                            alt_depth > 0,
+                            "signature `{sig}` does not match pattern `{pat}`"
+                        );
+                        // find next alternative
+                        let mut children = 0;
+                        loop {
+                            match pat_chars.next() {
+                                Some('|') => {
+                                    if children == 0 {
+                                        break;
+                                    }
+                                }
+                                Some('(') => children += 1,
+                                Some(')') => {
+                                    assert!(
+                                        children > 0,
+                                        "signature `{sig}` does not match pattern `{pat}`"
+                                    );
+                                    children -= 1;
+                                }
+                                None => panic!("malformed pattern `{pat}`"),
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+                for _ in 0..alt_depth {
+                    match pat_chars.next() {
+                        None => panic!("malformed pattern `{pat}`"),
+                        Some(')') => (),
+                        Some('|') => loop {
+                            match pat_chars.next() {
+                                Some(')') => break,
+                                None => panic!("malformed pattern `{pat}`"),
+                                _ => (),
+                            }
+                        },
+                        _ => panic!("signature `{sig}` does not match pattern `{pat}`"),
+                    }
+                }
+                assert!(
+                    pat_chars.next().is_none(),
+                    "signature `{sig}` does not match pattern `{pat}`"
+                );
+            }
+
+            #[test]
+            fn tiny_instance_sat() {
+                use rustsat::{lit, var, solvers::sat::{Input, Sat, SolveResult}};
+
+                let mut solver = <#slv as rustsat::solvers::sat::Solve>::Input::default();
+                solver.add_binary(lit![0], !lit![1]).unwrap();
+                solver.add_binary(lit![1], !lit![2]).unwrap();
+                let SolveResult::Sat(sat) = solver.solve().unwrap() else {
+                    panic!("expected sat");
+                };
+                let _ = sat.solution(var![2]);
+            }
+
+            #[test]
+            fn tiny_instance_unsat() {
+                use rustsat::{lit, var, solvers::sat::{Solve, Input, SolveResult}};
+
+                let mut solver = <#slv as rustsat::solvers::sat::Solve>::Input::default();
+                solver.add_unit(!lit![0]).unwrap();
+                solver.add_binary(lit![0], !lit![1]).unwrap();
+                solver.add_binary(lit![1], !lit![2]).unwrap();
+                solver.add_unit(lit![2]).unwrap();
+                solver.add_binary(lit![0], !lit![1]).unwrap();
+                solver.add_binary(lit![1], !lit![2]).unwrap();
+                let SolveResult::Unsat(_) = solver.solve().unwrap() else {
+                    panic!("expected unsat");
+                };
+            }
+        };
+        ts
+    }
+}

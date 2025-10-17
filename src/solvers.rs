@@ -120,6 +120,8 @@ pub use external::Solver as ExternalSolver;
 
 pub mod simulators;
 
+pub mod sat;
+
 /// Trait for all SAT solvers in this library.
 /// Solvers outside of this library can also implement this trait to be able to
 /// use them with this library.

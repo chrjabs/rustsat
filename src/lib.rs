@@ -156,6 +156,9 @@ impl From<TryReserveError> for OutOfMemory {
     }
 }
 
+/// Return value of a function call that might run out of memory
+pub type MightMemout<T = ()> = Result<T, OutOfMemory>;
+
 /// Error returned if an operation requires clausal constraints, but this is not the case
 #[derive(Error, Debug)]
 #[error("operation requires a clausal constraint(s) but it is not")]
