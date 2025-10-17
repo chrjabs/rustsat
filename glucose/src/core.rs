@@ -171,7 +171,11 @@ impl Solve for Glucose {
         self.update_avg_clause_len(clause);
         self.state = InternalSolverState::Input;
         handle_oom!(unsafe {
-            ffi::cglucose4_add_clause(self.handle, clause.as_ref().as_ptr().cast(), clause.len())
+            ffi::cglucose4_add_clause(
+                self.handle,
+                AsRef::<[Lit]>::as_ref(clause).as_ptr().cast(),
+                clause.len(),
+            )
         });
         Ok(())
     }

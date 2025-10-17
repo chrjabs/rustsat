@@ -181,7 +181,11 @@ impl Solve for Minisat {
         self.update_avg_clause_len(clause);
         self.state = InternalSolverState::Input;
         handle_oom!(unsafe {
-            ffi::cminisatsimp_add_clause(self.handle, clause.as_ref().as_ptr().cast(), clause.len())
+            ffi::cminisatsimp_add_clause(
+                self.handle,
+                AsRef::<[Lit]>::as_ref(clause).as_ptr().cast(),
+                clause.len(),
+            )
         });
         Ok(())
     }

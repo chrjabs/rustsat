@@ -538,6 +538,42 @@ impl AsMut<Cl> for [Lit] {
     }
 }
 
+impl<const N: usize> AsRef<Cl> for [Lit; N] {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl<const N: usize> AsMut<Cl> for [Lit; N] {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
+}
+
+impl AsRef<Cl> for Vec<Lit> {
+    fn as_ref(&self) -> &Cl {
+        Cl::new(self)
+    }
+}
+
+impl AsMut<Cl> for Vec<Lit> {
+    fn as_mut(&mut self) -> &mut Cl {
+        Cl::new_mut(self)
+    }
+}
+
+impl AsRef<Cl> for Cl {
+    fn as_ref(&self) -> &Cl {
+        self
+    }
+}
+
+impl AsMut<Cl> for Cl {
+    fn as_mut(&mut self) -> &mut Cl {
+        self
+    }
+}
+
 /// Type representing a cardinality constraint.
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

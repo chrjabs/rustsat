@@ -183,7 +183,7 @@ impl Solve for Glucose {
         handle_oom!(unsafe {
             ffi::cglucosesimp4_add_clause(
                 self.handle,
-                clause.as_ref().as_ptr().cast(),
+                AsRef::<[Lit]>::as_ref(clause).as_ptr().cast(),
                 clause.len(),
             )
         });
