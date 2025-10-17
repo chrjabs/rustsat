@@ -413,6 +413,58 @@ impl Drop for Minisat {
     }
 }
 
+/// Interface to the Minisat solver without preprocessing
+#[derive(Debug)]
+pub struct MinisatNewApi();
+
+/// Wrapper around the minisat handle that if it is dropped, releases the solver
+#[derive(Debug)]
+struct Handle(*mut ffi::CMinisat);
+
+impl From<*mut ffi::CMinisat> for Handle {
+    fn from(value: *mut ffi::CMinisat) -> Self {
+        Self(value)
+    }
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        unsafe { crate::ffi::cminisat_release(self.0) }
+    }
+}
+
+/// A Minisat Solver in different States
+#[derive(Debug)]
+pub struct MinisatState<State> {
+    handle: Handle,
+    _state: State,
+}
+
+/// A Minisat state guard
+#[derive(Debug)]
+pub struct MinisatGuard<'a, State> {
+    guarded: &'a mut MinisatState<super::Input>,
+    _state: State,
+}
+
+super::impl_api!(
+    MinisatNewApi,
+    MinisatState,
+    MinisatGuard,
+    cminisat_init,
+    cminisat_reserve,
+    cminisat_add_clause,
+    cminisat_solve,
+    cminisat_val,
+    cminisat_conflict,
+    cminisat_set_no_limit,
+    cminisat_set_conf_limit,
+    cminisat_set_prop_limit,
+    cminisat_n_clauses,
+    cminisat_n_assigns,
+    cminisat_n_learnts,
+);
+
 #[cfg(test)]
 mod test {
     use super::Minisat;
@@ -441,5 +493,10 @@ mod test {
         assert_eq!(solver.n_learnts(), 0);
         assert_eq!(solver.n_clauses(), 9);
         assert_eq!(solver.max_var(), Some(var![9]));
+    }
+
+    mod new {
+        use crate::core::MinisatNewApi;
+        rustsat_solvertests::new_basic_unittests!(MinisatNewApi, "Minisat [major].[minor].[patch]");
     }
 }
