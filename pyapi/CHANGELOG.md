@@ -16,10 +16,6 @@ All notable changes to this project will be documented in this file.
 - Update to pyo3 0.26.0 ([3167083](3167083835cd27593339989345429876146c9231))
 - Include keep-sorted formatter ([46e505c](46e505cca3e50b7743c47288b2fb2610da3f1952))
 
-### Refactor
-
-- Clearly mark internal features ([bbba25f](bbba25f4fbca47839ca3d0b00ee1a89976ba05f2))
-
 ## rustsat-v0.7.0 - 2025-04-03
 
 [b5b2b3f](b5b2b3fd11bbe5f334351f256e01d21041c43605)...[db3a792](db3a792c565ef9b032819d484c5236f7dbc446d0)

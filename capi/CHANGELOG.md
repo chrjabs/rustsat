@@ -15,10 +15,6 @@ All notable changes to this project will be documented in this file.
 - Include keep-sorted formatter ([46e505c](46e505cca3e50b7743c47288b2fb2610da3f1952))
 - Update version in header ([14a3e96](14a3e965e8dcaa9c2ef6be0273b36a8c27adcefd))
 
-### Refactor
-
-- Clearly mark internal features ([bbba25f](bbba25f4fbca47839ca3d0b00ee1a89976ba05f2))
-
 ## rustsat-v0.7.3 - 2025-08-07
 
 [3f0fd8d](3f0fd8db3170dc92059e08bd7a6e6b6be8de7bce)...[b0343ca](b0343ca8feb853254afb02f3ee0f4fe480687417)
