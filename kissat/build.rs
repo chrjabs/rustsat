@@ -22,31 +22,37 @@ enum Version {
     V400,
     V401,
     V402,
-    #[default]
     V403,
+    #[default]
+    V404,
 }
 
 /// Checks if the version was set manually via a feature
 macro_rules! version_set_manually {
     () => {
         cfg!(any(
-            feature = "v4-0-3",
-            feature = "v4-0-2",
-            feature = "v4-0-1",
-            feature = "v4-0-0",
-            feature = "v3-1-1",
-            feature = "v3-1-0",
-            feature = "v3-0-0",
-            feature = "sc2022-light",
-            feature = "sc2022-hyper",
+            // keep-sorted start
             feature = "sc2022-bulky",
+            feature = "sc2022-hyper",
+            feature = "sc2022-light",
+            feature = "v3-0-0",
+            feature = "v3-1-0",
+            feature = "v3-1-1",
+            feature = "v4-0-0",
+            feature = "v4-0-1",
+            feature = "v4-0-2",
+            feature = "v4-0-3",
+            feature = "v4-0-4",
+            // keep-sorted end
         ))
     };
 }
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v4-0-3") {
+        if cfg!(feature = "v4-0-4") {
+            Version::V404
+        } else if cfg!(feature = "v4-0-3") {
             Version::V403
         } else if cfg!(feature = "v4-0-2") {
             Version::V402
@@ -84,6 +90,7 @@ impl Version {
             Version::V401 => "refs/tags/rel-4.0.1",
             Version::V402 => "refs/tags/rel-4.0.2",
             Version::V403 => "refs/tags/rel-4.0.3",
+            Version::V404 => "refs/tags/rel-4.0.4",
         }
     }
 }

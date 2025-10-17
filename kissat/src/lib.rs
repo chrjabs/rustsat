@@ -14,6 +14,8 @@
 //!
 //! Kissat versions can be selected via cargo crate features.
 //! The following Kissat versions are available:
+//! - `v4-0-4`: [Version 4.0.3](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.4)
+//! - `v4-0-3`: [Version 4.0.3](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.3)
 //! - `v4-0-2`: [Version 4.0.2](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.2)
 //! - `v4-0-1`: [Version 4.0.1](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.1)
 //! - `v4-0-0`: [Version 4.0.0](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.0)
