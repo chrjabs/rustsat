@@ -92,10 +92,10 @@ jobs:
             scripts/update-capi-header-version.sh
             git commit -am "chore(capi): update version in header"
 
-            nix run --inputs-from . nixpkgs#git-cliff -- -o capi/CHANGELOG.md --include-path 'capi/*'
+            nix run --inputs-from . nixpkgs#git-cliff -- --unreleased --bump --tag-pattern 'rustsat-v*' --prepend capi/CHANGELOG.md --include-path 'capi/*'
             git commit -am "chore(capi): update changelog"
 
-            nix run --inputs-from . nixpkgs#git-cliff -- -o pyapi/CHANGELOG.md --include-path 'pyapi/*'
+            nix run --inputs-from . nixpkgs#git-cliff -- --unreleased --bump --tag-pattern 'rustsat-v*' --prepend pyapi/CHANGELOG.md --include-path 'pyapi/*'
             git commit -am "chore(pyapi): update changelog"
 
             git push
