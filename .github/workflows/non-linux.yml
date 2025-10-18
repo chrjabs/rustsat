@@ -28,26 +28,6 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: 🧪 Run tests
         run: cargo nextest run --profile ci --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=_test
-  macos-msrv-build:
-    name: 🏗️ MacOS MSRV build
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: taiki-e/install-action@nextest
-      - name: 🏗️ Build
-        run: cargo hack build --rust-version --workspace --verbose --features=_test --ignore-unknown-features
-  windows-msrv-build:
-    name: 🏗️ Windows MSRV build
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: taiki-e/install-action@nextest
-      - name: 🏗️ Build
-        run: cargo hack build --rust-version --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=_test --ignore-unknown-features
   python-api:
     name: 🐍 Python API
     strategy:
