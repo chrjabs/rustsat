@@ -1092,7 +1092,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bzip2",
@@ -1120,7 +1120,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1131,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-cadical"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1149,7 +1149,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-capi"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "cc",
  "libtest-mimic",
@@ -1159,7 +1159,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-codegen"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "cbindgen",
  "minijinja",
@@ -1170,7 +1170,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-glucose"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-ipasir"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "rustsat",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-kissat"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1208,7 +1208,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-minisat"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-pyapi"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
@@ -1231,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-solvertests"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1241,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-tools"
-version = "0.7.4"
+version = "0.7.5"
 dependencies = [
  "anyhow",
  "clap",
