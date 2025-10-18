@@ -152,7 +152,7 @@
                 commonArgs
                 // {
                   pnameSuffix = "-${crateMsrvs."${crate}"}-deps";
-                  buildPhaseCargoCommand = "cargo build --workspace";
+                  buildPhaseCargoCommand = "cargo build --workspace --exclude rustsat-codegen";
                   checkPhaseCargoCommand = "";
                 }
               );
