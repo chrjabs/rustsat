@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## rustsat-v0.7.4 - 2025-10-18
 
+## rustsat-v0.7.4 - 2025-10-18
+
 [b0343ca](b0343ca8feb853254afb02f3ee0f4fe480687417)...[547959f](547959f824fc1591812b2f24a7658ef36921e54e)
 
 ### Documentation
