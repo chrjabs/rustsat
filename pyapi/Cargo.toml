@@ -29,7 +29,7 @@ rustsat = { workspace = true, features = ["fxhash"] }
 # keep-sorted end
 
 [build-dependencies]
-pyo3-build-config = { version = "0.26.0" }
+pyo3-build-config = { version = "0.27.1" }
 
 [features]
 _test = []
