@@ -464,6 +464,58 @@ impl Drop for Glucose {
     }
 }
 
+/// Interface to the Glucose solver without preprocessing
+#[derive(Debug)]
+pub struct GlucoseNewApi();
+
+/// Wrapper around the glucose handle that if it is dropped, releases the solver
+#[derive(Debug)]
+struct Handle(*mut ffi::CGlucoseSimp4);
+
+impl From<*mut ffi::CGlucoseSimp4> for Handle {
+    fn from(value: *mut ffi::CGlucoseSimp4) -> Self {
+        Self(value)
+    }
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        unsafe { crate::ffi::cglucosesimp4_release(self.0) }
+    }
+}
+
+/// A Minisat Solver in different States
+#[derive(Debug)]
+pub struct GlucoseState<State> {
+    handle: Handle,
+    _state: State,
+}
+
+/// A Glucose state guard
+#[derive(Debug)]
+pub struct GlucoseGuard<'a, State> {
+    guarded: &'a mut GlucoseState<super::Input>,
+    _state: State,
+}
+
+super::impl_api!(
+    GlucoseNewApi,
+    GlucoseState,
+    GlucoseGuard,
+    cglucosesimp4_init,
+    cglucosesimp4_reserve,
+    cglucosesimp4_add_clause,
+    cglucosesimp4_solve,
+    cglucosesimp4_val,
+    cglucosesimp4_conflict,
+    cglucosesimp4_set_no_limit,
+    cglucosesimp4_set_conf_limit,
+    cglucosesimp4_set_prop_limit,
+    cglucosesimp4_n_clauses,
+    cglucosesimp4_n_assigns,
+    cglucosesimp4_n_learnts,
+);
+
 #[cfg(test)]
 mod test {
     use super::Glucose;
@@ -493,5 +545,10 @@ mod test {
         assert_eq!(solver.n_learnts(), 0);
         assert_eq!(solver.n_clauses(), 9);
         assert_eq!(solver.max_var(), Some(var![9]));
+    }
+
+    mod new {
+        use crate::core::GlucoseNewApi;
+        rustsat_solvertests::new_basic_unittests!(GlucoseNewApi, "Glucose [major].[minor].[patch]");
     }
 }
