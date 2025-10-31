@@ -409,6 +409,44 @@ impl Drop for Glucose {
     }
 }
 
+/// Interface to the Glucose solver without preprocessing
+#[derive(Debug)]
+pub struct GlucoseNewApi();
+
+/// Wrapper around the glucose handle that if it is dropped, releases the solver
+#[derive(Debug)]
+struct Handle(*mut ffi::CGlucose4);
+
+impl From<*mut ffi::CGlucose4> for Handle {
+    fn from(value: *mut ffi::CGlucose4) -> Self {
+        Self(value)
+    }
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        unsafe { crate::ffi::cglucose4_release(self.0) }
+    }
+}
+
+/// A Glucose Solver in different States
+#[derive(Debug)]
+pub struct GlucoseState<State> {
+    handle: Handle,
+    _state: State,
+}
+
+super::impl_api!(
+    GlucoseNewApi,
+    GlucoseState,
+    cglucose4_init,
+    cglucose4_reserve,
+    cglucose4_add_clause,
+    cglucose4_solve,
+    cglucose4_val,
+    cglucose4_conflict
+);
+
 #[cfg(test)]
 mod test {
     use super::Glucose;
@@ -437,5 +475,10 @@ mod test {
         assert_eq!(solver.n_learnts(), 0);
         assert_eq!(solver.n_clauses(), 9);
         assert_eq!(solver.max_var(), Some(var![9]));
+    }
+
+    mod new {
+        use crate::core::GlucoseNewApi;
+        rustsat_solvertests::new_basic_unittests!(GlucoseNewApi, "Glucose [major].[minor].[patch]");
     }
 }
