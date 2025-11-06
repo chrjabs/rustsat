@@ -753,9 +753,7 @@ where
         match self {
             ObjectiveUpdate::New(obj, subproof, _) => {
                 write!(f, "{OBJ_UPDATE_NEW} {}", ObjFormatter::from(obj))?;
-                if subproof.is_empty() {
-                    writeln!(f, "{SEP_AS_TERM}")?;
-                } else {
+                if !subproof.is_empty() {
                     writeln!(f, " {SEP_A} {SUBPROOF}")?;
                     for goal in subproof {
                         goal.format_indented(f, 2)?;
@@ -766,11 +764,7 @@ where
                 Ok(())
             }
             ObjectiveUpdate::Diff(obj, _) => {
-                write!(
-                    f,
-                    "{OBJ_UPDATE_DIFF} {}{SEP_AS_TERM}",
-                    ObjFormatter::from(obj)
-                )
+                write!(f, "{OBJ_UPDATE_DIFF} {}", ObjFormatter::from(obj))
             }
         }
     }
