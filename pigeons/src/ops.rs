@@ -10,9 +10,8 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::{AbsConstraintId, VarLike};
-
-use super::{Axiom, ConstraintId};
+#[allow(clippy::wildcard_imports)]
+use crate::{keywords::*, AbsConstraintId, Axiom, ConstraintId, VarLike};
 
 /// A sequence of operations to be added to the proof in reverse polish notation
 #[derive(Clone, Debug)]
@@ -265,11 +264,11 @@ impl<V: VarLike> fmt::Display for Operation<V> {
         match self {
             Operation::Id(id) => write!(f, "{id}"),
             Operation::Axiom(ax) => write!(f, "{ax}"),
-            Operation::Add => write!(f, "+"),
-            Operation::Mult(fact) => write!(f, "{fact} *"),
-            Operation::Div(div) => write!(f, "{div} d"),
-            Operation::Sat => write!(f, "s"),
-            Operation::Weak => write!(f, "w"),
+            Operation::Add => write!(f, "{ADD}"),
+            Operation::Mult(fact) => write!(f, "{fact} {MULT}"),
+            Operation::Div(div) => write!(f, "{div} {DIV}"),
+            Operation::Sat => write!(f, "{SATURATE}"),
+            Operation::Weak => write!(f, "{WEAKEN}"),
         }
     }
 }
