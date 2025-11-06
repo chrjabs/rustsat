@@ -9,9 +9,10 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::{OperationSequence, VarLike};
-
-use super::{unreachable_err, ConstraintLike, ObjectiveLike};
+#[allow(clippy::wildcard_imports)]
+use crate::{
+    keywords::*, unreachable_err, ConstraintLike, ObjectiveLike, OperationSequence, VarLike,
+};
 
 /// The proof problem type
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -321,7 +322,7 @@ impl<V: VarLike> Substitution<V> {
 
 impl<V: VarLike> fmt::Display for Substitution<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} -> {}", V::Formatter::from(self.var), self.sub)
+        write!(f, "{} {MAP_TO} {}", V::Formatter::from(self.var), self.sub)
     }
 }
 
@@ -350,8 +351,8 @@ impl<V: VarLike> From<bool> for SubstituteWith<V> {
 impl<V: VarLike> fmt::Display for SubstituteWith<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SubstituteWith::True => write!(f, "1"),
-            SubstituteWith::False => write!(f, "0"),
+            SubstituteWith::True => write!(f, "{TRUE}"),
+            SubstituteWith::False => write!(f, "{FALSE}"),
             SubstituteWith::Lit(lit) => write!(f, "{lit}"),
         }
     }
@@ -459,60 +460,60 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
 
 impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "def_order {}", self.name)?;
+        writeln!(f, "{ORDER_DEFINE} {}", self.name)?;
         // Variables
-        writeln!(f, "  vars")?;
+        writeln!(f, "  {ORDER_VARS}")?;
         writeln!(
             f,
-            "    left {}",
+            "    {ORDER_VARS_LEFT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
                 .format_with(" ", |v, f| f(&format_args!("u_{}", V::Formatter::from(*v))))
         )?;
         writeln!(
             f,
-            "    right {}",
+            "    {ORDER_VARS_RIGHT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
                 .format_with(" ", |v, f| f(&format_args!("v_{}", V::Formatter::from(*v))))
         )?;
-        writeln!(f, "    aux")?;
-        writeln!(f, "  end")?;
+        writeln!(f, "    {ORDER_VARS_AUX}{RULE_TERM}")?;
+        writeln!(f, "  {END}{RULE_TERM}")?;
         // Order definition
-        writeln!(f, "  def")?;
+        writeln!(f, "  {ORDER_DEFINITION}")?;
         for def in &self.definition {
             writeln!(f, "    {} ;", ConstrFormatter::from(def))?;
         }
-        writeln!(f, "  end")?;
+        writeln!(f, "  {END}{RULE_TERM}")?;
         // Proofs
-        writeln!(f, "  transitivity")?;
-        writeln!(f, "    vars")?;
+        writeln!(f, "  {ORDER_TRANSITIVITY}")?;
+        writeln!(f, "    {ORDER_VARS}")?;
         writeln!(
             f,
-            "      fresh_right {}",
+            "      {ORDER_VARS_FRESH_RIGHT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
                 .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
         )?;
-        writeln!(f, "    end")?;
-        writeln!(f, "    proof")?;
+        writeln!(f, "    {END}{RULE_TERM}")?;
+        writeln!(f, "    {PROOF}")?;
         for goal in &self.trans_proof {
             goal.format_indented(f, 6)?;
             writeln!(f)?;
         }
-        writeln!(f, "    qed")?;
-        writeln!(f, "  end")?;
+        writeln!(f, "    {QED}{RULE_TERM}")?;
+        writeln!(f, "  {END}{RULE_TERM}")?;
         if let Some(proof) = &self.refl_proof {
-            writeln!(f, "  reflexivity")?;
-            writeln!(f, "    proof")?;
+            writeln!(f, "  {ORDER_REFLEXIVITY}")?;
+            writeln!(f, "    {PROOF}")?;
             for goal in proof {
                 goal.format_indented(f, 6)?;
                 writeln!(f)?;
             }
-            writeln!(f, "    qed")?;
-            writeln!(f, "  end")?;
+            writeln!(f, "    {QED}{RULE_TERM}")?;
+            writeln!(f, "  {END}{RULE_TERM}")?;
         }
-        write!(f, "end")
+        write!(f, "{END}")
     }
 }
 
@@ -541,24 +542,14 @@ where
     C: ConstraintLike<V>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let rup = if cfg!(feature = "short-keywords") {
-            "u"
-        } else {
-            "rup"
-        };
-        let pol = if cfg!(feature = "short-keywords") {
-            "p"
-        } else {
-            "pol"
-        };
         match self {
             Derivation::Rup(constr, hints) => write!(
                 f,
-                "{rup} {} ; {}",
+                "{RUP} {} {SEP_A} {}{RULE_TERM}",
                 ConstrFormatter::from(constr),
                 hints.iter().format(" ")
             ),
-            Derivation::Operations(ops) => write!(f, "{pol} {ops}"),
+            Derivation::Operations(ops) => write!(f, "{POLISH} {ops}{RULE_TERM}"),
         }
     }
 }
@@ -639,7 +630,7 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     pub fn write_indented<W: io::Write>(&self, writer: &mut W, indent: usize) -> io::Result<()> {
         writeln!(
             writer,
-            "{:indent$}proofgoal {}",
+            "{:indent$}{PROOFGOAL} {}",
             "",
             self.id,
             indent = indent
@@ -647,7 +638,7 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
         for der in &self.derivations {
             writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
         }
-        write!(writer, "{:indent$}qed -1", "", indent = indent)
+        write!(writer, "{:indent$}{QED}{RULE_TERM}", "", indent = indent)
     }
 
     /// Formats the proof goal, indented by a number of spaces
@@ -658,7 +649,7 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
         writeln!(
             writer,
-            "{:indent$}proofgoal {}",
+            "{:indent$}{PROOFGOAL} {}",
             "",
             self.id,
             indent = indent
@@ -666,7 +657,7 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
         for der in &self.derivations {
             writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
         }
-        write!(writer, "{:indent$}qed -1", "", indent = indent)
+        write!(writer, "{:indent$}{QED}{RULE_TERM}", "", indent = indent)
     }
 }
 
@@ -708,7 +699,7 @@ impl fmt::Display for ProofGoalId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ProofGoalId::Constraint(id) => write!(f, "{id}"),
-            ProofGoalId::Specific(id) => write!(f, "#{id}"),
+            ProofGoalId::Specific(id) => write!(f, "{GOAL_ID}{id}"),
         }
     }
 }
@@ -749,20 +740,26 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ObjectiveUpdate::New(obj, subproof, _) => {
-                write!(f, "new {} ;", ObjFormatter::from(obj))?;
+                write!(f, "{OBJ_UPDATE_NEW} {}", ObjFormatter::from(obj))?;
                 if subproof.is_empty() {
-                    writeln!(f)?;
+                    writeln!(f, "{SEP_AS_TERM}")?;
                 } else {
-                    writeln!(f, " begin")?;
+                    writeln!(f, " {SEP_A} {SUBPROOF}")?;
                     for goal in subproof {
                         goal.format_indented(f, 2)?;
                         writeln!(f)?;
                     }
-                    writeln!(f, "end")?;
+                    writeln!(f, "{QED}{RULE_TERM}")?;
                 }
                 Ok(())
             }
-            ObjectiveUpdate::Diff(obj, _) => write!(f, "diff {} ;", ObjFormatter::from(obj)),
+            ObjectiveUpdate::Diff(obj, _) => {
+                write!(
+                    f,
+                    "{OBJ_UPDATE_DIFF} {}{SEP_AS_TERM}",
+                    ObjFormatter::from(obj)
+                )
+            }
         }
     }
 }
@@ -784,10 +781,12 @@ pub enum OutputGuarantee {
 impl fmt::Display for OutputGuarantee {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OutputGuarantee::None => write!(f, "NONE"),
-            OutputGuarantee::Derivable(t) => write!(f, "DERIVABLE {t}"),
-            OutputGuarantee::Equisatisfiable(t) => write!(f, "EQUISATISFIABLE {t}"),
-            OutputGuarantee::Equioptimal(t) => write!(f, "EQUIOPTIMAL {t}"),
+            OutputGuarantee::None => write!(f, "{OUTPUT_GUARANTEE_NONE}"),
+            OutputGuarantee::Derivable(t) => write!(f, "{OUTPUT_GUARANTEE_DERIVABLE} {t}"),
+            OutputGuarantee::Equisatisfiable(t) => {
+                write!(f, "{OUTPUT_GUARANTEE_EQUISATISFIABLE} {t}")
+            }
+            OutputGuarantee::Equioptimal(t) => write!(f, "{OUTPUT_GUARANTEE_EQUIOPTIMAL} {t}"),
         }
     }
 }
@@ -805,8 +804,8 @@ pub enum OutputType {
 impl fmt::Display for OutputType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OutputType::Implicit => write!(f, "IMPLICIT"),
-            OutputType::File => write!(f, "FILE"),
+            OutputType::Implicit => write!(f, "{OUTPUT_TYPE_IMPLICIT}"),
+            OutputType::File => write!(f, "{OUTPUT_TYPE_FILE}"),
         }
     }
 }
@@ -835,19 +834,19 @@ pub enum Conclusion<V: VarLike> {
 impl<V: VarLike> fmt::Display for Conclusion<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Conclusion::None => write!(f, "NONE"),
+            Conclusion::None => write!(f, "{CONCLUSION_NONE}"),
             Conclusion::Sat(sol) => {
                 if let Some(sol) = sol {
-                    write!(f, "SAT : {}", sol.iter().format(" "))
+                    write!(f, "{CONCLUSION_SAT} {SEP_B} {}", sol.iter().format(" "))
                 } else {
-                    write!(f, "SAT")
+                    write!(f, "{CONCLUSION_SAT}")
                 }
             }
             Conclusion::Unsat(id) => {
                 if let Some(id) = id {
-                    write!(f, "UNSAT : {id}")
+                    write!(f, "{CONCLUSION_UNSAT} {SEP_B} {id}")
                 } else {
-                    write!(f, "UNSAT")
+                    write!(f, "{CONCLUSION_UNSAT}")
                 }
             }
             Conclusion::Bounds {
@@ -855,13 +854,13 @@ impl<V: VarLike> fmt::Display for Conclusion<V> {
                 lb_id,
                 ub_sol,
             } => {
-                write!(f, "BOUNDS {}", range.start)?;
+                write!(f, "{CONCLUSION_BOUNDS} {}", range.start)?;
                 if let Some(id) = lb_id {
-                    write!(f, " : {id}")?;
+                    write!(f, " {SEP_B} {id}")?;
                 }
                 write!(f, " {}", range.end - 1)?;
                 if let Some(sol) = &ub_sol {
-                    write!(f, " : {}", sol.iter().format(" "))?;
+                    write!(f, " {SEP_B} {}", sol.iter().format(" "))?;
                 }
                 Ok(())
             }
