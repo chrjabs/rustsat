@@ -10,6 +10,7 @@
 //!   [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for library
 //!   types
+//! - `version2`: use VeriPB version 2 syntax instead of version 3
 //!
 //! ## Coverage of VeriPB Syntax
 //!
@@ -27,19 +28,34 @@
 //! - [x] `solx`: [`Proof::exclude_solution`]
 //! - [x] `soli`: [`Proof::improve_solution`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
+//!     - Guarantees:
+//!         - [x] `NONE`
+//!         - [x] `DERIVABLE`
+//!         - [x] `EQUISATISFIABLE`
+//!         - [x] `EQUIOPTIMAL`
+//!         - [ ] `EQUIENUMERABLE` (documented but not yet implemented in VeriPB)
+//!     - Types:
+//!         - [x] none
+//!         - [x] `FILE`
+//!         - [x] `IMPLICIT`
+//!         - [ ] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+//!         - [ ] `PERMUTATION` (documented but not yet implemented in VeriPB)
 //! - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
 //!   [`Proof::update_default_conclusion`]
 //! - [x] Sub-proofs
+//!     - [ ] `scope leq` and `scope geq` in `red` and `dom` rules
 //! - [x] `e`: [`Proof::equals`]
-//! - [x] `ea`: [`Proof::equals_add`]
+//! - [x] `ea`: [`Proof::equals_add`] (only with `version2` feature)
 //! - [x] `eobj`: [`Proof::obj_equals`]
 //! - [x] `i`: [`Proof::implied`]
 //! - [x] `ia`: [`Proof::implied_add`]
-//! - [x] `#`: [`Proof::set_level`]
-//! - [x] `w`: [`Proof::wipe_level`]
+//! - [x] `setlvl` (previously `#`): [`Proof::set_level`]
+//! - [x] `wiplvl` (previously `w`): [`Proof::wipe_level`]
 //! - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
 //! - [x] `def_order`
 //! - [x] `load_order`
+//! - [ ] `pbc`
+//! - [ ] `@` constraint labels
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -230,13 +246,15 @@ where
     }
 
     /// Writes a sub-proof, if the iterator is not empty
-    fn write_subproof<V, C, PI>(&mut self, proof: PI) -> std::io::Result<()>
+    fn write_subproof<V, C, PI>(
+        &mut self,
+        mut proof: std::iter::Peekable<PI>,
+    ) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
+        PI: Iterator<Item = SubproofElement<V, C>>,
     {
-        let mut proof = proof.into_iter().peekable();
         if proof.peek().is_some() {
             self.next_id += 1; // negated `constr`
             writeln!(self.writer, " {SEP_A} {SUBPROOF}")?;
@@ -409,7 +427,16 @@ where
             "{DEL_ID} {} {SEP_AS_TERM}",
             ids.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
+        #[cfg(not(feature = "version2"))]
+        {
+            let mut proof = proof.into_iter().peekable();
+            if proof.peek().is_some() {
+                write!(self.writer, "{SEP_A}")?;
+            }
+            self.write_subproof(proof)?;
+        }
+        #[cfg(feature = "version2")]
+        self.write_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")
     }
 
@@ -565,7 +592,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
+        self.write_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")?;
         Ok(self.new_id())
     }
@@ -597,7 +624,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
+        self.write_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")?;
         Ok(self.new_id())
     }
@@ -838,6 +865,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
+    #[cfg(feature = "version2")]
     pub fn equals_add<V, C>(
         &mut self,
         constraint: &C,
@@ -1140,6 +1168,7 @@ mod tests {
         .expect("failed to start proof");
         drop(proof);
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        #[cfg(feature = "version2")]
         assert_eq!(
             output,
             r"pseudo-Boolean proof version 2.0
@@ -1147,6 +1176,16 @@ f 0
 output NONE
 conclusion UNSAT : -1
 end pseudo-Boolean proof
+"
+        );
+        #[cfg(not(feature = "version2"))]
+        assert_eq!(
+            output,
+            r"pseudo-Boolean proof version 3.0
+f 0;
+output NONE;
+conclusion UNSAT : -1;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1163,6 +1202,7 @@ end pseudo-Boolean proof
         );
         drop(proof);
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        #[cfg(feature = "version2")]
         assert_eq!(
             output,
             r"pseudo-Boolean proof version 2.0
@@ -1170,6 +1210,16 @@ f 0
 output NONE
 conclusion UNSAT : -1
 end pseudo-Boolean proof
+"
+        );
+        #[cfg(not(feature = "version2"))]
+        assert_eq!(
+            output,
+            r"pseudo-Boolean proof version 3.0
+f 0;
+output NONE;
+conclusion UNSAT : -1;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1185,6 +1235,7 @@ end pseudo-Boolean proof
             .unwrap();
         drop(proof);
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        #[cfg(feature = "version2")]
         assert_eq!(
             output,
             r"pseudo-Boolean proof version 2.0
@@ -1194,6 +1245,18 @@ f 0
 output NONE
 conclusion NONE
 end pseudo-Boolean proof
+"
+        );
+        #[cfg(not(feature = "version2"))]
+        assert_eq!(
+            output,
+            r"pseudo-Boolean proof version 3.0
+f 0;
+% this is a
+% multiline comment
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1241,6 +1304,7 @@ end pseudo-Boolean proof
             .unwrap();
         drop(proof);
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
+        #[cfg(feature = "version2")]
         assert_eq!(
             output,
             format!(
@@ -1251,6 +1315,20 @@ f 0
 output NONE
 conclusion NONE
 end pseudo-Boolean proof
+"
+            )
+        );
+        #[cfg(not(feature = "version2"))]
+        assert_eq!(
+            output,
+            format!(
+                "pseudo-Boolean proof version 3.0
+f 0;
+{RUP} 3 x1 -42 ~x2 >= 2 ;
+{RUP} 5 x3 -12 ~x4 >= 3 : -1 42;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
 "
             )
         );

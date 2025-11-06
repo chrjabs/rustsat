@@ -1,0 +1,10 @@
+pseudo-Boolean proof version 3.0
+f 4;
+strengthening_to_core on;
+red 1 ~x3 2 x4 2 x5 2 x6 >= 4 : : subproof
+pol 3 4 + 5 +;
+	proofgoal #1
+		rup >= 1 : 6;
+	qed : 8;
+qed;
+red 1 x3 >= 1 : x3 -> 1 : subproof

@@ -206,6 +206,7 @@ fn implication_weaker() {
     proof
         .equals(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), None)
         .unwrap();
+    #[cfg(feature = "version2")]
     proof
         .equals_add(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::last(1)))
         .unwrap();
@@ -375,6 +376,8 @@ fn strengthening_to_core_proof_by_contradiction() {
             )],
         )
         .unwrap();
+    // FIXME: add pbc for version3 once supported
+    #[cfg(feature = "version2")]
     proof
         .redundant(
             &Constr::parse("1 x3 >= 1"),

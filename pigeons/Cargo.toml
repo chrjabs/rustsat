@@ -23,6 +23,7 @@ tempfile.workspace = true
 
 [features]
 serde = ["dep:serde"]
+version2 = []
 _test = ["serde"]
 _docs = ["serde"]
 
