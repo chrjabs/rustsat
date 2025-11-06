@@ -4,6 +4,8 @@
 
 use itertools::Itertools;
 
+#[allow(clippy::wildcard_imports)]
+use crate::keywords::*;
 use crate::AbsConstraintId;
 use crate::Axiom;
 use crate::ConstraintId;
@@ -260,11 +262,11 @@ impl<V: VarLike> std::fmt::Display for Operation<V> {
         match self {
             Operation::Id(id) => write!(f, "{id}"),
             Operation::Axiom(ax) => write!(f, "{ax}"),
-            Operation::Add => write!(f, "+"),
-            Operation::Mult(fact) => write!(f, "{fact} *"),
-            Operation::Div(div) => write!(f, "{div} d"),
-            Operation::Sat => write!(f, "s"),
-            Operation::Weak => write!(f, "w"),
+            Operation::Add => write!(f, "{ADD}"),
+            Operation::Mult(fact) => write!(f, "{fact} {MULT}"),
+            Operation::Div(div) => write!(f, "{div} {DIV}"),
+            Operation::Sat => write!(f, "{SATURATE}"),
+            Operation::Weak => write!(f, "{WEAKEN}"),
         }
     }
 }
