@@ -1,0 +1,10 @@
+pseudo-Boolean proof version 2.0
+f 4
+strengthening_to_core on
+red 1 ~x3 2 x4 2 x5 2 x6 >= 4 ;  ; begin
+  pol 3 4 + -1 +
+qed
+red 1 x3 >= 1 ; x3 -> 1
+output NONE
+conclusion NONE
+end pseudo-Boolean proof

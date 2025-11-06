@@ -17,6 +17,7 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
   [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and
   [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for library
   types
+- `version2`: use VeriPB version 2 syntax instead of version 3
 
 ## Coverage of VeriPB Syntax
 
@@ -34,18 +35,33 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `solx`: [`Proof::exclude_solution`]
 - [x] `soli`: [`Proof::improve_solution`]
 - [x] `output`: [`Proof::output`], [`Proof::conclude`]
+    - Guarantees:
+        - [x] `NONE`
+        - [x] `DERIVABLE`
+        - [x] `EQUISATISFIABLE`
+        - [x] `EQUIOPTIMAL`
+        - [ ] `EQUIENUMERABLE` (documented but not yet implemented in VeriPB)
+    - Types:
+        - [x] none
+        - [x] `FILE`
+        - [x] `IMPLICIT`
+        - [ ] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+        - [ ] `PERMUTATION` (documented but not yet implemented in VeriPB)
 - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
   [`Proof::update_default_conclusion`]
 - [x] Sub-proofs
+    - [ ] `scope leq` and `scope geq` in `red` and `dom` rules
 - [x] `e`: [`Proof::equals`]
-- [x] `ea`: [`Proof::equals_add`]
+- [x] `ea`: [`Proof::equals_add`] (only with `version2` feature)
 - [x] `eobj`: [`Proof::obj_equals`]
 - [x] `i`: [`Proof::implied`]
 - [x] `ia`: [`Proof::implied_add`]
-- [x] `#`: [`Proof::set_level`]
-- [x] `w`: [`Proof::wipe_level`]
+- [x] `setlvl` (previously `#`): [`Proof::set_level`]
+- [x] `wiplvl` (previously `w`): [`Proof::wipe_level`]
 - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
 - [x] `def_order`
 - [x] `load_order`
+- [ ] `pbc`
+- [ ] `@` constraint labels
 
 <!-- cargo-rdme end -->

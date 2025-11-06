@@ -11,12 +11,23 @@ macro_rules! keyword {
             $lval
         };
     };
+    ($name:ident, v2 = $valv2:literal, v3 = $valv3:literal) => {
+        pub const $name: &str = if cfg!(feature = "version2") {
+            $valv2
+        } else {
+            $valv3
+        };
+    };
 }
 
 // General file layout
-keyword!(HEADER, "pseudo-Boolean proof version 2.0");
+keyword!(
+    HEADER,
+    v2 = "pseudo-Boolean proof version 2.0",
+    v3 = "pseudo-Boolean proof version 3.0"
+);
 keyword!(FOOTER, "end pseudo-Boolean proof");
-keyword!(SUBPROOF, "begin");
+keyword!(SUBPROOF, v2 = "begin", v3 = "subproof");
 keyword!(END, "end");
 keyword!(OUTPUT, "output");
 keyword!(CONCLUSION, "conclusion");
@@ -26,15 +37,15 @@ keyword!(PROOFGOAL, "proofgoal");
 
 // Syntax delimiters
 // keep-sorted start
-keyword!(COMMENT, "*");
+keyword!(COMMENT, v2 = "*", v3 = "%");
 keyword!(FALSE, "0");
 keyword!(GOAL_ID, "#");
 keyword!(MAP_TO, "->");
 keyword!(OFF, "off");
 keyword!(ON, "on");
-keyword!(RULE_TERM, "");
-keyword!(SEP_A, ";");
-keyword!(SEP_AS_TERM, ";");
+keyword!(RULE_TERM, v2 = "", v3 = ";");
+keyword!(SEP_A, v2 = ";", v3 = ":");
+keyword!(SEP_AS_TERM, v2 = ";", v3 = "");
 keyword!(SEP_B, ":");
 keyword!(TRUE, "1");
 // keep-sorted end
@@ -50,11 +61,10 @@ keyword!(DEL_RANGE, "del range");
 keyword!(DEL_SPEC, "del spec");
 keyword!(DOMINATED, "dom");
 keyword!(EQUALS, "e");
-keyword!(EQUALS_ADD, "ea");
 keyword!(IMPLIED, "i");
 keyword!(IMPLIED_ADD, "ia");
-keyword!(LEVEL_SET, "#");
-keyword!(LEVEL_WIPE, "w");
+keyword!(LEVEL_SET, v2 = "#", v3 = "setlvl");
+keyword!(LEVEL_WIPE, v2 = "w", v3 = "wiplvl");
 keyword!(NUM_CONSTRAINTS, "f");
 keyword!(OBJ_EQUAL, "eobj");
 keyword!(OBJ_UPDATE, "obju");
@@ -70,6 +80,8 @@ keyword!(SOLUTION_EXCLUDE, "solx");
 keyword!(SOLUTION_IMPROVE, "soli");
 keyword!(STRENGTHENING_TO_CORE, "strengthening_to_core");
 // keep-sorted end
+#[cfg(feature = "version2")]
+keyword!(EQUALS_ADD, "ea");
 
 // Order definition
 // keep-sorted start

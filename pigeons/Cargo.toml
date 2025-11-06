@@ -24,4 +24,5 @@ tempfile.workspace = true
 [features]
 short-keywords = []
 serde = ["dep:serde"]
+version2 = []
 _test = ["short-keywords", "serde"]
