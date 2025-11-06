@@ -7,9 +7,9 @@ macro_rules! keyword {
 }
 
 // General file layout
-keyword!(HEADER, "pseudo-Boolean proof version 2.0");
+keyword!(HEADER, "pseudo-Boolean proof version 3.0");
 keyword!(FOOTER, "end pseudo-Boolean proof");
-keyword!(SUBPROOF, "begin");
+keyword!(SUBPROOF, "subproof");
 keyword!(END, "end");
 keyword!(OUTPUT, "output");
 keyword!(CONCLUSION, "conclusion");
@@ -19,15 +19,14 @@ keyword!(PROOFGOAL, "proofgoal");
 
 // Syntax delimiters
 // keep-sorted start
-keyword!(COMMENT, "*");
+keyword!(COMMENT, "%");
 keyword!(FALSE, "0");
 keyword!(GOAL_ID, "#");
 keyword!(MAP_TO, "->");
 keyword!(OFF, "off");
 keyword!(ON, "on");
-keyword!(RULE_TERM, "");
-keyword!(SEP_A, ";");
-keyword!(SEP_AS_TERM, ";");
+keyword!(RULE_TERM, ";");
+keyword!(SEP_A, ":");
 keyword!(SEP_B, ":");
 keyword!(TRUE, "1");
 // keep-sorted end
@@ -43,11 +42,10 @@ keyword!(DEL_RANGE, "del range");
 keyword!(DEL_SPEC, "del spec");
 keyword!(DOMINATED, "dom");
 keyword!(EQUALS, "e");
-keyword!(EQUALS_ADD, "ea");
 keyword!(IMPLIED, "i");
 keyword!(IMPLIED_ADD, "ia");
-keyword!(LEVEL_SET, "#");
-keyword!(LEVEL_WIPE, "w");
+keyword!(LEVEL_SET, "setlvl");
+keyword!(LEVEL_WIPE, "wiplvl");
 keyword!(NUM_CONSTRAINTS, "f");
 keyword!(OBJ_EQUAL, "eobj");
 keyword!(OBJ_UPDATE, "obju");

@@ -206,9 +206,6 @@ fn implication_weaker() {
     proof
         .equals(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), None)
         .unwrap();
-    proof
-        .equals_add(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::last(1)))
-        .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
         .unwrap();
@@ -375,13 +372,7 @@ fn strengthening_to_core_proof_by_contradiction() {
             )],
         )
         .unwrap();
-    proof
-        .redundant(
-            &Constr::parse("1 x3 >= 1"),
-            ["x3".substitute_fixed(true)],
-            None,
-        )
-        .unwrap();
+    // FIXME: add pbc for version3 once supported
     let proof_file = proof
         .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
         .unwrap();

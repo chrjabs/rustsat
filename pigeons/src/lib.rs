@@ -27,19 +27,33 @@
 //! - [x] `solx`: [`Proof::exclude_solution`]
 //! - [x] `soli`: [`Proof::improve_solution`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
+//!     - Guarantees:
+//!         - [x] `NONE`
+//!         - [x] `DERIVABLE`
+//!         - [x] `EQUISATISFIABLE`
+//!         - [x] `EQUIOPTIMAL`
+//!         - [ ] `EQUIENUMERABLE` (documented but not yet implemented in VeriPB)
+//!     - Types:
+//!         - [x] none
+//!         - [x] `FILE`
+//!         - [x] `IMPLICIT`
+//!         - [ ] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+//!         - [ ] `PERMUTATION` (documented but not yet implemented in VeriPB)
 //! - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
 //!   [`Proof::update_default_conclusion`]
 //! - [x] Sub-proofs
+//!     - [ ] `scope leq` and `scope geq` in `red` and `dom` rules
 //! - [x] `e`: [`Proof::equals`]
-//! - [x] `ea`: [`Proof::equals_add`]
 //! - [x] `eobj`: [`Proof::obj_equals`]
 //! - [x] `i`: [`Proof::implied`]
 //! - [x] `ia`: [`Proof::implied_add`]
-//! - [x] `#`: [`Proof::set_level`]
-//! - [x] `w`: [`Proof::wipe_level`]
+//! - [x] `setlvl` (previously `#`): [`Proof::set_level`]
+//! - [x] `wiplvl` (previously `w`): [`Proof::wipe_level`]
 //! - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
 //! - [x] `def_order`
 //! - [x] `load_order`
+//! - [ ] `pbc`
+//! - [ ] `@` constraint labels
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -230,13 +244,15 @@ where
     }
 
     /// Writes a sub-proof, if the iterator is not empty
-    fn write_subproof<V, C, PI>(&mut self, proof: PI) -> std::io::Result<()>
+    fn write_subproof<V, C, PI>(
+        &mut self,
+        mut proof: std::iter::Peekable<PI>,
+    ) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
+        PI: Iterator<Item = SubproofElement<V, C>>,
     {
-        let mut proof = proof.into_iter().peekable();
         if proof.peek().is_some() {
             self.next_id += 1; // negated `constr`
             writeln!(self.writer, " {SEP_A} {SUBPROOF}")?;
@@ -379,7 +395,7 @@ where
         } else {
             writeln!(
                 self.writer,
-                "{RUP} {} {SEP_AS_TERM}{RULE_TERM}",
+                "{RUP} {}{RULE_TERM}",
                 ConstrFormatter::from(constr)
             )?;
         }
@@ -404,11 +420,11 @@ where
         II: IntoIterator<Item = ConstraintId>,
         PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
-        write!(
-            self.writer,
-            "{DEL_ID} {} {SEP_AS_TERM}",
-            ids.into_iter().format(" ")
-        )?;
+        write!(self.writer, "{DEL_ID} {} ", ids.into_iter().format(" "))?;
+        let mut proof = proof.into_iter().peekable();
+        if proof.peek().is_some() {
+            write!(self.writer, "{SEP_A}")?;
+        }
         self.write_subproof(proof)?;
         writeln!(self.writer, "{RULE_TERM}")
     }
@@ -429,7 +445,7 @@ where
     {
         writeln!(
             self.writer,
-            "{DEL_SPEC} {} {SEP_AS_TERM}{RULE_TERM}",
+            "{DEL_SPEC} {} {RULE_TERM}",
             ConstrFormatter::from(constr)
         )
     }
@@ -565,7 +581,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
+        self.write_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")?;
         Ok(self.new_id())
     }
@@ -597,7 +613,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
+        self.write_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")?;
         Ok(self.new_id())
     }
@@ -822,45 +838,10 @@ where
         } else {
             writeln!(
                 self.writer,
-                "{EQUALS} {} {SEP_AS_TERM}{RULE_TERM}",
+                "{EQUALS} {} {RULE_TERM}",
                 ConstrFormatter::from(constraint)
             )
         }
-    }
-
-    /// Checks whether a constraint is equal to a constraint that is already in the database and
-    /// adds the constraint
-    ///
-    /// # Proof Log
-    ///
-    /// Writes a `ea`-rule line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails.
-    pub fn equals_add<V, C>(
-        &mut self,
-        constraint: &C,
-        equals: Option<ConstraintId>,
-    ) -> std::io::Result<AbsConstraintId>
-    where
-        V: VarLike,
-        C: ConstraintLike<V>,
-    {
-        if let Some(id) = equals {
-            writeln!(
-                self.writer,
-                "{EQUALS_ADD} {} {SEP_A} {id}{RULE_TERM}",
-                ConstrFormatter::from(constraint)
-            )?;
-        } else {
-            writeln!(
-                self.writer,
-                "{EQUALS_ADD} {} {SEP_AS_TERM}{RULE_TERM}",
-                ConstrFormatter::from(constraint)
-            )?;
-        }
-        Ok(self.new_id())
     }
 
     /// Checks whether the given objective is equal to the current objective
@@ -884,7 +865,7 @@ where
         assert!(matches!(self.problem_type, ProblemType::Optimization));
         writeln!(
             self.writer,
-            "{OBJ_EQUAL} {} {SEP_AS_TERM}{RULE_TERM}",
+            "{OBJ_EQUAL} {} {RULE_TERM}",
             ObjFormatter::from(objective)
         )
     }
@@ -916,7 +897,7 @@ where
         } else {
             writeln!(
                 self.writer,
-                "{IMPLIED} {} {SEP_AS_TERM}{RULE_TERM}",
+                "{IMPLIED} {} {RULE_TERM}",
                 ConstrFormatter::from(constraint)
             )
         }
@@ -949,7 +930,7 @@ where
         } else {
             writeln!(
                 self.writer,
-                "{IMPLIED_ADD} {} {SEP_AS_TERM}{RULE_TERM}",
+                "{IMPLIED_ADD} {} {RULE_TERM}",
                 ConstrFormatter::from(constraint)
             )?;
         }
@@ -1142,11 +1123,11 @@ mod tests {
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
             output,
-            r"pseudo-Boolean proof version 2.0
-f 0
-output NONE
-conclusion UNSAT : -1
-end pseudo-Boolean proof
+            r"pseudo-Boolean proof version 3.0
+f 0;
+output NONE;
+conclusion UNSAT : -1;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1165,11 +1146,11 @@ end pseudo-Boolean proof
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
             output,
-            r"pseudo-Boolean proof version 2.0
-f 0
-output NONE
-conclusion UNSAT : -1
-end pseudo-Boolean proof
+            r"pseudo-Boolean proof version 3.0
+f 0;
+output NONE;
+conclusion UNSAT : -1;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1187,13 +1168,13 @@ end pseudo-Boolean proof
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
             output,
-            r"pseudo-Boolean proof version 2.0
-f 0
-* this is a
-* multiline comment
-output NONE
-conclusion NONE
-end pseudo-Boolean proof
+            r"pseudo-Boolean proof version 3.0
+f 0;
+% this is a
+% multiline comment
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1244,13 +1225,13 @@ end pseudo-Boolean proof
         assert_eq!(
             output,
             format!(
-                "pseudo-Boolean proof version 2.0
-f 0
-{RUP} 3 x1 -42 ~x2 >= 2 ;
-{RUP} 5 x3 -12 ~x4 >= 3 ; -1 42
-output NONE
-conclusion NONE
-end pseudo-Boolean proof
+                "pseudo-Boolean proof version 3.0
+f 0;
+{RUP} 3 x1 -42 ~x2 >= 2;
+{RUP} 5 x3 -12 ~x4 >= 3 : -1 42;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
 "
             )
         );
