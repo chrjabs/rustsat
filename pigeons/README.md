@@ -33,18 +33,32 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `solx`: [`Proof::exclude_solution`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.exclude_solution)
 - [x] `soli`: [`Proof::improve_solution`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.improve_solution)
 - [x] `output`: [`Proof::output`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.output), [`Proof::conclude`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.conclude)
+    - Guarantees:
+        - [x] `NONE`
+        - [x] `DERIVABLE`
+        - [x] `EQUISATISFIABLE`
+        - [x] `EQUIOPTIMAL`
+        - [ ] `EQUIENUMERABLE` (documented but not yet implemented in VeriPB)
+    - Types:
+        - [x] none
+        - [x] `FILE`
+        - [x] `IMPLICIT`
+        - [ ] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+        - [ ] `PERMUTATION` (documented but not yet implemented in VeriPB)
 - [x] `conclusion`: [`Proof::conclude`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.conclude), [`Proof::new_with_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.new_with_conclusion),
   [`Proof::update_default_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.update_default_conclusion)
 - [x] Sub-proofs
+    - [ ] `scope leq` and `scope geq` in `red` and `dom` rules
 - [x] `e`: [`Proof::equals`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.equals)
-- [x] `ea`: [`Proof::equals_add`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.equals_add)
 - [x] `eobj`: [`Proof::obj_equals`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.obj_equals)
 - [x] `i`: [`Proof::implied`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.implied)
 - [x] `ia`: [`Proof::implied_add`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.implied_add)
-- [x] `#`: [`Proof::set_level`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.set_level)
-- [x] `w`: [`Proof::wipe_level`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.wipe_level)
+- [x] `setlvl` (previously `#`): [`Proof::set_level`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.set_level)
+- [x] `wiplvl` (previously `w`): [`Proof::wipe_level`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.wipe_level)
 - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.strengthening_to_core)
 - [x] `def_order`
 - [x] `load_order`
+- [ ] `pbc`
+- [ ] `@` constraint labels
 
 <!-- cargo-rdme end -->
