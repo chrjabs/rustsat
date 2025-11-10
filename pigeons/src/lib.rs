@@ -539,23 +539,6 @@ where
         writeln!(self.writer, "{OBJ_UPDATE} {update}{RULE_TERM}")
     }
 
-    /// Adds a set of substitutions
-    ///
-    /// # Proof Log
-    ///
-    /// Adds a substitution line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails
-    pub fn substitute<V, I>(&mut self, subs: I) -> std::io::Result<()>
-    where
-        V: VarLike,
-        I: IntoIterator<Item = Substitution<V>>,
-    {
-        writeln!(self.writer, "{}{RULE_TERM}", subs.into_iter().format(" "))
-    }
-
     /// Adds a constraint that is redundant, checked via redundance based strengthening
     ///
     /// # Proof Log
