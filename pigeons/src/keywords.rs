@@ -65,6 +65,7 @@ keyword!(OBJ_UPDATE_DIFF, "diff");
 keyword!(OBJ_UPDATE_NEW, "new");
 keyword!(ORDER_DEFINE, "def_order");
 keyword!(ORDER_LOAD, "load_order");
+keyword!(PBC, v2 = "red", v3 = "pbc");
 keyword!(POLISH, "pol");
 keyword!(REDUNDANT, "red");
 keyword!(RUP, "rup");
