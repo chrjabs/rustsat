@@ -55,7 +55,7 @@
 //! - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
 //! - [x] `def_order`
 //! - [x] `load_order`
-//! - [ ] `pbc`
+//! - [x] `pbc`
 //! - [ ] `@` constraint labels
 
 #![warn(clippy::pedantic)]
@@ -533,6 +533,40 @@ where
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
         writeln!(self.writer, "{OBJ_UPDATE} {update}{RULE_TERM}")
+    }
+
+    /// Adds a proof by contradition rule
+    ///
+    /// # Proof Log
+    ///
+    /// Adds a `pbc`-rule line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn proof_by_contradiction<V, C, PI>(
+        &mut self,
+        constr: &C,
+        proof: PI,
+    ) -> io::Result<AbsConstraintId>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+        PI: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        write!(
+            self.writer,
+            "{PBC} {} {}",
+            ConstrFormatter::from(constr),
+            if cfg!(feature = "version2") {
+                SEP_A
+            } else {
+                ""
+            },
+        )?;
+        self.write_subproof(proof)?;
+        writeln!(self.writer, "{RULE_TERM}")?;
+        Ok(self.new_id())
     }
 
     /// Adds a constraint that is redundant, checked via redundance based strengthening

@@ -61,7 +61,7 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
 - [x] `def_order`
 - [x] `load_order`
-- [ ] `pbc`
+- [x] `pbc`
 - [ ] `@` constraint labels
 
 <!-- cargo-rdme end -->
