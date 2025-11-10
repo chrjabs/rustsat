@@ -357,16 +357,13 @@ fn strengthening_to_core_proof_by_contradiction() {
     let mut proof = new_proof(4, false);
     proof.strengthening_to_core(true).unwrap();
     proof
-        .redundant(
+        .proof_by_contradiction(
             &Constr::parse("1 ~x3 2 x4 2 x5 2 x6 >= 4"),
-            [],
             [SubproofElement::Derivation(
                 (OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1 + Id::last(1)).into(),
             )],
         )
         .unwrap();
-    // FIXME: add pbc for version3 once supported
-    #[cfg(feature = "version2")]
     proof
         .redundant(
             &Constr::parse("1 x3 >= 1"),
