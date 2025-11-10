@@ -887,10 +887,11 @@ impl<V: VarLike, O: ObjectiveLike<V>> fmt::Display for ObjFormatter<'_, V, O> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}",
+            "{} {}",
             self.obj
                 .sum_iter()
-                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}")))
+                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}"))),
+            self.obj.offset()
         )
     }
 }
