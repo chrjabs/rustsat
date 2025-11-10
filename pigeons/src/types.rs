@@ -898,10 +898,11 @@ impl<V: VarLike, O: ObjectiveLike<V>> std::fmt::Display for ObjFormatter<'_, V, 
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}",
+            "{} {}",
             self.obj
                 .sum_iter()
-                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}")))
+                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}"))),
+            self.obj.offset()
         )
     }
 }
