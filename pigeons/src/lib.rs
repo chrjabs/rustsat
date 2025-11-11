@@ -38,8 +38,8 @@
 //!         - [x] none
 //!         - [x] `FILE`
 //!         - [x] `IMPLICIT`
-//!         - [ ] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
-//!         - [ ] `PERMUTATION` (documented but not yet implemented in VeriPB)
+//!         - [x] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+//!         - [x] `PERMUTATION` (documented but not yet implemented in VeriPB)
 //! - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
 //!   [`Proof::update_default_conclusion`]
 //! - [x] Sub-proofs
@@ -793,7 +793,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn output(&mut self, guarantee: OutputGuarantee) -> std::io::Result<()> {
+    pub fn output(&mut self, guarantee: &OutputGuarantee) -> std::io::Result<()> {
         writeln!(self.writer, "{OUTPUT} {guarantee}{RULE_TERM}")
     }
 
@@ -848,7 +848,7 @@ where
     /// If writing the proof fails.
     pub fn conclude<V: VarLike>(
         mut self,
-        guarantee: OutputGuarantee,
+        guarantee: &OutputGuarantee,
         conclusion: &Conclusion<V>,
     ) -> std::io::Result<Writer> {
         self.output(guarantee)?;

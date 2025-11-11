@@ -44,8 +44,8 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
         - [x] none
         - [x] `FILE`
         - [x] `IMPLICIT`
-        - [ ] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
-        - [ ] `PERMUTATION` (documented but not yet implemented in VeriPB)
+        - [x] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+        - [x] `PERMUTATION` (documented but not yet implemented in VeriPB)
 - [x] `conclusion`: [`Proof::conclude`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.conclude), [`Proof::new_with_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.new_with_conclusion),
   [`Proof::update_default_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.update_default_conclusion)
 - [x] Sub-proofs
