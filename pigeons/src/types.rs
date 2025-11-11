@@ -1,6 +1,7 @@
 //! # Most Types of the Library
 
 use std::{
+    collections::HashSet,
     fmt, io,
     marker::PhantomData,
     num::NonZeroUsize,
@@ -765,7 +766,7 @@ where
 }
 
 /// Possible output guarantees for the output section
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutputGuarantee {
     /// No guarantee
@@ -792,13 +793,28 @@ impl fmt::Display for OutputGuarantee {
 }
 
 /// Possible output types for the output section
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutputType {
     /// Implicit output
     Implicit,
     /// File output
     File,
+    /// The output is a permutation of the core constraints
+    #[cfg(not(feature = "version2"))]
+    Permutation(Vec<ConstraintId>),
+    /// The output are constraints that are explicityly given
+    #[cfg(not(feature = "version2"))]
+    Constraints {
+        /// The number of variables in the constraints that are output
+        n_vars: usize,
+        /// The number of output constraints
+        n_constraints: usize,
+        /// An optional objective in the output
+        objective: Option<String>,
+        /// The constraints to be output
+        constraints: Vec<String>,
+    },
 }
 
 impl fmt::Display for OutputType {
@@ -806,6 +822,79 @@ impl fmt::Display for OutputType {
         match self {
             OutputType::Implicit => write!(f, "{OUTPUT_TYPE_IMPLICIT}"),
             OutputType::File => write!(f, "{OUTPUT_TYPE_FILE}"),
+            #[cfg(not(feature = "version2"))]
+            OutputType::Permutation(ids) => {
+                write!(f, "{OUTPUT_TYPE_PERMUTATION} {}", ids.iter().format(" "))
+            }
+            #[cfg(not(feature = "version2"))]
+            OutputType::Constraints {
+                n_vars,
+                n_constraints,
+                objective,
+                constraints,
+            } => {
+                writeln!(f, "{OUTPUT_TYPE_CONSTRAINTS} {OPB}")?;
+                writeln!(f, "  * #variable= {n_vars} #constraint= {n_constraints}")?;
+                if let Some(objective) = objective {
+                    writeln!(f, "  {objective}{RULE_TERM}")?;
+                }
+                for constraint in constraints {
+                    writeln!(f, "  {constraint}{RULE_TERM}")?;
+                }
+                write!(f, "{END} {OPB}")?;
+                Ok(())
+            }
+        }
+    }
+}
+
+impl OutputType {
+    /// Creates a permutation output type from an iterator of core IDs
+    #[cfg(not(feature = "version2"))]
+    pub fn permutation<I>(ids: I) -> Self
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        OutputType::Permutation(ids.into_iter().collect())
+    }
+
+    /// Creates a `CONSTRAINTS` conclusion
+    ///
+    /// This counts the number of constraints and variables in the constraints automatically
+    #[cfg(not(feature = "version2"))]
+    pub fn constraints<V, C, O, I>(constraints: I, objective: Option<O>) -> Self
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+        O: ObjectiveLike<V>,
+        I: IntoIterator<Item = C>,
+    {
+        let mut vars: HashSet<String> = HashSet::default();
+        let objective = if let Some(objective) = objective {
+            vars.extend(
+                objective
+                    .sum_iter()
+                    .map(|(_, v)| format!("{}", V::Formatter::from(v.var()))),
+            );
+            Some(format!("{}", ObjFormatter::from(&objective)))
+        } else {
+            None
+        };
+        let constraints: Vec<_> = constraints
+            .into_iter()
+            .map(|c| {
+                vars.extend(
+                    c.sum_iter()
+                        .map(|(_, v)| format!("{}", V::Formatter::from(v.var()))),
+                );
+                format!("{}", ConstrFormatter::from(&c))
+            })
+            .collect();
+        Self::Constraints {
+            n_vars: vars.len(),
+            n_constraints: constraints.len(),
+            objective,
+            constraints,
         }
     }
 }

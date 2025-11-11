@@ -760,7 +760,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn output(&mut self, guarantee: OutputGuarantee) -> io::Result<()> {
+    pub fn output(&mut self, guarantee: &OutputGuarantee) -> io::Result<()> {
         writeln!(self.writer, "{OUTPUT} {guarantee}{RULE_TERM}")
     }
 
@@ -815,7 +815,7 @@ where
     /// If writing the proof fails.
     pub fn conclude<V: VarLike>(
         mut self,
-        guarantee: OutputGuarantee,
+        guarantee: &OutputGuarantee,
         conclusion: &Conclusion<V>,
     ) -> io::Result<Writer> {
         self.output(guarantee)?;

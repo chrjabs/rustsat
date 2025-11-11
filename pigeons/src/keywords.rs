@@ -109,6 +109,12 @@ keyword!(OUTPUT_GUARANTEE_NONE, "NONE");
 keyword!(OUTPUT_TYPE_FILE, "FILE");
 keyword!(OUTPUT_TYPE_IMPLICIT, "IMPLICIT");
 // keep-sorted end
+#[cfg(not(feature = "version2"))]
+keyword!(OPB, "opb");
+#[cfg(not(feature = "version2"))]
+keyword!(OUTPUT_TYPE_CONSTRAINTS, "CONSTRAINTS");
+#[cfg(not(feature = "version2"))]
+keyword!(OUTPUT_TYPE_PERMUTATION, "PERMUTATION");
 
 // Operations
 // keep-sorted start

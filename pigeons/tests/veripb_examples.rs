@@ -169,7 +169,7 @@ fn all_diff() {
     let contrad = proof.operations(&(OpsSeq::from(new1) + new2)).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
-            OutputGuarantee::None,
+            &OutputGuarantee::None,
             &Conclusion::Unsat(Some(contrad.into())),
         )
         .unwrap();
@@ -200,7 +200,7 @@ fn implication_weaker() {
         .equals_add(&Constr::parse("1 x1 2 x2 4 x3 >= 3"), Some(Id::last(1)))
         .unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
@@ -322,7 +322,7 @@ fn g3_g5() {
         .unwrap();
     proof.wipe_level(1).unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/g3-g5.opb"), proof_file.path());
@@ -343,7 +343,7 @@ fn strengthening_to_core() {
         )
         .unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
@@ -372,7 +372,7 @@ fn strengthening_to_core_proof_by_contradiction() {
         )
         .unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
@@ -424,7 +424,7 @@ fn subproof() {
         .reverse_unit_prop(&Constr::parse(">= 1"), None)
         .unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::Unsat(Some(id.into())))
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::Unsat(Some(id.into())))
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/subproof.opb"), proof_file.path());
@@ -495,7 +495,7 @@ fn decision_sat() {
         .unwrap();
     let proof_file = proof
         .conclude(
-            OutputGuarantee::None,
+            &OutputGuarantee::None,
             &Conclusion::Sat(Some(vec![
                 "x1".pos_axiom(),
                 "x2".pos_axiom(),
@@ -537,7 +537,7 @@ fn optimization_2() {
         .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
-            OutputGuarantee::None,
+            &OutputGuarantee::None,
             &Conclusion::Bounds {
                 range: -2..-1,
                 lb_id: None,
@@ -592,7 +592,7 @@ fn deletion_multiple() {
         .reverse_unit_prop(&Constr::parse("2 x1 2 x2 1 x3 1 x4 >= 2"), None)
         .unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path())
@@ -633,7 +633,7 @@ fn deletion_range() {
         .unwrap();
     proof.delete_id_range(Id::from(a)..=Id::from(e)).unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path())
@@ -658,7 +658,7 @@ fn deletion_multiple_derived() {
         .unwrap();
     proof.delete_derived_ids([a.into(), b.into()]).unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path())
@@ -669,7 +669,7 @@ fn deletion_multiple_core() {
     let mut proof = new_proof(3, false);
     proof.delete_core_ids([Id::abs(2), Id::abs(3)]).unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
@@ -742,7 +742,7 @@ fn deletion_find() {
     proof.delete_constr(&constr).unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
@@ -793,7 +793,7 @@ fn objective_update_diff() {
         .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
-            OutputGuarantee::None,
+            &OutputGuarantee::None,
             &Conclusion::Bounds {
                 range: 2..3,
                 lb_id: None,
@@ -851,7 +851,7 @@ fn objective_update() {
         .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
-            OutputGuarantee::None,
+            &OutputGuarantee::None,
             &Conclusion::Bounds {
                 range: 2..3,
                 lb_id: None,
@@ -925,7 +925,7 @@ fn dominance_simple_order() {
         .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
         .unwrap();
     let proof_file = proof
-        .conclude::<&'static str>(OutputGuarantee::None, &Conclusion::None)
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
@@ -954,7 +954,63 @@ fn output_file() {
     proof.move_ids_to_core([a.into(), b.into()]).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
-            OutputGuarantee::Derivable(OutputType::File),
+            &OutputGuarantee::Derivable(OutputType::File),
+            &Conclusion::None,
+        )
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_output(
+        format!("{manifest}/data/empty.opb"),
+        proof_file.path(),
+        format!("{manifest}/data/derived.opb"),
+    )
+}
+
+#[test]
+fn output_constraints() {
+    let mut proof = new_proof(0, false);
+    let constr_a = Constr::parse("1 ~x1 >= 1");
+    let a = proof
+        .redundant(&constr_a, [Substitution::from("x1".neg_axiom())], None)
+        .unwrap();
+    let constr_b = Constr::parse("1 ~x2 >= 1");
+    let b = proof
+        .redundant(&constr_b, [Substitution::from("x2".neg_axiom())], None)
+        .unwrap();
+    proof.move_ids_to_core([a.into(), b.into()]).unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(
+            &OutputGuarantee::Derivable(OutputType::constraints(
+                [constr_a, constr_b],
+                Option::<Obj>::None,
+            )),
+            &Conclusion::None,
+        )
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path())
+}
+
+#[test]
+fn output_permutation() {
+    let mut proof = new_proof(0, false);
+    let a = proof
+        .redundant(
+            &Constr::parse("1 ~x1 >= 1"),
+            [Substitution::from("x1".neg_axiom())],
+            None,
+        )
+        .unwrap();
+    let b = proof
+        .redundant(
+            &Constr::parse("1 ~x2 >= 1"),
+            [Substitution::from("x2".neg_axiom())],
+            None,
+        )
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(
+            &OutputGuarantee::Derivable(OutputType::permutation([a.into(), b.into()])),
             &Conclusion::None,
         )
         .unwrap();
