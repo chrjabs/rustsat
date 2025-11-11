@@ -1414,7 +1414,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1448,7 +1448,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1486,7 +1486,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1530,7 +1530,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1662,7 +1662,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1702,7 +1702,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1742,7 +1742,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1782,7 +1782,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1822,7 +1822,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
@@ -1864,7 +1864,7 @@ mod tests {
         }
 
         let proof_file = proof
-            .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+            .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
             .unwrap();
         let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
