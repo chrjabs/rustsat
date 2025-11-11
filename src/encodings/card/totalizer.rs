@@ -1303,7 +1303,7 @@ mod tests {
             )
             .unwrap();
             let proof_file = proof
-                .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+                .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
                 .unwrap();
             verify_proof(&inst_path, proof_file.path());
         }
