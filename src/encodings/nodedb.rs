@@ -520,37 +520,13 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     where
         Self: Sized,
     {
-        debug_assert!(!cons.is_empty());
-
-        if cons.len() == 1 {
-            return cons[0];
-        }
-
-        let total_sum = cons.iter().fold(0, |sum, &con| sum + self.con_len(con));
-        let mut split = 1;
-        let mut lsum = self.con_len(cons[0]);
-        while lsum + self.con_len(cons[split]) < total_sum / 2 {
-            lsum += self.con_len(cons[split]);
-            split += 1;
-        }
-
-        let lcon = self.merge_balanced(&cons[..split]);
-        let rcon = self.merge_balanced(&cons[split..]);
-
-        if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier() {
-            let weight = lcon.multiplier();
-            let lcon = NodeCon {
-                multiplier: unreachable_none!(NonZeroUsize::new(1)),
-                ..lcon
-            };
-            let rcon = NodeCon {
-                multiplier: unreachable_none!(NonZeroUsize::new(1)),
-                ..rcon
-            };
-            NodeCon::weighted(self.insert(Self::Node::internal(lcon, rcon, self)), weight)
-        } else {
-            NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
-        }
+        let cum_weight = cons
+            .iter()
+            .fold(Vec::with_capacity(cons.len()), |mut cum_weight, con| {
+                cum_weight.push(cum_weight.last().copied().unwrap_or(0) + self.con_len(*con));
+                cum_weight
+            });
+        merge_balanced_recursive(self, cons, &cum_weight, 0)
     }
 
     /// Merges the given connections according to the following strategy: sort
@@ -611,6 +587,53 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         Self: Sized,
     {
         LeafIter::new(self, node)
+    }
+}
+
+fn merge_balanced_recursive<NDb>(
+    db: &mut NDb,
+    cons: &[NodeCon],
+    cum_weight: &[usize],
+    offset: usize,
+) -> NodeCon
+where
+    NDb: NodeById,
+{
+    debug_assert!(!cons.is_empty());
+
+    if cons.len() == 1 {
+        return cons[0];
+    }
+
+    let threshold = (cum_weight[cum_weight.len() - 1] - offset) / 2 + offset;
+    let (split, _) = cum_weight
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find(|&(_, &val)| val >= threshold)
+        .unwrap();
+
+    let lcon = merge_balanced_recursive(db, &cons[..split], &cum_weight[..split], offset);
+    let rcon = merge_balanced_recursive(
+        db,
+        &cons[split..],
+        &cum_weight[split..],
+        cum_weight[split - 1],
+    );
+
+    if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier() {
+        let weight = lcon.multiplier();
+        let lcon = NodeCon {
+            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+            ..lcon
+        };
+        let rcon = NodeCon {
+            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+            ..rcon
+        };
+        NodeCon::weighted(db.insert(NDb::Node::internal(lcon, rcon, db)), weight)
+    } else {
+        NodeCon::full(db.insert(NDb::Node::internal(lcon, rcon, db)))
     }
 }
 
