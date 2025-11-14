@@ -444,6 +444,7 @@
                   cargo-valgrind
                   config.treefmt.build.wrapper
                   git-cliff
+                  gungraun-runner
                   kani
                   maturin
                   release-plz

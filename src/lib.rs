@@ -86,7 +86,7 @@
 //! | `serde` | Add implementations for [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for many library types |
 //! | `proof-logging` | Add proof logging / certification support to constraint encodings |
 //! | `verbose-proofs` | Make the generated proofs (see `proof-logging`) more verbose, for debugging and testing |
-//! | `bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
+//! | `_bench` | Enable benchmark tests. Behind feature flag since it requires unstable Rust. |
 //! | `_internals` | Make some internal data structures for e.g. encodings public. This is useful when basing a more complex encoding on the RustSAT implementation of another encoding. Note that the internal API might change between releases. |
 //!
 //! ## Examples
@@ -105,7 +105,7 @@
 //! sure to pin a precise version of RustSAT.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(feature = "bench", feature(test))]
+#![cfg_attr(feature = "_bench", feature(test))]
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
@@ -130,7 +130,7 @@ pub mod utils;
 #[error("action not allowed: {0}")]
 pub struct NotAllowed(&'static str);
 
-#[cfg(feature = "bench")]
+#[cfg(feature = "_bench")]
 #[cfg(test)]
 mod bench;
 
