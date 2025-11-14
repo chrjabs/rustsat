@@ -140,19 +140,22 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("tot_tree 20", |b| {
         b.iter(|| {
             let mut db = Db::default();
-            db.lit_tree(black_box(&THOUSAND_LITS[..20]));
+            db.lit_tree(black_box(THOUSAND_LITS.iter().copied().take(20)))
+                .unwrap();
         })
     });
     c.bench_function("tot_tree 100", |b| {
         b.iter(|| {
             let mut db = Db::default();
-            db.lit_tree(black_box(&THOUSAND_LITS[..100]));
+            db.lit_tree(black_box(THOUSAND_LITS.iter().copied().take(100)))
+                .unwrap();
         })
     });
     c.bench_function("tot_tree 1000", |b| {
         b.iter(|| {
             let mut db = Db::default();
-            db.lit_tree(black_box(&THOUSAND_LITS[..1000]));
+            db.lit_tree(black_box(THOUSAND_LITS.iter().copied()))
+                .unwrap();
         })
     });
     c.bench_function("gte_tree imbalanced", |b| {

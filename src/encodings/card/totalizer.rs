@@ -70,19 +70,18 @@ impl Totalizer {
     }
 
     fn extend_tree(&mut self) {
-        if self.lit_buffer.is_empty() {
+        let Some(new_tree) = self.db.lit_tree(self.lit_buffer.drain(..)) else {
             return;
-        }
-        let new_tree = self.db.lit_tree(&self.lit_buffer);
+        };
         self.root = Some(match self.root {
             Some(old_root) => {
                 self.db
-                    .merge(&[NodeCon::full(old_root), NodeCon::full(new_tree)])
+                    .merge(&mut [NodeCon::full(old_root), NodeCon::full(new_tree)])
+                    .unwrap()
                     .id
             }
             None => new_tree,
         });
-        self.lit_buffer.clear();
     }
 
     /// Gets the maximum depth of the tree

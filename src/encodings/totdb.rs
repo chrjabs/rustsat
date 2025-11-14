@@ -1577,7 +1577,7 @@ mod tests {
     #[test]
     fn tot_db_if() {
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
@@ -1609,7 +1609,7 @@ mod tests {
     #[test]
     fn tot_db_only_if() {
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
@@ -1641,7 +1641,7 @@ mod tests {
     #[test]
     fn tot_db_if_and_only_if() {
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);
@@ -1668,6 +1668,13 @@ mod tests {
         db.define_unweighted(root, 3, Semantics::IfAndOnlyIf, &mut cnf, &mut var_manager)
             .unwrap();
         debug_assert_eq!(cnf.len(), 9);
+    }
+
+    #[test]
+    fn tot_db_binextend() {
+        let mut db = Db::default();
+        let lits: Vec<_> = (0..10).map(|idx| lit![idx]).collect();
+        db.lit_tree(&lits).unwrap();
     }
 
     #[test]
@@ -1787,9 +1794,11 @@ mod tests {
     #[test]
     fn drain() {
         let mut db = Db::default();
-        let t1 = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
-        let t2 = db.lit_tree(&[lit![4], lit![5], lit![6], lit![7]]);
-        let t3 = db.lit_tree(&[lit![8], lit![9], lit![10], lit![11]]);
+        let t1 = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]).unwrap();
+        let t2 = db.lit_tree(&[lit![4], lit![5], lit![6], lit![7]]).unwrap();
+        let t3 = db
+            .lit_tree(&[lit![8], lit![9], lit![10], lit![11]])
+            .unwrap();
         db.merge(&[NodeCon::full(t1), NodeCon::full(t3)]);
         db.drain(t1 + 1..=t2).unwrap();
     }
@@ -1837,10 +1846,10 @@ mod tests {
         let mut vm = BasicVarManager::from_next_free(var![8]);
         let mut db = Db::default();
         let lits = [lit![0], lit![1], lit![2], lit![3]];
-        let a = db.lit_tree(&lits);
+        let a = db.lit_tree(&lits).unwrap();
         db[a].reserve_vars(3.., &mut vm);
         let lits = [lit![4], lit![5], lit![6], lit![7]];
-        let b = db.lit_tree(&lits);
+        let b = db.lit_tree(&lits).unwrap();
         db[b].reserve_vars(2.., &mut vm);
         let c = db.insert(Node::internal(
             NodeCon::offset_weighted(a, 2, 2),

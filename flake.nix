@@ -442,6 +442,7 @@
                   cargo-rdme
                   cargo-spellcheck
                   cargo-valgrind
+                  cargo-show-asm
                   config.treefmt.build.wrapper
                   git-cliff
                   kani

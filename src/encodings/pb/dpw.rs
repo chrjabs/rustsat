@@ -738,7 +738,7 @@ fn build_structure(
     // them to relevant top buckets
     while !weight_queue.is_empty() && weight_queue.iter().next_back().unwrap().0 >= &prec_div {
         let (weight, cons) = unreachable_none!(weight_queue.pop_last());
-        let merged = tot_db.merge_balanced(&cons);
+        let merged = tot_db.merge_balanced(&cons).unwrap();
         let digits = utils::digits(weight, 2) as usize;
         let current_weight = 1 << (digits - 1);
         top_buckets[tb_idx(digits)].push(merged);
@@ -785,7 +785,7 @@ fn build_structure(
             false
         };
         cons.sort_unstable_by_key(|&con| tot_db.con_len(con));
-        let top_bucket = tot_db.merge_balanced(&cons);
+        let top_bucket = tot_db.merge_balanced(&cons).unwrap();
         if bottom_buckets.is_empty() {
             // special case: lowest bucket either gets dummy or no bottom bucket
             if has_tare && tot_db.con_len(top_bucket) == 1 {
