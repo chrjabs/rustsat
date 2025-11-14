@@ -534,8 +534,8 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
             split += 1;
         }
 
-        let lcon = self.merge(&cons[..split]);
-        let rcon = self.merge(&cons[split..]);
+        let lcon = self.merge_balanced(&cons[..split]);
+        let rcon = self.merge_balanced(&cons[split..]);
 
         if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier() {
             let weight = lcon.multiplier();
