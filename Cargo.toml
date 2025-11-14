@@ -36,6 +36,7 @@ clap = { version = "4.5.51", features = ["derive", "cargo"] }
 cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
+criterion = "0.7.0"
 flate2 = { version = "1.1.5", features = ["zlib-ng"], default-features = false }
 git2 = "0.20.2"
 glob = "0.3.3"
@@ -102,6 +103,7 @@ xz2 = { workspace = true, optional = true }
 # keep-sorted start
 clap.workspace = true
 concolor-clap.workspace = true
+criterion = { workspace = true }
 rustsat-minisat = { path = "./minisat" }
 rustsat-solvertests.workspace = true
 rustsat-tools = { path = "./tools" }
@@ -123,11 +125,11 @@ optimization = []
 multiopt = ["optimization"]
 compression = ["dep:bzip2", "dep:flate2", "dep:xz2"]
 rand = ["dep:rand"]
-bench = []
 ipasir-display = []
 serde = ["dep:serde", "pigeons/serde"]
 proof-logging = ["dep:pigeons"]
 verbose-proofs = ["proof-logging"]
+_bench = ["_internals"]
 _docs = [
   # keep-sorted start
   "compression",
@@ -208,6 +210,10 @@ required-features = ["optimization", "multiopt"]
 name = "wcnf2opb"
 doc-scrape-examples = true
 required-features = ["optimization"]
+
+[[bench]]
+name = "construct_trees"
+harness = false
 
 [profile.profiling]
 inherits = "release"
