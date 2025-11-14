@@ -142,7 +142,8 @@ static THOUSAND_LITS: &[Lit] = &[
 #[bench::long(1000)]
 fn tot_tree(len: usize) {
     let mut db = Db::default();
-    db.lit_tree(black_box(&THOUSAND_LITS[..len]));
+    db.lit_tree(black_box(THOUSAND_LITS.iter().copied().take(len)))
+        .unwrap();
 }
 
 #[library_benchmark]

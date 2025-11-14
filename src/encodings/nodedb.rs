@@ -417,34 +417,35 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// If a node from after the range references a node in the range.
     fn drain<R: RangeBounds<NodeId>>(&mut self, range: R) -> Result<Self::Drain<'_>, DrainError>;
 
-    /// Recursively builds a balanced tree of nodes over literals and returns the
+    /// Builds a balanced tree of nodes over literals and returns the
     /// ID of the root
-    fn lit_tree(&mut self, lits: &[Lit]) -> NodeId
+    fn lit_tree<I>(&mut self, lits: I) -> Option<NodeId>
     where
+        I: IntoIterator<Item = Lit>,
         Self: Sized,
     {
-        debug_assert!(!lits.is_empty());
+        // binextend-style non-recursive building of the tree
+        // https://github.com/Froleyks/binextend
 
-        if lits.len() == 1 {
-            return self.insert(Self::Node::leaf(lits[0]));
-        }
+        let mut cons: Vec<_> = lits
+            .into_iter()
+            .map(|l| NodeCon::full(self.insert(Self::Node::leaf(l))))
+            .collect();
 
-        let split = lits.len() / 2;
-        let lid = self.lit_tree(&lits[..split]);
-        let rid = self.lit_tree(&lits[split..]);
+        let con = self.merge(&mut cons)?;
 
-        self.insert(Self::Node::internal(
-            NodeCon::full(lid),
-            NodeCon::full(rid),
-            self,
-        ))
+        debug_assert_eq!(con.offset(), 0);
+        debug_assert_eq!(con.divisor(), 1);
+        debug_assert_eq!(con.multiplier(), 1);
+
+        Some(con.id)
     }
 
-    /// Recursively builds a balanced tree of nodes over weighted literals and
+    /// Builds a balanced tree of nodes over weighted literals and
     /// returns a [`NodeCon`] to the root (that will be a fill connection,
     /// except for if all input literals have equal weight). Works best if
     /// literals are sorted by weight.
-    fn weighted_lit_tree(&mut self, lits: &[(Lit, usize)]) -> NodeCon
+    fn weighted_lit_tree(&mut self, lits: &[(Lit, usize)]) -> Option<NodeCon>
     where
         Self: Sized,
     {
@@ -452,61 +453,128 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
         // Detect sequences of literals of equal weight and merge them
         let mut seg_begin = 0;
-        let mut seg_end = 0;
         let mut cons = vec![];
-        loop {
-            seg_end += 1;
-            if seg_end < lits.len() && lits[seg_end].1 == lits[seg_begin].1 {
+        for seg_end in 1..lits.len() {
+            if lits[seg_end].1 == lits[seg_begin].1 {
                 continue;
             }
             // merge lits of equal weight
-            let seg: Vec<_> = lits[seg_begin..seg_end]
-                .iter()
-                .map(|(lit, _)| *lit)
-                .collect();
-            let id = self.lit_tree(&seg);
+            let seg = lits[seg_begin..seg_end].iter().map(|&(lit, _)| lit);
+            let id = self.lit_tree(seg).unwrap();
             cons.push(NodeCon::weighted(id, lits[seg_begin].1));
             seg_begin = seg_end;
-            if seg_end >= lits.len() {
-                break;
-            }
         }
+        let seg = lits[seg_begin..].iter().map(|&(lit, _)| lit);
+        let id = self.lit_tree(seg).unwrap();
+        cons.push(NodeCon::weighted(id, lits[seg_begin].1));
         // Merge totalizers
         self.merge_balanced(&cons)
     }
 
-    /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
+    /// Merges the given [`NodeCon`]s and returns a [`NodeCon`] to
     /// the root (that will be a full connection, except for if the input is a
     /// single connection). While the merging sub-tree will be balanced in terms
     /// of nodes, the overall tree might not be.
-    fn merge(&mut self, cons: &[NodeCon]) -> NodeCon
+    ///
+    /// For efficiency reasons, this modifies the slice in place.
+    fn merge(&mut self, cons: &mut [NodeCon]) -> Option<NodeCon>
     where
         Self: Sized,
     {
-        debug_assert!(!cons.is_empty());
+        // binextend-style non-recursive building of the tree
+        // https://github.com/Froleyks/binextend
 
-        if cons.len() == 1 {
-            return cons[0];
+        if cons.is_empty() {
+            return None;
+        }
+        assert!(
+            cons.len() < isize::MAX.unsigned_abs(),
+            "due to bit operations the number of literals must be at most `isize::MAX`"
+        );
+
+        let mut reverse_width = 0;
+        let mut width = cons.len();
+        while width > 1 {
+            reverse_width = (reverse_width << 1) | (width & 1);
+            width /= 2;
         }
 
-        let split = cons.len() / 2;
-        let lcon = self.merge(&cons[..split]);
-        let rcon = self.merge(&cons[split..]);
+        debug_assert_eq!(width, 1);
+        #[allow(clippy::cast_possible_wrap)]
+        let mut reverse_width = reverse_width as isize;
+        let mut last_reverse_width = reverse_width << 1;
 
-        if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier() {
-            let weight = lcon.multiplier();
-            let lcon = NodeCon {
-                multiplier: unreachable_none!(NonZeroUsize::new(1)),
-                ..lcon
-            };
-            let rcon = NodeCon {
-                multiplier: unreachable_none!(NonZeroUsize::new(1)),
-                ..rcon
-            };
-            NodeCon::weighted(self.insert(Self::Node::internal(lcon, rcon, self)), weight)
-        } else {
-            NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+        while width <= cons.len() {
+            let mut start = 0;
+            let mut split_idx = 1;
+            while start < cons.len() {
+                let extend = (split_idx & -split_idx & reverse_width) != 0;
+                let true_width = width + usize::from(extend);
+                if true_width == 1 {
+                    split_idx += 1;
+                    start += 1;
+                    continue;
+                }
+                if true_width % 2 == 0 {
+                    let lcon = cons[start];
+                    let rcon = cons[start + true_width / 2];
+                    cons[start] = if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier()
+                    {
+                        let weight = lcon.multiplier();
+                        let lcon = NodeCon {
+                            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                            ..lcon
+                        };
+                        let rcon = NodeCon {
+                            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                            ..rcon
+                        };
+                        NodeCon::weighted(
+                            self.insert(Self::Node::internal(lcon, rcon, self)),
+                            weight,
+                        )
+                    } else {
+                        NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+                    };
+                } else {
+                    let left_child_split_idx = (split_idx - 1) * 2 + 1;
+                    let left_child_extend =
+                        (left_child_split_idx & -left_child_split_idx & last_reverse_width) != 0;
+                    let lcon = cons[start];
+                    let rcon = cons[start + true_width / 2 + usize::from(left_child_extend)];
+                    cons[start] = if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier()
+                    {
+                        let weight = lcon.multiplier();
+                        let lcon = NodeCon {
+                            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                            ..lcon
+                        };
+                        let rcon = NodeCon {
+                            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                            ..rcon
+                        };
+                        NodeCon::weighted(
+                            self.insert(Self::Node::internal(lcon, rcon, self)),
+                            weight,
+                        )
+                    } else {
+                        NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+                    };
+                }
+                split_idx += 1;
+                start += true_width;
+            }
+            #[allow(clippy::cast_sign_loss)]
+            {
+                width = (width << 1) | (reverse_width as usize & 1);
+            }
+            reverse_width >>= 1;
+            last_reverse_width >>= 1;
         }
+
+        debug_assert_eq!(width, cons.len() * 2);
+
+        Some(cons[0])
     }
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
@@ -516,17 +584,21 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// more balanced at the expense of more computation while merging. For a
     /// maximally balanced tree, the input connections should be sorted by
     /// [`NodeById::con_len`].
-    fn merge_balanced(&mut self, cons: &[NodeCon]) -> NodeCon
+    fn merge_balanced(&mut self, cons: &[NodeCon]) -> Option<NodeCon>
     where
         Self: Sized,
     {
+        if cons.is_empty() {
+            return None;
+        }
+
         let cum_weight = cons
             .iter()
             .fold(Vec::with_capacity(cons.len()), |mut cum_weight, con| {
                 cum_weight.push(cum_weight.last().copied().unwrap_or(0) + self.con_len(*con));
                 cum_weight
             });
-        merge_balanced_recursive(self, cons, &cum_weight, 0)
+        Some(merge_balanced_recursive(self, cons, &cum_weight, 0))
     }
 
     /// Merges the given connections according to the following strategy: sort
@@ -534,7 +606,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// multiplier, then merge resulting connections with
     /// [`NodeById::merge_balanced`].
     #[cfg(feature = "_internals")]
-    fn merge_thorough(&mut self, cons: &mut [NodeCon]) -> NodeCon
+    fn merge_thorough(&mut self, cons: &mut [NodeCon]) -> Option<NodeCon>
     where
         Self: Sized,
     {
@@ -543,11 +615,9 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
 
         // Detect sequences of connections of equal weight and merge them
         let mut seg_begin = 0;
-        let mut seg_end = 0;
         let mut merged_cons = vec![];
-        loop {
-            seg_end += 1;
-            if seg_end < cons.len() && cons[seg_end].multiplier() == cons[seg_begin].multiplier() {
+        for seg_end in 1..cons.len() {
+            if cons[seg_end].multiplier() == cons[seg_begin].multiplier() {
                 continue;
             }
             if seg_end > seg_begin + 1 {
@@ -557,16 +627,26 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
                     .map(|&con| con.reweight(1))
                     .collect();
                 seg.sort_unstable_by_key(|&con| self.con_len(con));
-                let con = self.merge_balanced(&seg);
+                let con = self.merge_balanced(&seg).unwrap();
                 debug_assert_eq!(con.multiplier(), 1);
                 merged_cons.push(con.reweight(cons[seg_begin].multiplier()));
             } else {
                 merged_cons.push(cons[seg_begin]);
             }
             seg_begin = seg_end;
-            if seg_end >= cons.len() {
-                break;
-            }
+        }
+        if cons.len() > seg_begin + 1 {
+            // merge lits of equal weight
+            let mut seg: Vec<_> = cons[seg_begin..]
+                .iter()
+                .map(|&con| con.reweight(1))
+                .collect();
+            seg.sort_unstable_by_key(|&con| self.con_len(con));
+            let con = self.merge_balanced(&seg).unwrap();
+            debug_assert_eq!(con.multiplier(), 1);
+            merged_cons.push(con.reweight(cons[seg_begin].multiplier()));
+        } else {
+            merged_cons.push(cons[seg_begin]);
         }
 
         merged_cons.sort_unstable_by_key(|&con| self.con_len(con));

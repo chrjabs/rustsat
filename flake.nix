@@ -440,6 +440,7 @@
                   cargo-llvm-cov
                   cargo-nextest
                   cargo-rdme
+                  cargo-show-asm
                   cargo-spellcheck
                   cargo-valgrind
                   config.treefmt.build.wrapper

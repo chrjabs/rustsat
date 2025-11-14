@@ -1370,7 +1370,7 @@ mod tests {
     #[test]
     fn tot_db_if() {
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
@@ -1404,7 +1404,7 @@ mod tests {
     #[test]
     fn tot_db_only_if() {
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
@@ -1438,7 +1438,9 @@ mod tests {
     #[test]
     fn gte_db() {
         let mut db = Db::default();
-        let root = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)]);
+        let root = db
+            .weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)])
+            .unwrap();
         assert_eq!(root.offset(), 0);
         assert_eq!(root.multiplier(), 1);
         let root = root.id;
@@ -1474,13 +1476,15 @@ mod tests {
     #[test]
     fn gte_db2() {
         let mut db = Db::default();
-        let root = db.weighted_lit_tree(&[
-            (lit![0], 1),
-            (lit![1], 2),
-            (lit![2], 3),
-            (lit![3], 4),
-            (lit![4], 5),
-        ]);
+        let root = db
+            .weighted_lit_tree(&[
+                (lit![0], 1),
+                (lit![1], 2),
+                (lit![2], 3),
+                (lit![3], 4),
+                (lit![4], 5),
+            ])
+            .unwrap();
         assert_eq!(root.offset(), 0);
         assert_eq!(root.multiplier(), 1);
         let root = root.id;
@@ -1516,7 +1520,7 @@ mod tests {
     #[test]
     fn totalizer_equal_clause_order() {
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
@@ -1541,7 +1545,7 @@ mod tests {
         }
 
         let mut db = Db::default();
-        let root = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
+        let root = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
         debug_assert_eq!(db[root].depth(), 3);
         let mut var_manager = BasicVarManager::from_next_free(var![4]);
 
@@ -1558,7 +1562,9 @@ mod tests {
     #[test]
     fn gte_equal_clause_order() {
         let mut db = Db::default();
-        let root = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)]);
+        let root = db
+            .weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)])
+            .unwrap();
         assert_eq!(root.offset(), 0);
         assert_eq!(root.multiplier(), 1);
         let root = root.id;
@@ -1585,7 +1591,9 @@ mod tests {
         }
 
         let mut db = Db::default();
-        let root = db.weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)]);
+        let root = db
+            .weighted_lit_tree(&[(lit![0], 4), (lit![1], 3), (lit![2], 2), (lit![3], 1)])
+            .unwrap();
         assert_eq!(root.offset(), 0);
         assert_eq!(root.multiplier(), 1);
         let root = root.id;
@@ -1604,8 +1612,8 @@ mod tests {
     #[test]
     fn tot_db_single() {
         let mut db = Db::default();
-        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
-        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let a = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
+        let b = db.lit_tree([lit![4], lit![5]]).unwrap();
         let c = db.insert(Node::internal(
             NodeCon::single(a, 3, 1),
             NodeCon::full(b),
@@ -1644,8 +1652,8 @@ mod tests {
     #[test]
     fn tot_db_limited() {
         let mut db = Db::default();
-        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
-        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let a = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
+        let b = db.lit_tree([lit![4], lit![5]]).unwrap();
         let c = db.insert(Node::internal(
             NodeCon::limited(a, 0, 2, 1),
             NodeCon::full(b),
@@ -1684,8 +1692,8 @@ mod tests {
     #[test]
     fn tot_db_limited_offset() {
         let mut db = Db::default();
-        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
-        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let a = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
+        let b = db.lit_tree([lit![4], lit![5]]).unwrap();
         let c = db.insert(Node::internal(
             NodeCon::limited(a, 1, 2, 1),
             NodeCon::full(b),
@@ -1724,8 +1732,8 @@ mod tests {
     #[test]
     fn tot_db_offset() {
         let mut db = Db::default();
-        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
-        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let a = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
+        let b = db.lit_tree([lit![4], lit![5]]).unwrap();
         let c = db.insert(Node::internal(
             NodeCon::offset_weighted(a, 2, 1),
             NodeCon::full(b),
@@ -1764,8 +1772,8 @@ mod tests {
     #[test]
     fn tot_db_offset_2() {
         let mut db = Db::default();
-        let a = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
-        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let a = db.lit_tree([lit![0], lit![1], lit![2], lit![3]]).unwrap();
+        let b = db.lit_tree([lit![4], lit![5]]).unwrap();
         let c = db.insert(Node::internal(
             NodeCon::offset_weighted(a, 1, 1),
             NodeCon::full(b),
@@ -1804,8 +1812,10 @@ mod tests {
     #[test]
     fn gte_db_offset() {
         let mut db = Db::default();
-        let a = db.weighted_lit_tree(&[(lit![0], 1), (lit![1], 2), (lit![2], 10)]);
-        let b = db.lit_tree(&[lit![4], lit![5]]);
+        let a = db
+            .weighted_lit_tree(&[(lit![0], 1), (lit![1], 2), (lit![2], 10)])
+            .unwrap();
+        let b = db.lit_tree([lit![4], lit![5]]).unwrap();
         let c = db.insert(Node::internal(
             NodeCon::offset_weighted(a.id, 2, 1),
             NodeCon::full(b),
