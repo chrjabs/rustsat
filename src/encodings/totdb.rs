@@ -1779,6 +1779,24 @@ mod tests {
     }
 
     #[test]
+    fn weighted_tot_db_imbalanced() {
+        let mut db = Db::default();
+        let con = db.weighted_lit_tree(&[
+            (lit![0], 12),
+            (lit![1], 6),
+            (lit![2], 3),
+            (lit![3], 2),
+            (lit![4], 1),
+        ]);
+        debug_assert_eq!(con.multiplier(), 1);
+        debug_assert_eq!(con.offset(), 0);
+        debug_assert_eq!(con.divisor(), 1);
+        let root = con.id;
+        debug_assert_eq!(db[root].depth(), 5);
+        debug_assert_eq!(db.len(), 9);
+    }
+
+    #[test]
     fn drain() {
         let mut db = Db::default();
         let t1 = db.lit_tree(&[lit![0], lit![1], lit![2], lit![3]]);
