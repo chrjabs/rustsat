@@ -86,24 +86,23 @@ impl Totalizer {
     }
 
     fn extend_tree(&mut self) {
-        if self.lit_buffer.is_empty() {
+        let Some(new_tree) = self.db.lit_tree(self.lit_buffer.drain(..)) else {
             return;
-        }
-        let new_tree = self.db.lit_tree(&self.lit_buffer);
+        };
         self.root = Some(match self.root {
             Some(old_root) => {
                 self.db
-                    .merge(&[
+                    .merge(&mut [
                         NodeCon::offset_weighted(old_root, self.offset, 1),
                         NodeCon::full(new_tree),
                     ])
+                    .unwrap()
                     .id
             }
             None => new_tree,
         });
         self.n_add_input += self.offset;
         self.offset = 0;
-        self.lit_buffer.clear();
     }
 
     /// Gets the maximum depth of the tree
