@@ -521,8 +521,8 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
             split += 1;
         }
 
-        let lcon = self.merge(&cons[..split]);
-        let rcon = self.merge(&cons[split..]);
+        let lcon = self.merge_balanced(&cons[..split]);
+        let rcon = self.merge_balanced(&cons[split..]);
 
         NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
     }
