@@ -69,6 +69,20 @@ impl Totalizer {
         }
     }
 
+    /// Gets a reference to the internal node database
+    #[cfg(feature = "internals")]
+    #[must_use]
+    pub fn db_ref(&self) -> &totdb::Db {
+        &self.db
+    }
+
+    /// Gets a mutable reference to the internal node database
+    #[cfg(feature = "internals")]
+    #[must_use]
+    pub fn db_mut(&mut self) -> &mut totdb::Db {
+        &mut self.db
+    }
+
     fn extend_tree(&mut self) {
         if self.lit_buffer.is_empty() {
             return;
