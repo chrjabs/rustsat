@@ -165,7 +165,7 @@ impl Clause {
         if let Ok(idx) = idx.extract::<i32>() {
             let idx: usize = idx.try_into().expect("got unexpected negative index");
             Ok(SingleOrList::Single(Lit(self.cl[idx])))
-        } else if let Ok(slice) = idx.downcast::<pyo3::types::PySlice>() {
+        } else if let Ok(slice) = idx.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.__len__().try_into().unwrap())?;
             debug_assert!(indices.start >= 0);
             debug_assert!(indices.stop >= 0);
