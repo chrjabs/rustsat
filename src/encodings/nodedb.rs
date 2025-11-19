@@ -493,7 +493,20 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let lcon = self.merge(&cons[..split]);
         let rcon = self.merge(&cons[split..]);
 
-        NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+        if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier() {
+            let weight = lcon.multiplier();
+            let lcon = NodeCon {
+                multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                ..lcon
+            };
+            let rcon = NodeCon {
+                multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                ..rcon
+            };
+            NodeCon::weighted(self.insert(Self::Node::internal(lcon, rcon, self)), weight)
+        } else {
+            NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+        }
     }
 
     /// Recursively merges the given [`NodeCon`]s and returns a [`NodeCon`] to
@@ -524,7 +537,20 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         let lcon = self.merge(&cons[..split]);
         let rcon = self.merge(&cons[split..]);
 
-        NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+        if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier() {
+            let weight = lcon.multiplier();
+            let lcon = NodeCon {
+                multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                ..lcon
+            };
+            let rcon = NodeCon {
+                multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                ..rcon
+            };
+            NodeCon::weighted(self.insert(Self::Node::internal(lcon, rcon, self)), weight)
+        } else {
+            NodeCon::full(self.insert(Self::Node::internal(lcon, rcon, self)))
+        }
     }
 
     /// Merges the given connections according to the following strategy: sort
