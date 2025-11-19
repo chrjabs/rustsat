@@ -206,9 +206,9 @@ impl NodeCon {
     /// # Panics
     ///
     /// If `weight` is 0.
-    #[cfg(any(test, feature = "_internals"))]
+    #[cfg_attr(feature = "_internals", visibility::make(pub))]
     #[must_use]
-    pub fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
+    pub(crate) fn offset_weighted(id: NodeId, offset: usize, weight: usize) -> NodeCon {
         NodeCon {
             id,
             offset,

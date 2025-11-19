@@ -52,8 +52,10 @@ pub struct Totalizer {
     n_clauses: usize,
     /// The node database of the totalizer
     db: totdb::Db,
-    /// The offset of the totalizer
+    /// The offset of the root node of the totalizer
     offset: usize,
+    /// The difference between the number of root node output literals and input literals
+    n_add_input: usize,
 }
 
 impl Totalizer {
@@ -91,11 +93,16 @@ impl Totalizer {
         self.root = Some(match self.root {
             Some(old_root) => {
                 self.db
-                    .merge(&[NodeCon::full(old_root), NodeCon::full(new_tree)])
+                    .merge(&[
+                        NodeCon::offset_weighted(old_root, self.offset, 1),
+                        NodeCon::full(new_tree),
+                    ])
                     .id
             }
             None => new_tree,
         });
+        self.n_add_input += self.offset;
+        self.offset = 0;
         self.lit_buffer.clear();
     }
 
@@ -127,7 +134,7 @@ impl Totalizer {
 
     /// Gets the number of output literals in the totalizer
     ///
-    /// This will only differ from [`Self::n_lits`] if the encoding has an offset
+    /// This will only differ from [`Self::n_lits`] if the encoding has an offset at any node
     #[must_use]
     pub fn n_output_lits(&self) -> usize {
         match self.root {
@@ -156,6 +163,7 @@ impl Totalizer {
 impl Encode for Totalizer {
     fn n_lits(&self) -> usize {
         self.lit_buffer.len()
+            + self.n_add_input
             + match self.root {
                 Some(id) => self.db[id].len(),
                 None => 0,
@@ -379,6 +387,7 @@ impl From<Vec<Lit>> for Totalizer {
             n_clauses: 0,
             db: totdb::Db::default(),
             offset: 0,
+            n_add_input: 0,
         }
     }
 }
@@ -392,6 +401,7 @@ impl FromIterator<Lit> for Totalizer {
             n_clauses: 0,
             db: totdb::Db::default(),
             offset: 0,
+            n_add_input: 0,
         }
     }
 }
