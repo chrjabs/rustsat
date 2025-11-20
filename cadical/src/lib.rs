@@ -72,7 +72,10 @@ use std::{
     path::Path,
 };
 
-use rustsat::types::{Cl, Clause, Lit, TernaryVal, Var};
+use rustsat::{
+    solvers::sat,
+    types::{Cl, Clause, Lit, TernaryVal, Var},
+};
 use rustsat::{
     solvers::{
         ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn,
@@ -1175,6 +1178,502 @@ impl Drop for CaDiCaL<'_, '_> {
     }
 }
 
+/// Interface to the CaDiCaL solver
+#[derive(Debug)]
+pub struct CaDiCaLNewApi();
+
+/// Wrapper around the CaDiCaL handle that if it is dropped, releases the solver
+#[derive(Debug)]
+struct Handle(*mut ffi::CCaDiCaL);
+
+impl From<*mut ffi::CCaDiCaL> for Handle {
+    fn from(value: *mut ffi::CCaDiCaL) -> Self {
+        Self(value)
+    }
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        unsafe { ffi::ccadical_release(self.0) }
+    }
+}
+
+/// A CaDiCaL Solver in different States
+#[derive(Debug)]
+pub struct CaDiCaLState<State> {
+    handle: Handle,
+    state: State,
+}
+
+unsafe impl<State> Send for CaDiCaLState<State> where State: Send {}
+unsafe impl<State> Sync for CaDiCaLState<State> where State: Sync {}
+
+impl sat::Solve for CaDiCaLNewApi {
+    type Init = CaDiCaLState<Init>;
+
+    type Input = CaDiCaLState<Input>;
+
+    type Sat = CaDiCaLState<Sat>;
+
+    type Unsat = CaDiCaLState<Unsat>;
+
+    type Unknown = CaDiCaLState<Unknown>;
+
+    fn signature() -> &'static str {
+        let c_chars = unsafe { ffi::ccadical_signature() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("CaDiCaL signature returned invalid UTF-8.")
+    }
+}
+
+/// A CaDiCaL Solver guards in different States
+#[derive(Debug)]
+pub struct CaDiCaLGuard<'a, State> {
+    guarded: &'a mut CaDiCaLState<Input>,
+    state: State,
+}
+
+impl sat::SolveIncremental for CaDiCaLNewApi {
+    type SatGuard<'a> = CaDiCaLGuard<'a, Sat>;
+    type UnsatGuard<'a> = CaDiCaLGuard<'a, Unsat>;
+    type UnknownGuard<'a> = CaDiCaLGuard<'a, Unknown>;
+}
+
+/// CaDiCaL in the initialization state
+#[derive(Debug)]
+pub struct Init();
+
+impl sat::Init for CaDiCaLState<Init> {
+    type Config = Config;
+
+    type Option = ();
+
+    fn set_option(&mut self, _option: Self::Option) -> &mut Self {
+        todo!()
+    }
+}
+
+impl Default for CaDiCaLState<Init> {
+    fn default() -> Self {
+        let handle = unsafe { ffi::ccadical_init() };
+        assert!(
+            !handle.is_null(),
+            "not enough memory to initialize CaDiCaL solver"
+        );
+        Self {
+            handle: handle.into(),
+            state: Init(),
+        }
+    }
+}
+
+impl From<Config> for CaDiCaLState<Init> {
+    fn from(value: Config) -> Self {
+        let handle = unsafe { ffi::ccadical_init() };
+        assert!(
+            !handle.is_null(),
+            "not enough memory to initialize CaDiCaL solver"
+        );
+        let config_name: &CStr = value.into();
+        let ret = unsafe { ffi::ccadical_configure(handle, config_name.as_ptr()) };
+        assert_eq!(ret, 0, "ccadical_configure should always return 0");
+        Self {
+            handle: handle.into(),
+            state: Init(),
+        }
+    }
+}
+
+/// CaDiCaL in the input state
+#[derive(Debug)]
+pub struct Input();
+
+impl sat::Input<CaDiCaLNewApi> for CaDiCaLState<Input> {
+    type Option = ();
+
+    fn reserve(&mut self, max_var: Var) -> rustsat::MightMemout<&Self> {
+        handle_oom!(
+            unsafe { ffi::ccadical_resize(self.handle.0, max_var.to_ipasir()) },
+            noanyhow
+        );
+        Ok(self)
+    }
+
+    fn add_clause<C>(&mut self, clause: &C) -> rustsat::MightMemout<&Self>
+    where
+        C: AsRef<rustsat::types::Cl> + ?Sized,
+    {
+        let clause = clause.as_ref();
+        for lit in clause {
+            handle_oom!(
+                unsafe { ffi::ccadical_add_mem(self.handle.0, lit.to_ipasir()) },
+                noanyhow
+            );
+        }
+        handle_oom!(unsafe { ffi::ccadical_add_mem(self.handle.0, 0) }, noanyhow);
+        Ok(self)
+    }
+
+    fn solve(self) -> rustsat::MightMemout<sat::SolveResult<CaDiCaLNewApi>> {
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle.0) }, noanyhow);
+        Ok(match res {
+            0 => sat::SolveResult::Unknown(CaDiCaLState {
+                handle: self.handle,
+                state: Unknown(),
+            }),
+            10 => sat::SolveResult::Sat(CaDiCaLState {
+                handle: self.handle,
+                state: Sat(),
+            }),
+            20 => sat::SolveResult::Unsat(CaDiCaLState {
+                handle: self.handle,
+                state: Unsat(UnsatInternal::NoAssumptions),
+            }),
+            value => {
+                unreachable!("ccadical_solve call should never return {value}")
+            }
+        })
+    }
+}
+
+impl rustsat::encodings::CollectClauses for CaDiCaLState<Input> {
+    fn n_clauses(&self) -> usize {
+        let statistic: &CStr = Statistic::Clauses.into();
+        let val = unsafe { ffi::ccadical_get_statistic_value(self.handle.0, statistic.as_ptr()) };
+        usize::try_from(val).expect("number of clauses is negative or larger than `usize::MAX`")
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), rustsat::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        use sat::Input;
+        for clause in cl_iter {
+            self.move_clause(clause)?;
+        }
+        Ok(())
+    }
+}
+
+impl sat::SolveAssumptions<CaDiCaLNewApi> for CaDiCaLState<Input> {
+    fn solve_under_assumptions(
+        self,
+        assumptions: &[Lit],
+    ) -> rustsat::MightMemout<sat::SolveResult<CaDiCaLNewApi>> {
+        for a in assumptions {
+            handle_oom!(
+                unsafe { ffi::ccadical_assume_mem(self.handle.0, a.to_ipasir()) },
+                noanyhow
+            );
+        }
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle.0) }, noanyhow);
+        Ok(match res {
+            0 => sat::SolveResult::Unknown(CaDiCaLState {
+                handle: self.handle,
+                state: Unknown(),
+            }),
+            10 => sat::SolveResult::Sat(CaDiCaLState {
+                handle: self.handle,
+                state: Sat(),
+            }),
+            20 => sat::SolveResult::Unsat(CaDiCaLState {
+                handle: self.handle,
+                state: if assumptions.is_empty() {
+                    Unsat(UnsatInternal::NoAssumptions)
+                } else {
+                    Unsat(UnsatInternal::StoredAssumptions(assumptions.to_vec()))
+                },
+            }),
+            value => {
+                unreachable!("ccadical_solve call should never return {value}")
+            }
+        })
+    }
+}
+
+impl sat::SolveGuarded<CaDiCaLNewApi> for CaDiCaLState<Input> {
+    fn solve(&mut self) -> rustsat::MightMemout<sat::SolveGuard<'_, CaDiCaLNewApi>> {
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle.0) }, noanyhow);
+        Ok(match res {
+            0 => sat::SolveGuard::Unknown(CaDiCaLGuard {
+                guarded: self,
+                state: Unknown(),
+            }),
+            10 => sat::SolveGuard::Sat(CaDiCaLGuard {
+                guarded: self,
+                state: Sat(),
+            }),
+            20 => sat::SolveGuard::Unsat(CaDiCaLGuard {
+                guarded: self,
+                state: Unsat(UnsatInternal::NoAssumptions),
+            }),
+            value => {
+                unreachable!("ccadical_solve call should never return {value}")
+            }
+        })
+    }
+
+    fn solve_under_assumptions(
+        &mut self,
+        assumptions: &[Lit],
+    ) -> rustsat::MightMemout<sat::SolveGuard<'_, CaDiCaLNewApi>> {
+        for a in assumptions {
+            handle_oom!(
+                unsafe { ffi::ccadical_assume_mem(self.handle.0, a.to_ipasir()) },
+                noanyhow
+            );
+        }
+        let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle.0) }, noanyhow);
+        Ok(match res {
+            0 => sat::SolveGuard::Unknown(CaDiCaLGuard {
+                guarded: self,
+                state: Unknown(),
+            }),
+            10 => sat::SolveGuard::Sat(CaDiCaLGuard {
+                guarded: self,
+                state: Sat(),
+            }),
+            20 => sat::SolveGuard::Unsat(CaDiCaLGuard {
+                guarded: self,
+                state: if assumptions.is_empty() {
+                    Unsat(UnsatInternal::NoAssumptions)
+                } else {
+                    Unsat(UnsatInternal::StoredAssumptions(assumptions.to_vec()))
+                },
+            }),
+            value => {
+                unreachable!("ccadical_solve call should never return {value}")
+            }
+        })
+    }
+}
+
+impl From<CaDiCaLState<Init>> for CaDiCaLState<Input> {
+    fn from(value: CaDiCaLState<Init>) -> Self {
+        Self {
+            handle: value.handle,
+            state: Input(),
+        }
+    }
+}
+
+impl From<CaDiCaLState<Sat>> for CaDiCaLState<Input> {
+    fn from(value: CaDiCaLState<Sat>) -> Self {
+        Self {
+            handle: value.handle,
+            state: Input(),
+        }
+    }
+}
+
+impl From<CaDiCaLState<Unsat>> for CaDiCaLState<Input> {
+    fn from(value: CaDiCaLState<Unsat>) -> Self {
+        Self {
+            handle: value.handle,
+            state: Input(),
+        }
+    }
+}
+
+impl From<CaDiCaLState<Unknown>> for CaDiCaLState<Input> {
+    fn from(value: CaDiCaLState<Unknown>) -> Self {
+        Self {
+            handle: value.handle,
+            state: Input(),
+        }
+    }
+}
+
+impl Default for CaDiCaLState<Input> {
+    fn default() -> Self {
+        let handle = unsafe { ffi::ccadical_init() };
+        assert!(
+            !handle.is_null(),
+            "not enough memory to initialize CaDiCaL solver"
+        );
+        Self {
+            handle: handle.into(),
+            state: Input(),
+        }
+    }
+}
+
+impl FromIterator<Clause> for CaDiCaLState<Input> {
+    fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
+        use rustsat::solvers::sat::Input;
+        let mut slf = Self::default();
+        for clause in iter {
+            slf.move_clause(clause).expect("out of memory");
+        }
+        slf
+    }
+}
+
+impl<'a> FromIterator<&'a Cl> for CaDiCaLState<Input> {
+    fn from_iter<T: IntoIterator<Item = &'a Cl>>(iter: T) -> Self {
+        use rustsat::solvers::sat::Input;
+        let mut slf = Self::default();
+        for clause in iter {
+            slf.add_clause(clause).expect("out of memory");
+        }
+        slf
+    }
+}
+
+impl TryFrom<rustsat::instances::Cnf> for CaDiCaLState<Input> {
+    type Error = rustsat::OutOfMemory;
+
+    fn try_from(value: rustsat::instances::Cnf) -> Result<Self, Self::Error> {
+        use rustsat::solvers::sat::Input;
+        let mut slf = Self::default();
+        for clause in value {
+            slf.move_clause(clause)?;
+        }
+        Ok(slf)
+    }
+}
+
+impl Extend<Clause> for CaDiCaLState<Input> {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        use rustsat::solvers::sat::Input;
+        for clause in iter {
+            self.move_clause(clause).expect("out of memory");
+        }
+    }
+}
+
+impl<'a> Extend<&'a Cl> for CaDiCaLState<Input> {
+    fn extend<T: IntoIterator<Item = &'a Cl>>(&mut self, iter: T) {
+        use rustsat::solvers::sat::Input;
+        for clause in iter {
+            self.add_clause(clause).expect("out of memory");
+        }
+    }
+}
+
+/// CaDiCaL in the sat state
+#[derive(Debug)]
+pub struct Sat();
+
+impl sat::Sat for CaDiCaLState<Sat> {
+    fn variable_value(&self, var: Var) -> TernaryVal {
+        let lit = var.pos_lit().to_ipasir();
+        match unsafe { ffi::ccadical_val(self.handle.0, lit) } {
+            0 => TernaryVal::DontCare,
+            p if p == lit => TernaryVal::True,
+            n if n == -lit => TernaryVal::False,
+            value => unreachable!("ccadical_value should never return {value}"),
+        }
+    }
+
+    fn literal_value(&self, lit: Lit) -> TernaryVal {
+        let lit = lit.to_ipasir();
+        match unsafe { ffi::ccadical_val(self.handle.0, lit) } {
+            0 => TernaryVal::DontCare,
+            p if p == lit => TernaryVal::True,
+            n if n == -lit => TernaryVal::False,
+            value => unreachable!("ccadical_value should never return {value}"),
+        }
+    }
+}
+
+impl sat::Sat for CaDiCaLGuard<'_, Sat> {
+    fn variable_value(&self, var: Var) -> TernaryVal {
+        let lit = var.pos_lit().to_ipasir();
+        match unsafe { ffi::ccadical_val(self.guarded.handle.0, lit) } {
+            0 => TernaryVal::DontCare,
+            p if p == lit => TernaryVal::True,
+            n if n == -lit => TernaryVal::False,
+            value => unreachable!("ccadical_value should never return {value}"),
+        }
+    }
+
+    fn literal_value(&self, lit: Lit) -> TernaryVal {
+        let lit = lit.to_ipasir();
+        match unsafe { ffi::ccadical_val(self.guarded.handle.0, lit) } {
+            0 => TernaryVal::DontCare,
+            p if p == lit => TernaryVal::True,
+            n if n == -lit => TernaryVal::False,
+            value => unreachable!("ccadical_value should never return {value}"),
+        }
+    }
+}
+
+/// CaDiCaL in the unsat state
+#[derive(Debug)]
+pub struct Unsat(UnsatInternal);
+
+#[derive(Debug)]
+enum UnsatInternal {
+    NoAssumptions,
+    StoredAssumptions(Vec<Lit>),
+    CollectedCore(Vec<Lit>),
+}
+
+impl sat::UnsatIncremental for CaDiCaLState<Unsat> {
+    fn core(&mut self) -> &[Lit] {
+        if let UnsatInternal::StoredAssumptions(assumps) = &self.state.0 {
+            let mut core = Vec::new();
+            for a in assumps {
+                match unsafe { ffi::ccadical_failed(self.handle.0, a.to_ipasir()) } {
+                    0 => (),
+                    1 => core.push(!*a),
+                    value => unreachable!("ccadical_failed should never return {value}"),
+                }
+            }
+            self.state.0 = UnsatInternal::CollectedCore(core);
+        }
+        match &self.state.0 {
+            UnsatInternal::NoAssumptions => &[],
+            UnsatInternal::CollectedCore(core) => &core[..],
+            UnsatInternal::StoredAssumptions(_) => unreachable!(),
+        }
+    }
+
+    fn failed(&mut self, assumption: Lit) -> bool {
+        match unsafe { ffi::ccadical_failed(self.handle.0, assumption.to_ipasir()) } {
+            0 => false,
+            1 => true,
+            value => unreachable!("ccadical_failed should never return {value}"),
+        }
+    }
+}
+
+impl sat::UnsatIncremental for CaDiCaLGuard<'_, Unsat> {
+    fn core(&mut self) -> &[Lit] {
+        if let UnsatInternal::StoredAssumptions(assumps) = &self.state.0 {
+            let mut core = Vec::new();
+            for a in assumps {
+                match unsafe { ffi::ccadical_failed(self.guarded.handle.0, a.to_ipasir()) } {
+                    0 => (),
+                    1 => core.push(!*a),
+                    value => unreachable!("ccadical_failed should never return {value}"),
+                }
+            }
+            self.state.0 = UnsatInternal::CollectedCore(core);
+        }
+        match &self.state.0 {
+            UnsatInternal::NoAssumptions => &[],
+            UnsatInternal::CollectedCore(core) => &core[..],
+            UnsatInternal::StoredAssumptions(_) => unreachable!(),
+        }
+    }
+
+    fn failed(&mut self, assumption: Lit) -> bool {
+        match unsafe { ffi::ccadical_failed(self.guarded.handle.0, assumption.to_ipasir()) } {
+            0 => false,
+            1 => true,
+            value => unreachable!("ccadical_failed should never return {value}"),
+        }
+    }
+}
+
+/// CaDiCaL in the unknown state
+#[derive(Debug)]
+pub struct Unknown();
+
 /// Possible CaDiCaL configurations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Config {
@@ -1372,6 +1871,11 @@ mod test {
     rustsat_solvertests::learner_unittests!(CaDiCaL);
     rustsat_solvertests::freezing_unittests!(CaDiCaL);
     rustsat_solvertests::propagating_unittests!(CaDiCaL);
+
+    mod new {
+        use crate::CaDiCaLNewApi;
+        rustsat_solvertests::new_basic_unittests!(CaDiCaLNewApi, "cadical-[major].[minor].[patch]");
+    }
 
     #[test]
     fn configure() {
