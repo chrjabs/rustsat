@@ -14,7 +14,7 @@
 //!
 //! Kissat versions can be selected via cargo crate features.
 //! The following Kissat versions are available:
-//! - `v4-0-4`: [Version 4.0.3](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.4)
+//! - `v4-0-4`: [Version 4.0.4](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.4)
 //! - `v4-0-3`: [Version 4.0.3](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.3)
 //! - `v4-0-2`: [Version 4.0.2](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.2)
 //! - `v4-0-1`: [Version 4.0.1](https://github.com/arminbiere/kissat/releases/tag/rel-4.0.1)
@@ -60,8 +60,8 @@ use std::{ffi::CString, fmt};
 
 use rustsat::{
     solvers::{
-        ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
-        SolverStats, StateError, Terminate,
+        sat, ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult,
+        SolverState, SolverStats, StateError, Terminate,
     },
     types::{Cl, Clause, Lit, TernaryVal, Var},
     utils::Timer,
@@ -476,6 +476,336 @@ impl Drop for Kissat<'_> {
     }
 }
 
+/// Interface to the Kissat solver
+#[derive(Debug)]
+pub struct KissatNewApi();
+
+impl KissatNewApi {
+    /// Gets the commit ID that Kissat was built from
+    ///
+    /// # Panics
+    ///
+    /// If the Kissat library returns an id that is invalid UTF-8.
+    #[must_use]
+    pub fn commit_id() -> &'static str {
+        let c_chars = unsafe { ffi::kissat_id() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str.to_str().expect("Kissat id returned invalid UTF-8.")
+    }
+
+    /// Gets the Kissat version
+    ///
+    /// # Panics
+    ///
+    /// If the Kissat library returns a version that is invalid UTF-8.
+    #[must_use]
+    pub fn version() -> &'static str {
+        let c_chars = unsafe { ffi::kissat_version() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("Kissat version returned invalid UTF-8.")
+    }
+
+    /// Gets the compiler Kissat was built with
+    ///
+    /// # Panics
+    ///
+    /// If the Kissat library returns a compiler that is invalid UTF-8.
+    #[must_use]
+    pub fn compiler() -> &'static str {
+        let c_chars = unsafe { ffi::kissat_compiler() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("Kissat compiler returned invalid UTF-8.")
+    }
+}
+
+/// Wrapper around the kissat handle that if it is dropped, releases the solver
+#[derive(Debug)]
+struct Handle(*mut ffi::kissat);
+
+impl From<*mut ffi::kissat> for Handle {
+    fn from(value: *mut ffi::kissat) -> Self {
+        Self(value)
+    }
+}
+
+impl Drop for Handle {
+    fn drop(&mut self) {
+        unsafe { ffi::kissat_release(self.0) }
+    }
+}
+
+/// A Kissat Solver in different States
+#[derive(Debug)]
+pub struct KissatState<State> {
+    handle: Handle,
+    _state: State,
+}
+
+unsafe impl<State> Send for KissatState<State> where State: Send {}
+unsafe impl<State> Sync for KissatState<State> where State: Sync {}
+
+impl sat::Solve for KissatNewApi {
+    type Init = KissatState<Init>;
+
+    type Input = KissatState<Input>;
+
+    type Sat = KissatState<Sat>;
+
+    type Unsat = KissatState<Unsat>;
+
+    type Unknown = KissatState<Unknown>;
+
+    fn signature() -> &'static str {
+        let c_chars = unsafe { ffi::kissat_signature() };
+        let c_str = unsafe { CStr::from_ptr(c_chars) };
+        c_str
+            .to_str()
+            .expect("Kissat signature returned invalid UTF-8.")
+    }
+}
+
+/// Kissat in the initialization state
+#[derive(Debug)]
+pub struct Init();
+
+impl sat::Init for KissatState<Init> {
+    type Config = Config;
+
+    type Option = ();
+
+    fn set_option(&mut self, _option: Self::Option) -> &mut Self {
+        todo!()
+    }
+}
+
+impl Default for KissatState<Init> {
+    fn default() -> Self {
+        let handle = unsafe { ffi::kissat_init() };
+        assert!(
+            !handle.is_null(),
+            "kissat_init should never return a nullptr"
+        );
+        Self {
+            handle: handle.into(),
+            _state: Init(),
+        }
+    }
+}
+
+impl From<Config> for KissatState<Init> {
+    fn from(value: Config) -> Self {
+        let handle = unsafe { ffi::kissat_init() };
+        assert!(
+            !handle.is_null(),
+            "kissat_init should never return a nullptr"
+        );
+        let config_name: &CStr = value.into();
+        let ret = unsafe { ffi::kissat_set_configuration(handle, config_name.as_ptr()) };
+        assert_eq!(ret, 0, "kissat_configure should always return 0");
+        Self {
+            handle: handle.into(),
+            _state: Init(),
+        }
+    }
+}
+
+/// Kissat in the input state
+#[derive(Debug)]
+pub struct Input();
+
+impl KissatState<Input> {
+    /// Sets an internal limit for Kissat
+    pub fn set_limit(&mut self, limit: Limit) {
+        match limit {
+            Limit::Conflicts(val) => unsafe { ffi::kissat_set_conflict_limit(self.handle.0, val) },
+            Limit::Decisions(val) => unsafe { ffi::kissat_set_decision_limit(self.handle.0, val) },
+        }
+    }
+
+    /// Prints the solver statistics from the Kissat backend
+    pub fn print_stats(&self) {
+        unsafe { ffi::kissat_print_statistics(self.handle.0) }
+    }
+}
+
+impl sat::Input<KissatNewApi> for KissatState<Input> {
+    type Option = ();
+
+    fn set_option(&mut self, option: Self::Option) -> &mut Self {
+        todo!();
+        self
+    }
+
+    fn reserve(&mut self, max_var: Var) -> rustsat::MightMemout<&Self> {
+        unsafe { ffi::kissat_reserve(self.handle.0, max_var.to_ipasir()) };
+        Ok(self)
+    }
+
+    fn add_clause<C>(&mut self, clause: &C) -> rustsat::MightMemout<&Self>
+    where
+        C: AsRef<rustsat::types::Cl> + ?Sized,
+    {
+        let clause = clause.as_ref();
+        for lit in clause {
+            unsafe { ffi::kissat_add(self.handle.0, lit.to_ipasir()) };
+        }
+        unsafe { ffi::kissat_add(self.handle.0, 0) };
+        Ok(self)
+    }
+
+    fn solve(self) -> rustsat::MightMemout<sat::SolveResult<KissatNewApi>> {
+        let res = unsafe { ffi::kissat_solve(self.handle.0) };
+        Ok(match res {
+            0 => sat::SolveResult::Unknown(KissatState {
+                handle: self.handle,
+                _state: Unknown(),
+            }),
+            10 => sat::SolveResult::Sat(KissatState {
+                handle: self.handle,
+                _state: Sat(),
+            }),
+            20 => sat::SolveResult::Unsat(KissatState {
+                handle: self.handle,
+                _state: Unsat(),
+            }),
+            value => {
+                unreachable!("kissat_solve call should never return {value}")
+            }
+        })
+    }
+}
+
+impl rustsat::encodings::CollectClauses for KissatState<crate::Input> {
+    fn n_clauses(&self) -> usize {
+        todo!()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), rustsat::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        use rustsat::solvers::sat::Input;
+        for clause in cl_iter {
+            self.move_clause(clause)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<KissatState<Init>> for KissatState<Input> {
+    fn from(value: KissatState<Init>) -> Self {
+        Self {
+            handle: value.handle,
+            _state: Input(),
+        }
+    }
+}
+
+impl Default for KissatState<Input> {
+    fn default() -> Self {
+        let handle = unsafe { ffi::kissat_init() };
+        assert!(
+            !handle.is_null(),
+            "kissat_init should never return a nullptr"
+        );
+        Self {
+            handle: handle.into(),
+            _state: Input(),
+        }
+    }
+}
+
+impl FromIterator<Clause> for KissatState<Input> {
+    fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
+        use rustsat::solvers::sat::Input;
+        let mut slf = Self::default();
+        for clause in iter {
+            slf.move_clause(clause).expect("out of memory");
+        }
+        slf
+    }
+}
+
+impl<'a> FromIterator<&'a Cl> for KissatState<Input> {
+    fn from_iter<T: IntoIterator<Item = &'a Cl>>(iter: T) -> Self {
+        use rustsat::solvers::sat::Input;
+        let mut slf = Self::default();
+        for clause in iter {
+            slf.add_clause(clause).expect("out of memory");
+        }
+        slf
+    }
+}
+
+impl TryFrom<rustsat::instances::Cnf> for KissatState<Input> {
+    type Error = rustsat::OutOfMemory;
+
+    fn try_from(value: rustsat::instances::Cnf) -> Result<Self, Self::Error> {
+        use rustsat::solvers::sat::Input;
+        let mut slf = Self::default();
+        for clause in value {
+            slf.move_clause(clause)?;
+        }
+        Ok(slf)
+    }
+}
+
+impl Extend<Clause> for KissatState<Input> {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        use rustsat::solvers::sat::Input;
+        for clause in iter {
+            self.move_clause(clause).expect("out of memory");
+        }
+    }
+}
+
+impl<'a> Extend<&'a Cl> for KissatState<Input> {
+    fn extend<T: IntoIterator<Item = &'a Cl>>(&mut self, iter: T) {
+        use rustsat::solvers::sat::Input;
+        for clause in iter {
+            self.add_clause(clause).expect("out of memory");
+        }
+    }
+}
+
+/// Kissat in the sat state
+#[derive(Debug)]
+pub struct Sat();
+
+impl sat::Sat for KissatState<crate::Sat> {
+    fn variable_value(&self, var: Var) -> TernaryVal {
+        let lit = var.pos_lit().to_ipasir();
+        match unsafe { ffi::kissat_value(self.handle.0, lit) } {
+            0 => TernaryVal::DontCare,
+            p if p == lit => TernaryVal::True,
+            n if n == -lit => TernaryVal::False,
+            value => unreachable!("kissat_value should never return {value}"),
+        }
+    }
+
+    fn literal_value(&self, lit: Lit) -> TernaryVal {
+        let lit = lit.to_ipasir();
+        match unsafe { ffi::kissat_value(self.handle.0, lit) } {
+            0 => TernaryVal::DontCare,
+            p if p == lit => TernaryVal::True,
+            n if n == -lit => TernaryVal::False,
+            value => unreachable!("kissat_value should never return {value}"),
+        }
+    }
+}
+
+/// Kissat in the unsat state
+#[derive(Debug)]
+pub struct Unsat();
+
+/// Kissat in the unknown state
+#[derive(Debug)]
+pub struct Unknown();
+
 /// Possible Kissat configurations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Config {
@@ -567,6 +897,14 @@ mod test {
         Kissat,
         "kissat-(sc2022-(light|hyper|bulky)|[major].[minor].[patch])"
     );
+
+    mod new {
+        use crate::KissatNewApi;
+        rustsat_solvertests::new_basic_unittests!(
+            KissatNewApi,
+            "kissat-(sc2022-(light|hyper|bulky)|[major].[minor].[patch])"
+        );
+    }
 
     #[test]
     fn configure() {
