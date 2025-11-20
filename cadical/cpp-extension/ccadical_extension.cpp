@@ -67,7 +67,11 @@ int64_t ccadical_redundant(CCaDiCaL *wrapper) {
 }
 
 int ccadical_simplify_rounds(CCaDiCaL *wrapper, int rounds) {
-  return ((Wrapper *)wrapper)->solver->simplify(rounds);
+  try {
+    return ((Wrapper *)wrapper)->solver->simplify(rounds);
+  } catch (std::bad_alloc &) {
+    return OUT_OF_MEM;
+  }
 }
 
 int ccadical_resize(CCaDiCaL *wrapper, int min_max_var) {
