@@ -14,7 +14,7 @@ jobs:
     name: 🧪 MacOS workspace tests
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - name: 🧪 Run tests
@@ -23,7 +23,7 @@ jobs:
     name: 🧪 Windows workspace tests
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
       - name: 🧪 Run tests
@@ -35,7 +35,7 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
         with:
