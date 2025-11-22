@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.7.5 - 2025-11-22
+
+[1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[2b04dc7](2b04dc779ee3f0fc670c620e1c59c96ddc9b5efb)
+
+### Bug Fixes
+
+- Deprecated function ([2b04dc7](2b04dc779ee3f0fc670c620e1c59c96ddc9b5efb))
+
+### Miscellaneous Tasks
+
+- Update pyo3 to 0.27.1 (#510) ([e36799b](e36799bfa298ad8706e7aaa1b7ae27c399234a5c))
+
 ## rustsat-v0.7.4 - 2025-10-18
 
 [b0343ca](b0343ca8feb853254afb02f3ee0f4fe480687417)...[547959f](547959f824fc1591812b2f24a7658ef36921e54e)
