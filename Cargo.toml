@@ -37,7 +37,7 @@ cmake = "0.1.54"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
 flate2 = { version = "1.1.7", features = ["zlib-ng"], default-features = false }
-git2 = "0.20.2"
+git2 = "0.20.3"
 glob = "0.3.3"
 itertools = "0.14.0"
 libtest-mimic = "0.8.1"
