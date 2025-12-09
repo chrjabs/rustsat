@@ -317,6 +317,34 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
             assert_eq!(core, &[]);
         }
     });
+    let ignore = ignoretok(3);
+    ts.extend(quote! {
+        #[test]
+        #ignore
+        fn solution_caching() {
+            use rustsat::{
+                instances::{SatInstance},
+                lit,
+                solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
+            };
+
+            let mut solver = init_slv!(#slv);
+            let res = solver.solve().unwrap();
+            assert_eq!(res, Sat);
+            solver.add_binary(lit![0], lit![1]).unwrap();
+            let res = solver.solve().unwrap();
+            assert_eq!(res, Sat);
+            solver.add_binary(!lit![0], !lit![1]).unwrap();
+            let res = solver.solve().unwrap();
+            assert_eq!(res, Sat);
+            solver.add_unit(!lit![0]).unwrap();
+            let res = solver.solve().unwrap();
+            assert_eq!(res, Sat);
+            solver.add_unit(!lit![1]).unwrap();
+            let res = solver.solve().unwrap();
+            assert_eq!(res, Unsat);
+        }
+    });
 
     ts
 }

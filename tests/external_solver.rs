@@ -150,6 +150,7 @@ mod simulator {
         simulators::Incremental<ExternalSolver, Init>,
         true,
         true,
+        true,
         true
     );
 }

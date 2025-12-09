@@ -205,6 +205,7 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
             .collect();
 
         self.internal.add_clause_reuse(&mut clause);
+        self.state = InternalSolverState::Input;
 
         Ok(())
     }
