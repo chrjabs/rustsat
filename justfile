@@ -68,16 +68,23 @@ subtree tree cmd ref:
         ["cadical"]="cadical/cppsrc"
         ["kissat"]="kissat/csrc"
     )
+    declare -A repos
+    repos=(
+        ["minisat"]="git@github.com:chrjabs/minisat.git"
+        ["glucose"]="git@github.com:chrjabs/glucose.git"
+        ["cadical"]="git@github.com:arminbiere/cadical.git"
+        ["kissat"]="git@github.com:arminbiere/kissat.git"
+    )
 
     case {{ cmd }} in
         pull)
             echo "Pulling subtree {{ tree }} from ref {{ ref }}"
-            git subtree pull --prefix "${prefixes[{{ tree }}]}" {{ tree }} {{ ref }} --squash -m "chore({{ tree }}: update subtree"
+            git subtree pull --prefix "${prefixes[{{ tree }}]}" "${repos[{{ tree }}]}" {{ ref }} --squash -m "chore({{ tree }}): update subtree to {{ ref }}"
             ;;
 
         push)
             echo "Pushing subtree {{ tree }} from ref {{ ref }}"
-            git subtree push --prefix "${prefixes[{{ tree }}]}" {{ tree }} {{ ref }}
+            git subtree push --prefix "${prefixes[{{ tree }}]}" "${repos[{{ tree }}]}" {{ ref }}
             ;;
 
         *)
