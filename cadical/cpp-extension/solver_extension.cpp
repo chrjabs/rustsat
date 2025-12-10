@@ -35,22 +35,22 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
   }
 
   // saving default options
-#ifdef ILB
+#ifdef V190
   int old_ilb = internal->opts.ilb;
-#endif
-#ifdef REIMPLY
+#ifndef V194
   int old_reimply = internal->opts.reimply;
+#endif
 #endif
   int old_psave = internal->opts.rephase;
   int old_lucky = internal->opts.lucky;
   int old_resall = internal->opts.restoreall;
 
   // resetting the above options
-#ifdef ILB
+#ifdef V190
   internal->opts.ilb = 0;
-#endif
-#ifdef REIMPLY
+#ifdef V194
   internal->opts.reimply = 0;
+#endif
 #endif
   internal->opts.lucky = psaving;
   internal->opts.rephase = psaving;
@@ -61,11 +61,11 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     tmp = internal->restore_clauses();
   if (tmp) {
     // restoring default option values
-#ifdef ILB
+#ifdef V190
     internal->opts.ilb = old_ilb;
-#endif
-#ifdef REIMPLY
+#ifdef V194
     internal->opts.reimply = old_reimply;
+#endif
 #endif
     internal->opts.lucky = old_lucky;
     internal->opts.rephase = old_psave;
@@ -90,10 +90,10 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     if (tmp < 0) // if assumption is already set to false
       unsat = true;
     else {
-#ifdef IPASIRUP
+#ifdef V160
       if (tmp > 0) {
         // add pseudo decision level
-#ifdef ILB
+#ifdef V190
         internal->new_trail_level(0);
 #else
         internal->level++;
@@ -131,11 +131,11 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     internal->backtrack(level);
   }
 
-#ifdef ILB
+#ifdef V190
   internal->opts.ilb = old_ilb;
-#endif
-#ifdef REIMPLY
+#ifdef V194
   internal->opts.reimply = old_reimply;
+#endif
 #endif
 
   // restore phase saving

@@ -86,9 +86,9 @@ use thiserror::Error;
 
 mod ffi;
 
-#[cfg(cadical_feature = "proof-tracer")]
+#[cfg(cadical_version = "v2.0.0")]
 mod prooftracer;
-#[cfg(cadical_feature = "proof-tracer")]
+#[cfg(cadical_version = "v2.0.0")]
 pub use prooftracer::{
     CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ProofTracerHandle,
     ProofTracerNotConnected, TraceProof,
@@ -559,19 +559,19 @@ impl CaDiCaL<'_, '_> {
         let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
         let binary = match format {
             ProofFormat::Drat { binary } => binary,
-            #[cfg(cadical_feature = "lrat")]
+            #[cfg(cadical_version = "v1.7.0")]
             ProofFormat::Lrat { binary } => {
                 self.set_option("lrat", 1)
                     .expect("we know this option exists");
                 binary
             }
-            #[cfg(cadical_feature = "frat")]
+            #[cfg(cadical_version = "v1.9.0")]
             ProofFormat::Frat { binary, drat } => {
                 self.set_option("frat", 1 + c_int::from(drat))
                     .expect("we know this option exists");
                 binary
             }
-            #[cfg(cadical_feature = "frat")]
+            #[cfg(cadical_version = "v1.9.0")]
             ProofFormat::VeriPB {
                 checked_deletion,
                 drat,
@@ -583,13 +583,13 @@ impl CaDiCaL<'_, '_> {
                 .expect("we know this option exists");
                 false
             }
-            #[cfg(cadical_feature = "idrup")]
+            #[cfg(cadical_version = "v2.0.0")]
             ProofFormat::Idrup { binary } => {
                 self.set_option("idrup", 1)
                     .expect("we know this option exists");
                 binary
             }
-            #[cfg(cadical_feature = "idrup")]
+            #[cfg(cadical_version = "v2.0.0")]
             ProofFormat::Lidrup { binary } => {
                 self.set_option("lidrup", 1)
                     .expect("we know this option exists");
@@ -919,7 +919,7 @@ impl FreezeVar for CaDiCaL<'_, '_> {
     }
 }
 
-#[cfg(cadical_feature = "flip")]
+#[cfg(cadical_version = "v1.5.4")]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
@@ -984,7 +984,7 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
     }
 }
 
-#[cfg(cadical_feature = "propagate")]
+#[cfg(cadical_version = "v2.1.3")]
 impl Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
@@ -1043,7 +1043,7 @@ impl Propagate for CaDiCaL<'_, '_> {
     }
 }
 
-#[cfg(cadical_feature = "pysat-propcheck")]
+#[cfg(not(cadical_version = "v2.1.3"))]
 impl Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
@@ -1218,13 +1218,13 @@ pub enum ProofFormat {
         /// Whether to write a binary or an ASCII proof
         binary: bool,
     },
-    #[cfg(cadical_feature = "lrat")]
+    #[cfg(cadical_version = "v1.7.0")]
     /// The LRAT proof format
     Lrat {
         /// Whether to write a binary or an ASCII proof
         binary: bool,
     },
-    #[cfg(cadical_feature = "frat")]
+    #[cfg(cadical_version = "v1.9.0")]
     /// The FRAT proof format
     Frat {
         /// Whether to write a binary or an ASCII proof
@@ -1232,7 +1232,7 @@ pub enum ProofFormat {
         /// Whether to use DRAT instead of LRAT
         drat: bool,
     },
-    #[cfg(cadical_feature = "frat")]
+    #[cfg(cadical_version = "v1.9.0")]
     /// The VeriPB proof format
     VeriPB {
         /// Whether to use checked deletion
@@ -1240,13 +1240,13 @@ pub enum ProofFormat {
         /// Whether to disable (simulated) RUP with hints
         drat: bool,
     },
-    #[cfg(cadical_feature = "idrup")]
+    #[cfg(cadical_version = "v2.0.0")]
     /// The incremental proof format IDRUP
     Idrup {
         /// Whether to write a binary or an ASCII proof
         binary: bool,
     },
-    #[cfg(cadical_feature = "idrup")]
+    #[cfg(cadical_version = "v2.0.0")]
     /// The linear incremental proof format LIDRUP
     Lidrup {
         /// Whether to write a binary or an ASCII proof
@@ -1333,12 +1333,12 @@ mod test {
             ProofFormat::Drat { binary: false },
             ProofFormat::Drat { binary: true },
         ]);
-        #[cfg(cadical_feature = "lrat")]
+        #[cfg(cadical_version = "v1.7.0")]
         formats.extend([
             ProofFormat::Lrat { binary: false },
             ProofFormat::Lrat { binary: true },
         ]);
-        #[cfg(cadical_feature = "frat")]
+        #[cfg(cadical_version = "v1.9.0")]
         formats.extend([
             ProofFormat::Frat {
                 binary: false,
@@ -1365,7 +1365,7 @@ mod test {
                 drat: true,
             },
         ]);
-        #[cfg(cadical_feature = "idrup")]
+        #[cfg(cadical_version = "v2.0.0")]
         formats.extend([
             ProofFormat::Idrup { binary: false },
             ProofFormat::Idrup { binary: true },

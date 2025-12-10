@@ -189,39 +189,6 @@ impl Version {
         }
     }
 
-    fn has_flip(self) -> bool {
-        self >= Version::V154
-    }
-
-    fn has_ilb(self) -> bool {
-        self >= Version::V190
-    }
-
-    fn has_reimply(self) -> bool {
-        self >= Version::V190 && self < Version::V194
-    }
-
-    fn has_ipasir_up(self) -> bool {
-        self >= Version::V160
-    }
-
-    fn has_propagate(self) -> bool {
-        self >= Version::V213
-    }
-
-    fn has_lrat(self) -> bool {
-        self >= Version::V170
-    }
-
-    fn has_frat(self) -> bool {
-        // NOTE: FRAT is technically supported since v1.7.0, but the options for requesting it differ
-        self >= Version::V190
-    }
-
-    fn has_idrup(self) -> bool {
-        self >= Version::V200
-    }
-
     fn has_proof_tracer(self) -> bool {
         self >= Version::V200
     }
@@ -236,50 +203,53 @@ impl Version {
         if self >= Version::V211 && !has_cpp_feature(CppFeature::Closefrom) {
             build.define("NCLOSEFROM", None);
         }
-        if self.has_flip() {
-            build.define("FLIP", None);
+        if self >= Version::V154 {
+            build.define("V154", None);
         }
-        if self.has_ilb() {
-            build.define("ILB", None);
+        if self >= Version::V160 {
+            build.define("V160", None);
         }
-        if self.has_reimply() {
-            build.define("REIMPLY", None);
+        if self >= Version::V190 {
+            build.define("V190", None);
         }
-        if self.has_ipasir_up() {
-            build.define("IPASIRUP", None);
+        if self >= Version::V194 {
+            build.define("V194", None);
         }
-        if self.has_propagate() {
-            build.define("PROPAGATE", None);
-        } else {
-            build.define("PYSAT_PROPCHECK", None);
+        if self >= Version::V200 {
+            build.define("V200", None);
         }
-        if self.has_proof_tracer() {
-            build.define("TRACER", None);
+        if self >= Version::V213 {
+            build.define("V213", None);
         }
+    }
+
+    fn set_bindings_defines(self, mut bindings: bindgen::Builder) -> bindgen::Builder {
+        if self >= Version::V154 {
+            bindings = bindings.clang_arg("-DV154");
+        }
+        if self >= Version::V213 {
+            bindings = bindings.clang_arg("-DV213");
+        }
+        bindings
     }
 
     /// Sets custom `rustc` `--cfg` arguments for features only present in some version
     fn set_cfgs(self) {
-        println!("cargo:rustc-check-cfg=cfg(cadical_feature, values(\"flip\", \"propagate\", \"pysat-propcheck\", \"lrat\", \"frat\", \"idrup\", \"proof-tracer\"))");
-        if self.has_flip() {
-            println!("cargo:rustc-cfg=cadical_feature=\"flip\"");
+        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5.4\", \"v1.7.0\", \"v1.9.0\", \"v2.0.0\", \"v2.1.3\"))");
+        if self >= Version::V154 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.5.4\"");
         }
-        if self.has_propagate() {
-            println!("cargo:rustc-cfg=cadical_feature=\"propagate\"");
-        } else {
-            println!("cargo:rustc-cfg=cadical_feature=\"pysat-propcheck\"");
+        if self >= Version::V170 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.7.0\"");
         }
-        if self.has_lrat() {
-            println!("cargo:rustc-cfg=cadical_feature=\"lrat\"");
+        if self >= Version::V190 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.9.0\"");
         }
-        if self.has_frat() {
-            println!("cargo:rustc-cfg=cadical_feature=\"frat\"");
+        if self >= Version::V200 {
+            println!("cargo:rustc-cfg=cadical_version=\"v2.0.0\"");
         }
-        if self.has_idrup() {
-            println!("cargo:rustc-cfg=cadical_feature=\"idrup\"");
-        }
-        if self.has_proof_tracer() {
-            println!("cargo:rustc-cfg=cadical_feature=\"proof-tracer\"");
+        if self >= Version::V213 {
+            println!("cargo:rustc-cfg=cadical_version=\"v2.1.3\"");
         }
     }
 }
@@ -358,16 +328,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
     };
     #[cfg(not(feature = "tracing"))]
     let bindings = bindings.blocklist_function("ccadical_trace_api_calls");
-    let bindings = if version.has_flip() {
-        bindings.clang_arg("-DFLIP")
-    } else {
-        bindings
-    };
-    let bindings = if version.has_propagate() {
-        bindings.clang_arg("-DPROPAGATE")
-    } else {
-        bindings.clang_arg("-DPYSAT_PROPCHECK")
-    };
+    let bindings = version.set_bindings_defines(bindings);
     let bindings = if cfg!(feature = "tracing")
         || cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug"
     {

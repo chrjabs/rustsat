@@ -89,7 +89,7 @@ int64_t ccadical_conflicts(CCaDiCaL *wrapper) {
   return ((Wrapper *)wrapper)->solver->conflicts();
 }
 
-#ifdef FLIP
+#ifdef V154
 int ccadical_flip(CCaDiCaL *wrapper, int lit) {
   return ((Wrapper *)wrapper)->solver->flip(lit);
 }
@@ -99,7 +99,7 @@ int ccadical_flippable(CCaDiCaL *wrapper, int lit) {
 }
 #endif
 
-#ifdef PYSAT_PROPCHECK
+#ifndef V213
 int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
                        size_t assumps_len, int psaving,
                        void (*prop_cb)(void *, int), void *cb_data) {
@@ -114,9 +114,7 @@ int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
     return OUT_OF_MEM;
   }
 }
-#endif
-
-#ifdef PROPAGATE
+#else
 int ccadical_propagate(CCaDiCaL *wrapper) {
   try {
     return ((Wrapper *)wrapper)->solver->propagate();
@@ -151,6 +149,6 @@ int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path) {
 }
 }
 
-#ifdef TRACER
+#ifdef V200
 #include "ctracer.cpp"
 #endif
