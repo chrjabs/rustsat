@@ -94,11 +94,18 @@ where
     }
 
     fn solve(&mut self) -> anyhow::Result<super::SolverResult> {
-        let start = Timer::now();
-        if !matches!(self.state, InternalSolverState::Init) {
-            self.solver = Init::init();
-            self.solver.add_cnf_ref(&self.clauses)?;
+        match &self.state {
+            InternalSolverState::Sat => return Ok(super::SolverResult::Sat),
+            InternalSolverState::Unsat(lits) if lits.is_empty() => {
+                return Ok(super::SolverResult::Unsat)
+            }
+            InternalSolverState::Unknown | InternalSolverState::Unsat(_) => {
+                self.solver = Init::init();
+                self.solver.add_cnf_ref(&self.clauses)?;
+            }
+            InternalSolverState::Init => (),
         }
+        let start = Timer::now();
         let res = self.solver.solve()?;
         self.stats.cpu_solve_time += start.elapsed();
         match res {
@@ -135,6 +142,11 @@ where
         self.update_max_var(clause.as_ref());
         if matches!(self.state, InternalSolverState::Init) {
             self.solver.add_clause_ref(clause)?;
+        } else {
+            self.state = InternalSolverState::Init;
+            self.solver = Init::init();
+            self.solver.add_cnf_ref(&self.clauses)?;
+            self.solver.add_clause_ref(&clause)?;
         }
         self.clauses
             .add_clause(clause.as_ref().iter().copied().collect());
@@ -146,6 +158,11 @@ where
         self.update_avg_clause_len(&clause);
         self.update_max_var(&clause);
         if matches!(self.state, InternalSolverState::Init) {
+            self.solver.add_clause_ref(&clause)?;
+        } else {
+            self.state = InternalSolverState::Init;
+            self.solver = Init::init();
+            self.solver.add_cnf_ref(&self.clauses)?;
             self.solver.add_clause_ref(&clause)?;
         }
         self.clauses.add_clause(clause);
