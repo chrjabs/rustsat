@@ -1,3 +1,5 @@
 build
 makefile
+.aider*
+*~
 !test/**/makefile
