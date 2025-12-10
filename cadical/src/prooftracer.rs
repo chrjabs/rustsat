@@ -13,7 +13,7 @@ use crate::ffi;
 /// The ID of a clause internal to CaDiCaL
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ClauseId(pub u64);
+pub struct ClauseId(pub i64);
 
 /// A conclusion for an incremental proof
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,6 +117,17 @@ pub trait TraceProof {
     /// Notify the observer that conclude sat was requested.
     /// will give the complete model as a vector.
     fn conclude_sat(&mut self, solution: &CaDiCaLAssignment) {}
+
+    /// Notify the observer that conclude unknown was requested.
+    /// will give the current trail as a vector.
+    fn conclude_unknown(&mut self, solution: &CaDiCaLAssignment) {}
+
+    /// Notify the observer that two literals are equivalent
+    ///
+    /// You receive literals, not variables. You can also get notified
+    /// multiple times. You can also get notified of BVA variables, aka
+    /// variables you did not declare.
+    fn notify_equivalence(&mut self, first: Lit, second: Lit) {}
 }
 
 /// A handle to an attached proof tracer in order to be able to detach it again

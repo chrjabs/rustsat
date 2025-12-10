@@ -31,29 +31,28 @@ typedef struct {
   // Notify the tracer that a original clause has been added.
   // Includes ID and whether the clause is redundant or irredundant
   // Arguments: Data, ID, redundant, length, clause, restored
-  void (*add_original_clause)(void *, uint64_t, bool, size_t, const int *,
-                              bool);
+  void (*add_original_clause)(void *, int64_t, bool, size_t, const int *, bool);
 
   // Notify the observer that a new clause has been derived.
   // Includes ID and whether the clause is redundant or irredundant
   // If antecedents are derived they will be included here.
   // Arguments: Data, ID, redundant, clause length, clause, antecedents length,
   // antecedents
-  void (*add_derived_clause)(void *, uint64_t, bool, size_t, const int *,
-                             size_t, const uint64_t *);
+  void (*add_derived_clause)(void *, int64_t, bool, size_t, const int *, size_t,
+                             const int64_t *);
 
   // Notify the observer that a clause is deleted.
   // Includes ID and redundant/irredundant
   // Arguments: Data, ID, redundant, length, clause
-  void (*delete_clause)(void *, uint64_t, bool, size_t, const int *);
+  void (*delete_clause)(void *, int64_t, bool, size_t, const int *);
 
   // Notify the observer to remember that the clause might be restored later
   // Arguments: Data, ID, length, clause
-  void (*weaken_minus)(void *, uint64_t, size_t, const int *);
+  void (*weaken_minus)(void *, int64_t, size_t, const int *);
 
   // Notify the observer that a clause is strengthened
   // Arguments: Data, ID
-  void (*strengthen)(void *, uint64_t);
+  void (*strengthen)(void *, int64_t);
 
   // Notify the observer that the solve call ends with status StatusType
   // If the status is UNSAT and an empty clause has been derived, the second
@@ -61,7 +60,7 @@ typedef struct {
   // Note that the empty clause is already added through add_derived_clause
   // and finalized with finalize_clause
   // Arguments: Data, int, ID
-  void (*report_status)(void *, int, uint64_t);
+  void (*report_status)(void *, int, int64_t);
 
   /*------------------------------------------------------------------------*/
   /*                                                                        */
@@ -71,12 +70,12 @@ typedef struct {
 
   // Notify the observer that a clause is finalized.
   // Arguments: Data, ID, length, clause
-  void (*finalize_clause)(void *, uint64_t, size_t, const int *);
+  void (*finalize_clause)(void *, int64_t, size_t, const int *);
 
   // Notify the observer that the proof begins with a set of reserved ids
   // for original clauses. Given ID is the first derived clause ID.
   // Arguments: Data, ID
-  void (*begin_proof)(void *, uint64_t);
+  void (*begin_proof)(void *, int64_t);
 
   /*------------------------------------------------------------------------*/
   /*                                                                        */
@@ -104,20 +103,31 @@ typedef struct {
   // is the negation of a core of failing assumptions/constraints.
   // If antecedents are derived they will be included here.
   // Arguments: Data, ID, clause length, clause, antecedents length, antecedents
-  void (*add_assumption_clause)(void *, uint64_t, size_t, const int *, size_t,
-                                const uint64_t *);
+  void (*add_assumption_clause)(void *, int64_t, size_t, const int *, size_t,
+                                const int64_t *);
 
   // Notify the observer that conclude unsat was requested.
   // will give either the id of the empty clause, the id of a failing
   // assumption clause or the ids of the failing constrain clauses
   // Arguments: Data, conclusion_type, length, clause_ids
   void (*conclude_unsat)(void *, CCaDiCaLConclusionType, size_t,
-                         const uint64_t *);
+                         const int64_t *);
 
   // Notify the observer that conclude sat was requested.
   // will give the complete model as a vector.
   // Arguments: Data, model length, model
   void (*conclude_sat)(void *, size_t, const int *);
+
+  // Notify the observer that conclude unknown was requested.
+  // will give the current trail as a vector.
+  void (*conclude_unknown)(void *, size_t, const int *);
+
+  // Notify the observer that two literals are equivalent
+  //
+  // You receive literals, not variables. You can also get notified
+  // multiple times. You can also get notified of BVA variables, aka
+  // variables you did not declare.
+  void (*notify_equivalence)(void *, int, int);
 } CCaDiCaLTraceCallbacks;
 
 // Connects a proof tracer to an instance of CaDiCaL

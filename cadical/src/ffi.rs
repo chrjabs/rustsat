@@ -70,11 +70,13 @@ pub mod prooftracer {
         add_assumption_clause: Some(rustsat_ccadical_add_assumption_clause),
         conclude_unsat: Some(rustsat_ccadical_conclude_unsat),
         conclude_sat: Some(rustsat_ccadical_conclude_sat),
+        conclude_unknown: Some(rustsat_ccadical_conclude_unknown),
+        notify_equivalence: Some(rustsat_ccadical_notify_equivalence),
     };
 
     unsafe extern "C" fn rustsat_ccadical_add_original_clause(
         tracer: *mut c_void,
-        id: u64,
+        id: i64,
         redundant: bool,
         cl_len: usize,
         cl_data: *const c_int,
@@ -87,12 +89,12 @@ pub mod prooftracer {
 
     unsafe extern "C" fn rustsat_ccadical_add_derived_clause(
         tracer: *mut c_void,
-        id: u64,
+        id: i64,
         redundant: bool,
         cl_len: usize,
         cl_data: *const c_int,
         an_len: usize,
-        an_data: *const u64,
+        an_data: *const i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let clause = CaDiCaLClause::new(cl_len, cl_data);
@@ -102,7 +104,7 @@ pub mod prooftracer {
 
     unsafe extern "C" fn rustsat_ccadical_delete_clause(
         tracer: *mut c_void,
-        id: u64,
+        id: i64,
         redundant: bool,
         cl_len: usize,
         cl_data: *const c_int,
@@ -114,7 +116,7 @@ pub mod prooftracer {
 
     unsafe extern "C" fn rustsat_ccadical_weaken_minus(
         tracer: *mut c_void,
-        id: u64,
+        id: i64,
         cl_len: usize,
         cl_data: *const c_int,
     ) {
@@ -123,7 +125,7 @@ pub mod prooftracer {
         tracer.weaken_minus(ClauseId(id), &clause);
     }
 
-    unsafe extern "C" fn rustsat_ccadical_strengthen(tracer: *mut c_void, id: u64) {
+    unsafe extern "C" fn rustsat_ccadical_strengthen(tracer: *mut c_void, id: i64) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         tracer.strengthen(ClauseId(id));
     }
@@ -131,7 +133,7 @@ pub mod prooftracer {
     unsafe extern "C" fn rustsat_ccadical_report_status(
         tracer: *mut c_void,
         status: c_int,
-        id: u64,
+        id: i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let status = match status {
@@ -147,7 +149,7 @@ pub mod prooftracer {
 
     unsafe extern "C" fn rustsat_ccadical_finalize_clause(
         tracer: *mut c_void,
-        id: u64,
+        id: i64,
         cl_len: usize,
         cl_data: *const c_int,
     ) {
@@ -156,7 +158,7 @@ pub mod prooftracer {
         tracer.finalize_clause(ClauseId(id), &clause);
     }
 
-    unsafe extern "C" fn rustsat_ccadical_begin_proof(tracer: *mut c_void, id: u64) {
+    unsafe extern "C" fn rustsat_ccadical_begin_proof(tracer: *mut c_void, id: i64) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         tracer.begin_proof(ClauseId(id));
     }
@@ -190,11 +192,11 @@ pub mod prooftracer {
 
     unsafe extern "C" fn rustsat_ccadical_add_assumption_clause(
         tracer: *mut c_void,
-        id: u64,
+        id: i64,
         cl_len: usize,
         cl_data: *const c_int,
         an_len: usize,
-        an_data: *const u64,
+        an_data: *const i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let clause = CaDiCaLClause::new(cl_len, cl_data);
@@ -206,7 +208,7 @@ pub mod prooftracer {
         tracer: *mut c_void,
         concl: super::CCaDiCaLConclusionType,
         fail_len: usize,
-        fail_data: *const u64,
+        fail_data: *const i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let failing = from_raw_parts_maybe_null(fail_data.cast::<ClauseId>(), fail_len);
@@ -227,5 +229,28 @@ pub mod prooftracer {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
         let assignment = CaDiCaLAssignment::new(sol_len, sol_data);
         tracer.conclude_sat(&assignment);
+    }
+
+    unsafe extern "C" fn rustsat_ccadical_conclude_unknown(
+        tracer: *mut c_void,
+        trail_len: usize,
+        trail_data: *const c_int,
+    ) {
+        let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+        let assignment = CaDiCaLAssignment::new(trail_len, trail_data);
+        tracer.conclude_unknown(&assignment);
+    }
+
+    unsafe extern "C" fn rustsat_ccadical_notify_equivalence(
+        tracer: *mut c_void,
+        first: c_int,
+        second: c_int,
+    ) {
+        let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+        let first =
+            Lit::from_ipasir(first).expect("Invalid literal in `notify_equivalent` from CaDiCaL");
+        let second =
+            Lit::from_ipasir(second).expect("Invalid literal in `notify_equivalent` from CaDiCaL");
+        tracer.notify_equivalence(first, second);
     }
 }

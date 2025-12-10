@@ -1834,7 +1834,9 @@ int64_t Solver::get_statistic_value (const char *opt) const {
   if (!strcmp (opt, "eliminated"))
     return internal->stats.all.eliminated +
            internal->stats.all.fasteliminated;
-  if (!strcmp (opt, "subsitutued"))
+  // backport of
+  // https://github.com/arminbiere/cadical/commit/095bcf986bde3b147190994c4a71f4af25322630
+  if (!strcmp (opt, "substituted"))
     return internal->stats.all.substituted;
   return -1;
 }

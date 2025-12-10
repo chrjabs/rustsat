@@ -42,6 +42,7 @@ int ccadical_configure(CCaDiCaL *ptr, const char *name) {
   return ((Wrapper *)ptr)->solver->configure(name);
 }
 
+#ifndef V220
 void ccadical_phase(CCaDiCaL *ptr, int lit) {
   ((Wrapper *)ptr)->solver->phase(lit);
 }
@@ -51,6 +52,7 @@ void ccadical_unphase(CCaDiCaL *ptr, int lit) {
 }
 
 int ccadical_vars(CCaDiCaL *ptr) { return ((Wrapper *)ptr)->solver->vars(); }
+#endif
 
 int ccadical_set_option_ret(CCaDiCaL *wrapper, const char *name, int val) {
   return ((Wrapper *)wrapper)->solver->set(name, val);
@@ -68,15 +70,20 @@ int ccadical_simplify_rounds(CCaDiCaL *wrapper, int rounds) {
   return ((Wrapper *)wrapper)->solver->simplify(rounds);
 }
 
-int ccadical_reserve(CCaDiCaL *wrapper, int min_max_var) {
+int ccadical_resize(CCaDiCaL *wrapper, int min_max_var) {
   try {
+#ifdef V220
+    ((Wrapper *)wrapper)->solver->resize(min_max_var);
+#else
     ((Wrapper *)wrapper)->solver->reserve(min_max_var);
+#endif
     return 0;
   } catch (std::bad_alloc &) {
     return OUT_OF_MEM;
   }
 }
 
+#ifndef V220
 int64_t ccadical_propagations(CCaDiCaL *wrapper) {
   return ((Wrapper *)wrapper)->solver->propagations();
 }
@@ -88,6 +95,7 @@ int64_t ccadical_decisions(CCaDiCaL *wrapper) {
 int64_t ccadical_conflicts(CCaDiCaL *wrapper) {
   return ((Wrapper *)wrapper)->solver->conflicts();
 }
+#endif
 
 #ifdef V154
 int ccadical_flip(CCaDiCaL *wrapper, int lit) {
@@ -123,19 +131,22 @@ int ccadical_propagate(CCaDiCaL *wrapper) {
   }
 }
 
-void ccadical_get_entrailed_literals(CCaDiCaL *wrapper,
-                                     void (*entrailed_cb)(void *, int),
-                                     void *cb_data) {
-  std::vector<int> entrailed{};
-  ((Wrapper *)wrapper)->solver->get_entrailed_literals(entrailed);
-  for (int lit : entrailed) {
-    entrailed_cb(cb_data, lit);
+void ccadical_implied(CCaDiCaL *wrapper, void (*implied_cb)(void *, int),
+                      void *cb_data) {
+  std::vector<int> implied{};
+#ifdef V220
+  ((Wrapper *)wrapper)->solver->implied(implied);
+#else
+  ((Wrapper *)wrapper)->solver->get_entrailed_literals(implied);
+#endif
+  for (int lit : implied) {
+    implied_cb(cb_data, lit);
   }
 }
 #endif
 
 #ifndef NTRACING
-int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path) {
+int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *const path) {
   FILE *trace_file = fopen(path, "w");
   if (!trace_file)
     return 1;
@@ -144,10 +155,17 @@ int ccadical_trace_api_calls(CCaDiCaL *wrapper, const char *path) {
 }
 #endif
 
-int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *path) {
+int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *const path) {
   return ((Wrapper *)wrapper)->solver->trace_proof(path);
 }
 }
+
+#ifdef V220
+int64_t ccadical_get_statistic_value(const CCaDiCaL *wrapper,
+                                     const char *const opt) {
+  return ((Wrapper *)wrapper)->solver->get_statistic_value(opt);
+}
+#endif
 
 #ifdef V200
 #include "ctracer.cpp"

@@ -7,6 +7,12 @@
 
 namespace CaDiCaL {
 
+#ifdef V220
+#define ID int64_t
+#else
+#define ID uint64_t
+#endif
+
 class CTracer : public Tracer {
   void *data;
   CCaDiCaLTraceCallbacks callbacks;
@@ -32,41 +38,44 @@ public:
   }
   ~CTracer() {};
 
-  void add_original_clause(uint64_t id, bool redundant,
+  void add_original_clause(ID id, bool redundant,
                            const std::vector<int> &clause,
                            bool restored = false) override {
     callbacks.add_original_clause(data, id, redundant, clause.size(),
                                   clause.data(), restored);
   }
 
-  void add_derived_clause(uint64_t id, bool redundant,
+  void add_derived_clause(ID id, bool redundant,
+#ifdef V220
+                          int,
+#endif
                           const std::vector<int> &clause,
-                          const std::vector<uint64_t> &antecedents) override {
+                          const std::vector<ID> &antecedents) override {
     callbacks.add_derived_clause(data, id, redundant, clause.size(),
                                  clause.data(), antecedents.size(),
-                                 antecedents.data());
+                                 (int64_t *)antecedents.data());
   }
 
-  void delete_clause(uint64_t id, bool redundant,
+  void delete_clause(ID id, bool redundant,
                      const std::vector<int> &clause) override {
     callbacks.delete_clause(data, id, redundant, clause.size(), clause.data());
   }
 
-  void weaken_minus(uint64_t id, const std::vector<int> &clause) override {
+  void weaken_minus(ID id, const std::vector<int> &clause) override {
     callbacks.weaken_minus(data, id, clause.size(), clause.data());
   }
 
-  void strengthen(uint64_t id) override { callbacks.strengthen(data, id); }
+  void strengthen(ID id) override { callbacks.strengthen(data, id); }
 
-  void report_status(int status, uint64_t id) override {
+  void report_status(int status, ID id) override {
     callbacks.report_status(data, status, id);
   }
 
-  void finalize_clause(uint64_t id, const std::vector<int> &clause) override {
+  void finalize_clause(ID id, const std::vector<int> &clause) override {
     callbacks.finalize_clause(data, id, clause.size(), clause.data());
   }
 
-  void begin_proof(uint64_t id) override { callbacks.begin_proof(data, id); }
+  void begin_proof(ID id) override { callbacks.begin_proof(data, id); }
 
   void solve_query() override { callbacks.solve_query(data); }
 
@@ -81,15 +90,15 @@ public:
 
   void reset_assumptions() override { callbacks.reset_assumptions(data); }
 
-  void
-  add_assumption_clause(uint64_t id, const std::vector<int> &clause,
-                        const std::vector<uint64_t> &antecedents) override {
+  void add_assumption_clause(ID id, const std::vector<int> &clause,
+                             const std::vector<ID> &antecedents) override {
     callbacks.add_assumption_clause(data, id, clause.size(), clause.data(),
-                                    antecedents.size(), antecedents.data());
+                                    antecedents.size(),
+                                    (int64_t *)antecedents.data());
   }
 
   void conclude_unsat(ConclusionType conclusion_type,
-                      const std::vector<uint64_t> &clause_ids) override {
+                      const std::vector<ID> &clause_ids) override {
     CCaDiCaLConclusionType conclusion_out;
     switch (conclusion_type) {
     case ConclusionType::CONFLICT:
@@ -103,12 +112,22 @@ public:
       break;
     }
     callbacks.conclude_unsat(data, conclusion_out, clause_ids.size(),
-                             clause_ids.data());
+                             (int64_t *)clause_ids.data());
   }
 
   void conclude_sat(const std::vector<int> &model) override {
     callbacks.conclude_sat(data, model.size(), model.data());
   }
+
+#ifdef V220
+  void conclude_unknown(const std::vector<int> &model) override {
+    callbacks.conclude_unknown(data, model.size(), model.data());
+  }
+
+  void notify_equivalence(int first, int second) override {
+    callbacks.notify_equivalence(data, first, second);
+  }
+#endif
 
   void *get_data() { return data; }
 };

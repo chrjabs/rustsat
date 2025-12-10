@@ -1,5 +1,6 @@
 namespace CaDiCaL {
 
+#ifndef V220
 int64_t Solver::propagations() const {
   TRACE("propagations");
   REQUIRE_VALID_STATE();
@@ -23,8 +24,9 @@ int64_t Solver::conflicts() const {
   LOG_API_CALL_RETURNS("conflicts", res);
   return res;
 }
+#endif
 
-#ifdef PYSAT_PROPCHECK
+#ifndef V213
 // Propagate and check
 // This is based on the implementation in PySat
 // https://github.com/pysathq/pysat/blob/master/solvers/patches/cadical195.patch
@@ -48,7 +50,7 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
   // resetting the above options
 #ifdef V190
   internal->opts.ilb = 0;
-#ifdef V194
+#ifndef V194
   internal->opts.reimply = 0;
 #endif
 #endif
@@ -63,7 +65,7 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     // restoring default option values
 #ifdef V190
     internal->opts.ilb = old_ilb;
-#ifdef V194
+#ifndef V194
     internal->opts.reimply = old_reimply;
 #endif
 #endif
@@ -133,7 +135,7 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
 
 #ifdef V190
   internal->opts.ilb = old_ilb;
-#ifdef V194
+#ifndef V194
   internal->opts.reimply = old_reimply;
 #endif
 #endif

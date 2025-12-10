@@ -21,7 +21,7 @@
 //! All CaDiCaL versions from
 //! [Version 1.5.0](https://github.com/arminbiere/cadical/releases/tag/rel-1.5.0)
 //! up to
-//! [Version 2.1.3](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.3)
+//! [Version 2.2.0](https://github.com/arminbiere/cadical/releases/tag/rel-2.2.0)
 //! are available. For the full list of versions and the changelog see
 //! [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
 //!
@@ -603,6 +603,47 @@ impl CaDiCaL<'_, '_> {
         }
         Ok(())
     }
+
+    /// Increase the maximum variable index by a number of new variables.
+    /// Initializes `number_of_vars` new variables and protects them from
+    /// being used by the solver as extension variables (BVA).
+    ///
+    /// It returns the new maximum variable which is the highest
+    /// variable name of the consecutive range of newly declared variables.
+    ///
+    /// # Panics
+    ///
+    /// If `num_additional > i32::MAX`
+    #[cfg(cadical_version = "v2.2.0")]
+    pub fn declare_more_variables(&mut self, num_additional: u32) -> Var {
+        Lit::from_ipasir(unsafe {
+            ffi::ccadical_declare_more_variables(
+                self.handle,
+                i32::try_from(num_additional)
+                    .expect("can declare at most `i32::MAX` variables at once"),
+            )
+        })
+        .expect("received invalid variable from CaDiCaL")
+        .var()
+    }
+
+    /// Increase the maximum variable index by one. This is a specialized
+    /// version of [`Self::declare_more_variables`].
+    #[cfg(cadical_version = "v2.2.0")]
+    pub fn declare_one_more_variable(&mut self) -> Var {
+        self.declare_more_variables(1)
+    }
+
+    /// Gets statistic values from the solver
+    #[cfg(cadical_version = "v2.2.0")]
+    #[allow(clippy::missing_panics_doc)]
+    #[must_use]
+    pub fn get_statistic(&self, statistic: Statistic) -> u64 {
+        let statistic: &CStr = statistic.into();
+        let val = unsafe { ffi::ccadical_get_statistic_value(self.handle, statistic.as_ptr()) };
+        assert!(val >= 0, "got invalid statistic value from CaDiCaL");
+        val.unsigned_abs()
+    }
 }
 
 impl Extend<Clause> for CaDiCaL<'_, '_> {
@@ -635,7 +676,7 @@ impl Solve for CaDiCaL<'_, '_> {
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
         self.state = InternalSolverState::Input;
-        handle_oom!(unsafe { ffi::ccadical_reserve(self.handle, max_var.to_ipasir()) });
+        handle_oom!(unsafe { ffi::ccadical_resize(self.handle, max_var.to_ipasir()) });
         Ok(())
     }
 
@@ -966,21 +1007,36 @@ impl LimitDecisions for CaDiCaL<'_, '_> {
 
 impl GetInternalStats for CaDiCaL<'_, '_> {
     fn propagations(&self) -> usize {
-        unsafe { ffi::ccadical_propagations(self.handle) }
+        #[cfg(cadical_version = "v2.2.0")]
+        let res = usize::try_from(self.get_statistic(Statistic::Propagations))
+            .expect("more than `usize::MAX` propagations");
+        #[cfg(not(cadical_version = "v2.2.0"))]
+        let res = unsafe { ffi::ccadical_propagations(self.handle) }
             .try_into()
-            .unwrap()
+            .unwrap();
+        res
     }
 
     fn decisions(&self) -> usize {
-        unsafe { ffi::ccadical_decisions(self.handle) }
+        #[cfg(cadical_version = "v2.2.0")]
+        let res = usize::try_from(self.get_statistic(Statistic::Decisions))
+            .expect("more than `usize::MAX` decisions");
+        #[cfg(not(cadical_version = "v2.2.0"))]
+        let res = unsafe { ffi::ccadical_decisions(self.handle) }
             .try_into()
-            .unwrap()
+            .unwrap();
+        res
     }
 
     fn conflicts(&self) -> usize {
-        unsafe { ffi::ccadical_conflicts(self.handle) }
+        #[cfg(cadical_version = "v2.2.0")]
+        let res = usize::try_from(self.get_statistic(Statistic::Conflicts))
+            .expect("more than `usize::MAX` conflicts");
+        #[cfg(not(cadical_version = "v2.2.0"))]
+        let res = unsafe { ffi::ccadical_conflicts(self.handle) }
             .try_into()
-            .unwrap()
+            .unwrap();
+        res
     }
 }
 
@@ -1004,7 +1060,7 @@ impl Propagate for CaDiCaL<'_, '_> {
             0 => {
                 let prop_ptr: *mut Vec<Lit> = &mut props;
                 unsafe {
-                    ffi::ccadical_get_entrailed_literals(
+                    ffi::ccadical_implied(
                         self.handle,
                         Some(ffi::rustsat_cadical_collect_lits),
                         prop_ptr.cast::<std::os::raw::c_void>(),
@@ -1013,17 +1069,13 @@ impl Propagate for CaDiCaL<'_, '_> {
             }
             10 => {
                 self.state = InternalSolverState::Sat;
-                if let Some(max_var) = self.max_var() {
-                    for var in 0..=max_var.idx32() {
-                        let var = Var::new(var);
-                        props.push(match self.var_val(var)? {
-                            TernaryVal::True => var.pos_lit(),
-                            TernaryVal::False => var.neg_lit(),
-                            TernaryVal::DontCare => {
-                                unreachable!("returned SAT should have value for all variables")
-                            }
-                        });
-                    }
+                let prop_ptr: *mut Vec<Lit> = &mut props;
+                unsafe {
+                    ffi::ccadical_implied(
+                        self.handle,
+                        Some(ffi::rustsat_cadical_collect_lits),
+                        prop_ptr.cast::<std::os::raw::c_void>(),
+                    );
                 }
             }
             20 => {}
@@ -1257,6 +1309,51 @@ pub enum ProofFormat {
 impl Default for ProofFormat {
     fn default() -> Self {
         ProofFormat::Drat { binary: true }
+    }
+}
+
+/// Possible statistic values that can be read from the solver
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg(cadical_version = "v2.2.0")]
+#[non_exhaustive]
+pub enum Statistic {
+    /// The number of conflicts observed so far
+    Conflicts,
+    /// The number of decisions made so far
+    Decisions,
+    /// The number of "ticks" (pseudo-time) solved
+    Ticks,
+    /// The number of propagations made so far
+    Propagations,
+    /// The number of clauses in the solver
+    Clauses,
+    /// The number of redundant clauses in the solver
+    Redundant,
+    /// The number of irredundant clauses in the solver
+    Irredundant,
+    /// The number of fixed variables in the solver
+    Fixed,
+    /// The number of eliminated variables in the solver
+    Eliminated,
+    /// The number of substituted variables in the solver
+    Substituted,
+}
+
+#[cfg(cadical_version = "v2.2.0")]
+impl From<Statistic> for &'static CStr {
+    fn from(value: Statistic) -> Self {
+        match value {
+            Statistic::Conflicts => c"conflicts",
+            Statistic::Decisions => c"decisions",
+            Statistic::Ticks => c"ticks",
+            Statistic::Propagations => c"propagations",
+            Statistic::Clauses => c"clauses",
+            Statistic::Redundant => c"redundant",
+            Statistic::Irredundant => c"irredundant",
+            Statistic::Fixed => c"fixed",
+            Statistic::Eliminated => c"eliminated",
+            Statistic::Substituted => c"substituted",
+        }
     }
 }
 

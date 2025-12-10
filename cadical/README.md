@@ -27,7 +27,7 @@ CaDiCaL versions can be selected via cargo crate features.
 All CaDiCaL versions from
 [Version 1.5.0](https://github.com/arminbiere/cadical/releases/tag/rel-1.5.0)
 up to
-[Version 2.1.3](https://github.com/arminbiere/cadical/releases/tag/rel-2.1.3)
+[Version 2.2.0](https://github.com/arminbiere/cadical/releases/tag/rel-2.2.0)
 are available. For the full list of versions and the changelog see
 [the CaDiCaL releases](https://github.com/arminbiere/cadical/releases).
 

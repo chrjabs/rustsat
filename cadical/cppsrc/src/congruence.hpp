@@ -278,6 +278,11 @@ struct Gate {
   bool operator== (Gate const &lhs) {
     return tag == lhs.tag && rhs == lhs.rhs;
   }
+  // backport of
+  // https://github.com/arminbiere/cadical/commit/ba439a485e39097d27a1c933f9ed9b8099b52969
+  Gate ()
+      : lhs (0), garbage (false), indexed (false), marked (false),
+        shrunken (false), neg_lhs_ids () {}
 };
 
 typedef vector<Gate *> GOccs;

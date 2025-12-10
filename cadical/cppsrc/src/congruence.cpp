@@ -2577,7 +2577,9 @@ void Closure::update_and_gate (Gate *g, GatesTable::iterator it, int src,
   bool garbage = true;
   if (g->arity () == 1 && internal->val (g->lhs) &&
       internal->val (g->lhs) == internal->val (g->rhs[0])) {
-    g->garbage = true;
+    // backport of
+    // https://github.com/arminbiere/cadical/commit/2ebd6f166124418e8e66a416d0a9b38e10e63831
+    mark_garbage (g);
     return;
   }
   if (falsifies || clashing) {
@@ -2974,6 +2976,9 @@ Gate *Closure::new_and_gate (Clause *base_clause, int lhs) {
       LOG ("found merged literals");
       ++internal->stats.congruence.ands;
     }
+    // backport of
+    // https://github.com/arminbiere/cadical/commit/37c856eff4889f3b64023b825a9f416ed6ed0e18
+    delete g;
     return nullptr;
   } else {
     g->rhs = {rhs};
@@ -4677,14 +4682,15 @@ bool Closure::rewrite_gates (int dst, int src, LRAT_ID id1, LRAT_ID id2) {
   }
   goccs (src).clear ();
 
-#ifndef NDEBUG
-  for (const auto &occs : gtab) {
-    for (auto g : occs) {
-      assert (g);
-      assert (g->garbage || !gate_contains (g, src));
-    }
-  }
-#endif
+  // CJ: these debug checks massively slow down tests
+  // #ifndef NDEBUG
+  //   for (const auto &occs : gtab) {
+  //     for (auto g : occs) {
+  //       assert (g);
+  //       assert (g->garbage || !gate_contains (g, src));
+  //     }
+  //   }
+  // #endif
   assert (lrat_chain.empty ());
   return true;
 }

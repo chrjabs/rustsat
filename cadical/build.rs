@@ -38,8 +38,9 @@ enum Version {
     V210,
     V211,
     V212,
-    #[default]
     V213,
+    #[default]
+    V220,
     // Don't forget to update the crate documentation when adding a newer version
 }
 
@@ -47,6 +48,7 @@ enum Version {
 macro_rules! version_set_manually {
     () => {
         cfg!(any(
+            feature = "v2-2-0",
             feature = "v2-1-3",
             feature = "v2-1-2",
             feature = "v2-1-1",
@@ -79,7 +81,9 @@ macro_rules! version_set_manually {
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v2-1-3") {
+        if cfg!(feature = "v2-2-0") {
+            Version::V220
+        } else if cfg!(feature = "v2-1-3") {
             Version::V213
         } else if cfg!(feature = "v2-1-2") {
             Version::V212
@@ -165,6 +169,7 @@ impl Version {
             Version::V211 => "refs/tags/rel-2.1.1",
             Version::V212 => "refs/tags/rel-2.1.2",
             Version::V213 => "refs/tags/rel-2.1.3",
+            Version::V220 => "refs/tags/rel-2.2.0",
         }
     }
 
@@ -186,6 +191,7 @@ impl Version {
             V210 => "v210.patch",
             V211 | V212 => "v211.patch",
             V213 => "v213.patch",
+            V220 => "v220.patch",
         }
     }
 
@@ -221,6 +227,9 @@ impl Version {
         if self >= Version::V213 {
             build.define("V213", None);
         }
+        if self >= Version::V220 {
+            build.define("V220", None);
+        }
     }
 
     fn set_bindings_defines(self, mut bindings: bindgen::Builder) -> bindgen::Builder {
@@ -230,12 +239,15 @@ impl Version {
         if self >= Version::V213 {
             bindings = bindings.clang_arg("-DV213");
         }
+        if self >= Version::V220 {
+            bindings = bindings.clang_arg("-DV220");
+        }
         bindings
     }
 
     /// Sets custom `rustc` `--cfg` arguments for features only present in some version
     fn set_cfgs(self) {
-        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5.4\", \"v1.7.0\", \"v1.9.0\", \"v2.0.0\", \"v2.1.3\"))");
+        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5.4\", \"v1.7.0\", \"v1.9.0\", \"v2.0.0\", \"v2.1.3\", \"v2.2.0\"))");
         if self >= Version::V154 {
             println!("cargo:rustc-cfg=cadical_version=\"v1.5.4\"");
         }
@@ -250,6 +262,9 @@ impl Version {
         }
         if self >= Version::V213 {
             println!("cargo:rustc-cfg=cadical_version=\"v2.1.3\"");
+        }
+        if self >= Version::V220 {
+            println!("cargo:rustc-cfg=cadical_version=\"v2.2.0\"");
         }
     }
 }
@@ -273,6 +288,9 @@ fn main() {
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
     println!("cargo:rustc-link-lib=static=cadical");
+    if version >= Version::V220 {
+        println!("cargo:rustc-link-lib=static=kitten");
+    }
 
     // Link c++ std lib
     // Note: this should be _after_ linking the solver itself so that it is actually pulled in
@@ -317,7 +335,8 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
         .blocklist_function("ccadical_trace_proof")
         .blocklist_function("ccadical_close_proof")
         .blocklist_function("ccadical_conclude")
-        .blocklist_function("ccadical_simplify");
+        .blocklist_function("ccadical_simplify")
+        .blocklist_function("ccadical_declare_one_more_variable");
     let bindings = if version.has_proof_tracer() {
         // in this case, `ccadical.h` is included from `ctracer.h`
         bindings
@@ -433,6 +452,15 @@ fn build(repo: &str, branch: &str, version: Version) {
                 "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
                 cadical_version, version.reference(), compiler_desc, compiler_flags, chrono::Utc::now()
             ).expect("Failed to write CaDiCaL build.hpp");
+    // Build Kitten
+    if version >= Version::V220 {
+        let mut kitten_build = cadical_build.clone();
+        kitten_build
+            .cpp(false)
+            .include(cadical_dir.join("src"))
+            .file(format!("{cadical_dir_str}/src/kitten.c"))
+            .compile("kitten");
+    }
     // Build CaDiCaL
     cadical_build
         .include(out_dir)
