@@ -299,13 +299,13 @@ fn main() {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     println!("cargo:rustc-link-lib=dylib=stdc++");
 
-    for ext in ["h", "cpp"] {
-        for file in glob(&format!("cpp-extension/*.{ext}")).unwrap() {
-            println!("cargo:rerun-if-changed={}", file.unwrap().display());
-        }
-    }
-
     let cadical_dir = get_cadical_dir(version, None);
+
+    // Mark when to rerun the build script
+    println!("cargo:rerun-if-changed={cadical_dir}/src/");
+    println!("cargo:rerun-if-changed=cpp-extension/");
+    println!("cargo:rerun-if-env-changed=CADICAL_SRC_DIR");
+    println!("cargo:rerun-if-env-changed=CADICAL_PATCHES");
 
     generate_bindings(&cadical_dir, version, &out_dir);
 

@@ -108,6 +108,10 @@ fn main() {
     println!("cargo:rustc-link-search={out_dir}/lib");
     println!("cargo:rustc-link-lib=static=kissat");
 
+    // Mark when to rerun the build script
+    println!("cargo:rerun-if-changed={}/src", kissat_src_dir.display());
+    println!("cargo:rerun-if-env-changed=KISSAT_SRC_DIR");
+
     // Generate Rust FFI bindings
     generate_bindings(&kissat_src_dir, &out_dir);
 }
