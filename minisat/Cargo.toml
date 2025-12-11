@@ -48,3 +48,7 @@ clap.workspace = true
 rustsat-solvertests.workspace = true
 signal-hook.workspace = true
 # keep-sorted end
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

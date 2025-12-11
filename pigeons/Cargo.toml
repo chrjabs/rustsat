@@ -25,3 +25,9 @@ tempfile.workspace = true
 short-keywords = []
 serde = ["dep:serde"]
 _test = ["short-keywords", "serde"]
+_docs = ["serde"]
+
+[package.metadata.docs.rs]
+features = ["_docs"]
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

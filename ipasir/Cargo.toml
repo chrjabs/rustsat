@@ -21,3 +21,7 @@ thiserror.workspace = true
 
 [features]
 _test = []
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

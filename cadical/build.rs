@@ -457,6 +457,7 @@ fn build(repo: &str, branch: &str, version: Version) {
         let mut kitten_build = cadical_build.clone();
         kitten_build
             .cpp(false)
+            .std("c99")
             .include(cadical_dir.join("src"))
             .file(format!("{cadical_dir_str}/src/kitten.c"))
             .compile("kitten");

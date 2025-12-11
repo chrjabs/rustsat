@@ -234,7 +234,7 @@
             commonArgs
             // {
               inherit cargoArtifacts;
-              cargoDocExtraArgs = "--no-deps -Zunstable-options -Zrustdoc-scrape-examples";
+              cargoDocExtraArgs = "--no-deps -Zunstable-options -Zrustdoc-scrape-examples --features=_docs";
               env.RUSTDOCFLAGS = "--deny warnings";
             }
           );

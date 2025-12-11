@@ -43,3 +43,7 @@ cmake.workspace = true
 
 [dev-dependencies]
 rustsat-solvertests.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

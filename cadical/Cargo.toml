@@ -36,6 +36,7 @@ tracing = []
 pigeons = ["dep:pigeons", "rustsat/proof-logging"]
 git = ["dep:git2"]
 _test = ["tracing", "debug"]
+_docs = ["pigeons", "tracing"]
 # keep-sorted start
 v1-5-0 = ["git"]
 v1-5-1 = ["git"]
@@ -91,4 +92,6 @@ signal-hook.workspace = true
 # keep-sorted end
 
 [package.metadata.docs.rs]
-features = ["all"]
+features = ["_docs"]
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

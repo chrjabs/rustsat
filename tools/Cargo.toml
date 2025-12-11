@@ -36,3 +36,7 @@ default = ["minisat"]
 minisat = ["dep:rustsat-minisat"]
 cadical = ["dep:rustsat-cadical"]
 _test = []
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
