@@ -30,7 +30,7 @@ jobs:
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: wheels-linux-${{ matrix.target }}
           path: dist
@@ -53,7 +53,7 @@ jobs:
           args: --release --out dist --manifest-path pyapi/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: wheels-windows-${{ matrix.target }}
           path: dist
@@ -75,7 +75,7 @@ jobs:
           args: --release --out dist --manifest-path pyapi/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: wheels-macos-${{ matrix.target }}
           path: dist
@@ -91,7 +91,7 @@ jobs:
           command: sdist
           args: --out dist --manifest-path pyapi/Cargo.toml
       - name: Upload sdist
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: wheels-sdist
           path: dist
@@ -101,7 +101,7 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/rustsat-v')"
     needs: [linux, windows, macos, sdist]
     steps:
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
       - name: Publish to PyPI
         uses: PyO3/maturin-action@v1
         env:
