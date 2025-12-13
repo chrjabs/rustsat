@@ -33,7 +33,7 @@ bzip2 = "0.5.2"
 cc = { version = "1.2.49", features = ["parallel"] }
 chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["derive", "cargo"] }
-cmake = "0.1.54"
+cmake = "0.1.56"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
 flate2 = { version = "1.1.5", features = ["zlib-ng"], default-features = false }
