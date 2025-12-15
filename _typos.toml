@@ -8,10 +8,13 @@ extend-ignore-re = [
 ignore-hex = true
 
 [default.extend-words]
-lits = "lits"
-Thay = "Thay"
+# keep-sorted start
 Ines = "Ines"
 Linz = "Linz"
+Thay = "Thay"
+flate = "flate"
+lits = "lits"
+# keep-sorted end
 
 [files]
 extend-exclude = [
