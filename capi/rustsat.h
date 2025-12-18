@@ -158,6 +158,17 @@ typedef struct Pairwise Pairwise;
  */
 typedef struct Totalizer Totalizer;
 
+/**
+ * Implementation of the 2-product at-most-1 encoding.
+ *
+ * The sub encoding is fixed to the pairwise encoding.
+ *
+ * # References
+ *
+ * - Jingchao Chen: _A New SAT Encoding of the At-Most-One Constraint_, ModRef 2010.
+ */
+typedef struct TwoProduct TwoProduct;
+
 typedef void (*CClauseCollector)(int lit, void *data);
 
 typedef void (*CAssumpCollector)(int lit, void *data);
@@ -405,6 +416,54 @@ void bimander_encode(struct Bimander *bimander,
                      uint32_t *n_vars_used,
                      CClauseCollector collector,
                      void *collector_data);
+
+/**
+ * Creates a new [`TwoProduct`] at-most-one encoding
+ */
+struct TwoProduct *twoproduct_new(void);
+
+/**
+ * Frees the memory associated with a [`TwoProduct`]
+ *
+ * # Safety
+ *
+ * `twoproduct` must be a return value of [`twoproduct_new`] and cannot be used afterwards again.
+ */
+void twoproduct_drop(struct TwoProduct *twoproduct);
+
+/**
+ * Adds a new input literal to a [`TwoProduct`] encoding
+ *
+ * # Errors
+ *
+ * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+ *   [`MaybeError::InvalidLiteral`] is returned
+ *
+ * # Safety
+ *
+ * `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
+ */
+enum MaybeError twoproduct_add(struct TwoProduct *twoproduct,
+                               int lit);
+
+/**
+ * Builds the [`TwoProduct`] at-most-one encoding
+ *
+ * Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+ * passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+ * passed as the first argument and the `collector_data` as a second.
+ *
+ * `n_vars_used` must be the number of variables already used and will be incremented by the
+ * number of variables used up in the encoding.
+ *
+ * # Safety
+ *
+ * `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
+ */
+void twoproduct_encode(struct TwoProduct *twoproduct,
+                       uint32_t *n_vars_used,
+                       CClauseCollector collector,
+                       void *collector_data);
 
 /**
  * Creates a new [`Totalizer`] cardinality encoding
