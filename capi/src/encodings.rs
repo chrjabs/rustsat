@@ -181,6 +181,16 @@ pub struct Commander(rustsat::encodings::am1::Commander);
 #[derive(Default)]
 pub struct Bimander(rustsat::encodings::am1::Bimander);
 
+/// Implementation of the 2-product at-most-1 encoding.
+///
+/// The sub encoding is fixed to the pairwise encoding.
+///
+/// # References
+///
+/// - Jingchao Chen: _A New SAT Encoding of the At-Most-One Constraint_, ModRef 2010.
+#[derive(Default)]
+pub struct TwoProduct(rustsat::encodings::am1::TwoProduct);
+
 pub mod am1;
 pub mod card;
 pub mod dpw;

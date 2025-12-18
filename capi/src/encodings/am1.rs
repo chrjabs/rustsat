@@ -7,7 +7,9 @@ use rustsat::{
     types::Lit,
 };
 
-use super::{Bimander, CClauseCollector, ClauseCollector, Commander, MaybeError, VarManager};
+use super::{
+    Bimander, CClauseCollector, ClauseCollector, Commander, MaybeError, TwoProduct, VarManager,
+};
 
 /// Creates a new [`Pairwise`] at-most-one encoding
 #[no_mangle]
@@ -321,6 +323,70 @@ pub unsafe extern "C" fn bimander_encode(
     let mut collector = ClauseCollector::new(collector, collector_data);
     let mut var_manager = VarManager::new(n_vars_used);
     (*bimander)
+        .0
+        .encode(&mut collector, &mut var_manager)
+        .expect("CClauseCollector cannot report out of memory");
+}
+
+/// Creates a new [`TwoProduct`] at-most-one encoding
+#[no_mangle]
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn twoproduct_new() -> *mut TwoProduct {
+    Box::into_raw(Box::default())
+}
+
+/// Frees the memory associated with a [`TwoProduct`]
+///
+/// # Safety
+///
+/// `twoproduct` must be a return value of [`twoproduct_new`] and cannot be used afterwards again.
+#[no_mangle]
+pub unsafe extern "C" fn twoproduct_drop(twoproduct: *mut TwoProduct) {
+    drop(Box::from_raw(twoproduct));
+}
+
+/// Adds a new input literal to a [`TwoProduct`] encoding
+///
+/// # Errors
+///
+/// - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
+///   [`MaybeError::InvalidLiteral`] is returned
+///
+/// # Safety
+///
+/// `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
+#[no_mangle]
+pub unsafe extern "C" fn twoproduct_add(twoproduct: *mut TwoProduct, lit: c_int) -> MaybeError {
+    let Ok(lit) = Lit::from_ipasir(lit) else {
+        return MaybeError::InvalidLiteral;
+    };
+    (*twoproduct).0.extend([lit]);
+    MaybeError::Ok
+}
+
+/// Builds the [`TwoProduct`] at-most-one encoding
+///
+/// Clauses are returned via the `collector`. The `collector` function should expect clauses to be
+/// passed similarly to `ipasir_add`, as a 0-terminated sequence of literals where the literals are
+/// passed as the first argument and the `collector_data` as a second.
+///
+/// `n_vars_used` must be the number of variables already used and will be incremented by the
+/// number of variables used up in the encoding.
+///
+/// # Safety
+///
+/// `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
+#[allow(clippy::missing_panics_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn twoproduct_encode(
+    twoproduct: *mut TwoProduct,
+    n_vars_used: &mut u32,
+    collector: CClauseCollector,
+    collector_data: *mut c_void,
+) {
+    let mut collector = ClauseCollector::new(collector, collector_data);
+    let mut var_manager = VarManager::new(n_vars_used);
+    (*twoproduct)
         .0
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");

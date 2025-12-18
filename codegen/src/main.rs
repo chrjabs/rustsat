@@ -56,6 +56,13 @@ fn main() {
             n_vars: 5,
             n_clauses: 10,
         },
+        Am1 {
+            name: "TwoProduct",
+            id: "twoproduct",
+            wrapped: true,
+            n_vars: 8,
+            n_clauses: 10,
+        },
     ];
     let path = "capi/src/encodings/am1.rs";
     let generated = rustfmt(capi_enc_bindings("capi-am1.rs.j2", &am1_encs, &templates));
