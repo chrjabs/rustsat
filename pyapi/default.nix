@@ -23,7 +23,7 @@ buildPythonPackage {
         path: type:
         type == "directory"
         || (
-          builtins.match ".*(src/(lib|main).rs|Cargo.lock|-source/(examples/.*rs|src/.*rs)|pyapi/(python/.*|README.md|build.rs|stubtest-allowlist.txt|src/.*rs|examples/.*py)|toml)$" path
+          builtins.match ".*(src/(lib|main).rs|benches/.*rs|Cargo.lock|-source/(examples/.*rs|src/.*rs)|pyapi/(python/.*|README.md|build.rs|stubtest-allowlist.txt|src/.*rs|examples/.*py)|toml)$" path
           != null
         );
     in

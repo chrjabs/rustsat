@@ -102,29 +102,24 @@ impl GeneralizedTotalizer {
                 new_lits.sort_by_key(|(_, w)| *w);
                 // Detect sequences of literals of equal weight and merge them
                 let mut seg_begin = 0;
-                let mut seg_end = 0;
                 let mut cons = vec![];
-                loop {
-                    seg_end += 1;
-                    if seg_end < new_lits.len() && new_lits[seg_end].1 == new_lits[seg_begin].1 {
+                for seg_end in 1..new_lits.len() {
+                    if new_lits[seg_end].1 == new_lits[seg_begin].1 {
                         continue;
                     }
                     // merge lits of equal weight
-                    let seg: Vec<_> = new_lits[seg_begin..seg_end]
-                        .iter()
-                        .map(|(lit, _)| *lit)
-                        .collect();
-                    let id = self.db.lit_tree(&seg);
+                    let seg = new_lits[seg_begin..seg_end].iter().map(|&(lit, _)| lit);
+                    let id = self.db.lit_tree(seg).unwrap();
                     cons.push(NodeCon::weighted(id, new_lits[seg_begin].1));
                     seg_begin = seg_end;
-                    if seg_end >= new_lits.len() {
-                        break;
-                    }
                 }
+                let seg = new_lits[seg_begin..].iter().map(|&(lit, _)| lit);
+                let id = self.db.lit_tree(seg).unwrap();
+                cons.push(NodeCon::weighted(id, new_lits[seg_begin].1));
                 if let Some(con) = self.root {
                     cons.push(con);
                 }
-                self.root = Some(self.db.merge_balanced(&cons));
+                self.root = Some(self.db.merge_balanced(&cons).unwrap());
                 self.lit_buffer.retain(|_, w| *w > max_weight);
             }
         }
