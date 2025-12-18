@@ -38,6 +38,9 @@ pub use commander::Commander;
 mod bimander;
 pub use bimander::Bimander;
 
+mod twoproduct;
+pub use twoproduct::TwoProduct;
+
 /// Trait for all at-most-1 encodings
 pub trait Encode {
     /// Gets the number of literals in the encoding
