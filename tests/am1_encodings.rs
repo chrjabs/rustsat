@@ -191,3 +191,4 @@ gen_tests!(ladder, rustsat::encodings::am1::Ladder);
 gen_tests!(bitwise, rustsat::encodings::am1::Bitwise);
 gen_tests!(commander, rustsat::encodings::am1::Commander);
 gen_tests!(bimander, rustsat::encodings::am1::Bimander);
+gen_tests!(twoproduct, rustsat::encodings::am1::TwoProduct);
