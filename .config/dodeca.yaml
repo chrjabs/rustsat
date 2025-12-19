@@ -1,0 +1,6 @@
+content: webpage/content/
+output: webpage/public/
+
+link_check: {}
+
+stable_assets: []

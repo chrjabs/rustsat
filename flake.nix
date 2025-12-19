@@ -457,6 +457,7 @@
                   cargo-udeps
                   cargo-valgrind
                   config.treefmt.build.wrapper
+                  dodeca
                   git-cliff
                   gungraun-runner
                   kani
