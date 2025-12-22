@@ -1211,7 +1211,6 @@ dependencies = [
  "flate2",
  "gungraun",
  "itertools 0.14.0",
- "nom",
  "pigeons",
  "rand",
  "rustc-hash",

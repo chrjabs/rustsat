@@ -4,12 +4,13 @@ use std::{collections::BTreeSet, io, path::Path};
 
 use crate::{
     types::{Assignment, Lit, TernaryVal, Var, WClsIter, WLitIter},
-    RequiresClausal, RequiresSoftLits,
+    RequiresSoftLits,
 };
 
 use super::{
     fio::{self, dimacs::McnfLine},
-    BasicVarManager, Cnf, ManageVars, Objective, ReindexVars, SatInstance,
+    BasicVarManager, Cnf, ManageVars, Objective, ReindexVars, SatInstance, WriteDimacsError,
+    WriteOpbError,
 };
 
 /// Type representing a multi-objective optimization instance.
@@ -245,9 +246,8 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`RequiresClausal`]
-    /// - Returns [`io::Error`] on errors during writing
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    /// If the instance is not clausal or writing fails
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteDimacsError> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer)
     }
@@ -264,11 +264,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`RequiresClausal`]
-    /// - Returns [`io::Error`] on errors during writing
-    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+    /// If the instance is not clausal or writing fails
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> Result<(), WriteDimacsError> {
         if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
-            return Err(RequiresClausal.into());
+            return Err(WriteDimacsError::RequiresClausal);
         }
         let n_vars = self.constrs.n_vars();
         let iter = self.objs.iter().map(|o| {
@@ -290,13 +289,12 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
-    /// - Returns [`io::Error`] on errors during writing
+    /// If the objective contains soft clauses or writing fails
     pub fn write_opb_path<P: AsRef<Path>>(
         &self,
         path: P,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), WriteOpbError> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_opb(&mut writer, opts)
     }
@@ -312,13 +310,12 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
-    /// - Returns [`io::Error`] on errors during writing
+    /// If the objective contains soft clauses or writing fails
     pub fn write_opb<W: io::Write>(
         &self,
         writer: &mut W,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), WriteOpbError> {
         let objs: Result<Vec<_>, RequiresSoftLits> = self
             .objs
             .iter()
