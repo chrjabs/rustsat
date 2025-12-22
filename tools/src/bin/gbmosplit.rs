@@ -606,6 +606,16 @@ macro_rules! handle_error {
             }
         }
     }};
+    (no-anyhow: $res:expr, $cli:expr) => {{
+        match $res {
+            Ok(val) => val,
+            Err(err) => {
+                let err = anyhow::Error::from(err);
+                $cli.error(&err);
+                anyhow::bail!(err)
+            }
+        }
+    }};
 }
 
 fn main() -> anyhow::Result<()> {
@@ -636,9 +646,9 @@ fn main() -> anyhow::Result<()> {
                 mo_inst.constraints_mut().convert_to_cnf();
                 if let Some(path) = &cli.out_path {
                     cli.info(&format!("writing mcnf to {}", path.display()));
-                    handle_error!(mo_inst.write_dimacs_path(path), cli);
+                    handle_error!(no-anyhow: mo_inst.write_dimacs_path(path), cli);
                 } else {
-                    handle_error!(
+                    handle_error!(no-anyhow:
                         mo_inst.write_dimacs(&mut io::BufWriter::new(io::stdout())),
                         cli
                     );
@@ -652,9 +662,9 @@ fn main() -> anyhow::Result<()> {
                 let mo_inst = MultiOptInstance::compose(constrs, objs);
                 if let Some(path) = &cli.out_path {
                     cli.info(&format!("writing opb to {}", path.display()));
-                    handle_error!(mo_inst.write_opb_path(path, cli.opb_opts), cli);
+                    handle_error!(no-anyhow: mo_inst.write_opb_path(path, cli.opb_opts), cli);
                 } else {
-                    handle_error!(
+                    handle_error!(no-anyhow:
                         mo_inst.write_opb(&mut io::BufWriter::new(io::stdout()), cli.opb_opts),
                         cli
                     );

@@ -4,12 +4,11 @@
 
 use core::ffi::c_int;
 use std::{
-    fmt,
+    fmt, io,
     ops::{self, Index, IndexMut},
     path::Path,
 };
 
-use anyhow::Context;
 use thiserror::Error;
 
 pub mod constraints;
@@ -860,6 +859,35 @@ pub enum InvalidVLine {
     /// The given `v` line is empty
     #[error("Empty value line")]
     EmptyLine,
+    /// Invalid character in MSE `v` line
+    #[error("Invalid character in MSE v-line: {0}")]
+    InvalidCharacter(char),
+    /// Invalid integer string
+    #[error("Invalid integer string: {0}")]
+    InvalidInt(#[from] std::num::ParseIntError),
+    /// Invalid IPASIR literal
+    #[error("Invalid integer literal: {0}")]
+    InvalidLit(#[from] TypeError),
+    /// Error in parsing
+    #[error("Parsing error: {0}")]
+    Parsing(#[from] ParsingError),
+}
+
+/// V-line parsing or IO error
+#[derive(Error, Debug)]
+pub enum AssignmentFromSolverOutputError {
+    /// Failed to parse solver output
+    #[error("Invalid solver output: {0}")]
+    InvalidOutput(#[from] fio::SatSolverOutputError),
+    /// The solver did not return SAT
+    #[error("the solver did not return SAT")]
+    NotSat,
+}
+
+impl From<io::Error> for AssignmentFromSolverOutputError {
+    fn from(value: io::Error) -> Self {
+        Self::InvalidOutput(fio::SatSolverOutputError::from(value))
+    }
 }
 
 /// Different possible `v`-line formats
@@ -987,14 +1015,14 @@ impl Assignment {
     /// - IO error: [`std::io::Error`]
     /// - Invalid solver output: [`fio::SatSolverOutputError`]
     /// - Invalid v line: [`InvalidVLine`]
-    pub fn from_solver_output_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let mut reader = std::io::BufReader::new(
-            fio::open_compressed_uncompressed_read(path).context("failed to open reader")?,
-        );
+    pub fn from_solver_output_path<P: AsRef<Path>>(
+        path: P,
+    ) -> Result<Self, AssignmentFromSolverOutputError> {
+        let mut reader = std::io::BufReader::new(fio::open_compressed_uncompressed_read(path)?);
         let output = fio::parse_sat_solver_output(&mut reader)?;
         match output {
             SolverOutput::Sat(solution) => Ok(solution),
-            _ => anyhow::bail!("solver output does not indicate satisfiability"),
+            _ => Err(AssignmentFromSolverOutputError::NotSat),
         }
     }
 
@@ -1003,7 +1031,7 @@ impl Assignment {
     /// # Errors
     ///
     /// [`InvalidVLine`] or if parsing fails.
-    pub fn from_vline(line: &str) -> anyhow::Result<Self> {
+    pub fn from_vline(line: &str) -> Result<Self, InvalidVLine> {
         let mut assignment = Assignment::default();
         assignment.extend_from_vline(line)?;
         Ok(assignment)
@@ -1019,8 +1047,10 @@ impl Assignment {
     /// # Errors
     ///
     /// Can return various parsing errors
-    pub fn extend_from_vline(&mut self, lines: &str) -> anyhow::Result<()> {
-        anyhow::ensure!(!lines.is_empty(), InvalidVLine::EmptyLine);
+    pub fn extend_from_vline(&mut self, lines: &str) -> Result<(), InvalidVLine> {
+        if lines.is_empty() {
+            return Err(InvalidVLine::EmptyLine);
+        }
         // determine line format
         let format = if lines.contains('x') {
             VLineFormat::PbComp
@@ -1045,9 +1075,11 @@ impl Assignment {
 
         for line in lines.lines() {
             if let Some(tag) = line.chars().next() {
-                anyhow::ensure!(tag == 'v', InvalidVLine::InvalidTag(tag));
+                if tag != 'v' {
+                    return Err(InvalidVLine::InvalidTag(tag));
+                }
             } else {
-                anyhow::bail!(InvalidVLine::EmptyLine);
+                return Err(InvalidVLine::EmptyLine);
             }
 
             match format {
@@ -1060,7 +1092,7 @@ impl Assignment {
     }
 
     /// Parses a single SAT Competition v-line
-    fn extend_sat_comp_vline(&mut self, line: &str) -> anyhow::Result<()> {
+    fn extend_sat_comp_vline(&mut self, line: &str) -> Result<(), InvalidVLine> {
         let line = &line[1..];
         for number in line.split_whitespace() {
             let number = number.parse::<i32>()?;
@@ -1076,7 +1108,7 @@ impl Assignment {
                 || val == TernaryVal::False && literal.is_pos()
             {
                 // Catch conflicting assignments
-                anyhow::bail!(InvalidVLine::ConflictingAssignment(literal.var()));
+                return Err(InvalidVLine::ConflictingAssignment(literal.var()));
             }
             self.assign_lit(literal);
         }
@@ -1084,21 +1116,21 @@ impl Assignment {
     }
 
     /// Parses a single MaxSAT Evaluation v-line
-    fn extend_maxsat_eval_vline(&mut self, line: &str) -> anyhow::Result<()> {
+    fn extend_maxsat_eval_vline(&mut self, line: &str) -> Result<(), InvalidVLine> {
         let line = line[1..].trim();
         self.assignment.reserve(line.len());
         for char in line.chars() {
             match char {
                 '0' => self.assignment.push(TernaryVal::False),
                 '1' => self.assignment.push(TernaryVal::True),
-                _ => anyhow::bail!("unexpected character in MaxSAT Evaluation v-line"),
+                char => return Err(InvalidVLine::InvalidCharacter(char)),
             }
         }
         Ok(())
     }
 
     /// Parses a single PB Competition v-line
-    fn extend_pb_comp_vline(&mut self, line: &str) -> anyhow::Result<()> {
+    fn extend_pb_comp_vline(&mut self, line: &str) -> Result<(), InvalidVLine> {
         let line = &line[1..];
         for number in line.split_whitespace() {
             let lit = fio::opb::literal(fio::opb::Options::default())
@@ -1114,7 +1146,7 @@ impl Assignment {
             let val = self.lit_value(lit);
             if val == TernaryVal::True && lit.is_neg() || val == TernaryVal::False && lit.is_pos() {
                 // Catch conflicting assignments
-                anyhow::bail!(InvalidVLine::ConflictingAssignment(lit.var()));
+                return Err(InvalidVLine::ConflictingAssignment(lit.var()));
             }
             self.assign_lit(lit);
         }
@@ -1307,7 +1339,7 @@ mod pigeons {
 
 #[cfg(test)]
 mod tests {
-    use std::{mem::size_of, num::ParseIntError};
+    use std::mem::size_of;
 
     use super::{Assignment, InvalidVLine, Lit, TernaryVal, Var};
 
@@ -1600,7 +1632,7 @@ mod tests {
     fn vline_invalid_lit_from() {
         let vline = "v 1 -2 4 foo -5 bar 6 0";
         let res = Assignment::from_vline(vline);
-        res.unwrap_err().downcast::<ParseIntError>().unwrap();
+        matches!(res.unwrap_err(), InvalidVLine::InvalidInt(_));
     }
 
     #[test]
@@ -1608,17 +1640,14 @@ mod tests {
         let vline = "v 1 -2 4 foo -5 bar 6 0";
         let mut assign = Assignment::default();
         let res = assign.extend_from_vline(vline);
-        res.unwrap_err().downcast::<ParseIntError>().unwrap();
+        matches!(res.unwrap_err(), InvalidVLine::InvalidInt(_));
     }
 
     #[test]
     fn vline_invalid_tag_from() {
         let vline = "b 1 -2 4 -5 6 0";
         let res = Assignment::from_vline(vline);
-        assert!(matches!(
-            res.unwrap_err().downcast::<InvalidVLine>(),
-            Ok(InvalidVLine::InvalidTag('b'))
-        ));
+        assert!(matches!(res.unwrap_err(), InvalidVLine::InvalidTag('b')));
     }
 
     #[test]
@@ -1626,20 +1655,14 @@ mod tests {
         let vline = "b 1 -2 4 -5 6 0";
         let mut assign = Assignment::default();
         let res = assign.extend_from_vline(vline);
-        assert!(matches!(
-            res.unwrap_err().downcast::<InvalidVLine>(),
-            Ok(InvalidVLine::InvalidTag('b'))
-        ));
+        assert!(matches!(res.unwrap_err(), InvalidVLine::InvalidTag('b')));
     }
 
     #[test]
     fn vline_invalid_empty() {
         let vline = "";
         let res = Assignment::from_vline(vline);
-        assert!(matches!(
-            res.unwrap_err().downcast::<InvalidVLine>(),
-            Ok(InvalidVLine::EmptyLine)
-        ));
+        assert!(matches!(res.unwrap_err(), InvalidVLine::EmptyLine));
     }
 
     #[test]

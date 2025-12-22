@@ -6,6 +6,7 @@
 use std::{
     any::{Any, TypeId},
     hash::{Hash, Hasher},
+    io,
 };
 
 use crate::{
@@ -461,6 +462,36 @@ impl Hash for Box<dyn VarKey> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let key_hash = VarKey::hash(self.as_ref());
         state.write_u64(key_hash);
+    }
+}
+
+/// Errors when writing instances to DIMACS files
+#[derive(Debug, thiserror::Error)]
+pub enum WriteDimacsError {
+    /// Input-output error
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    /// The instance is non-clausal
+    #[error("writing to DIMACS files requires clausal constraints")]
+    RequiresClausal,
+}
+
+/// Errors when writing instances to OPB files
+#[cfg(feature = "optimization")]
+#[derive(Debug, thiserror::Error)]
+pub enum WriteOpbError {
+    /// Input-output error
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    /// The instance is non-clausal
+    #[error("writing to OPB files requires soft literal objectives")]
+    RequiresSoftLits,
+}
+
+#[cfg(feature = "optimization")]
+impl From<crate::RequiresSoftLits> for WriteOpbError {
+    fn from(_: crate::RequiresSoftLits) -> Self {
+        Self::RequiresSoftLits
     }
 }
 
