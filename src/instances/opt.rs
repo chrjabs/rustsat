@@ -16,8 +16,10 @@ use crate::{
         Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
     },
     utils::unreachable_none,
-    RequiresClausal, RequiresSoftLits,
+    RequiresSoftLits,
 };
+
+use super::{WriteDimacsError, WriteOpbError};
 
 /// Internal objective type for not exposing variants
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1227,9 +1229,8 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`RequiresClausal`]
-    /// - Returns [`io::Error`] on errors during writing
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    /// If the instance is not clausal or writing fails
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteDimacsError> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer)
     }
@@ -1246,11 +1247,10 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`RequiresClausal`]
-    /// - Returns [`io::Error`] on errors during writing
-    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+    /// If the instance is not clausal or writing fails
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> Result<(), WriteDimacsError> {
         if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
-            return Err(RequiresClausal.into());
+            return Err(WriteDimacsError::RequiresClausal);
         }
         let n_vars = self.constrs.n_vars();
         let offset = self.obj.offset();
@@ -1270,13 +1270,12 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
-    /// - Returns [`io::Error`] on errors during writing
+    /// If the objective contains soft clauses or writing fails
     pub fn write_opb_path<P: AsRef<Path>>(
         &self,
         path: P,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), WriteOpbError> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_opb(&mut writer, opts)
     }
@@ -1292,13 +1291,12 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the objective contains soft literals, returns [`RequiresSoftLits`]
-    /// - Returns [`io::Error`] on errors during writing
+    /// If the objective contains soft clauses or writing fails
     pub fn write_opb<W: io::Write>(
         &self,
         writer: &mut W,
         opts: fio::opb::Options,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), WriteOpbError> {
         let offset = self.obj.offset();
         let iter = self.obj.iter_soft_lits()?;
         Ok(fio::opb::write_opt::<W, VM, _>(
