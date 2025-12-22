@@ -16,9 +16,8 @@ rust-version.workspace = true
 [dependencies]
 # keep-sorted start
 anyhow.workspace = true
-batsat = "0.6.0"           # when changing this version, do not forget to update signature
+batsat = "0.6.0"         # when changing this version, do not forget to update signature
 rustsat.workspace = true
-thiserror.workspace = true
 # keep-sorted end
 
 [dev-dependencies]

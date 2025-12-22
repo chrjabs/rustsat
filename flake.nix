@@ -255,6 +255,17 @@
               cargoExtraArgs = "";
             }
           );
+          machete = craneLib.mkCargoDerivation (
+            commonArgs
+            // {
+              pnameSuffix = "-machete";
+              cargoArtifacts = null;
+              nativeBuildInputs = with pkgs; [ cargo-machete ];
+              buildPhaseCargoCommand = ''
+                cargo machete
+              '';
+            }
+          );
           codegen = craneLib.mkCargoDerivation (
             commonArgs
             // {
@@ -438,10 +449,12 @@
                   cargo-deny
                   cargo-hack
                   cargo-llvm-cov
+                  cargo-machete
                   cargo-nextest
                   cargo-rdme
                   cargo-show-asm
                   cargo-spellcheck
+                  cargo-udeps
                   cargo-valgrind
                   config.treefmt.build.wrapper
                   git-cliff
@@ -511,6 +524,7 @@
               externalGimsatul
               externalKissat
               featurePowerset
+              machete
               msrv
               pyapi
               readmes
