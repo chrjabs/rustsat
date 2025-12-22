@@ -17,12 +17,11 @@ use crate::{
         Assignment, Clause, Lit, TernaryVal, Var,
     },
     utils::{unreachable_err, LimitedIter},
-    RequiresClausal,
 };
 
 use super::{
     fio::{self, dimacs::CnfLine},
-    BasicVarManager, ManageVars, ReindexVars,
+    BasicVarManager, ManageVars, ReindexVars, WriteDimacsError,
 };
 
 /// Simple type representing a CNF formula. Other than [`Instance<VM>`], this
@@ -763,9 +762,8 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`RequiresClausal`]
-    /// - Returns [`io::Error`] on errors during writing
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    /// If the instance is not clausal or writing fails
+    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteDimacsError> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer)
     }
@@ -782,11 +780,10 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// - If the instance is not clausal, returns [`RequiresClausal`]
-    /// - Returns [`io::Error`] on errors during writing
-    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> anyhow::Result<()> {
+    /// If the instance is not clausal or writing fails
+    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> Result<(), WriteDimacsError> {
         if self.n_cards() > 0 || self.n_pbs() > 0 {
-            return Err(RequiresClausal.into());
+            return Err(WriteDimacsError::RequiresClausal);
         }
         let n_vars = self.n_vars();
         Ok(fio::dimacs::write_cnf_annotated(writer, &self.cnf, n_vars)?)

@@ -90,7 +90,10 @@ impl Cli {
         self.stdout.print(&buffer).unwrap();
     }
 
-    fn error(&self, err: &anyhow::Error) {
+    fn error<E>(&self, err: &E)
+    where
+        E: std::fmt::Display,
+    {
         let mut buffer = self.stderr.buffer();
         buffer
             .set_color(ColorSpec::new().set_bold(true).set_fg(Some(Color::Red)))
@@ -565,15 +568,15 @@ fn parse_instance(
                     } else {
                         ext
                     };
-                    if is_one_of!(ext, "wcnf") {
+                    let inst = if is_one_of!(ext, "wcnf") {
                         OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
                     } else if is_one_of!(ext, "opb") {
                         OptInstance::from_opb_path(path, opb_opts)
                             .map(|inst| (inst, WriteFormat::Opb))
-                            .map_err(|e| e.into())
                     } else {
                         anyhow::bail!("unknown file extension")
-                    }
+                    }?;
+                    Ok(inst)
                 } else {
                     anyhow::bail!("no file extension")
                 }
@@ -582,12 +585,13 @@ fn parse_instance(
             }
         }
         InputFormat::Wcnf => {
-            if let Some(path) = path {
+            let inst = if let Some(path) = path {
                 OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
             } else {
                 OptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
                     .map(|inst| (inst, WriteFormat::Mcnf))
-            }
+            }?;
+            Ok(inst)
         }
         InputFormat::Opb => if let Some(path) = path {
             OptInstance::from_opb_path(path, opb_opts).map(|inst| (inst, WriteFormat::Opb))

@@ -224,6 +224,12 @@ impl SolverOutput {
 #[derive(Error, Debug)]
 #[allow(clippy::enum_variant_names)]
 pub enum SatSolverOutputError {
+    /// Input-output error
+    #[error("IO error: {0}")]
+    Io(#[from] io::Error),
+    /// Invalid v-line
+    #[error("Invalid v-line: {0}")]
+    InvalidVLine(#[from] types::InvalidVLine),
     /// The solver output does not contain an `s` line
     #[error("No solution line found in the output.")]
     NoSLine,
@@ -239,9 +245,10 @@ pub enum SatSolverOutputError {
 ///
 /// # Errors
 ///
-/// Either [`SatSolverOutputError`], [`types::InvalidVLine`], or other parsing errors on invalid
-/// input.
-pub fn parse_sat_solver_output<R: BufRead>(reader: &mut R) -> anyhow::Result<SolverOutput> {
+/// If reading the output of parsing it fails
+pub fn parse_sat_solver_output<R: BufRead>(
+    reader: &mut R,
+) -> Result<SolverOutput, SatSolverOutputError> {
     let mut is_sat = false;
     let mut solution: Option<Assignment> = None;
 
@@ -259,7 +266,7 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: &mut R) -> anyhow::Result<Sol
                 line if line.starts_with("SATISFIABLE") => {
                     is_sat = true;
                 }
-                _ => anyhow::bail!(SatSolverOutputError::InvalidSLine),
+                _ => return Err(SatSolverOutputError::InvalidSLine),
             }
         }
 
@@ -273,13 +280,15 @@ pub fn parse_sat_solver_output<R: BufRead>(reader: &mut R) -> anyhow::Result<Sol
     }
 
     // There is no solution line so we can not trust the output
-    anyhow::ensure!(is_sat, SatSolverOutputError::NoSLine);
+    if !is_sat {
+        return Err(SatSolverOutputError::NoSLine);
+    }
 
     if let Some(solution) = solution {
         return Ok(SolverOutput::Sat(solution));
     }
 
-    anyhow::bail!(SatSolverOutputError::NoVLine);
+    Err(SatSolverOutputError::NoVLine)
 }
 
 #[cfg(test)]
