@@ -889,7 +889,7 @@ impl super::Db {
         &mut self,
         con: NodeCon,
         range: ops::RangeInclusive<usize>,
-        sems: Semantics,
+        semantics: Semantics,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pigeons::Proof<W>,
@@ -902,12 +902,12 @@ impl super::Db {
         if con.offset() == 0 && con.len_limit.is_none() {
             // normal recursion case
             for val in range {
-                if matches!(sems, Semantics::If) && val == 0
-                    || matches!(sems, Semantics::OnlyIf) && val == self.con_len(con)
+                if matches!(semantics, Semantics::If) && val == 0
+                    || matches!(semantics, Semantics::OnlyIf) && val == self.con_len(con)
                 {
                     continue;
                 }
-                let idx = match sems {
+                let idx = match semantics {
                     Semantics::If => val - 1,
                     Semantics::OnlyIf => val,
                     Semantics::IfAndOnlyIf => {
@@ -917,7 +917,7 @@ impl super::Db {
                 self.define_unweighted_cert(
                     con.id,
                     con_idx(idx, con),
-                    sems,
+                    semantics,
                     collector,
                     var_manager,
                     proof,
@@ -931,12 +931,12 @@ impl super::Db {
             let mut true_leaves = vec![lit![0]; self[con.id].n_leaves()];
             let mut true_leaves_init = false;
             for val in range {
-                if matches!(sems, Semantics::If) && val == 0
-                    || matches!(sems, Semantics::OnlyIf) && val == self.con_len(con)
+                if matches!(semantics, Semantics::If) && val == 0
+                    || matches!(semantics, Semantics::OnlyIf) && val == self.con_len(con)
                 {
                     continue;
                 }
-                let oidx = match sems {
+                let oidx = match semantics {
                     Semantics::If => val - 1,
                     Semantics::OnlyIf => val,
                     Semantics::IfAndOnlyIf => {
@@ -946,7 +946,7 @@ impl super::Db {
                 (_, true_leaves_init) = self.define_unweighted_cert(
                     con.id,
                     con_idx(oidx, con),
-                    sems,
+                    semantics,
                     collector,
                     var_manager,
                     proof,

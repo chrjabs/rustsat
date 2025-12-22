@@ -1184,22 +1184,22 @@ mod pigeons {
     /// variable formatting as in VeriPB
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     #[repr(transparent)]
-    pub struct PidgeonVarFormatter(super::Var);
+    pub struct PigeonVarFormatter(super::Var);
 
-    impl From<super::Var> for PidgeonVarFormatter {
+    impl From<super::Var> for PigeonVarFormatter {
         fn from(value: super::Var) -> Self {
-            PidgeonVarFormatter(value)
+            PigeonVarFormatter(value)
         }
     }
 
-    impl fmt::Display for PidgeonVarFormatter {
+    impl fmt::Display for PigeonVarFormatter {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "x{}", self.0.idx() + 1)
         }
     }
 
     impl pigeons::VarLike for super::Var {
-        type Formatter = PidgeonVarFormatter;
+        type Formatter = PigeonVarFormatter;
     }
 
     impl From<super::Lit> for pigeons::Axiom<super::Var> {
