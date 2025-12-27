@@ -21,7 +21,7 @@ rustsat = { workspace = true, features = ["_internals", "fxhash"] }
 # keep-sorted start
 cc.workspace = true
 libtest-mimic.workspace = true
-target-lexicon = "0.13.3"
+target-lexicon = "0.13.4"
 # keep-sorted end
 
 [features]
