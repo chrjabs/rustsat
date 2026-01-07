@@ -610,7 +610,9 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     where
         Self: Sized,
     {
-        debug_assert!(!cons.is_empty());
+        if cons.is_empty() {
+            return None;
+        }
         cons.sort_unstable_by_key(NodeCon::multiplier);
 
         // Detect sequences of connections of equal weight and merge them
