@@ -383,6 +383,26 @@
               [
                 toolchain-overlay
                 inputs.nur-packages.overlays.default
+                # Can't update inputs generally because of broken
+                # cargo-semver-checks on aarch64, but need newer cargo-deny
+                (final: super: {
+                  cargo-deny = super.cargo-deny.overrideAttrs (
+                    finalAttrs: _oldAttrs: {
+                      version = "0.18.9";
+                      src = final.fetchFromGitHub {
+                        owner = "EmbarkStudios";
+                        repo = "cargo-deny";
+                        tag = finalAttrs.version;
+                        hash = "sha256-2ZexBVt3+tnEwxtRuzS6f7BQyu/nvjC098221hadKw8=";
+                      };
+                      cargoHash = "sha256-2u1DQtvjRfwbCXnX70M7drrMEvNsrVxsbikgrnNOkUE=";
+                      cargoDeps = final.rustPlatform.fetchCargoVendor {
+                        inherit (finalAttrs) pname src version;
+                        hash = finalAttrs.cargoHash;
+                      };
+                    }
+                  );
+                })
               ];
           };
 
