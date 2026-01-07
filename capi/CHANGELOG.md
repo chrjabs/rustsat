@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.8.0 - 2026-01-07
+
+[1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[e891ac9](e891ac9f91e6774285cb6f7b699d0e3ab7cd9e2e)
+
+### Features
+
+- Export 2-product am1 encoding (#541) ([274def1](274def11d24269a5a2b33a757a676bb5ec3cacbe))
+
+### Miscellaneous Tasks
+
+- Update version in header ([e891ac9](e891ac9f91e6774285cb6f7b699d0e3ab7cd9e2e))
+
 ## rustsat-v0.7.4 - 2025-10-18
 
 [b0343ca](b0343ca8feb853254afb02f3ee0f4fe480687417)...[14a3e96](14a3e965e8dcaa9c2ef6be0273b36a8c27adcefd)
