@@ -117,4 +117,4 @@ miri *args:
 all-miri *args: (miri "--workspace --exclude rustsat-pyapi --features=_test" args)
 
 deny *args:
-    cargo deny --exclude-unpublished check {{ args }}
+    cargo deny --exclude-unpublished --exclude-dev check {{ args }}

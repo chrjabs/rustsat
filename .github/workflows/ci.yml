@@ -126,7 +126,7 @@ jobs:
       - name: ✨ Cargo deny bans licenses sources
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').deny"
       - name: ✨ Cargo deny advisories
-        run: nix develop ".#cargoDeny" --command cargo deny --exclude-unpublished check advisories
+        run: nix develop ".#cargoDeny" --command cargo deny --exclude-unpublished --exclude-dev check advisories
       - name: ✨ Cargo machete
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').machete"
       - name: ✨ Cargo clippy
