@@ -38,8 +38,10 @@ int main () {
     setenv ("CADICAL_API_TRACE", path ("environment1").c_str (), 1);
     {
       Solver solver;
-      solver.add (1);
-      solver.add (2);
+      int var1 = solver.declare_one_more_variable ();
+      int var2 = solver.declare_one_more_variable ();
+      solver.add (var1);
+      solver.add (var2);
       solver.add (0);
       solver.solve ();
     }
@@ -50,7 +52,9 @@ int main () {
     FILE *file = trace ("file2");
     {
       Solver solver;
+      solver.set ("factor", 0);
       solver.trace_api_calls (file);
+      // with factor deactivated we can add literals directly
       solver.add (1);
       solver.add (0);
       solver.add (-1);

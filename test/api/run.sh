@@ -59,6 +59,7 @@ export CADICALBUILD
 
 ok=0
 failed=0
+skipped=0
 
 cmd () {
   test $status = 1 && return
@@ -68,6 +69,12 @@ cmd () {
 }
 
 run () {
+  if test x"$1" = xparcompwrite -a x`uname -o` = xDarwin
+  then
+    msg "skipping API test ${HILITE}'$1'${NORMAL} on 'Darwin'"
+    skipped=`expr $skipped + 1`
+    return
+  fi
   msg "running API test ${HILITE}'$1'${NORMAL}"
   if [ -f $tests/$1.c ]
   then
@@ -101,8 +108,6 @@ run () {
 
 #--------------------------------------------------------------------------#
 
-run parcompwrite
-
 run newdelete
 run unit
 run morenmore
@@ -118,6 +123,8 @@ run traverse
 run cipasir
 run incproof
 run propagate_assumptions
+run example_propagators
+run parcompwrite
 
 if [ "`grep DNTRACING $makefile`" = "" ]
 then
@@ -129,6 +136,6 @@ fi
 [ $ok -gt 0 ] && OK="$GOOD"
 [ $failed -gt 0 ] && FAILED="$BAD"
 
-msg "${HILITE}API testing results:${NORMAL} ${OK}$ok ok${NORMAL}, ${FAILED}$failed failed${NORMAL}"
+msg "${HILITE}API testing results:${NORMAL} ${OK}$ok ok${NORMAL}, ${FAILED}$failed failed${NORMAL}, ${BOLD}$skipped${NORMAL} skipped"
 
 exit $failed

@@ -7,6 +7,7 @@
 using namespace std;
 int main () {
   CaDiCaL::Solver solver;
+  solver.set ("factor", false);
   solver.add (1);
   solver.add (0);
   int res = solver.solve ();

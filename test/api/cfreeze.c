@@ -38,6 +38,7 @@ int main (void) {
   int res;
 
   ccadical_set_option (cadical, "check", 1);
+  ccadical_set_option (cadical, "factor", 0);
   ccadical_set_option (cadical, "checkfrozen", 1);
 
   ccadical_add (cadical, -14);

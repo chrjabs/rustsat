@@ -78,6 +78,7 @@ OPTION( covermineff,       0,  0,2e9,1,0,1, "minimum cover efficiency") \
 OPTION( decompose,         1,  0,  1,0,1,1, "decompose BIG in SCCs and ELS") \
 OPTION( decomposerounds,   2,  1, 16,1,0,1, "number of decompose rounds") \
 OPTION( deduplicate,       1,  0,  1,0,1,1, "remove duplicated binaries") \
+OPTION( deduplicateallinit,0,  0,  1,0,1,1, "remove duplicated clauses once before solving") \
 OPTION( eagersubsume,      1,  0,  1,0,1,1, "subsume recently learned") \
 OPTION( eagersubsumelim,  20,  1,1e3,0,0,1, "limit on subsumed candidates") \
 OPTION( elim,              1,  0,  1,0,1,1, "bounded variable elimination") \
@@ -116,6 +117,7 @@ OPTION( exteagerrecalc,    1,  0,  1,0,0,1, "after eagerly asking for reasons re
 OPTION( externallrat,      0,  0,  1,0,0,1, "external lrat") \
 OPTION( factor,            0,  0,  1,0,1,1, "bounded variable addition") \
 OPTION( factorcandrounds,  2,  0,2e9,0,0,1, "candidates reduction rounds") \
+OPTION( factorcheck,       1,  0,  2,0,0,1, "API checks that variables have been declared (1 = only with factor on, 2 = always)") \
 OPTION( factordelay,       4,  0, 12,0,0,1, "delay bounded variable addition between eliminations") \
 OPTION( factoreffort,     50,  0,1e6,0,0,1, "relative effort per mille") \
 OPTION( factoriniticks,  300,  1,1e6,0,0,1, "initial effort in millions") \

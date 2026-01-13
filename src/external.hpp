@@ -125,7 +125,7 @@ struct External {
   bool is_witness (int elit);
   bool is_decision (int elit);
 
-  void force_backtrack (size_t new_level);
+  void force_backtrack (int new_level);
 
   //----------------------------------------------------------------------//
 

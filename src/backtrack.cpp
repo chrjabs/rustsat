@@ -165,10 +165,10 @@ void Internal::backtrack_without_updating_phases (int new_level) {
 
   control.resize (new_level + 1);
   level = new_level;
-  if (tainted_literal) {
+  if (changed_val) {
     assert (opts.ilb);
-    if (!val (tainted_literal)) {
-      tainted_literal = 0;
+    if (!val (changed_val)) {
+      changed_val = 0;
     }
   }
   assert (num_assigned == trail.size ());

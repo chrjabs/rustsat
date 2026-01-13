@@ -23,6 +23,7 @@ static CaDiCaL::Solver solver;
 static void handler (int) { solver.terminate (); }
 
 int main () {
+  solver.set ("factor", 0);
 
   // Construct a pigeon hole formula for 'n+1' pigeons in 'n' holes.
   //

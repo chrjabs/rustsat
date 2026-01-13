@@ -13,7 +13,7 @@
 
 #define CADICAL_MAJOR 2 // Major semantic version.
 #define CADICAL_MINOR 2 // Minor semantic version.
-#define CADICAL_PATCH 0 // Semantic patch version.
+#define CADICAL_PATCH 1 // Semantic patch version.
 
 namespace CaDiCaL {
 
@@ -228,7 +228,6 @@ class Terminator;
 class ClauseIterator;
 class WitnessIterator;
 class ExternalPropagator;
-class EquivalenceTracer;
 class Tracer;
 struct InternalTracer;
 class FileTracer;
@@ -417,7 +416,7 @@ public:
   // propagator. External propagation, clause addition during search and
   // notifications are all over these observed variables.
   // A variable can not be observed without having an external propagator
-  // connected. Observed variables are "frozen" internally, and so
+  // already connected. Observed variables are "frozen" internally, and so
   // inprocessing will not consider them as candidates for elimination.
   // An observed variable is allowed to be a fresh variable and it can be
   // added also during solving.
@@ -428,11 +427,11 @@ public:
   void add_observed_var (int var);
 
   // Removes the 'observed' flag from the given variable. A variable can be
-  // set unobserved only between solve calls, not during it (to guarantee
-  // that no yet unexplained external propagation involves it).
+  // set unobserved only when it is unassigned, in order to guarantee
+  // that no yet unexplained external propagation involves it.
   //
-  //   require (VALID)
-  //   ensure (VALID)
+  //   require (VALID_OR_SOLVING)
+  //   ensure (VALID_OR_SOLVING)
   //
   void remove_observed_var (int var);
 
@@ -454,15 +453,15 @@ public:
   bool is_decision (int lit);
 
   // Force solve to backtrack to certain decision level. Can be called only
-  // during 'cb_decide' of a connected External Propagator.
-  // Invoking in any other time will not have an effect.
-  // If the call had an effect, the External Propagator will be notified
-  // about the backtrack via 'notify_backtrack'.
+  // during 'cb_decide' and 'cb_check_final_model' of a connected External
+  // Propagator. Invoking in any other time will trigger a runtime error.
+  // Otherwise, the External Propagator will be notified about the backtrack
+  // via 'notify_backtrack' and the search continues.
   //
   //   require (SOLVING)
   //   ensure (SOLVING)
   //
-  void force_backtrack (size_t new_level);
+  void force_backtrack (int new_level);
 
   // ====== END IPASIR-UP ==================================================
 
@@ -492,16 +491,18 @@ public:
   bool constraint_failed ();
 
   // Collects a subset of those literals that are implied by unit
-  // propagation by assuming the currently defined (potentially empty) set
-  // of assumptions (see IPASIR assume(lit)) function. In case unit
-  // propgation over the defined set of assumptions (or over the clause
-  // database on its own) leads to conflict, the function returns 20 and the
-  // content of 'implicants' is undefined. In case unit propagation happens
-  // to satisfy all the clauses (not probable, but not impossible), the
-  // function returns 10 and 'implicants' is a solution of the current
-  // formula under the current assumptions (after solution reconstruction).
-  // In any other case, the function returns 0 (indicating 'UNKNOWN') and
-  // 'implicants' lists the non-conflicting current value of the trail.
+  // propagation by assuming the currently defined (potentially empty)
+  // set of assumptions (see IPASIR assume(lit)) function. In case
+  // unit propagation over the defined set of assumptions (or over the
+  // clause database on its own) leads to conflict, the function
+  // returns 20 and the content of 'implicates' is undefined. In most
+  // other case, the function returns 0 (indicating 'UNKNOWN') and
+  // 'implicates' lists the non-conflicting current value of the
+  // trail. If ILB is off, in the rare case where where no decision
+  // was needed and propagation assigned all literals, then the
+  // 'implicates' lists will contain all assigned literals, which is a
+  // model. If ILB is on, propagate might also return SAT. In this
+  // case, 'implicates' will still only contain the implied literals.
 
   // Returns
   //
@@ -518,6 +519,7 @@ public:
   //
   int propagate ();
 
+  // See the comment for propagate above.
   //
   //   require (INCONCLUSIVE)
   //   ensure (INCONCLUSIVE)
@@ -570,11 +572,11 @@ public:
   //
   int status () const {
     if (_state == SATISFIED)
-      return 10;
+      return SATISFIABLE;
     else if (_state == UNSATISFIED)
-      return 20;
+      return UNSATISFIABLE;
     else
-      return 0;
+      return UNKNOWN;
   }
 
   /*----------------------------------------------------------------------*/
@@ -652,9 +654,8 @@ public:
   //
   int declare_more_variables (int number_of_additional_new_vars);
 
-  // Increase the maximum variable index by one. This is a specialized
-  // version of declare_more_variables.
-
+  // Returns the next fresh variable that was not used internally.
+  //
   int declare_one_more_variable ();
 
   // Get the value of some statistics or -1 if the statistics does not
@@ -875,7 +876,7 @@ public:
 
   //------------------------------------------------------------------------
 
-  // Enables clausal proof tracing in DRAT format and returns 'true' if
+  // Enables clausal proof tracing in various format and returns 'true' if
   // successfully opened for writing.  Writing proofs has to be enabled
   // before calling 'solve', 'add' and 'dimacs', that is in state
   // 'CONFIGURING'.  Otherwise only partial proofs would be written.
@@ -883,7 +884,7 @@ public:
   //   require (CONFIGURING)
   //   ensure (CONFIGURING)
   //
-  bool trace_proof (FILE *file, const char *name); // Write DRAT proof.
+  bool trace_proof (FILE *file, const char *name); // Write proof.
   bool trace_proof (const char *path);             // Open & write proof.
 
   // Flushing the proof trace file eventually calls 'fflush' on the actual
@@ -947,13 +948,13 @@ public:
   // conflict.  In case the solver is in 'UNKNOWN', it will collect the
   // currently "entrailed" literals and add them to the proof.
   //
-  //   require (SATISFIED || UNSATISFIED || UNKNOWN)
-  //   ensure (SATISFIED || UNSATISFIED || UNKNOWN)
+  //   require (SATISFIED | UNSATISFIED | UNKNOWN)
+  //   ensure (SATISFIED | UNSATISFIED | UNKNOWN)
   //
   void conclude ();
 
-  // Disconnect proof tracer. If this is not done before deleting
-  // the tracer will be deleted. Returns true if successful.
+  // Disconnect proof tracer. Also done upon deletion of the solver
+  // instance. Returns true if successful.
   //
   //   require (VALID)
   //   ensure (VALID)
@@ -968,6 +969,7 @@ public:
 
   static void configurations (); // Print configuration usage options.
 
+  // Prints statistics to stdout
   //   require (!DELETING)
   //   ensure (!DELETING)
   //
@@ -1299,23 +1301,28 @@ public:
   // before decision number new_level are kept, all other (at the end
   // of stack) are removed.
   //
-  // In particular, when backtracking to level '0', no decision is left and
-  // all assignment done before the first decision are kept.  The number
-  // will always be lower than the number of decisions on the trail, so
-  // backtracking will always have an effect.
+  // In particular, when backtracking to level '0', no decision is
+  // left and only assignments done before the first decision
+  // (literals that have to be true in all models of the formula) are
+  // kept.  The number will always be lower than the number of
+  // decisions on the trail, so backtracking will always have an
+  // effect.
   //
   virtual void notify_new_decision_level () = 0;
   virtual void notify_backtrack (size_t new_level) = 0;
 
-  // Check by the external propagator the found complete solution (after
-  // solution reconstruction). If it returns false, the propagator should
-  // provide an external clause during the next callback or introduce new
+  // Check by the external propagator the found complete solution
+  // (after solution reconstruction). If it returns false, the
+  // propagator should needs to explain why, either by providing an
+  // external clause during the next callback or introduce new
   // observed variables during this callback.
   //
   virtual bool cb_check_found_model (const std::vector<int> &model) = 0;
 
   // Ask the external propagator for the next decision literal. If it
-  // returns '0', the solver makes its own choice.
+  // returns '0', the solver makes its own choice. If it is an already
+  // assigned variable or a non-valid literal (e.g., not observed), a
+  // runtime error is triggered.
   //
   virtual int cb_decide () { return 0; };
 
@@ -1323,6 +1330,8 @@ public:
   // under the current assignment. It returns either a literal to be
   // propagated or '0', indicating that there is no external propagation
   // under the current assignment.
+  // In case the returned literal is not an observed variable, a runtime
+  // error is triggered.
   //
   virtual int cb_propagate () { return 0; };
 
@@ -1331,8 +1340,9 @@ public:
   // be added literal-by-literal closed with a '0'. Further, the clause must
   // contain the propagated literal.
   //
-  // The clause will be learned as an Irredundant Non-Forgettable Clause
-  // (see below at 'cb_has_external_clause ()' more details about it).
+  // The clause will be learned as an Irredundant Non-Forgettable Clause,
+  // unless the 'are_reasons_forgettable' flag is changed (see below at
+  // 'cb_has_external_clause ()' more details about it).
   //
   virtual int cb_add_reason_clause_lit (int propagated_lit) {
     (void) propagated_lit;
@@ -1416,7 +1426,8 @@ public:
 // The witness literals can be used to extend and fix an assignment on the
 // remaining clauses to satisfy the clauses on the extension stack too.
 //
-// All derived units of non-frozen variables are included too.
+// All derived units of non-frozen variables are included too, but
+// not the units for frozen literals.
 //
 // If 'witness' returns false traversal aborts early.
 

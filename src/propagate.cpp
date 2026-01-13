@@ -517,7 +517,7 @@ void Internal::propergate () {
     while (i != eow) {
 
       const Watch w = *j++ = *i++;
-
+      LOG (w.clause, "propergate");
       if (w.binary ()) {
         assert (val (w.blit) > 0);
         continue;

@@ -3,7 +3,7 @@
 namespace CaDiCaL {
 
 Arena::Arena (Internal *i) {
-  memset (this, 0, sizeof *this);
+  memset ((void *) this, 0, sizeof *this);
   internal = i;
 }
 

@@ -171,6 +171,13 @@ int External::internalize (int elit, bool extension) {
 
 void External::add (int elit) {
   assert (elit != INT_MIN);
+
+  if (elit)
+    REQUIRE (is_valid_input ((int) elit),
+             "extension variable %d defined by the solver "
+             "(try using `vars ()` or `set (factor, 0)` or call "
+             "`declare_one_more_variable ()` to get the next variable)",
+             (int) (elit));
   reset_extended ();
 
   bool forgettable = false;
@@ -340,29 +347,29 @@ void External::unphase (int elit) {
 // solver will backtrack to undo this assignment.
 //
 void External::add_observed_var (int elit) {
-  if (!propagator) {
-    LOG ("No connected propagator that could observe the variable, "
-         "observed flag is not set.");
-    return;
-  }
+  assert (propagator); // REQ is in Solver::add_observed_var
 
   assert (elit);
   assert (elit != INT_MIN);
   reset_extended (); // tainting!
 
   int eidx = abs (elit);
-  if (eidx <= max_var &&
-      (marked (witness, elit) || marked (witness, -elit))) {
-    LOG ("Error, only clean variables are allowed to become observed.");
-    assert (false);
 
-    // TODO: here needs to come the taint and restore of the newly
-    // observed variable. Restore_clauses must be called before continue.
-    // LOG ("marking tainted %d", elit);
-    // mark (tainted, elit);
-    // mark (tainted, -elit);
-    // restore_clauses ...
-  }
+  REQUIRE (eidx > max_var ||
+               (!marked (witness, elit) && !marked (witness, -elit)),
+           "Only clean variables are allowed to be observed.");
+  // if (eidx <= max_var &&
+  //     (marked (witness, elit) || marked (witness, -elit))) {
+  //   LOG ("Error, only clean variables are allowed to become observed.");
+  //   assert (false);
+
+  //   // TODO: here needs to come the taint and restore of the newly
+  //   // observed variable. Restore_clauses must be called before continue.
+  //   // LOG ("marking tainted %d", elit);
+  //   // mark (tainted, elit);
+  //   // mark (tainted, -elit);
+  //   // restore_clauses ...
+  // }
 
   if (eidx >= (int64_t) is_observed.size ())
     is_observed.resize (1 + (size_t) eidx, false);
@@ -407,16 +414,15 @@ void External::add_observed_var (int elit) {
 }
 
 void External::remove_observed_var (int elit) {
-  if (!propagator) {
-    LOG ("No connected propagator that could have watched the variable");
-    return;
-  }
+  assert (propagator); // REQ is in Solver::remove_observed_var
+
   int eidx = abs (elit);
 
-  if (eidx > max_var)
+  if (eidx > max_var) // Ignore call if variable does not exist
     return;
 
-  if ((size_t) eidx <= is_observed.size ())
+  // Ignore call if variable is not observed
+  if ((size_t) eidx >= is_observed.size ())
     return;
   if (is_observed[eidx]) {
     // Follow opposite order of add_observed_var, first remove internal
@@ -432,7 +438,7 @@ void External::remove_observed_var (int elit) {
 
 void External::reset_observed_vars () {
   // Shouldn't be called if there is no connected propagator
-  assert (propagator);
+  assert (propagator); // REQ is in Solver::reset_observed_vars
   reset_extended ();
 
   internal->notified = 0;
@@ -488,12 +494,10 @@ bool External::is_decision (int elit) {
   return internal->is_decision (ilit);
 }
 
-void External::force_backtrack (size_t new_level) {
-  if (!propagator) {
-    LOG ("No connected propagator that could force backtracking");
-    return;
-  }
-  LOG ("force backtrack to level %zd", new_level);
+void External::force_backtrack (int new_level) {
+  assert (propagator); // REQ is is in Solver::force_backtrack
+
+  LOG ("force backtrack to level %d", new_level);
   internal->force_backtrack (new_level);
 }
 
@@ -824,6 +828,7 @@ void External::check_failing () {
   if (internal->opts.log)
     checker->set ("log", true);
 #endif
+  checker->set ("factorcheck", false);
 
   for (const auto lit : assumptions) {
     if (!failed (lit))

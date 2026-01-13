@@ -2,10 +2,10 @@
 /* Copyright (C) 2018-2021 Armin Biere, Johannes Kepler University Linz   */
 /* Copyright (C) 2020-2021 Mathias Fleury, Johannes Kepler University Linz*/
 /* Copyright (c) 2020-2021 Nils Froleyks, Johannes Kepler University Linz */
-/* Copyright (C) 2022-2024 Katalin Fazekas, Technical University of Vienna*/
-/* Copyright (C) 2021-2024 Armin Biere, University of Freiburg            */
-/* Copyright (C) 2021-2023 Mathias Fleury, University of Freiburg         */
-/* Copyright (C) 2023-2024 Florian Pollitt, University of Freiburg */
+/* Copyright (C) 2022-2025 Katalin Fazekas, Technical University of Vienna*/
+/* Copyright (C) 2021-2025 Armin Biere, University of Freiburg            */
+/* Copyright (C) 2021-2025 Mathias Fleury, University of Freiburg         */
+/* Copyright (C) 2023-2025 Florian Pollitt, University of Freiburg */
 /* Copyright (C) 2024-2024 Tobias Faller, University of Freiburg   */
 /*------------------------------------------------------------------------*/
 
@@ -24,7 +24,9 @@ static const char *USAGE =
 "  --version         print CaDiCaL's three character version and exit\n"
 "  --build           print build configuration\n"
 "\n"
-"  -v                increase verbosity\n"
+"  -v | --verbose    increase verbosity\n"
+"  -q | --quiet      be quiet (only print failing and reduced traces)\n"
+"\n"
 "  --colors          force colors for both '<stdout>' and '<stderr>'\n"
 "  --no-colors       disable colors if '<stderr>' is connected to terminal\n"
 "  --no-terminal     assume '<stderr>' is not connected to terminal\n"
@@ -36,7 +38,7 @@ static const char *USAGE =
 "  --bad-alloc       generate failing memory allocations, monitor for crashes\n"
 "  --leak-alloc      generate failing memory allocations, monitor for leaks\n"
 "\n"
-"  --do-not-ignore-resource-limits  consider out-of-time or memory as error\n"
+"  --do-not-ignore-resource-limits consider out-of-time or memory as error\n"
 "\n"
 "  --tiny            generate tiny formulas only\n"
 "  --small           generate small formulas only\n"
@@ -788,23 +790,51 @@ public:
         new_observed_variables.size ()) {
       int new_var = add_new_observed_var ();
       if (new_var) {
-        MLOG ("cb_decide returns " << -1 * new_var << std::endl);
+        MLOG ("cb_decide returns new variable " << -1 * new_var
+                                                << std::endl);
         return -1 * new_var;
       }
     }
 
     decision_loc++;
+    size_t lit_sum = 0;  // sum of variables of satisfied observed literals
+    int lowest_lit = 0;  // the lowest satisfied observed literal
+    int highest_lit = 0; // the highest satisfied observed literal
+    const std::set<int> &satisfied_literals =
+        current_observed_satisfied_set (lit_sum, lowest_lit, highest_lit);
 
     if ((decision_loc % observed_variables.size ()) == 0) {
-      if (!(observed_variables.size () % 11)) {
-        MLOG ("cb_decide forces backtracking to level 1" << std::endl);
-        s->force_backtrack (observed_variables.size () % 5);
+      if (!(observed_variables.size () % 11) &&
+          observed_trail.size () > 1) {
+        int target = std::min (observed_variables.size () % 5,
+                               observed_trail.size () - 2);
+        MLOG ("cb_decide forces backtracking to level " << target
+                                                        << std::endl);
+        s->force_backtrack (target);
       }
       size_t n = decision_loc / observed_variables.size ();
+      auto is_unassigned = [satisfied_literals] (int lit) {
+        return satisfied_literals.find (lit) == satisfied_literals.end () &&
+               satisfied_literals.find (-lit) == satisfied_literals.end ();
+      };
       if (n < observed_variables.size ()) {
-        int lit = *std::next (observed_variables.begin (), n);
-        MLOG ("cb_decide returns " << -1 * lit << std::endl);
-        return -1 * lit;
+        // find the n-th unassigned variable from the beginning of observe
+        auto it = observed_variables.begin ();
+        size_t incr = 0;
+        while (incr < n && it != observed_variables.end ()) {
+          if (is_unassigned (*it)) {
+            ++n;
+          }
+          ++it;
+        }
+        if (it != observed_variables.end () && is_unassigned (*it)) {
+          int lit = *it;
+          MLOG ("cb_decide returns unassigned" << -1 * lit << std::endl);
+          return -1 * lit;
+        } else {
+          MLOG ("cb_decide returns 0\n");
+          return 0;
+        }
       } else {
         MLOG ("cb_decide returns 0" << std::endl);
         return 0;
@@ -1012,6 +1042,7 @@ class Mobical : public Handler {
   friend struct FlippableCall;
   friend struct MeltCall;
   friend class MockPropagator;
+  friend struct ResetCall;
   friend struct ConnectCall;
   friend struct DisconnectCall;
 
@@ -1033,7 +1064,10 @@ class Mobical : public Handler {
 
   DoNot donot;
   Force force;
+
   bool verbose = false;
+  bool quiet = false;
+
   bool add_set_log_to_true = false;
   bool add_dump_before_solve = false;
   bool add_stats_after_solve = false;
@@ -1069,7 +1103,10 @@ class Mobical : public Handler {
       return "\033[34mm \033[0m";
   }
 
-  void prefix () { cerr << prefix_string () << flush; }
+  void prefix () {
+    if (!quiet)
+      cerr << prefix_string () << flush;
+  }
 
   void error_prefix () {
     fflush (stderr);
@@ -1417,6 +1454,7 @@ struct InitCall : public Call {
   InitCall () : Call (INIT) {}
   void execute (Solver *&s, ExtendMap &extendmap) {
     s = new Solver ();
+    s->set ("factorcheck", 0);
     assert (extendmap.map.empty ());
     (void) (extendmap);
   }
@@ -1512,14 +1550,14 @@ struct DeclareMoreVariablesCall : public Call {
   const char *keyword () { return "declare_more_variables"; }
 };
 
-struct DeclareMoreVariableCall : public Call {
-  DeclareMoreVariableCall () : Call (RESIZE) {}
+struct DeclareOneMoreVariableCall : public Call {
+  DeclareOneMoreVariableCall () : Call (RESIZE) {}
   void execute (Solver *&s, ExtendMap &extendmap) {
     s->declare_one_more_variable ();
     (void) extendmap;
   }
   void print (ostream &o) { o << "declare_one_more_variable" << endl; }
-  Call *copy () { return new DeclareMoreVariableCall (); }
+  Call *copy () { return new DeclareOneMoreVariableCall (); }
   const char *keyword () { return "declare_one_more_variable"; }
 };
 
@@ -1548,6 +1586,7 @@ struct ConfigureCall : public Call {
   ConfigureCall (const char *o) : Call (CONFIGURE, 0, 0, o) {}
   void execute (Solver *&s, ExtendMap &extendmap) {
     s->configure (name);
+    s->set ("factorcheck", false);
     (void) (extendmap);
   }
   void print (ostream &o) { o << "configure " << name << endl; }
@@ -1583,6 +1622,10 @@ struct ResetCall : public Call {
     extendmap.map.clear ();
     delete s;
     s = 0;
+    if (mobical.mock_pointer) {
+      delete mobical.mock_pointer;
+      mobical.mock_pointer = 0;
+    }
   }
   void print (ostream &o) { o << "reset" << endl; }
   Call *copy () { return new ResetCall (); }
@@ -1681,11 +1724,12 @@ struct DisconnectCall : public Call {
     if (mp)
       mp->remove_new_observed_var ();
     s->disconnect_fixed_listener ();
-    s->disconnect_external_propagator ();
     if (mp) {
+      s->disconnect_external_propagator ();
       delete mp;
       mobical.mock_pointer = 0;
     }
+    assert (!s->external->propagator);
     (void) (extendmap);
   }
   void print (ostream &o) { o << "disconnect mock-propagator" << endl; }
@@ -2438,12 +2482,12 @@ Call *Trace::find_option_by_name (const char *name) {
 // Some options are never part of generated traces.
 //
 bool Trace::ignored_option (const char *name) {
-
   if (!strcmp (name, "checkfrozen"))
     return true;
   if (!strcmp (name, "terminateint"))
     return true;
-
+  if (!strcmp (name, "factorcheck"))
+    return true;
   return false;
 }
 
@@ -2654,7 +2698,7 @@ void Trace::generate_declare_more_variables (Random &random) {
 void Trace::generate_declare_one_more_variable (Random &random) {
   if (random.generate_double () > 0.01)
     return;
-  push_back (new DeclareMoreVariableCall ());
+  push_back (new DeclareOneMoreVariableCall ());
 }
 
 /*------------------------------------------------------------------------*/
@@ -3187,9 +3231,11 @@ static int rounded_percent (double a, double b) {
 }
 
 void Mobical::print_statistics () {
-  hline ();
 
+  if (!quiet)
+    hline ();
   prefix ();
+
   cerr << "generated " << Trace::generated << " traces: ";
   if (Trace::ok > 0)
     terminal.green (true);
@@ -3435,7 +3481,7 @@ void *Trace::hook_realloc (void *ptr, size_t size) {
     }
 
     hooks_uninstall ();
-    printf ("No free slot!");
+    mobical.warning ("No free slot!");
     hooks_install ();
   }
   return new_ptr;
@@ -3668,6 +3714,8 @@ void Mobical::summarize (Trace &trace, bool bright) {
 }
 
 void Mobical::notify (Trace &trace, signed char ch) {
+  if (quiet)
+    return;
   bool first = notified.empty ();
 #ifdef QUIET
   if (ch < 0)
@@ -4570,7 +4618,7 @@ void Reader::parse () {
         error ("invalid literal '%d' as argument to 'val'", lit);
       if (second && !parse_int_str (second, val))
         error ("invalid second argument '%s' to 'val'", second);
-      if (second && val != -1 && val != 0 && val != -1)
+      if (second && val != -1 && val != 0 && val != 1)
         error ("invalid result argument '%d' to 'val", val);
       if (second)
         c = new ValCall (lit, val);
@@ -4720,6 +4768,8 @@ void Reader::parse () {
       c = new ImpliedCall ();
     } else if (!strcmp (keyword, "reset_assumptions")) {
       c = new ResetAssumptionsCall ();
+    } else if (!strcmp (keyword, "declare_one_more_variable")) {
+      c = new DeclareOneMoreVariableCall ();
     } else
       error ("invalid keyword '%s'", keyword);
 
@@ -4951,9 +5001,12 @@ int Mobical::main (int argc, char **argv) {
       tout.disable ();
       Solver::build (stdout, "");
       exit (0);
-    } else if (!strcmp (argv[i], "-v"))
+    } else if (!strcmp (argv[i], "-v") || !strcmp (argv[i], "--verbose"))
       verbose = true;
-    else if (is_color_option (argv[i]))
+    else if (!strcmp (argv[i], "-q") || !strcmp (argv[i], "--quiet")) {
+      terminal.disable ();
+      quiet = true;
+    } else if (is_color_option (argv[i]))
       ;
     else if (is_no_color_option (argv[i]))
       ;
@@ -5145,6 +5198,9 @@ int Mobical::main (int argc, char **argv) {
 
   /*----------------------------------------------------------------------*/
 
+  if (quiet)
+    goto END_OF_BANNER_AND_OPTIONS;
+
   // Print banner.
 
   prefix ();
@@ -5153,15 +5209,15 @@ int Mobical::main (int argc, char **argv) {
   terminal.normal ();
   prefix ();
   terminal.magenta (1);
-  printf ("%s\n", copyright ());
+  fprintf (stderr, "%s\n", copyright ());
   terminal.normal ();
   prefix ();
   terminal.magenta (1);
-  printf ("%s\n", authors ());
+  fprintf (stderr, "%s\n", authors ());
   terminal.normal ();
   prefix ();
   terminal.magenta (1);
-  printf ("%s\n", affiliations ());
+  fprintf (stderr, "%s\n", affiliations ());
   terminal.normal ();
   empty_line ();
   Solver::build (stderr, prefix_string ());
@@ -5244,6 +5300,8 @@ int Mobical::main (int argc, char **argv) {
   }
   cerr << flush;
 
+END_OF_BANNER_AND_OPTIONS:
+
   /*----------------------------------------------------------------------*/
 
   Signal::set (this);
@@ -5252,24 +5310,34 @@ int Mobical::main (int argc, char **argv) {
 
   if (mode & (SEED | INPUT)) { // trace given through input or seed
 
-    prefix ();
-    cerr << right << setw (58) << "";
-    header ();
-    cerr << endl;
-    hline ();
+    if (!quiet) {
+      prefix ();
+      cerr << right << setw (58) << "";
+      header ();
+      cerr << endl;
+      hline ();
+    }
 
     Trace trace;
 
     if (seed_str) { // seed
 
-      prefix ();
-      cerr << left << setw (13) << "seed:";
-      assert (is_unsigned_str (seed_str));
       uint64_t seed = parse_seed (seed_str);
-      terminal.green ();
-      cerr << setfill ('0') << right << setw (20) << seed;
-      terminal.normal ();
-      cerr << setfill (' ') << setw (24) << "";
+
+      if (quiet) {
+        cerr << "seed: ";
+        cerr << setfill ('0') << right << setw (20) << seed;
+        cerr << endl << flush;
+      } else {
+        prefix ();
+        cerr << left << setw (13) << "seed:";
+        assert (is_unsigned_str (seed_str));
+        terminal.green ();
+        cerr << setfill ('0') << right << setw (20) << seed;
+        terminal.normal ();
+        cerr << setfill (' ') << setw (24) << "";
+      }
+
       Trace::generated++;
 
       trace.generate (0, seed);
@@ -5279,15 +5347,19 @@ int Mobical::main (int argc, char **argv) {
       Reader reader (*this, trace, input_path);
       reader.parse ();
 
-      prefix ();
-      cerr << left << setw (13) << "input: ";
-      assert (input_path);
-      cerr << left << setw (44) << input_path;
+      if (!quiet) {
+        prefix ();
+        cerr << left << setw (13) << "input: ";
+        assert (input_path);
+        cerr << left << setw (44) << input_path;
+      }
     }
 
-    cerr << ' ';
-    summarize (trace);
-    cerr << endl << flush;
+    if (!quiet) {
+      cerr << ' ';
+      summarize (trace);
+      cerr << endl << flush;
+    }
 
     if (output_path) {
 
@@ -5304,36 +5376,43 @@ int Mobical::main (int argc, char **argv) {
 
           if (!donot.shrink.atall) {
 
-            terminal.cursor (false);
+            if (!quiet)
+              terminal.cursor (false);
 
             Trace::failed++;
             trace.shrink (res); // shrink
-            if (!verbose && !terminal)
-              cerr << endl;
-            else
-              terminal.erase_line_if_connected_otherwise_new_line ();
+            if (!quiet) {
+              if (!verbose && !terminal)
+                cerr << endl;
+              else
+                terminal.erase_line_if_connected_otherwise_new_line ();
+            }
           }
 
         } else
           Trace::ok++;
       }
 
-      prefix ();
-      cerr << left << setw (13) << "output:";
+      if (!quiet) {
+        prefix ();
+        cerr << left << setw (13) << "output:";
+      }
 
       trace.write_path (output_path); // output
 
-      if (res)
-        terminal.red (true);
-      cerr << left << setw (44);
-      if (!strcmp (output_path, "-"))
-        cerr << "<stdout>";
-      else
-        cerr << output_path;
-      terminal.normal ();
-      cerr << ' ';
-      summarize (trace);
-      cerr << endl << flush;
+      if (!quiet) {
+        if (res)
+          terminal.red (true);
+        cerr << left << setw (44);
+        if (!strcmp (output_path, "-"))
+          cerr << "<stdout>";
+        else
+          cerr << output_path;
+        terminal.normal ();
+        cerr << ' ';
+        summarize (trace);
+        cerr << endl << flush;
+      }
 
     } else {
       trace.execute (); // execute
@@ -5344,49 +5423,56 @@ int Mobical::main (int argc, char **argv) {
 
     Random random; // initialized by time and machine id
 
-    if (seed_str) {
-      uint64_t seed = parse_seed (seed_str);
-      terminal.green ();
-      random = seed;
-    }
-
-    prefix ();
-    cerr << "start seed ";
-    terminal.green ();
-    cerr << random.seed ();
-    terminal.normal ();
-    cerr << endl;
-    empty_line ();
-
     if (limit < 0)
       limit = LONG_MAX;
 
-    prefix ();
-    cerr << left << setw (14) << "count";
-    terminal.green ();
-    cerr << "seed";
-    terminal.black ();
-    cerr << '/';
-    terminal.red ();
-    cerr << "buggy";
-    terminal.black ();
-    cerr << '/';
-    terminal.yellow ();
-    cerr << "reducing";
-    terminal.black ();
-    cerr << '/';
-    terminal.red (true);
-    cerr << "reduced";
-    cerr << left << setw (17) << "";
-    header ();
-    cerr << endl;
-    hline ();
+    if (seed_str) {
+      uint64_t seed = parse_seed (seed_str);
+      if (!quiet)
+        terminal.green ();
+      random = seed;
+    }
 
-    terminal.cursor (false);
+    if (quiet) {
+      cerr << "seed: ";
+      cerr << setfill ('0') << right << setw (20) << random.seed ();
+      cerr << endl << flush;
+    } else if (!quiet) {
+      prefix ();
+      cerr << "start seed ";
+      terminal.green ();
+      cerr << random.seed ();
+      terminal.normal ();
+      cerr << endl;
+      empty_line ();
+
+      prefix ();
+      cerr << left << setw (14) << "count";
+      terminal.green ();
+      cerr << "seed";
+      terminal.black ();
+      cerr << '/';
+      terminal.red ();
+      cerr << "buggy";
+      terminal.black ();
+      cerr << '/';
+      terminal.yellow ();
+      cerr << "reducing";
+      terminal.black ();
+      cerr << '/';
+      terminal.red (true);
+      cerr << "reduced";
+      cerr << left << setw (17) << "";
+      header ();
+      cerr << endl;
+      hline ();
+
+      terminal.cursor (false);
+    }
 
     for (traces = 1; traces <= limit; traces++) {
 
-      if (!donot.seeds) {
+      if (!quiet && !donot.seeds) {
         prefix ();
         cerr << ' ' << left << setw (15) << traces << ' ';
         terminal.green ();
@@ -5399,7 +5485,7 @@ int Mobical::main (int argc, char **argv) {
       Trace::generated++;
       trace.generate (traces, random.seed ()); // generate
 
-      if (!donot.seeds) {
+      if (!quiet && !donot.seeds) {
         cerr << setw (21) << "";
         summarize (trace);
         terminal.erase_until_end_of_line ();
@@ -5418,41 +5504,61 @@ int Mobical::main (int argc, char **argv) {
       else
         Trace::ok++;
 
-      if (!donot.seeds && limit != traces)
-        terminal.erase_line_if_connected_otherwise_new_line ();
-      else if (!donot.seeds && limit == traces)
-        cerr << endl << flush;
+      if (!quiet) {
+        if (!donot.seeds && limit != traces)
+          terminal.erase_line_if_connected_otherwise_new_line ();
+        else if (!donot.seeds && limit == traces)
+          cerr << endl << flush;
+      }
 
       if (res) { // failed
 
-        prefix ();
-        cerr << ' ' << left << setw (11) << traces << ' ';
-        terminal.red ();
+        if (!quiet) {
+          prefix ();
+          cerr << ' ' << left << setw (11) << traces << ' ';
+          terminal.red ();
+        }
         trace.write_prefixed_seed ("bug"); // output
-        terminal.normal ();
-        cerr << setw (15) << "";
-        summarize (trace);
-        if (terminal)
+        if (quiet) {
           cerr << endl << flush;
+        } else {
+          terminal.normal ();
+          cerr << setw (15) << "";
+          summarize (trace);
+          if (terminal)
+            cerr << endl << flush;
+        }
+
         running = false;
 
         if (!donot.shrink.atall) {
           trace.shrink (res); // shrink
-          if (!terminal && !verbose)
-            cerr << endl;
-          else
-            terminal.erase_line_if_connected_otherwise_new_line ();
+          if (quiet) {
+            ; //  TODO remove: cerr << endl << flush;
+          } else {
+            if (!terminal && !verbose)
+              cerr << endl;
+            else
+              terminal.erase_line_if_connected_otherwise_new_line ();
+          }
         }
 
-        prefix ();
-        cerr << ' ' << left << setw (11) << traces << ' ';
+        if (!quiet) {
+          prefix ();
+          cerr << ' ' << left << setw (11) << traces << ' ';
+          terminal.red (true);
+        }
 
-        terminal.red (true);
         trace.write_prefixed_seed ("red"); // output
-        terminal.normal ();
-        cerr << setw (15) << "";
-        summarize (trace, true);
-        cerr << endl << flush;
+
+        if (quiet) {
+          cerr << endl << flush;
+        } else {
+          terminal.normal ();
+          cerr << setw (15) << "";
+          summarize (trace, true);
+          cerr << endl << flush;
+        }
       }
 
       random.next ();

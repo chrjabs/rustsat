@@ -239,6 +239,9 @@ const char *Parser::parse_dimacs_non_profiled (int &vars, int strict) {
     MSG ("found %s'p inccnf'%s header", tout.green_code (),
          tout.normal_code ());
 
+    // Cube & Conquer 'inccnf' format is not compatible with factor:
+    internal->opts.factor = 0;
+
     strict = FORCED;
   } else
     PER ("expected 'c' or 'i' after 'p '");
@@ -355,7 +358,6 @@ const char *Parser::parse_dimacs_non_profiled (int &vars, int strict) {
          internal->opts.realtime ? "real" : "process");
   }
 #endif
-
   return 0;
 }
 

@@ -134,6 +134,7 @@ int main () {
 
   solver->set ("binary", 0);
   solver->set ("lidrup", 1);
+  solver->set ("factor", 0);
   solver->trace_proof (path ("propagate_assumptions.lidrup").c_str ());
   solver->set ("flushproof", 1);
 
@@ -187,6 +188,7 @@ int main () {
 
   // Check when last level propagation is needed for conflict detection
   solver = new CaDiCaL::Solver ();
+  solver->set ("factor", 0);
 
   solver->add (SHOES), solver->add (SLIPPERS), solver->add (0);
   solver->add (-SHOES), solver->add (-SLIPPERS), solver->add (0);
