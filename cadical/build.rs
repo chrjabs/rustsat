@@ -39,8 +39,9 @@ enum Version {
     V211,
     V212,
     V213,
-    #[default]
     V220,
+    #[default]
+    V221,
     // Don't forget to update the crate documentation when adding a newer version
 }
 
@@ -48,6 +49,7 @@ enum Version {
 macro_rules! version_set_manually {
     () => {
         cfg!(any(
+            feature = "v2-2-1",
             feature = "v2-2-0",
             feature = "v2-1-3",
             feature = "v2-1-2",
@@ -81,7 +83,9 @@ macro_rules! version_set_manually {
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v2-2-0") {
+        if cfg!(feature = "v2-2-1") {
+            Version::V221
+        } else if cfg!(feature = "v2-2-0") {
             Version::V220
         } else if cfg!(feature = "v2-1-3") {
             Version::V213
@@ -170,6 +174,7 @@ impl Version {
             Version::V212 => "refs/tags/rel-2.1.2",
             Version::V213 => "refs/tags/rel-2.1.3",
             Version::V220 => "refs/tags/rel-2.2.0",
+            Version::V221 => "refs/tags/rel-2.2.1",
         }
     }
 
@@ -192,6 +197,7 @@ impl Version {
             V211 | V212 => "v211.patch",
             V213 => "v213.patch",
             V220 => "v220.patch",
+            V221 => "v221.patch",
         }
     }
 
