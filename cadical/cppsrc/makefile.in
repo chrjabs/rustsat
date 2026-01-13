@@ -9,6 +9,8 @@
 
 CXX=@CXX@
 CXXFLAGS=@CXXFLAGS@
+
+CC=@CC@
 CFLAGS=@CFLAGS@
 
 LIBS=@LIBS@
@@ -30,15 +32,14 @@ FILT_SOLVER=$(filter-out $(SRC_APP),$(SRC_SOLVER))
 FILT_SOLVER:=$(if $(filter-out no,$(IPASIR)),$(FILT_SOLVER),$(filter-out $(SRC_IPASIR), $(FILT_SOLVER)))
 FILT_CONTRIB=$(if $(filter-out no,$(CONTRIB)),$(SRC_CONTRIB),)
 OBJ_SOLVER=$(FILT_SOLVER:.cpp=.o)
-OBJ_CONTRIB=$(FILT_CONTRIB:.cpp=.o)
-OBJ_C=$(SRC_C:.c=.o)
+OBJ_CONTRIB=$(FILT_CONTRIB:.cpp=.o) $(SRC_C:.c=.o)
 
 # Include for the current build directory is required for including the
 # generated build header 'build.hpp'.
 
 DIR=../$(shell pwd|sed -e 's,.*/,,')
-COMPILE=$(CXX) $(CXXFLAGS) -I$(DIR) -I../src
-COMPILEC=$(CXX) $(CFLAGS) -I$(DIR) -I../src
+COMPILE_CPP=$(CXX) $(CXXFLAGS) -I$(DIR) -I../src
+COMPILE_CCC=$(CC) $(CFLAGS) -I$(DIR) -I../src
 
 #--------------------------------------------------------------------------#
 
@@ -50,11 +51,11 @@ all: @GOALS@
 
 
 %.o: ../*/%.c ../src/*.h makefile
-	$(COMPILEC) -x c -c $< -o $@
+	$(COMPILE_CCC) -x c -c $< -o $@
 
 
 %.o: ../*/%.cpp ../src/*.hpp makefile
-	$(COMPILE) -c $<
+	$(COMPILE_CPP) -c $<
 
 #--------------------------------------------------------------------------#
 
@@ -62,16 +63,19 @@ all: @GOALS@
 # tester 'mobical') and the library are the main build targets.
 
 cadical: cadical.o libcadical.a makefile
-	$(COMPILE) -o $@ $< -L. libcadical.a $(LIBS)
+	$(COMPILE_CPP) -o $@ $< -L. libcadical.a $(LIBS)
+
+cadical-dynamic: cadical.o libcadical.so makefile
+	$(COMPILE_CPP) -o $@ $< -L. libcadical.so $(LIBS)
 
 mobical: mobical.o libcadical.a makefile $(LIBS)
-	$(COMPILE) -o $@ $< -L. libcadical.a
+	$(COMPILE_CPP) -o $@ $< -L. libcadical.a
 
-libcadical.a: $(OBJ_SOLVER) $(OBJ_CONTRIB) $(OBJ_C) makefile
-	ar rc $@ $(OBJ_SOLVER) $(OBJ_CONTRIB) $(OBJ_C)
+libcadical.a: $(OBJ_SOLVER) $(OBJ_CONTRIB) makefile
+	ar rc $@ $(OBJ_SOLVER) $(OBJ_CONTRIB)
 
 libcadical.so: $(OBJ_SOLVER) $(OBJ_CONTRIB) $(LIBS) makefile
-	$(COMPILE) -shared -o $@ $(OBJ_SOLVER) $(OBJ_CONTRIB) $(LIBS)
+	$(COMPILE_CPP) -shared -o $@ $(OBJ_SOLVER) $(OBJ_CONTRIB) $(LIBS)
 
 #--------------------------------------------------------------------------#
 
@@ -97,8 +101,8 @@ ipasir.o: ../src/ipasir.h ../src/ccadical.h
 #--------------------------------------------------------------------------#
 
 analyze: all
-	$(COMPILE) --analyze ../src/*.cpp
-	$(COMPILE) --analyze ../contrib/*.cpp
+	$(COMPILE_CPP) --analyze ../src/*.cpp
+	$(COMPILE_CPP) --analyze ../contrib/*.cpp
 
 format:
 	clang-format -i ../*/*.[ch]pp

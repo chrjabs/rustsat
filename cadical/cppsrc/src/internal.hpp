@@ -245,7 +245,7 @@ struct Internal {
   bool force_no_backtrack;      // for new clauses with external propagator
   bool from_propagator;         // differentiate new clauses...
   bool ext_clause_forgettable;  // Is new clause from propagator forgettable
-  int tainted_literal;          // used for ILB
+  int changed_val;              // used for ILB
   size_t notified;           // next trail position to notify external prop
   Clause *probe_reason;      // set during probing
   size_t propagated;         // next trail position to propagate
@@ -268,6 +268,8 @@ struct Internal {
   vector<int> minimized;     // removable or poison in 'minimize'
   vector<int> shrinkable;    // removable or poison in 'shrink'
   Reap reap;                 // radix heap for shrink
+  bool factorcheckdone =
+      0; // boolean indicated that we have done the resize 1
 
   vector<int> sweep_schedule; // remember sweep varibles to reschedule
   bool sweep_incomplete;      // sweep
@@ -819,7 +821,7 @@ struct Internal {
   void notify_assignments ();
   void notify_decision ();
   void notify_backtrack (size_t new_level);
-  void force_backtrack (size_t new_level);
+  void force_backtrack (int new_level);
   int ask_decision ();
   bool ask_external_clause ();
   void add_observed_var (int ilit);
@@ -827,7 +829,7 @@ struct Internal {
   bool observed (int ilit) const;
   bool is_decision (int ilit);
   void check_watched_literal_invariants ();
-  void set_tainted_literal ();
+  void set_changed_val ();
   void renotify_trail_after_ilb ();
   void renotify_trail_after_local_search ();
   void renotify_full_trail ();
@@ -1012,6 +1014,10 @@ struct Internal {
   bool vivify_shrinkable (const std::vector<int> &sorted, Clause *c);
   void vivify_round (Vivifier &, int64_t delta);
   bool vivify ();
+
+  // Deduplicating clauses
+  //
+  void deduplicate_all_clauses ();
 
   // Compacting (shrinking internal variable tables) in 'compact.cpp'
   //

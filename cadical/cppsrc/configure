@@ -193,6 +193,10 @@ do
       CXXFLAGS="`expr \"$1\" : 'CXXFLAGS=\(.*\)'`"
       ;;
 
+    CC=*)
+      CC="`expr \"$1\" : 'CXX=\(.*\)'`"
+      ;;
+
     CFLAGS=*)
       CFLAGS="`expr \"$1\" : 'CFLAGS=\(.*\)'`"
       ;;
@@ -279,10 +283,21 @@ fi
 
 #--------------------------------------------------------------------------#
 
-# Prepare '@CXX@' and '@CXXFLAGS@' parameters for 'makefile.in'
+# Prepare '@CXX@', '@CC@', '@CXXFLAGS@' and '@CFLAGS@' for 'makefile.in'
 
 [ x"$CXX" = x ] && CXX=g++
 [ x"$CXXFLAGS" = x ] || CXXFLAGS="$CXXFLAGS "
+
+if [ x"$CC" = x ]
+then
+  case x"$CXX" in
+    xclang++) CC=clang ;;
+    xg++) CC=gcc ;;
+    *) CC="$CXX";;
+  esac
+fi
+
+[ x"$CFLAGS" = x ] || CFLAGS="$CFLAGS "
 
 case x"$CXX" in
   x*g++*|x*clang++*) CXXFLAGS="${CXXFLAGS}-Wall -Wextra"; CFLAGS="${CFLAGS}-Wall -Wextra";;
@@ -323,11 +338,13 @@ fi
 [ $quiet = yes ] && CXXFLAGS="$CXXFLAGS -DQUIET"
 [ $profile = yes ] && CXXFLAGS="$CXXFLAGS -pg"
 [ $coverage = yes ] && CXXFLAGS="$CXXFLAGS -ftest-coverage -fprofile-arcs"
+
 [ $check = no ] && CFLAGS="$CFLAGS -DNDEBUG"
 [ $logging = yes ] && CFLAGS="$CFLAGS -DLOGGING"
 [ $quiet = yes ] && CFLAGS="$CFLAGS -DQUIET"
 [ $profile = yes ] && CFLAGS="$CFLAGS -pg"
 [ $coverage = yes ] && CFLAGS="$CFLAGS -ftest-coverage -fprofile-arcs"
+
 [ $memory_fuzzing = yes ] && CXXFLAGS="$CXXFLAGS -rdynamic -fno-omit-frame-pointer -DMOBICAL_MEMORY"
 
 if [ $pedantic = yes ]
@@ -335,11 +352,17 @@ then
   CXXFLAGS="$CXXFLAGS --pedantic -Werror -std=c++11"
   CFLAGS="$CFLAGS --pedantic -Werror"
   case x"$CXX" in
-    x*g++*|x*clang++*) CXXFLAGS="${CXXFLAGS} -Wp,-D_GLIBCXX_ASSERTIONS"
-    CFLAGS="${CFLAGS} -Wp,-D_GLIBCXX_ASSERTIONS"
+    x*g++*|x*clang++*) 
+      CXXFLAGS="${CXXFLAGS} -Wp,-D_GLIBCXX_ASSERTIONS"
+    ;;
+  esac
+  case x"$CC" in
+    x*g++*|x*clang++*) 
+      CFLAGS="${CFLAGS} -Wp,-D_GLIBCXX_ASSERTIONS"
     ;;
   esac
 fi
+
 [ $contracts = no ] && CXXFLAGS="$CXXFLAGS -DNCONTRACTS"
 [ $tracing = no ] && CXXFLAGS="$CXXFLAGS -DNTRACING"
 [ $contrib = no ] && CXXFLAGS="$CXXFLAGS -DNCONTRIB"
@@ -349,6 +372,8 @@ fi
 [ $contracts = no ] && CFLAGS="$CFLAGS -DNCONTRACTS"
 [ $tracing = no ] && CFLAGS="$CFLAGS -DNTRACING"
 [ $contrib = no ] && CFLAGS="$CFLAGS -DNCONTRIB"
+[ $ipasir = no ] && CFLAGS="$CFLAGS -DNIPASIR"
+[ $shared = yes -a $pic = no ] && CFLAGS="$CFLAGS -fpic"
 
 CXXFLAGS="$CXXFLAGS$options"
 CFLAGS="$CFLAGS$options"
@@ -457,6 +482,7 @@ int main () {
   int res = 0;
   for (int i = 0; i != s->size; i++)
     res += s->flexible_array_member[i];
+  free (s);
   return res;
 }
 EOF
@@ -560,27 +586,37 @@ fi
 
 #--------------------------------------------------------------------------#
 # Preparing make goals (@GOALS@)
+
 goals="libcadical.a cadical mobical"
+
 sharedlibrary="libcadical.so"
+cadicaldynamic="cadical-dynamic"
+
 if [ $shared = yes ]
 then
-  msg "adding '$sharedlibrary' shared library to default makefile goal, too"
-  goals="$goals $sharedlibrary"
+  msg "adding '$sharedlibrary' and '$cadicaldynamic' to default makefile goal"
+  goals="$goals $sharedlibrary $cadicaldynamic"
 else
   if [ -f $sharedlibrary ]
   then
     msg "removing stale dynamic library '$sharedlibrary' (without '-shared')"
     rm -f $sharedlibrary || exit 1
   fi
+  if [ -f $cadicaldynamic ]
+  then
+    msg "removing stale dynamically linked '$cadicaldynamic' (without '-shared')"
+    rm -f $cadicaldynamic || exit 1
+  fi
   msg "no '$sharedlibrary' shared library generated (without '-shared')"
+  msg "no '$cadicaldynamic' dynamically linked binary generated (without '-shared')"
 fi
-
 
 #--------------------------------------------------------------------------#
 
 # Instantiate '../makefile.in' template to produce 'makefile' in 'build'.
 
-msg "compiling with ${HILITE}'$CXX $CXXFLAGS'${NORMAL}"
+msg "compiling C++ with ${HILITE}'$CXX $CXXFLAGS'${NORMAL}"
+msg "compiling C with ${HILITE}'$CC $CFLAGS'${NORMAL}"
 
 rm -f makefile
 sed \
@@ -588,6 +624,7 @@ sed \
 # This 'makefile' is generated from '../makefile.in'." \
 -e "s,@CXX@,$CXX," \
 -e "s#@CXXFLAGS@#$CXXFLAGS#" \
+-e "s#@CC@#$CC#" \
 -e "s#@CFLAGS@#$CFLAGS#" \
 -e "s#@LIBS@#$libs#" \
 -e "s#@CONTRIB@#$contrib#" \

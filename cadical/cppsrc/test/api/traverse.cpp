@@ -89,6 +89,7 @@ int main () {
 
   Solver cadical;
   cadical.set ("lucky", 0);
+  cadical.set ("factor", 0);
 
   // And gate 3 = 1 & 2>
 

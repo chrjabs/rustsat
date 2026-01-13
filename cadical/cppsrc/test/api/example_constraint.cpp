@@ -9,11 +9,11 @@
 int main () {
 
   CaDiCaL::Solver *solver = new CaDiCaL::Solver;
+  const int TIE = solver->declare_more_variables (2);
+  const int SHIRT = TIE - 1;
 
   // ------------------------------------------------------------------
   // Encode Problem and check without assumptions.
-
-  enum { TIE = 1, SHIRT = 2 };
 
   solver->add (-TIE), solver->add (SHIRT), solver->add (0);
   solver->add (TIE), solver->add (SHIRT), solver->add (0);

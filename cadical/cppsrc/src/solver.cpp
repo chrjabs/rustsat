@@ -1,5 +1,6 @@
 #include "cadical.hpp"
 #include "internal.hpp"
+#include <atomic>
 
 /*------------------------------------------------------------------------*/
 
@@ -334,7 +335,12 @@ void Solver::trace_api_call (const char *s0, const char *s1, int i2) const {
 // which use the solver as library by just setting an environment variable
 // without requiring to change any application code.
 //
-static bool tracing_api_calls_through_environment_variable_method;
+// We initially had static but Mate Soos reported a helgrind error
+// (https://github.com/arminbiere/cadical/issues/155) so we fixed it to
+// static atomic.
+//
+static atomic<bool> tracing_api_calls_through_environment_variable_method{
+    false};
 
 /*------------------------------------------------------------------------*/
 #else // NTRACING
@@ -348,7 +354,14 @@ static bool tracing_api_calls_through_environment_variable_method;
 #endif
 /*------------------------------------------------------------------------*/
 
-static bool tracing_nb_lidrup_env_var_method = false;
+// The global 'tracing_nb_lidrup_env_var_method' flag is used to ensure that
+// only one solver produces a proof file. Otherwise the method to use an
+// environment variable to point to the trace file is bogus, since those
+// different solver instances would all write to the same file producing
+// garbage. See also the comment on
+// `tracing_api_calls_through_environment_variable_method` above.
+//
+static atomic<bool> tracing_nb_lidrup_env_var_method{false};
 
 Solver::Solver () {
 
@@ -391,10 +404,9 @@ Solver::Solver () {
   if (!lidrup_path)
     lidrup_path = getenv ("CADICALLIDRUPTRACE");
   if (lidrup_path) {
-
-    // if (tracing_nb_lidrup_env_var_method)
-    // FATAL ("can not trace LIDRUP of two solver instances "
-    //   "using environment variable 'CADICAL_LIDRUP_TRACE'");
+    if (tracing_nb_lidrup_env_var_method)
+      FATAL ("can not trace LIDRUP of two solver instances "
+             "using environment variable 'CADICAL_LIDRUP_TRACE'");
     // Here we use the solver interface to setup non-binary IDRUP tracing to
     // the defined file. Options set by the user can and will overwrite
     // these settings if neeed be.
@@ -615,6 +627,14 @@ bool Solver::configure (const char *name) {
 void Solver::add (int lit) {
   TRACE ("add", lit);
   REQUIRE_VALID_STATE ();
+  if (lit && ((internal->opts.factor && internal->opts.factorcheck == 1) ||
+              internal->opts.factorcheck == 2))
+    REQUIRE (
+        abs (lit) <= external->max_var,
+        "undeclared variable %d usage. "
+        "Use `declare_one_more_variable ()` to get the next variable (s) "
+        "or `declare_more_variables (n)` to get the next n variables.",
+        (int) (lit));
   if (lit)
     REQUIRE_VALID_LIT (lit);
   transition_to_steady_state ();
@@ -805,6 +825,7 @@ int Solver::call_external_solve_and_check_results (bool preprocess_only) {
     // checking restored clauses does not work (because the clauses are not added)
     checker.set("checkproof", 1);
     checker.set("lrat", 0);
+    checker.set("factorcheck", 0);
     checker.prefix ("checker ");
     copy (checker);
     checker.set("log", 1);
@@ -1057,12 +1078,9 @@ void Solver::connect_external_propagator (ExternalPropagator *propagator) {
   LOG_API_CALL_BEGIN ("connect_external_propagator");
   REQUIRE_VALID_STATE ();
   REQUIRE (propagator, "can not connect zero propagator");
-#ifdef LOGGING
-  if (external->propagator)
-    LOG ("connecting new external propagator (disconnecting previous one)");
-  else
-    LOG ("connecting new external propagator (no previous one)");
-#endif
+  REQUIRE (!external->propagator,
+           "can not connect more than one propagator");
+
   if (external->propagator)
     disconnect_external_propagator ();
 
@@ -1076,20 +1094,15 @@ void Solver::connect_external_propagator (ExternalPropagator *propagator) {
 void Solver::disconnect_external_propagator () {
   LOG_API_CALL_BEGIN ("disconnect_external_propagator");
   REQUIRE_VALID_STATE ();
-
-#ifdef LOGGING
-  if (external->propagator)
-    LOG ("disconnecting previous external propagator");
-  else
-    LOG ("ignoring to disconnect external propagator (no previous one)");
-#endif
-  if (external->propagator)
-    external->reset_observed_vars ();
+  REQUIRE (external->propagator,
+           "can not disconnect propagator without a connected propagator");
+  external->reset_observed_vars ();
 
   external->propagator = 0;
-  internal->set_tainted_literal ();
+  internal->set_changed_val ();
   internal->external_prop = false;
   internal->external_prop_is_lazy = true;
+  internal->notified = 0;
   LOG_API_CALL_END ("disconnect_external_propagator");
 }
 
@@ -1097,14 +1110,18 @@ void Solver::add_observed_var (int idx) {
   TRACE ("observe", idx);
   REQUIRE_VALID_OR_SOLVING_STATE ();
   REQUIRE_VALID_LIT (idx);
+  REQUIRE (external->propagator,
+           "can not observe variables without a connected propagator");
   external->add_observed_var (idx);
   LOG_API_CALL_END ("observe", idx);
 }
 
 void Solver::remove_observed_var (int idx) {
   TRACE ("unobserve", idx);
-  REQUIRE_VALID_STATE ();
+  REQUIRE_VALID_OR_SOLVING_STATE ();
   REQUIRE_VALID_LIT (idx);
+  REQUIRE (external->propagator,
+           "can not unobserve variables without a connected propagator");
   external->remove_observed_var (idx);
   LOG_API_CALL_END ("unobserve", idx);
 }
@@ -1112,6 +1129,9 @@ void Solver::remove_observed_var (int idx) {
 void Solver::reset_observed_vars () {
   TRACE ("reset_observed_vars");
   REQUIRE_VALID_OR_SOLVING_STATE ();
+  REQUIRE (
+      external->propagator,
+      "can not reset observed variables without a connected propagator");
   external->reset_observed_vars ();
   LOG_API_CALL_END ("reset_observed_vars");
 }
@@ -1544,9 +1564,11 @@ bool Solver::is_decision (int lit) {
   return res;
 }
 
-void Solver::force_backtrack (size_t new_level) {
+void Solver::force_backtrack (int new_level) {
   TRACE ("force_backtrack", new_level);
   REQUIRE_VALID_OR_SOLVING_STATE ();
+  REQUIRE (external->propagator,
+           "can not force backtrack without a connected propagator");
   external->force_backtrack (new_level);
 }
 

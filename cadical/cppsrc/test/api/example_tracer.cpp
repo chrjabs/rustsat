@@ -67,29 +67,31 @@ int main () {
   solver->connect_proof_tracer (st1, 1);
   solver->connect_proof_tracer (st2, 0);
 
-  solver->add (1);
-  solver->add (2);
+  const int var2 = solver->declare_more_variables (2);
+  const int var1 = var2 - 1;
+  solver->add (var1);
+  solver->add (var2);
   solver->add (0);
 
-  solver->add (-1);
-  solver->add (-2);
+  solver->add (-var1);
+  solver->add (-var2);
   solver->add (0);
 
-  solver->add (1);
-  solver->add (-2);
+  solver->add (var1);
+  solver->add (-var2);
   solver->add (0);
 
-  solver->constrain (-1);
-  solver->constrain (2);
+  solver->constrain (-var1);
+  solver->constrain (var2);
   solver->constrain (0);
 
   solver->solve ();
 
-  solver->failed (1);
+  solver->failed (var1);
   solver->conclude ();
 
-  solver->add (-1);
-  solver->add (2);
+  solver->add (-var1);
+  solver->add (var2);
   solver->add (0);
 
   solver->solve ();

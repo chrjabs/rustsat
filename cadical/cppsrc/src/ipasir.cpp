@@ -5,7 +5,11 @@ extern "C" {
 
 const char *ipasir_signature () { return ccadical_signature (); }
 
-void *ipasir_init () { return ccadical_init (); }
+void *ipasir_init () {
+  CCaDiCaL *cadical = ccadical_init ();
+  ccadical_set_option (cadical, "factor", 0);
+  return cadical;
+}
 
 void ipasir_release (void *solver) {
   ccadical_release ((CCaDiCaL *) solver);

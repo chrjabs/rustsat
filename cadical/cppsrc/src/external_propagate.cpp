@@ -27,6 +27,8 @@ void Internal::add_observed_var (int ilit) {
     // about it because it happened on an earlier decision level.
     // To not break the stack-like view of the trail, we simply backtrack to
     // undo this unnotifiable assignment.
+    REQUIRE (!conflict,
+             "can not observe assigned variable during conflict analysis");
     const int assignment_level = var (ilit).level;
     backtrack (assignment_level - 1);
   } else if (level && fixed (ilit)) {
@@ -38,14 +40,19 @@ void Internal::add_observed_var (int ilit) {
 //
 // Removing an observed variable should happen only once it is ensured
 // that there is no unexplained propagation in the implication
-// graph involving this variable.
+// graph involving this variable. To ensure that, the solver might
+// need to backtrack so that the variable becomes unassigned.
 //
 void Internal::remove_observed_var (int ilit) {
-  if (!fixed (ilit) && level) {
-    backtrack ();
+  if (!fixed (ilit) && level && val (ilit)) {
+    REQUIRE (
+        !conflict,
+        "can not unobserve assigned variable during conflict analysis");
+    const int assignment_level = var (ilit).level;
+    backtrack (assignment_level - 1);
   }
 
-  assert (fixed (ilit) || !level);
+  assert (fixed (ilit) || !val (ilit));
 
   const int idx = vidx (ilit);
   assert ((size_t) idx < relevanttab.size ());
@@ -76,7 +83,7 @@ bool Internal::observed (int ilit) const {
 //
 // Check for unexplained propagations upon disconnecting external propagator
 //
-void Internal::set_tainted_literal () {
+void Internal::set_changed_val () {
   if (!opts.ilb) {
     return;
   }
@@ -85,13 +92,13 @@ void Internal::set_tainted_literal () {
       continue;
     if (var (idx).reason != external_reason)
       continue;
-    if (!tainted_literal) {
-      tainted_literal = idx;
+    if (!changed_val) {
+      changed_val = idx;
       continue;
     }
-    assert (val (tainted_literal));
-    if (var (idx).level < var (tainted_literal).level) {
-      tainted_literal = idx;
+    assert (val (changed_val));
+    if (var (idx).level < var (changed_val).level) {
+      changed_val = idx;
     }
   }
 }
@@ -240,13 +247,18 @@ bool Internal::is_decision (int ilit) {
   return true;
 }
 
-void Internal::force_backtrack (size_t new_level) {
-  if (!forced_backt_allowed || level <= 0 || new_level >= (size_t) level)
-    return;
+void Internal::force_backtrack (int new_level) {
+  REQUIRE (forced_backt_allowed,
+           "not allowed to force backtrack in that state of the solver.");
+  REQUIRE (new_level >= 0,
+           "the target level of a forced backtrack must be non-negative.");
+  REQUIRE (level > 0 && new_level < level,
+           "the target level of a forced backtrack must be smaller than "
+           "the current decision level.");
 
 #ifndef NDEBUG
   LOG ("external propagator forces backtrack to decision level"
-       "%zd (from level %d)",
+       "%d (from level %d)",
        new_level, level);
 #endif
   backtrack (new_level);
@@ -281,6 +293,12 @@ bool Internal::external_propagate () {
     notify_assignments ();
 
     int elit = external->propagator->cb_propagate ();
+
+    REQUIRE (
+        !elit || ((size_t) abs (elit) < external->is_observed.size () &&
+                  external->is_observed[abs (elit)]),
+        "external propagations are only allowed over observed variables.");
+
     stats.ext_prop.ext_cb++;
     stats.ext_prop.eprop_call++;
     while (elit) {
@@ -508,6 +526,7 @@ void Internal::add_external_clause (int propagated_elit,
                                     bool no_backtrack) {
   assert (original.empty ());
   int elit = 0;
+  bool propagated_lit_found = false;
 
   if (propagated_elit) {
     // Propagation reason clauses are by default assumed to be forgettable
@@ -519,8 +538,15 @@ void Internal::add_external_clause (int propagated_elit,
     LOG ("add external reason of propagated lit: %d", propagated_elit);
 #endif
     elit = external->propagator->cb_add_reason_clause_lit (propagated_elit);
+    if (elit == propagated_elit)
+      propagated_lit_found = true;
   } else
     elit = external->propagator->cb_add_external_clause_lit ();
+
+  REQUIRE (
+      !elit || ((size_t) abs (elit) < external->is_observed.size () &&
+                external->is_observed[abs (elit)]),
+      "external (reason) clause must contain only observed variables.");
 
   // we need to be build a new LRAT chain if we are already in the middle of
   // the analysis (like during failed assumptions)
@@ -538,15 +564,28 @@ void Internal::add_external_clause (int propagated_elit,
   force_no_backtrack = no_backtrack;
   from_propagator = true;
   while (elit) {
-    assert (external->is_observed[abs (elit)]);
     external->add (elit);
-    if (propagated_elit)
+    if (propagated_elit) {
       elit =
           external->propagator->cb_add_reason_clause_lit (propagated_elit);
-    else
+      if (elit == propagated_elit)
+        propagated_lit_found = true;
+    } else
       elit = external->propagator->cb_add_external_clause_lit ();
+
+    REQUIRE (
+        !elit || ((size_t) abs (elit) < external->is_observed.size () &&
+                  external->is_observed[abs (elit)]),
+        "external (reason) clause must contain only observed variables.");
   }
   external->add (elit);
+
+  REQUIRE (!propagated_elit || propagated_lit_found,
+           "external reason clause must contain the propagated literal.");
+#ifdef NCONTRACTS
+  (void) propagated_lit_found;
+#endif
+
   assert (original.empty ());
   assert (clause.empty ());
   force_no_backtrack = false;
@@ -697,7 +736,8 @@ void Internal::explain_external_propagations () {
 Clause *Internal::learn_external_reason_clause (int ilit,
                                                 int falsified_elit,
                                                 bool no_backtrack) {
-  assert (external->propagator);
+  assert (external->propagator); // REQ is defined by not allowing
+                                 // unobserving during conflict
   // we cannot modify clause during analysis
   auto clause_tmp = std::move (clause);
 
@@ -894,9 +934,22 @@ bool Internal::external_check_solution () {
 #endif
     }
 
+    forced_backt_allowed = true;
+    size_t assigned = num_assigned;
+    int level_before = level;
     bool is_consistent =
         external->propagator->cb_check_found_model (etrail);
     stats.ext_prop.ext_cb++;
+    forced_backt_allowed = false;
+
+    if (num_assigned != assigned || level != level_before ||
+        propagated < trail.size ()) {
+      // In case an external forced backtracking was performed, the CDCL
+      // loop needs to continue withouth further checks of the model.
+      trail_changed = true;
+      return !conflict;
+    }
+
     if (is_consistent) {
       LOG ("Found solution is approved by external propagator.");
       return true;
@@ -912,8 +965,8 @@ bool Internal::external_check_solution () {
           "Found solution triggered new clauses from external propagator.");
 
     while (has_external_clause) {
-      int level_before = level;
-      size_t assigned = num_assigned;
+      level_before = level;
+      assigned = num_assigned;
       add_external_clause (0);
       bool trail_changed =
           (num_assigned != assigned || level != level_before ||
@@ -990,8 +1043,8 @@ void Internal::notify_assignments () {
             (fixed (ilit) && !external->ervars[abs (elit)]));
     assigned.push_back (elit);
   }
-
-  external->propagator->notify_assignment (assigned);
+  if (assigned.size ())
+    external->propagator->notify_assignment (assigned);
   return;
 }
 
@@ -1059,9 +1112,12 @@ int Internal::ask_decision () {
   if (!elit)
     return 0;
   LOG ("external propagator proposes decision: %d", elit);
+
+  REQUIRE ((size_t) abs (elit) < external->is_observed.size () &&
+               external->is_observed[abs (elit)],
+           "external decisions are only allowed over observed variables.");
+
   assert (external->is_observed[abs (elit)]);
-  if (!external->is_observed[abs (elit)])
-    return 0;
 
   int ilit = external->e2i[abs (elit)];
   if (elit < 0)
@@ -1073,11 +1129,9 @@ int Internal::ask_decision () {
        "%d, fixed: %d, val: %d)",
        elit, ilit, fixed (ilit), val (ilit));
 
-  if (fixed (ilit) || val (ilit)) {
-    LOG ("Proposed decision variable is already assigned, falling back to "
-         "internal decision.");
-    return 0;
-  }
+  REQUIRE (
+      !fixed (ilit) && !val (ilit),
+      "external decisions are only allowed over unassigned variables.");
 
   return ilit;
 }

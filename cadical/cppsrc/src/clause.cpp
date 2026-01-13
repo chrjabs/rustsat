@@ -376,20 +376,18 @@ void Internal::assign_original_unit (int64_t id, int lit) {
 // from_propagator and force_no_backtrack change the behaviour.
 // sometimes the pointer to the new clause is needed, therefore it is
 // made sure that newest_clause points to the new clause upon return.
-//
-// TODO: Find another name for 'tainted' in the context of ilb, tainted
-// is reconstruction related already and they should not mix.
+
 void Internal::add_new_original_clause (int64_t id) {
 
   if (!from_propagator && level && !opts.ilb) {
     backtrack ();
-  } else if (tainted_literal) {
-    assert (val (tainted_literal));
-    int new_level = var (tainted_literal).level - 1;
+  } else if (changed_val) {
+    assert (val (changed_val));
+    int new_level = var (changed_val).level - 1;
     assert (new_level >= 0);
     backtrack (new_level);
   }
-  assert (!tainted_literal);
+  assert (!changed_val);
   LOG (original, "original clause");
   assert (clause.empty ());
   bool skip = false;
@@ -497,6 +495,7 @@ void Internal::add_new_original_clause (int64_t id) {
         assert (val (clause[0]));
         v.level = 0;
         v.reason = 0;
+        did_external_prop = true;
         const unsigned uidx = vlit (clause[0]);
         if (lrat || frat)
           unit_clauses (uidx) = new_id;
