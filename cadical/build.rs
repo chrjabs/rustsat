@@ -10,6 +10,16 @@ use std::{
     str,
 };
 
+macro_rules! check_env_var {
+    ($var:expr) => {
+        match env::var($var) {
+            Err(env::VarError::NotPresent) => None,
+            Ok(val) => Some(val),
+            Err(err) => panic!("`{}` variable error: {err}", $var),
+        }
+    };
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Version {
     // Note: derived order makes top < bottom
@@ -206,20 +216,14 @@ impl Version {
     }
 
     fn set_defines(self, build: &mut cc::Build) {
-        let run_cpp_tests = match env::var("CADICAL_RUN_CPP_TESTS") {
-            Err(env::VarError::NotPresent) => true,
-            Err(err) => {
-                panic!("`CADICAL_RUN_CPP_TESTS` variable error: {err}");
+        let run_cpp_tests = check_env_var!("CADICAL_RUN_CPP_TESTS").map_or(true, |val| {
+            let val_lower = val.to_lowercase();
+            match val_lower.trim() {
+                "1" | "true" => true,
+                "0" | "false" => false,
+                _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {val}"),
             }
-            Ok(run) => {
-                let run_lower = run.to_lowercase();
-                match run_lower.trim() {
-                    "1" | "true" => true,
-                    "0" | "false" => false,
-                    _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {run}"),
-                }
-            }
-        };
+        });
         if !has_cpp_feature(CppFeature::FlexibleArrayMembers, run_cpp_tests) {
             build.define("NFLEXIBLE", None);
         }
@@ -388,7 +392,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
 }
 
 fn get_cadical_dir(version: Version, _remote: Option<(&str, &str)>) -> String {
-    if let Ok(src_dir) = std::env::var("CADICAL_SRC_DIR") {
+    if let Some(src_dir) = check_env_var!("CADICAL_SRC_DIR") {
         if version_set_manually!() {
             println!("cargo:warning=Both version feature and CADICAL_SRC_DIR. It is your responsibility to ensure that they make sense together.");
         }
@@ -538,7 +542,7 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
     apply_patch(&repo, patch);
 
     // Allow for manually applying patches
-    if let Ok(patches) = std::env::var("CADICAL_PATCHES") {
+    if let Some(patches) = check_env_var!("CADICAL_PATCHES") {
         for patch in patches.split(':') {
             apply_patch(&repo, patch);
         }
@@ -669,17 +673,13 @@ int main () {
 ///
 /// The actual checks are taken from CaDiCaL's `configure` script
 fn has_cpp_feature(feature: CppFeature, run: bool) -> bool {
-    match env::var(feature.env_var()) {
-        Err(env::VarError::NotPresent) => (),
-        Err(err) => panic!("`{}` variable error: {err}", feature.env_var()),
-        Ok(value) => {
-            let feature_lower = value.to_lowercase();
-            match feature_lower.trim() {
-                "1" | "true" => return true,
-                "0" | "false" => return false,
-                "auto" => (),
-                _ => panic!("`{}` variable invalid value: {run}", feature.env_var()),
-            }
+    if let Some(val) = check_env_var!(feature.env_var()) {
+        let val_lower = val.to_lowercase();
+        match val_lower.trim() {
+            "1" | "true" => return true,
+            "0" | "false" => return false,
+            "auto" => (),
+            _ => panic!("`{}` variable invalid value: {val}", feature.env_var()),
         }
     }
 

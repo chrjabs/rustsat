@@ -10,6 +10,16 @@ use std::{
     str,
 };
 
+macro_rules! check_env_var {
+    ($var:expr) => {
+        match env::var($var) {
+            Err(env::VarError::NotPresent) => None,
+            Ok(val) => Some(val),
+            Err(err) => panic!("`{}` variable error: {err}", $var),
+        }
+    };
+}
+
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Version {
     // Note: derived order makes top < bottom
@@ -117,7 +127,7 @@ fn main() {
 }
 
 fn get_kissat_src(version: Version) -> PathBuf {
-    if let Ok(src_dir) = std::env::var("KISSAT_SRC_DIR") {
+    if let Some(src_dir) = check_env_var!("KISSAT_SRC_DIR") {
         if version_set_manually!() {
             println!("cargo:warning=Both version feature and KISSAT_SRC_DIR. Will ignore version feature");
         }
