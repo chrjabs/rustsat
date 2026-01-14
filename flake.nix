@@ -303,20 +303,20 @@
             name = "cargo-spellcheck-check";
             nativeBuildInputs = with pkgs; [ cargo-spellcheck ];
             doCheck = true;
-            unpackPhase = "true";
+            src = ./.;
             buildPhase = ''
               mkdir -p $out
             '';
             checkPhase = ''
               mkdir -p .cache
-              HOME=$PWD cargo-spellcheck --code 1 check
+              HOME=$PWD cargo-spellcheck check --code 1
             '';
           };
           typosCheck = stdenv.mkDerivation {
             name = "typos-check";
             nativeBuildInputs = with pkgs; [ typos ];
             doCheck = true;
-            unpackPhase = "true";
+            src = ./.;
             buildPhase = ''
               mkdir -p $out
             '';
