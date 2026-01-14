@@ -85,6 +85,19 @@
 //! CaDiCaL is build.
 //! Older versions are pulled down via the [`git2`](https://crates.io/crates/git2) crate, which has
 //! transitive dependencies that have a higher MSRV.
+//!
+//! ## Compiling on Windows / Cross Compilation
+//!
+//! Compiling this crate under Windows can be a bit challenging, but it can be done.
+//! The challenges come from CaDiCaL relying on unix-specific features.
+//! For starters, make sure to use the `x86_64-pc-windows-gnu` target triple.
+//!
+//! Cross compilation for Windows can be achieved with the help of [`cargo
+//! zigbuild`](https://github.com/rust-cross/cargo-zigbuild).
+//! During cross compilation, make sure to set `CADICAL_RUN_CPP_TESTS=0`, since compiler tests
+//! (compiled for Windows) can't be run on the non-Windows host system.
+//! For a working Windows cross compilation setup example, see [this CI
+//! configuration](https://github.com/marceline-cramer/saturn-v/blob/f8bcdc24857bce232981518bb4bec2c8cfcc6acf/.github/workflows/release.yml).
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(clippy::pedantic)]
