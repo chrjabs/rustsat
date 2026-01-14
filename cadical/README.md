@@ -53,6 +53,32 @@ customize the Cpp source code that CaDiCaL is built from.
   patches, the user is responsible for applying the appropriate and necessary patches from the
   [`patches/`](https://github.com/chrjabs/rustsat/tree/main/cadical/patches) directory.
 
+## Cpp Compiler Features
+
+By default, the build script of this crate uses the same compiler/platform tests as CaDiCaL's
+`configure` script to detect whether certain Cpp compiler features are available.
+The following environment variables allow for manually modifying the logic for detecting
+compiler features.
+
+- `CADICAL_RUN_COMPILER_TESTS`: By default we only consider a compiler feature available if the
+  test compiles _and runs_.
+  With this environment variable set to `0` or `false` a feature is considered available if the
+  test compiles correctly, without trying to execute it.
+  This is useful for cross-compilation settings where executing the compiled binary is not
+  possible.
+- `CADICAL_FLEXIBLE_ARRAY_MEMBERS` enables (`1` or `true`) or disables (`0` or `false`) or
+  automatically checks (`auto`) the availability of the flexible array members compiler
+  feature.
+  Disabling the feature is equivalent to `--no-flexible` in CaDiCaL's `configure` script.
+- `CADICAL_CLOSEFROM` marks `closefrom` as available (`1` or `true`) or unavailable (`0` or
+  `false`) or automatically checks (`auto`) the availability.
+  Disabling the feature is equivalent to `--no-closefrom` in CaDiCaL's `configure` script.
+- `CADICAL_UNLOCKED_IO` enables (`1` or `true`) or disables (`0` or `false`) or automatically
+  checks (`auto`) the availability of the unlocked IO platform feature.
+  Disabling the feature is equivalent to `--no-unlocked` in CaDiCaL's `configure` script.
+
+By default, the availability of all compiler/platform features is automatically checked.
+
 ## Minimum Supported Rust Version (MSRV)
 
 Currently, the MSRV is 1.77.0, the plan is to always support an MSRV that is at least a year

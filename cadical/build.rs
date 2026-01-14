@@ -206,13 +206,27 @@ impl Version {
     }
 
     fn set_defines(self, build: &mut cc::Build) {
-        if !has_cpp_feature(CppFeature::FlexibleArrayMembers) {
+        let run_cpp_tests = match env::var("CADICAL_RUN_CPP_TESTS") {
+            Err(env::VarError::NotPresent) => true,
+            Err(err) => {
+                panic!("`CADICAL_RUN_CPP_TESTS` variable error: {err}");
+            }
+            Ok(run) => {
+                let run_lower = run.to_lowercase();
+                match run_lower.trim() {
+                    "1" | "true" => true,
+                    "0" | "false" => false,
+                    _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {run}"),
+                }
+            }
+        };
+        if !has_cpp_feature(CppFeature::FlexibleArrayMembers, run_cpp_tests) {
             build.define("NFLEXIBLE", None);
         }
-        if !has_cpp_feature(CppFeature::UnlockedIo) {
+        if !has_cpp_feature(CppFeature::UnlockedIo, run_cpp_tests) {
             build.define("NUNLOCKED", None);
         }
-        if self >= Version::V211 && !has_cpp_feature(CppFeature::Closefrom) {
+        if self >= Version::V211 && !has_cpp_feature(CppFeature::Closefrom, run_cpp_tests) {
             build.define("NCLOSEFROM", None);
         }
         if self >= Version::V154 {
@@ -312,6 +326,10 @@ fn main() {
     println!("cargo:rerun-if-changed=cpp-extension/");
     println!("cargo:rerun-if-env-changed=CADICAL_SRC_DIR");
     println!("cargo:rerun-if-env-changed=CADICAL_PATCHES");
+    println!("cargo:rerun-if-env-changed=CADICAL_RUN_CPP_TESTS");
+    println!("cargo:rerun-if-env-changed=CADICAL_FLEXIBLE_ARRAY_MEMBERS");
+    println!("cargo:rerun-if-env-changed=CADICAL_CLOSEFROM");
+    println!("cargo:rerun-if-env-changed=CADICAL_UNLOCKED_IO");
 
     generate_bindings(&cadical_dir, version, &out_dir);
 
@@ -584,6 +602,26 @@ enum CppFeature {
     Closefrom,
 }
 
+impl CppFeature {
+    fn env_var(self) -> &'static str {
+        match self {
+            CppFeature::FlexibleArrayMembers => "CADICAL_FLEXIBLE_ARRAY_MEMBERS",
+            CppFeature::UnlockedIo => "CADICAL_UNLOCKED_IO",
+            CppFeature::Closefrom => "CADICAL_CLOSEFROM",
+        }
+    }
+
+    fn name_content(self) -> (&'static str, &'static str) {
+        match self {
+            CppFeature::FlexibleArrayMembers => {
+                ("has-flexible-array-members", FLEXIBLE_ARRAY_MEMBERS_TEST)
+            }
+            CppFeature::UnlockedIo => ("has-unlocked-io", UNLOCKED_IO_TEST),
+            CppFeature::Closefrom => ("has-closefrom", CLOSEFROM_TEST),
+        }
+    }
+}
+
 const FLEXIBLE_ARRAY_MEMBERS_TEST: &str = r"
 #include <cstdlib>
 struct S {
@@ -630,15 +668,23 @@ int main () {
 /// Checks whether a Cpp feature is available
 ///
 /// The actual checks are taken from CaDiCaL's `configure` script
-fn has_cpp_feature(feature: CppFeature) -> bool {
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let (name, content) = match feature {
-        CppFeature::FlexibleArrayMembers => {
-            ("has-flexible-array-members", FLEXIBLE_ARRAY_MEMBERS_TEST)
+fn has_cpp_feature(feature: CppFeature, run: bool) -> bool {
+    match env::var(feature.env_var()) {
+        Err(env::VarError::NotPresent) => (),
+        Err(err) => panic!("`{}` variable error: {err}", feature.env_var()),
+        Ok(value) => {
+            let feature_lower = value.to_lowercase();
+            match feature_lower.trim() {
+                "1" | "true" => return true,
+                "0" | "false" => return false,
+                "auto" => (),
+                _ => panic!("`{}` variable invalid value: {run}", feature.env_var()),
+            }
         }
-        CppFeature::UnlockedIo => ("has-unlocked-io", UNLOCKED_IO_TEST),
-        CppFeature::Closefrom => ("has-closefrom", CLOSEFROM_TEST),
-    };
+    }
+
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let (name, content) = feature.name_content();
 
     // write test to file
     let test_file = format!("{out_dir}/{name}.cpp");
@@ -658,8 +704,12 @@ fn has_cpp_feature(feature: CppFeature) -> bool {
     if !compile.status.success() {
         return false;
     }
-    let output = Command::new(out_file)
-        .output()
-        .expect("failed to execute compiled test");
-    output.status.success()
+    if run {
+        let output = Command::new(out_file)
+            .output()
+            .expect("failed to execute compiled test");
+        output.status.success()
+    } else {
+        true
+    }
 }
