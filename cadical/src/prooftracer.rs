@@ -1,10 +1,14 @@
 //! # CaDiCaL Proof Tracing Functionality
 
-use std::ffi::{c_int, c_void};
+use std::{
+    ffi::{c_int, c_void},
+    marker::PhantomData,
+    pin::Pin,
+};
 
 use rustsat::{
-    solvers::SolverResult,
-    types::{Assignment, Clause, Lit},
+    solvers::{sat, SolverResult},
+    types::{Assignment, Clause, Lit, TernaryVal, Var},
     utils::from_raw_parts_maybe_null,
 };
 
@@ -34,7 +38,11 @@ pub enum Conclusion {
 /// lazily converts IPASIR literals to [`Lit`] to not perform any work if the clause is not actually
 /// used
 #[expect(unused_variables)]
-pub trait TraceProof {
+pub trait TraceProof: From<Self::Config> + Unpin {
+    type Config;
+
+    const ANTECEDENTS: bool;
+
     /// Notify the tracer that a original clause has been added.
     ///
     /// Includes ID and whether the clause is redundant or irredundant
@@ -130,6 +138,133 @@ pub trait TraceProof {
     fn notify_equivalence(&mut self, first: Lit, second: Lit) {}
 }
 
+pub(crate) trait DynCompatTraceProof {
+    fn add_original_clause(
+        &mut self,
+        id: ClauseId,
+        redundant: bool,
+        clause: &CaDiCaLClause,
+        restored: bool,
+    );
+    fn add_derived_clause(
+        &mut self,
+        id: ClauseId,
+        redundant: bool,
+        clause: &CaDiCaLClause,
+        antecedents: &[ClauseId],
+    );
+    fn delete_clause(&mut self, id: ClauseId, redundant: bool, clause: &CaDiCaLClause);
+    fn weaken_minus(&mut self, id: ClauseId, clause: &CaDiCaLClause);
+    fn strengthen(&mut self, id: ClauseId);
+    fn report_status(&mut self, status: SolverResult, id: ClauseId);
+    fn finalize_clause(&mut self, id: ClauseId, clause: &CaDiCaLClause);
+    fn begin_proof(&mut self, id: ClauseId);
+    fn solve_query(&mut self);
+    fn add_assumption(&mut self, assumption: Lit);
+    fn add_constraint(&mut self, constraint: &CaDiCaLClause);
+    fn reset_assumptions(&mut self);
+    fn add_assumption_clause(
+        &mut self,
+        id: ClauseId,
+        clause: &CaDiCaLClause,
+        antecedents: &[ClauseId],
+    );
+    fn conclude_unsat(&mut self, conclusion: Conclusion, failing: &[ClauseId]);
+    fn conclude_sat(&mut self, solution: &CaDiCaLAssignment);
+    fn conclude_unknown(&mut self, solution: &CaDiCaLAssignment);
+    fn notify_equivalence(&mut self, first: Lit, second: Lit);
+}
+
+impl<Tracer> DynCompatTraceProof for Tracer
+where
+    Tracer: TraceProof,
+{
+    fn add_original_clause(
+        &mut self,
+        id: ClauseId,
+        redundant: bool,
+        clause: &CaDiCaLClause,
+        restored: bool,
+    ) {
+        <Tracer as TraceProof>::add_original_clause(self, id, redundant, clause, restored);
+    }
+
+    fn add_derived_clause(
+        &mut self,
+        id: ClauseId,
+        redundant: bool,
+        clause: &CaDiCaLClause,
+        antecedents: &[ClauseId],
+    ) {
+        <Tracer as TraceProof>::add_derived_clause(self, id, redundant, clause, antecedents);
+    }
+
+    fn delete_clause(&mut self, id: ClauseId, redundant: bool, clause: &CaDiCaLClause) {
+        <Tracer as TraceProof>::delete_clause(self, id, redundant, clause);
+    }
+
+    fn weaken_minus(&mut self, id: ClauseId, clause: &CaDiCaLClause) {
+        <Tracer as TraceProof>::weaken_minus(self, id, clause);
+    }
+
+    fn strengthen(&mut self, id: ClauseId) {
+        <Tracer as TraceProof>::strengthen(self, id);
+    }
+
+    fn report_status(&mut self, status: SolverResult, id: ClauseId) {
+        <Tracer as TraceProof>::report_status(self, status, id);
+    }
+
+    fn finalize_clause(&mut self, id: ClauseId, clause: &CaDiCaLClause) {
+        <Tracer as TraceProof>::finalize_clause(self, id, clause);
+    }
+
+    fn begin_proof(&mut self, id: ClauseId) {
+        <Tracer as TraceProof>::begin_proof(self, id);
+    }
+
+    fn solve_query(&mut self) {
+        <Tracer as TraceProof>::solve_query(self);
+    }
+
+    fn add_assumption(&mut self, assumption: Lit) {
+        <Tracer as TraceProof>::add_assumption(self, assumption);
+    }
+
+    fn add_constraint(&mut self, constraint: &CaDiCaLClause) {
+        <Tracer as TraceProof>::add_constraint(self, constraint);
+    }
+
+    fn reset_assumptions(&mut self) {
+        <Tracer as TraceProof>::reset_assumptions(self);
+    }
+
+    fn add_assumption_clause(
+        &mut self,
+        id: ClauseId,
+        clause: &CaDiCaLClause,
+        antecedents: &[ClauseId],
+    ) {
+        <Tracer as TraceProof>::add_assumption_clause(self, id, clause, antecedents);
+    }
+
+    fn conclude_unsat(&mut self, conclusion: Conclusion, failing: &[ClauseId]) {
+        <Tracer as TraceProof>::conclude_unsat(self, conclusion, failing);
+    }
+
+    fn conclude_sat(&mut self, solution: &CaDiCaLAssignment) {
+        <Tracer as TraceProof>::conclude_sat(self, solution);
+    }
+
+    fn conclude_unknown(&mut self, solution: &CaDiCaLAssignment) {
+        <Tracer as TraceProof>::conclude_unknown(self, solution);
+    }
+
+    fn notify_equivalence(&mut self, first: Lit, second: Lit) {
+        <Tracer as TraceProof>::notify_equivalence(self, first, second);
+    }
+}
+
 /// A handle to an attached proof tracer in order to be able to detach it again
 ///
 /// This is intentionally not [`Clone`] or [`Copy`] so that it cannot be used after the tracer has
@@ -138,7 +273,7 @@ pub trait TraceProof {
 pub struct ProofTracerHandle<PT> {
     c_class: *mut ffi::CCaDiCaLTracer,
     tracer: *mut PT,
-    trait_ptr: *mut *mut dyn TraceProof,
+    trait_ptr: *mut *mut dyn DynCompatTraceProof,
 }
 
 impl<PT> Drop for ProofTracerHandle<PT> {
@@ -172,7 +307,7 @@ impl super::CaDiCaL<'_, '_> {
     {
         let tracer = Box::new(tracer);
         let tracer = Box::into_raw(tracer);
-        let trait_ptr = Box::new(tracer as *mut dyn TraceProof);
+        let trait_ptr = Box::new(tracer as *mut dyn DynCompatTraceProof);
         let trait_ptr = Box::into_raw(trait_ptr);
         let ptr = unsafe {
             ffi::ccadical_connect_proof_tracer(
@@ -340,13 +475,576 @@ impl CaDiCaLAssignment<'_> {
     }
 }
 
+pub trait Traceable: sat::Solve
+where
+    Self::Init: ConnectProofTracerInternal<Self>,
+    Self::Input: ConnectProofTracer<Self> + ConnectProofTracerInternal<Self>,
+{
+}
+
+impl Traceable for super::CaDiCaLNewApi {}
+
+pub trait ConnectProofTracer<Solver>
+where
+    Solver: sat::Solve,
+    Solver::Input: ConnectProofTracerInternal<Solver>,
+{
+    fn connect_proof_tracer<Tracer>(self, tracer: Tracer) -> TracedCaDiCaLInput<Solver, Tracer>
+    where
+        Tracer: TraceProof;
+}
+
+impl ConnectProofTracer<super::CaDiCaLNewApi> for super::CaDiCaLState<super::Input> {
+    fn connect_proof_tracer<Tracer>(
+        mut self,
+        tracer: Tracer,
+    ) -> TracedCaDiCaLInput<super::CaDiCaLNewApi, Tracer>
+    where
+        Tracer: TraceProof,
+    {
+        let tracer = Box::pin(tracer);
+        self.connect_proof_tracer_internal(&tracer);
+        TracedCaDiCaLInput {
+            solver_state: self,
+            tracer,
+        }
+    }
+}
+
+trait ConnectProofTracerInternal<Solver>
+where
+    Solver: sat::Solve,
+{
+    fn connect_proof_tracer_internal<Tracer>(&mut self, tracer: &Pin<Box<Tracer>>)
+    where
+        Tracer: DynCompatTraceProof;
+
+    fn disconnect_proof_tracer_internal<Tracer>(&mut self, tracer: &Pin<Box<Tracer>>)
+    where
+        Tracer: DynCompatTraceProof;
+}
+
+impl ConnectProofTracerInternal<super::CaDiCaLNewApi> for super::CaDiCaLState<super::Init> {
+    fn connect_proof_tracer_internal<Tracer>(&mut self, tracer: &Pin<Box<Tracer>>)
+    where
+        Tracer: DynCompatTraceProof,
+    {
+        todo!()
+    }
+
+    fn disconnect_proof_tracer_internal<Tracer>(&mut self, tracer: &Pin<Box<Tracer>>)
+    where
+        Tracer: DynCompatTraceProof,
+    {
+        todo!()
+    }
+}
+
+impl ConnectProofTracerInternal<super::CaDiCaLNewApi> for super::CaDiCaLState<super::Input> {
+    fn connect_proof_tracer_internal<Tracer>(&mut self, tracer: &Pin<Box<Tracer>>)
+    where
+        Tracer: DynCompatTraceProof,
+    {
+        todo!()
+    }
+
+    fn disconnect_proof_tracer_internal<Tracer>(&mut self, tracer: &Pin<Box<Tracer>>)
+    where
+        Tracer: DynCompatTraceProof,
+    {
+        todo!()
+    }
+}
+
+#[derive(Debug)]
+pub struct TracedCaDiCaL<Solver, Tracer> {
+    solver: PhantomData<Solver>,
+    tracer: PhantomData<Tracer>,
+}
+
+impl<Solver, Tracer> Traceable for TracedCaDiCaL<Solver, Tracer>
+where
+    Solver: Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+}
+
+impl<Solver, Tracer> sat::Solve for TracedCaDiCaL<Solver, Tracer>
+where
+    Solver: sat::Solve + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    type Init = TracedCaDiCaLInit<Solver, Tracer>;
+
+    type Input = TracedCaDiCaLInput<Solver, Tracer>;
+
+    type Sat = TracedCaDiCaLSat<Solver, Tracer>;
+
+    type Unsat = TracedCaDiCaLUnsat<Solver, Tracer>;
+
+    type Unknown = TracedCaDiCaLUnknown<Solver, Tracer>;
+
+    fn signature() -> &'static str {
+        Solver::signature()
+    }
+}
+
+impl<Solver, Tracer> sat::SolveIncremental for TracedCaDiCaL<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+    Tracer: TraceProof,
+{
+    type SatGuard<'a> = Solver::SatGuard<'a>;
+    type UnsatGuard<'a> = Solver::UnsatGuard<'a>;
+    type UnknownGuard<'a> = Solver::UnknownGuard<'a>;
+}
+
+#[derive(Debug)]
+pub struct TracedCaDiCaLInit<Solver, Tracer>
+where
+    Solver: sat::Solve,
+{
+    solver_state: Solver::Init,
+    tracer: Pin<Box<Tracer>>,
+}
+
+impl<Solver, Tracer> sat::Init for TracedCaDiCaLInit<Solver, Tracer>
+where
+    Solver: sat::Solve,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    type Config = (<Solver::Init as sat::Init>::Config, Tracer::Config);
+
+    type Option = <Solver::Init as sat::Init>::Option;
+
+    fn set_option(&mut self, option: Self::Option) -> &mut Self {
+        self.solver_state.set_option(option);
+        self
+    }
+}
+
+impl<Solver, Tracer> From<(<Solver::Init as sat::Init>::Config, Tracer::Config)>
+    for TracedCaDiCaLInit<Solver, Tracer>
+where
+    Solver: sat::Solve,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    fn from(
+        (solver_cfg, tracer_cfg): (<Solver::Init as sat::Init>::Config, Tracer::Config),
+    ) -> Self {
+        let mut solver_state = Solver::Init::from(solver_cfg);
+        let tracer = Box::pin(Tracer::from(tracer_cfg));
+        solver_state.connect_proof_tracer_internal(&tracer);
+        Self {
+            solver_state,
+            tracer,
+        }
+    }
+}
+
+impl<Solver, Tracer> ConnectProofTracerInternal<TracedCaDiCaL<Solver, Tracer>>
+    for TracedCaDiCaLInit<Solver, Tracer>
+where
+    Solver: sat::Solve + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    fn connect_proof_tracer_internal<OtherTracer>(&mut self, tracer: &Pin<Box<OtherTracer>>)
+    where
+        OtherTracer: DynCompatTraceProof,
+    {
+        self.solver_state.connect_proof_tracer_internal(tracer);
+    }
+
+    fn disconnect_proof_tracer_internal<OtherTracer>(&mut self, tracer: &Pin<Box<OtherTracer>>)
+    where
+        OtherTracer: DynCompatTraceProof,
+    {
+        self.solver_state.disconnect_proof_tracer_internal(tracer);
+    }
+}
+
+#[derive(Debug)]
+pub struct TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::Solve,
+{
+    solver_state: Solver::Input,
+    tracer: Pin<Box<Tracer>>,
+}
+
+impl<Solver, Tracer> TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::Solve,
+    Tracer: TraceProof,
+{
+    pub fn disconnect_proof_tracer(self) -> (Solver::Input, Tracer) {
+        let tracer = *Pin::into_inner(self.tracer);
+        (self.solver_state, tracer)
+    }
+}
+
+impl<Solver, Tracer> sat::Input<TracedCaDiCaL<Solver, Tracer>>
+    for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    type Option = ();
+
+    fn set_option(&mut self, option: Self::Option) -> &mut Self {
+        todo!()
+    }
+
+    fn reserve(&mut self, max_var: Var) -> rustsat::MightMemout<&Self> {
+        self.solver_state.reserve(max_var)?;
+        Ok(self)
+    }
+
+    fn add_clause<C>(&mut self, clause: &C) -> rustsat::MightMemout<&Self>
+    where
+        C: AsRef<rustsat::types::Cl> + ?Sized,
+    {
+        self.solver_state.add_clause(clause)?;
+        Ok(self)
+    }
+
+    fn solve(self) -> rustsat::MightMemout<sat::SolveResult<TracedCaDiCaL<Solver, Tracer>>> {
+        let result = self.solver_state.solve()?;
+        Ok(match result {
+            sat::SolveResult::Sat(solver_state) => sat::SolveResult::Sat(TracedCaDiCaLSat {
+                solver_state,
+                tracer: self.tracer,
+            }),
+            sat::SolveResult::Unsat(solver_state) => sat::SolveResult::Unsat(TracedCaDiCaLUnsat {
+                solver_state,
+                tracer: self.tracer,
+            }),
+            sat::SolveResult::Unknown(solver_state) => {
+                sat::SolveResult::Unknown(TracedCaDiCaLUnknown {
+                    solver_state,
+                    tracer: self.tracer,
+                })
+            }
+        })
+    }
+}
+
+impl<Solver, Tracer> rustsat::encodings::CollectClauses for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+{
+    fn n_clauses(&self) -> usize {
+        self.solver_state.n_clauses()
+    }
+
+    fn extend_clauses<T>(&mut self, cl_iter: T) -> Result<(), rustsat::OutOfMemory>
+    where
+        T: IntoIterator<Item = Clause>,
+    {
+        self.solver_state.extend_clauses(cl_iter)
+    }
+}
+
+impl<Solver, Tracer> sat::SolveAssumptions<TracedCaDiCaL<Solver, Tracer>>
+    for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+    Tracer: TraceProof,
+{
+    fn solve_under_assumptions(
+        self,
+        assumptions: &[Lit],
+    ) -> rustsat::MightMemout<sat::SolveResult<TracedCaDiCaL<Solver, Tracer>>> {
+        let result = self.solver_state.solve_under_assumptions(assumptions)?;
+        Ok(match result {
+            sat::SolveResult::Sat(solver_state) => sat::SolveResult::Sat(TracedCaDiCaLSat {
+                solver_state,
+                tracer: self.tracer,
+            }),
+            sat::SolveResult::Unsat(solver_state) => sat::SolveResult::Unsat(TracedCaDiCaLUnsat {
+                solver_state,
+                tracer: self.tracer,
+            }),
+            sat::SolveResult::Unknown(solver_state) => {
+                sat::SolveResult::Unknown(TracedCaDiCaLUnknown {
+                    solver_state,
+                    tracer: self.tracer,
+                })
+            }
+        })
+    }
+}
+
+impl<Solver, Tracer> sat::SolveGuarded<TracedCaDiCaL<Solver, Tracer>>
+    for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+    Tracer: TraceProof,
+{
+    fn solve(
+        &mut self,
+    ) -> rustsat::MightMemout<sat::SolveGuard<'_, TracedCaDiCaL<Solver, Tracer>>> {
+        let res = <Solver::Input as sat::SolveGuarded<Solver>>::solve(&mut self.solver_state)?;
+        Ok(match res {
+            sat::SolveGuard::Sat(guard) => sat::SolveGuard::Sat(guard),
+            sat::SolveGuard::Unsat(guard) => sat::SolveGuard::Unsat(guard),
+            sat::SolveGuard::Unknown(guard) => sat::SolveGuard::Unknown(guard),
+        })
+    }
+
+    fn solve_under_assumptions(
+        &mut self,
+        assumptions: &[Lit],
+    ) -> rustsat::MightMemout<sat::SolveGuard<'_, TracedCaDiCaL<Solver, Tracer>>> {
+        let res = <Solver::Input as sat::SolveGuarded<Solver>>::solve_under_assumptions(
+            &mut self.solver_state,
+            assumptions,
+        )?;
+        Ok(match res {
+            sat::SolveGuard::Sat(guard) => sat::SolveGuard::Sat(guard),
+            sat::SolveGuard::Unsat(guard) => sat::SolveGuard::Unsat(guard),
+            sat::SolveGuard::Unknown(guard) => sat::SolveGuard::Unknown(guard),
+        })
+    }
+}
+
+impl<Solver, Tracer> From<TracedCaDiCaLInit<Solver, Tracer>> for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::Solve,
+{
+    fn from(value: TracedCaDiCaLInit<Solver, Tracer>) -> Self {
+        Self {
+            solver_state: value.solver_state.into(),
+            tracer: value.tracer,
+        }
+    }
+}
+
+impl<Solver, Tracer> From<TracedCaDiCaLSat<Solver, Tracer>> for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+{
+    fn from(value: TracedCaDiCaLSat<Solver, Tracer>) -> Self {
+        Self {
+            solver_state: value.solver_state.into(),
+            tracer: value.tracer,
+        }
+    }
+}
+
+impl<Solver, Tracer> From<TracedCaDiCaLUnsat<Solver, Tracer>> for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+{
+    fn from(value: TracedCaDiCaLUnsat<Solver, Tracer>) -> Self {
+        Self {
+            solver_state: value.solver_state.into(),
+            tracer: value.tracer,
+        }
+    }
+}
+
+impl<Solver, Tracer> From<TracedCaDiCaLUnknown<Solver, Tracer>>
+    for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+{
+    fn from(value: TracedCaDiCaLUnknown<Solver, Tracer>) -> Self {
+        Self {
+            solver_state: value.solver_state.into(),
+            tracer: value.tracer,
+        }
+    }
+}
+
+impl<Solver, Tracer> ConnectProofTracer<TracedCaDiCaL<Solver, Tracer>>
+    for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::Solve + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    fn connect_proof_tracer<OtherTracer>(
+        mut self,
+        tracer: OtherTracer,
+    ) -> TracedCaDiCaLInput<TracedCaDiCaL<Solver, Tracer>, OtherTracer>
+    where
+        OtherTracer: TraceProof,
+    {
+        let tracer = Box::pin(tracer);
+        self.connect_proof_tracer_internal(&tracer);
+        TracedCaDiCaLInput {
+            solver_state: self,
+            tracer,
+        }
+    }
+}
+
+impl<Solver, Tracer> ConnectProofTracerInternal<TracedCaDiCaL<Solver, Tracer>>
+    for TracedCaDiCaLInput<Solver, Tracer>
+where
+    Solver: sat::Solve + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+    Tracer: TraceProof,
+{
+    fn connect_proof_tracer_internal<OtherTracer>(&mut self, tracer: &Pin<Box<OtherTracer>>)
+    where
+        OtherTracer: DynCompatTraceProof,
+    {
+        self.solver_state.connect_proof_tracer_internal(tracer);
+    }
+
+    fn disconnect_proof_tracer_internal<OtherTracer>(&mut self, tracer: &Pin<Box<OtherTracer>>)
+    where
+        OtherTracer: DynCompatTraceProof,
+    {
+        self.solver_state.disconnect_proof_tracer_internal(tracer);
+    }
+}
+
+#[derive(Debug)]
+pub struct TracedCaDiCaLSat<Solver, Tracer>
+where
+    Solver: sat::Solve,
+{
+    solver_state: Solver::Sat,
+    tracer: Pin<Box<Tracer>>,
+}
+
+impl<Solver, Tracer> sat::Sat for TracedCaDiCaLSat<Solver, Tracer>
+where
+    Solver: Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver> + ConnectProofTracerInternal<Solver>,
+{
+    fn variable_value(&self, var: Var) -> TernaryVal {
+        self.solver_state.variable_value(var)
+    }
+}
+
+#[derive(Debug)]
+pub struct TracedCaDiCaLUnsat<Solver, Tracer>
+where
+    Solver: sat::Solve,
+{
+    solver_state: Solver::Unsat,
+    tracer: Pin<Box<Tracer>>,
+}
+
+impl<Solver, Tracer> sat::UnsatIncremental for TracedCaDiCaLUnsat<Solver, Tracer>
+where
+    Solver: sat::SolveIncremental + Traceable,
+    Solver::Init: ConnectProofTracerInternal<Solver>,
+    Solver::Input: ConnectProofTracer<Solver>
+        + ConnectProofTracerInternal<Solver>
+        + sat::SolveAssumptions<Solver>
+        + sat::SolveGuarded<Solver>
+        + From<Solver::Sat>
+        + From<Solver::Unsat>
+        + From<Solver::Unknown>,
+    Solver::Unsat: sat::UnsatIncremental,
+{
+    fn core(&mut self) -> &[Lit] {
+        self.solver_state.core()
+    }
+
+    fn failed(&mut self, assumption: Lit) -> bool {
+        self.solver_state.failed(assumption)
+    }
+}
+
+#[derive(Debug)]
+pub struct TracedCaDiCaLUnknown<Solver, Tracer>
+where
+    Solver: sat::Solve,
+{
+    solver_state: Solver::Unknown,
+    tracer: Pin<Box<Tracer>>,
+}
+
 #[cfg(test)]
 mod test {
     use crate::CaDiCaL;
 
     struct Tracer;
 
-    impl super::TraceProof for Tracer {}
+    impl super::TraceProof for Tracer {
+        type Config = ();
+    }
+
+    impl From<()> for Tracer {
+        fn from(_: ()) -> Self {
+            Tracer
+        }
+    }
 
     #[test]
     fn connect_tracer() {
