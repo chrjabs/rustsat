@@ -137,8 +137,9 @@ pub use ipasirup::{AssignmentIter, CaDiCaLWithPropagator, ExternalClause, Extern
 mod prooftracer;
 #[cfg(cadical_version = "v2.0")]
 pub use prooftracer::{
-    CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ProofTracerHandle,
-    ProofTracerNotConnected, TraceProof,
+    CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ConnectProofTracer, ProofTracerHandle,
+    ProofTracerNotConnected, TraceProof, Traceable, TracedCaDiCaL, TracedCaDiCaLInit,
+    TracedCaDiCaLInput, TracedCaDiCaLSat, TracedCaDiCaLUnknown, TracedCaDiCaLUnsat,
 };
 
 macro_rules! handle_oom {
@@ -2209,6 +2210,13 @@ impl From<Statistic> for &'static CStr {
             Statistic::Substituted => c"substituted",
         }
     }
+}
+
+mod private {
+    pub trait Sealed {}
+
+    impl Sealed for super::CaDiCaLNewApi {}
+    impl Sealed for super::CaDiCaLState<super::Input> {}
 }
 
 #[cfg(test)]
