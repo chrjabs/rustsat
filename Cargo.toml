@@ -53,7 +53,7 @@ rustsat-minisat = { version = "0.7.4", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-signal-hook = "0.4.2"
+signal-hook = "0.4.3"
 tempfile = "3.24.0"
 termcolor = "1.4.1"
 thiserror = "2.0.18"
