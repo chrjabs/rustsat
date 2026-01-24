@@ -58,14 +58,20 @@ mod parsing {
     use std::io;
 
     use anyhow::Context;
-    use nom::character::complete::u32;
+    use rustsat::instances::fio::ParsingError;
+    use winnow::{
+        ascii::dec_uint,
+        error::{ContextError, StrContext, StrContextValue},
+        Parser,
+    };
 
-    use crate::parsing::{callback_separated, single_value};
+    use crate::parsing::{single_value, SeparatedCallbackParser};
 
     macro_rules! next_line {
-        ($reader:expr) => {{
+        ($reader:expr, $lineno:expr) => {{
             let mut buf = String::new();
             if $reader.read_line(&mut buf)? > 0 {
+                $lineno += 1;
                 Some(buf)
             } else {
                 None
@@ -74,15 +80,24 @@ mod parsing {
     }
 
     pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::FacilityLocation> {
-        let line = next_line!(reader).context("file ended before number of users line")?;
-        let (_, n_users) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of users line '{line}'"))?;
+        let mut line_num = 0;
+        let line =
+            next_line!(reader, line_num).context("file ended before number of users line")?;
+        let n_users = single_value(dec_uint::<_, u32, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of users",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
         let n_users = usize::try_from(n_users).context("u32 does not fit in usize")?;
-        let line = next_line!(reader).context("file ended before number of services line")?;
-        let (_, n_services) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of services line '{line}'"))?;
+        let line =
+            next_line!(reader, line_num).context("file ended before number of services line")?;
+        let n_services = single_value(dec_uint::<_, u32, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of services",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
         let n_services = usize::try_from(n_services).context("u32 does not fit in usize")?;
 
         let mut prob = super::FacilityLocation {
@@ -92,27 +107,40 @@ mod parsing {
             ..super::FacilityLocation::default()
         };
         for _ in 0..2 {
-            next_line!(reader).context("file ended early")?;
+            next_line!(reader, line_num).context("file ended early")?;
             for _ in 0..n_users {
-                let line = next_line!(reader).context("file ended in the middle of c matrix")?;
-                callback_separated(&line, u32, |value| {
-                    let value = usize::try_from(value).context("u32 does not fit in usize")?;
-                    prob.supply_cost.push(value);
-                    Ok(())
-                })
-                .context("failed to parse c matrix line")?;
+                let line =
+                    next_line!(reader, line_num).context("file ended in the middle of c matrix")?;
+                SeparatedCallbackParser::new(
+                    |value| {
+                        prob.supply_cost.push(value);
+                        Ok(())
+                    },
+                    dec_uint::<_, usize, ContextError>,
+                )
+                .context(StrContext::Expected(StrContextValue::Description(
+                    "c matrix line",
+                )))
+                .parse(line.trim_end())
+                .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
             }
         }
 
         for _ in 0..2 {
-            next_line!(reader).context("file ended early")?;
-            let line = next_line!(reader).context("file ended early")?;
-            callback_separated(&line, u32, |value| {
-                let value = usize::try_from(value).context("u32 does not fit in usize")?;
-                prob.opening_cost.push(value);
-                Ok(())
-            })
-            .context("failed to parse r vector")?;
+            next_line!(reader, line_num).context("file ended early")?;
+            let line = next_line!(reader, line_num).context("file ended early")?;
+            SeparatedCallbackParser::new(
+                |value| {
+                    prob.opening_cost.push(value);
+                    Ok(())
+                },
+                dec_uint::<_, usize, ContextError>,
+            )
+            .context(StrContext::Expected(StrContextValue::Description(
+                "r vector",
+            )))
+            .parse(line.trim_end())
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
         }
 
         Ok(prob)

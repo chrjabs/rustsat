@@ -60,6 +60,9 @@ pub struct ParsingError {
 }
 
 impl ParsingError {
+    /// Creates a new parsing error from a [`ParseError`] and context
+    #[cfg_attr(feature = "_internals", visibility::make(pub))]
+    #[must_use]
     pub(crate) fn from_parse(
         error: &ParseError<&str, ContextError>,
         input: &str,
@@ -80,6 +83,7 @@ impl ParsingError {
         }
     }
 
+    #[must_use]
     pub(crate) fn new(message: String, input: &str, offset: usize, line_start: usize) -> Self {
         let input = input.to_owned();
         let end = (offset + 1..=input.len())

@@ -1,97 +1,139 @@
 //! # Shared Parsing Functionality
 
-use anyhow::Context;
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{line_ending, multispace1, not_line_ending, space0},
-    combinator::{map, recognize},
-    error::{context, Error as NomErr},
-    sequence::{pair, tuple},
+use winnow::{
+    ascii::{line_ending, space0, space1, till_line_ending},
+    combinator::opt,
+    error::{ContextError, ParserError, StrContext, StrContextValue},
+    seq, Parser,
 };
 
-pub fn single_value<'input, T, P>(
-    parser: P,
+pub fn single_value<'i, P, O, E>(
+    mut parser: P,
     comment_tag: &'static str,
-) -> impl FnMut(&'input str) -> nom::IResult<&'input str, T>
+) -> impl Parser<&'i str, O, E>
 where
-    P: Fn(&'input str) -> nom::IResult<&'input str, T>,
+    P: Parser<&'i str, O, E>,
+    E: ParserError<&'i str>,
 {
-    context(
-        "expected a single u32 number",
-        map(
-            tuple((space0, parser, space0, comment_or_end(comment_tag))),
-            |tup| tup.1,
-        ),
-    )
+    seq! {
+        _: space0,
+        parser,
+        _: space0,
+        _: comment_or_end(comment_tag)
+    }
+    .map(|tup| tup.0)
 }
 
-pub fn comment_or_end<'input>(
-    comment_tag: &'static str,
-) -> impl FnMut(&'input str) -> nom::IResult<&'input str, &'input str> {
-    recognize(pair(
-        alt((
-            recognize(tuple((tag(comment_tag), not_line_ending))),
-            not_line_ending,
-        )),
+pub fn comment_or_end<'i, E>(comment_tag: &'static str) -> impl Parser<&'i str, &'i str, E>
+where
+    E: ParserError<&'i str>,
+{
+    seq! {
+        space0,
+        opt((comment_tag, till_line_ending)),
         line_ending,
-    ))
+    }
+    .take()
 }
 
-pub fn callback_list<'input, T, P>(
-    input: &'input str,
-    mut parse: P,
-    mut callback: impl FnMut(T) -> anyhow::Result<()>,
-) -> anyhow::Result<&'input str>
-where
-    P: FnMut(&'input str) -> nom::IResult<&'input str, T>,
-{
-    let (mut buf, _) = tuple::<_, _, NomErr<_>, _>((tag("["), space0))(input)
-        .map_err(|e| e.to_owned())
-        .with_context(|| format!("failed to parse list start '{input}'"))?;
-    loop {
-        let (remain, val) = parse(buf)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse value in list '{input}'"))?;
-        callback(val)?;
-        anyhow::ensure!(
-            !remain.trim().is_empty(),
-            "line ended before list was closed"
-        );
-        buf = match tuple::<_, _, NomErr<_>, _>((space0, tag(","), space0))(remain) {
-            Ok((remain, _)) => remain,
-            Err(_) => {
-                let (remain, _) = tuple::<_, _, NomErr<_>, _>((space0, tag("]")))(remain)
-                    .map_err(|e| e.to_owned())
-                    .with_context(|| format!("failed to parse list end/separator '{input}'"))?;
-                return Ok(remain);
-            }
-        };
+pub struct ListCallbackParser<Cb, P, O> {
+    parser: P,
+    callback: Cb,
+    _output: std::marker::PhantomData<O>,
+}
+
+impl<Cb, P, O> ListCallbackParser<Cb, P, O> {
+    pub fn new(callback: Cb, parser: P) -> Self {
+        Self {
+            parser,
+            callback,
+            _output: std::marker::PhantomData,
+        }
     }
 }
 
-pub fn callback_separated<'input, T, P>(
-    input: &'input str,
-    mut parse: P,
-    mut callback: impl FnMut(T) -> anyhow::Result<()>,
-) -> anyhow::Result<&'input str>
+impl<'i, Cb, P, O> Parser<&'i str, (), ContextError> for ListCallbackParser<Cb, P, O>
 where
-    P: FnMut(&'input str) -> nom::IResult<&'input str, T>,
+    P: Parser<&'i str, O, ContextError> + Copy,
+    Cb: FnMut(O) -> Result<(), ContextError>,
 {
-    let mut buf = input.trim_start();
-    loop {
-        let (remain, val) = parse(buf)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse value in list '{input}'"))?;
-        callback(val)?;
-        buf = match multispace1::<_, NomErr<_>>(remain) {
-            Ok((remain, _)) => {
-                if remain.is_empty() {
-                    return Ok("");
-                }
-                remain
+    fn parse_next(&mut self, input: &mut &'i str) -> winnow::Result<(), ContextError> {
+        ('[', space0::<_, ContextError>)
+            .context(StrContext::Expected(StrContextValue::Description(
+                "start of list",
+            )))
+            .parse_next(input)?;
+        loop {
+            let val = self
+                .parser
+                .context(StrContext::Expected(StrContextValue::Description(
+                    "list value",
+                )))
+                .parse_next(input)?;
+            (self.callback)(val)?;
+            if input.trim().is_empty() {
+                let mut err = ContextError::new();
+                err.push(StrContext::Expected(StrContextValue::Description(
+                    "line should continue",
+                )));
+                return Err(err);
             }
-            Err(_) => return Ok(remain),
-        };
+            match (space0::<_, ContextError>, ',', space0).parse_next(input) {
+                Ok(_) => (),
+                Err(_) => {
+                    (space0::<_, ContextError>, ']')
+                        .context(StrContext::Expected(StrContextValue::Description(
+                            "end of list or list separator token",
+                        )))
+                        .parse_next(input)?;
+                    return Ok(());
+                }
+            };
+        }
+    }
+}
+
+pub struct SeparatedCallbackParser<Cb, P, O> {
+    parser: P,
+    callback: Cb,
+    _output: std::marker::PhantomData<O>,
+}
+
+impl<Cb, P, O> SeparatedCallbackParser<Cb, P, O> {
+    pub fn new(callback: Cb, parser: P) -> Self {
+        Self {
+            parser,
+            callback,
+            _output: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'i, Cb, P, O> Parser<&'i str, (), ContextError> for SeparatedCallbackParser<Cb, P, O>
+where
+    P: Parser<&'i str, O, ContextError> + Copy,
+    Cb: FnMut(O) -> Result<(), ContextError>,
+{
+    fn parse_next(&mut self, input: &mut &'i str) -> winnow::Result<(), ContextError> {
+        space0.parse_next(input)?;
+        loop {
+            let val = self
+                .parser
+                .context(StrContext::Expected(StrContextValue::Description(
+                    "separated value",
+                )))
+                .parse_next(input)?;
+            (self.callback)(val)?;
+            match space1::<_, ContextError>.parse_next(input) {
+                Ok(_) => {
+                    if input.is_empty() {
+                        return Ok(());
+                    }
+                }
+                Err(_) => {
+                    return Ok(());
+                }
+            };
+        }
     }
 }

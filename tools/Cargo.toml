@@ -20,7 +20,6 @@ chacha20.workspace = true
 clap.workspace = true
 concolor-clap.workspace = true
 itertools.workspace = true
-nom.workspace = true
 rand.workspace = true
 rustsat = { workspace = true, features = [
   "compression",
@@ -31,6 +30,7 @@ rustsat = { workspace = true, features = [
 rustsat-cadical = { workspace = true, optional = true }
 rustsat-minisat = { workspace = true, optional = true }
 termcolor.workspace = true
+winnow.workspace = true
 # keep-sorted end
 
 [features]

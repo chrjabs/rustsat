@@ -1462,12 +1462,12 @@ dependencies = [
  "clap",
  "concolor-clap",
  "itertools 0.14.0",
- "nom",
  "rand",
  "rustsat",
  "rustsat-cadical",
  "rustsat-minisat",
  "termcolor",
+ "winnow",
 ]
 
 [[package]]

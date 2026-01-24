@@ -79,20 +79,22 @@ mod parsing {
     use std::io;
 
     use anyhow::Context;
-    use nom::{
-        bytes::complete::tag,
-        character::complete::{space0, u32},
-        error::Error as NomErr,
-        sequence::tuple,
+    use rustsat::{instances::fio::ParsingError, utils};
+    use winnow::{
+        ascii::{dec_uint, space0},
+        error::{ContextError, StrContext, StrContextValue},
+        token::rest,
+        Parser,
     };
 
-    use crate::parsing::{callback_list, single_value};
+    use crate::parsing::{single_value, ListCallbackParser};
 
     macro_rules! next_non_comment_line {
-        ($reader:expr) => {
+        ($reader:expr, $lineno:expr) => {
             'block: {
                 let mut buf = String::new();
                 while $reader.read_line(&mut buf)? > 0 {
+                    $lineno += 1;
                     if !buf.trim_start().starts_with('#') && !buf.trim().is_empty() {
                         break 'block Some(buf);
                     }
@@ -104,35 +106,47 @@ mod parsing {
     }
 
     pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
-        let line = next_non_comment_line!(reader)
+        let mut line_num = 0;
+        let line = next_non_comment_line!(reader, line_num)
             .context("file ended before number of objectives line")?;
-        let (_, n_obj) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
+        let n_obj = single_value(dec_uint::<_, usize, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of objectives",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+        let line = next_non_comment_line!(reader, line_num)
+            .context("file ended before number of items line")?;
+        let n_items = single_value(dec_uint::<_, usize, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of items",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
         let line =
-            next_non_comment_line!(reader).context("file ended before number of items line")?;
-        let (_, n_items) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of items line '{line}'"))?;
-        let line = next_non_comment_line!(reader).context("file ended before capacity line")?;
-        let (_, capacity) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse capacity line '{line}'"))?;
+            next_non_comment_line!(reader, line_num).context("file ended before capacity line")?;
+        let capacity = single_value(dec_uint::<_, usize, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "capacity",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
         let mut inst = super::Knapsack {
             items: vec![
                 super::ItemData {
                     weight: 0,
                     values: vec![]
                 };
-                n_items as usize
+                n_items
             ],
-            capacity: capacity as usize,
+            capacity,
         };
         let mut buf = String::new();
         let mut started = false;
         let mut ended = false;
         while reader.read_line(&mut buf)? > 0 {
-            let remain = buf.trim_start();
+            line_num += 1;
+            let remain = buf.trim();
             if remain.starts_with('#') || buf.trim().is_empty() {
                 buf.clear();
                 continue;
@@ -145,18 +159,52 @@ mod parsing {
                 &remain[1..]
             };
             let mut item_idx = 0;
-            let remain = callback_list(remain, u32, |value| {
-                anyhow::ensure!(item_idx < inst.items.len(), "too many values in value list");
-                inst.items[item_idx].values.push(value as usize);
-                item_idx += 1;
-                Ok(())
-            })?;
-            match tuple::<_, _, NomErr<_>, _>((space0, tag(","), space0))(remain) {
+            let (_, remain) = (
+                ListCallbackParser::new(
+                    |value| {
+                        if item_idx >= inst.items.len() {
+                            let mut err = ContextError::new();
+                            err.push(StrContext::Expected(StrContextValue::Description(
+                                "too many values",
+                            )));
+                            return Err(err);
+                        }
+                        inst.items[item_idx].values.push(value);
+                        item_idx += 1;
+                        Ok(())
+                    },
+                    dec_uint::<_, usize, ContextError>,
+                )
+                .context(StrContext::Expected(StrContextValue::Description(
+                    "list of values",
+                ))),
+                rest,
+            )
+                .parse(remain)
+                .map_err(|e| {
+                    ParsingError::from_parse(
+                        &e,
+                        &buf,
+                        utils::substr_offset(&buf, remain).unwrap(),
+                        line_num,
+                    )
+                })?;
+            match (space0::<_, ContextError>, ',').parse(remain) {
                 Ok(_) => (),
                 Err(_) => {
-                    tuple::<_, _, NomErr<_>, _>((space0, tag("]")))(remain)
-                        .map_err(|e| e.to_owned())
-                        .context("failed to find closing delimiter for value list")?;
+                    (space0::<_, ContextError>, ']')
+                        .context(StrContext::Expected(StrContextValue::Description(
+                            "list delimiter or end",
+                        )))
+                        .parse(remain)
+                        .map_err(|e| {
+                            ParsingError::from_parse(
+                                &e,
+                                &buf,
+                                utils::substr_offset(&buf, remain).unwrap(),
+                                line_num,
+                            )
+                        })?;
                     ended = true;
                     break;
                 }
@@ -164,20 +212,39 @@ mod parsing {
             buf.clear();
         }
         anyhow::ensure!(ended, "file ended before value list ended");
-        let line = next_non_comment_line!(reader).context("file ended before weight line")?;
+        let line =
+            next_non_comment_line!(reader, line_num).context("file ended before weight line")?;
         let mut item_idx = 0;
-        callback_list(line.trim_start(), u32, |weight| {
-            anyhow::ensure!(
-                item_idx < inst.items.len(),
-                "too many values in weight list"
-            );
-            inst.items[item_idx].weight = weight as usize;
-            item_idx += 1;
-            Ok(())
+        ListCallbackParser::new(
+            |value| {
+                if item_idx >= inst.items.len() {
+                    let mut err = ContextError::new();
+                    err.push(StrContext::Expected(StrContextValue::Description(
+                        "too many values",
+                    )));
+                    return Err(err);
+                }
+                inst.items[item_idx].weight = value;
+                item_idx += 1;
+                Ok(())
+            },
+            dec_uint::<_, usize, ContextError>,
+        )
+        .context(StrContext::Expected(StrContextValue::Description(
+            "list of values",
+        )))
+        .parse(line.trim())
+        .map_err(|e| {
+            ParsingError::from_parse(
+                &e,
+                &line,
+                utils::substr_offset(&line, line.trim_start()).unwrap(),
+                line_num,
+            )
         })?;
         for item in &inst.items {
             anyhow::ensure!(
-                item.values.len() == n_obj as usize,
+                item.values.len() == n_obj,
                 "number of values for item does not match number of objectives"
             );
         }
@@ -185,49 +252,61 @@ mod parsing {
     }
 
     pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
-        let line =
-            next_non_comment_line!(reader).context("file ended before number of items line")?;
-        let (_, n_items) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of items line '{line}'"))?;
-        let line = next_non_comment_line!(reader)
+        let mut line_num = 0;
+        let line = next_non_comment_line!(reader, line_num)
+            .context("file ended before number of items line")?;
+        let n_items = single_value(dec_uint::<_, usize, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of items",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+        let line = next_non_comment_line!(reader, line_num)
             .context("file ended before number of objectives line")?;
-        let (_, n_obj) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
-        let _ = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of constraints line '{line}'"))?;
+        let n_obj = single_value(dec_uint::<_, u32, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of objectives",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+        single_value(dec_uint::<_, u32, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of constraints",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
         let mut inst = super::Knapsack {
             items: vec![
                 super::ItemData {
                     weight: 0,
                     values: vec![]
                 };
-                n_items as usize
+                n_items
             ],
             capacity: 0,
         };
         for obj_idx in 0..n_obj {
             for item_idx in 0..n_items {
-                let line = next_non_comment_line!(reader).with_context(|| {
+                let line = next_non_comment_line!(reader, line_num).with_context(|| {
                     format!("file ended before {item_idx} value of objective {obj_idx}")
                 })?;
-                let (_, value) = single_value(u32, "#")(&line)
-                    .map_err(|e| e.to_owned())
-                    .with_context(|| {
-                        format!("failed to parse {item_idx} value of objective {obj_idx} '{line}'")
-                    })?;
-                inst.items[item_idx as usize].values.push(value as usize);
+                let value = single_value(dec_uint::<_, usize, ContextError>, "#")
+                    .context(StrContext::Expected(StrContextValue::Description(
+                        "objective value",
+                    )))
+                    .parse(&line)
+                    .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+                inst.items[item_idx].values.push(value);
             }
         }
         for item_idx in 0..n_items {
-            let line = next_non_comment_line!(reader)
+            let line = next_non_comment_line!(reader, line_num)
                 .with_context(|| format!("file ended before weight of item {item_idx}"))?;
-            let (_, weight) = single_value(u32, "#")(&line)
-                .map_err(|e| e.to_owned())
-                .with_context(|| format!("failed to parse weight of item {item_idx} '{line}'"))?;
-            inst.items[item_idx as usize].weight = weight as usize;
+            let weight = single_value(dec_uint::<_, usize, ContextError>, "#")
+                .context(StrContext::Expected(StrContextValue::Description("weight")))
+                .parse(&line)
+                .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+            inst.items[item_idx].weight = weight;
         }
         Ok(inst)
     }

@@ -47,15 +47,22 @@ mod parsing {
     use std::io;
 
     use anyhow::Context;
-    use nom::character::complete::u32;
+    use rustsat::instances::fio::ParsingError;
+    use winnow::{
+        ascii::dec_uint,
+        error::{ContextError, StrContext, StrContextValue},
+        token::rest,
+        Parser,
+    };
 
-    use crate::parsing::{callback_list, single_value};
+    use crate::parsing::{single_value, ListCallbackParser};
 
     macro_rules! next_non_comment_line {
-        ($reader:expr) => {
+        ($reader:expr, $lineno:expr) => {
             'block: {
                 let mut buf = String::new();
                 while $reader.read_line(&mut buf)? > 0 {
+                    $lineno += 1;
                     if !buf.trim_start().starts_with('#') && !buf.trim().is_empty() {
                         break 'block Some(buf);
                     }
@@ -67,22 +74,30 @@ mod parsing {
     }
 
     pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Assignment> {
-        let line = next_non_comment_line!(reader)
+        let mut line_num = 0;
+        let line = next_non_comment_line!(reader, line_num)
             .context("file ended before number of objectives line")?;
-        let (_, n_objs) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of objectives line '{line}'"))?;
-        let line =
-            next_non_comment_line!(reader).context("file ended before number of tasks line")?;
-        let (_, n_tasks) = single_value(u32, "#")(&line)
-            .map_err(|e| e.to_owned())
-            .with_context(|| format!("failed to parse number of tasks line '{line}'"))?;
-        let mut inst = super::Assignment::empty(n_tasks as usize, n_objs as usize);
+        let n_objs = single_value(dec_uint::<_, usize, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of objectives",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+        let line = next_non_comment_line!(reader, line_num)
+            .context("file ended before number of tasks line")?;
+        let n_tasks = single_value(dec_uint::<_, usize, ContextError>, "#")
+            .context(StrContext::Expected(StrContextValue::Description(
+                "number of tasks",
+            )))
+            .parse(&line)
+            .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
+        let mut inst = super::Assignment::empty(n_tasks, n_objs);
         let mut buf = String::new();
         let mut depth = 0;
         let mut obj_idx = 0;
         let mut task_idx = 0;
         while reader.read_line(&mut buf)? > 0 {
+            line_num += 1;
             let mut remain = buf.trim_start();
             loop {
                 if remain.starts_with('[') && depth < 2 {
@@ -98,8 +113,14 @@ mod parsing {
                 }
                 if remain.starts_with(',') {
                     match depth {
-                        1 => obj_idx += 1,
-                        2 => task_idx += 1,
+                        1 => {
+                            obj_idx += 1;
+                            anyhow::ensure!(obj_idx < n_objs, "too many objectives");
+                        }
+                        2 => {
+                            task_idx += 1;
+                            anyhow::ensure!(obj_idx < n_objs, "too many tasks");
+                        }
                         _ => unreachable!(),
                     };
                     remain = &remain[1..];
@@ -109,15 +130,37 @@ mod parsing {
                 }
                 if depth == 2 {
                     let mut agent_idx = 0;
-                    remain = callback_list(remain.trim_start(), u32, |value| {
-                        anyhow::ensure!(obj_idx < n_objs, "too many objectives");
-                        anyhow::ensure!(task_idx < n_tasks, "too many tasks");
-                        anyhow::ensure!(agent_idx < n_tasks, "too many agents");
-                        *inst.cost_mut(task_idx as usize, agent_idx as usize, obj_idx as usize) =
-                            value as usize;
-                        agent_idx += 1;
-                        Ok(())
-                    })?;
+                    remain = (
+                        ListCallbackParser::new(
+                            |value| {
+                                if agent_idx >= n_tasks {
+                                    let mut err = ContextError::new();
+                                    err.push(StrContext::Expected(StrContextValue::Description(
+                                        "too many agents",
+                                    )));
+                                    return Err(err);
+                                }
+                                *inst.cost_mut(task_idx, agent_idx, obj_idx) = value;
+                                agent_idx += 1;
+                                Ok(())
+                            },
+                            dec_uint::<_, usize, ContextError>,
+                        )
+                        .context(StrContext::Expected(
+                            StrContextValue::Description("list of values"),
+                        )),
+                        rest,
+                    )
+                        .parse(remain)
+                        .map_err(|e| {
+                            ParsingError::from_parse(
+                                &e,
+                                &buf,
+                                rustsat::utils::substr_offset(&buf, remain).unwrap(),
+                                line_num,
+                            )
+                        })?
+                        .1;
                 }
             }
             buf.clear();
