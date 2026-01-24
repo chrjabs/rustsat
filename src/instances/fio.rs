@@ -60,6 +60,8 @@ pub struct ParsingError {
 }
 
 impl ParsingError {
+    /// Creates a new parsing error from a [`ParseError`] and context
+    #[cfg_attr(feature = "_internals", visibility::make(pub))]
     pub(crate) fn from_parse(
         error: ParseError<&str, ContextError>,
         input: &str,

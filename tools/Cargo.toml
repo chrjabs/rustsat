@@ -18,7 +18,6 @@ anyhow.workspace = true
 clap.workspace = true
 concolor-clap.workspace = true
 itertools.workspace = true
-nom.workspace = true
 termcolor.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
@@ -30,6 +29,8 @@ rustsat = { workspace = true, features = [
 ] }
 rustsat-cadical = { workspace = true, optional = true }
 rustsat-minisat = { workspace = true, optional = true }
+thiserror.workspace = true
+winnow.workspace = true
 
 [features]
 default = ["minisat"]

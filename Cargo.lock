@@ -1382,13 +1382,14 @@ dependencies = [
  "clap",
  "concolor-clap",
  "itertools 0.14.0",
- "nom",
  "rand",
  "rand_chacha",
  "rustsat",
  "rustsat-cadical",
  "rustsat-minisat",
  "termcolor",
+ "thiserror",
+ "winnow",
 ]
 
 [[package]]

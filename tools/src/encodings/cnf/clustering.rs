@@ -10,19 +10,20 @@
 
 use std::io;
 
-use nom::{
-    branch::alt,
-    character::complete::{alphanumeric1, char, multispace1},
-    combinator::{map, recognize},
-    multi::many1,
-    number::complete::double,
-    sequence::{terminated, tuple},
-};
 use rustsat::{
     clause,
-    instances::{fio::dimacs, ManageVars},
+    instances::{
+        fio::{dimacs, ParsingError},
+        ManageVars,
+    },
     types::{RsHashMap, Var},
     utils,
+};
+use winnow::{
+    ascii::{alphanumeric1, float, multispace1},
+    combinator::{alt, repeat},
+    error::ContextError,
+    seq, Parser,
 };
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
@@ -148,11 +149,17 @@ impl Encoding {
                 if line.starts_with('%') {
                     return None;
                 }
-                let (_, tup) = tuple((
-                    terminated(ident, multispace1),
-                    terminated(ident, multispace1),
-                    double,
-                ))(line)
+                let tup = Parser::<_, _, ContextError>::parse(
+                    &mut seq! {
+                        ident(),
+                        _: multispace1::<_, ContextError>,
+                        ident(),
+                        _: multispace1::<_, ContextError>,
+                        float::<_, f64, ContextError>
+                    },
+                    line,
+                )
+                .map_err(|e| ParsingError::from_parse(e, &line, 0))
                 .ok()?;
                 if !ident_map.contains_key(&tup.0) {
                     ident_map.insert(tup.0.clone(), next_idx);
@@ -395,11 +402,8 @@ impl Iterator for Encoding {
     }
 }
 
-fn ident(input: &str) -> nom::IResult<&str, String> {
-    map(
-        recognize(many1(alt((alphanumeric1, recognize(char('_')))))),
-        String::from,
-    )(input)
+fn ident<'i>() -> impl Parser<&'i str, String, ContextError> {
+    repeat(1.., alt((alphanumeric1, "_")))
 }
 
 pub fn scaling_map(sim: f64, multiplier: u32) -> isize {
