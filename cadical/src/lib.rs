@@ -128,6 +128,11 @@ use thiserror::Error;
 
 mod ffi;
 
+#[cfg(cadical_version = "v1.6")]
+pub mod ipasirup;
+#[cfg(cadical_version = "v1.6")]
+pub use ipasirup::{AssignmentIter, CaDiCaLWithPropagator, ExternalClause, ExternalPropagate};
+
 #[cfg(cadical_version = "v2.0")]
 mod prooftracer;
 #[cfg(cadical_version = "v2.0")]
