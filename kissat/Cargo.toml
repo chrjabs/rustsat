@@ -19,7 +19,7 @@ include = [
   "/csrc/LICENSE",
   "/csrc/VERSION",
 ]
-rust-version = "1.77.0" # When changing, update crate documentation and build script
+rust-version.workspace = true # When changing, update crate documentation and build script
 
 build = "build.rs"
 

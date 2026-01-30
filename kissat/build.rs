@@ -159,7 +159,7 @@ fn get_kissat_src(version: Version) -> PathBuf {
 /// Generates Rust FFI bindings
 fn generate_bindings(kissat_src_dir: &Path, out_dir: &str) {
     let bindings = bindgen::Builder::default()
-        .rust_target("1.77.0".parse().unwrap()) // Set MSRV
+        .rust_target("1.87.0".parse().unwrap()) // Set MSRV
         .header(
             kissat_src_dir
                 .join("src")

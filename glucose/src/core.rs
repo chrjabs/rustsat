@@ -228,7 +228,11 @@ impl SolveIncremental for Glucose {
                     let conflict = unsafe {
                         let mut conflict = std::ptr::null::<ffi::c_Lit>();
                         let mut conflict_len = 0;
-                        ffi::cglucose4_conflict(self.handle, &mut conflict, &mut conflict_len);
+                        ffi::cglucose4_conflict(
+                            self.handle,
+                            &raw mut conflict,
+                            &raw mut conflict_len,
+                        );
                         from_raw_parts_maybe_null(conflict.cast(), conflict_len)
                     };
                     Ok(conflict.to_vec())
@@ -345,7 +349,7 @@ impl Propagate for Glucose {
         self.state = InternalSolverState::Input;
         // Propagate with glucose backend
         let mut props = Vec::new();
-        let ptr: *mut Vec<Lit> = &mut props;
+        let ptr: *mut Vec<Lit> = &raw mut props;
         let res = handle_oom!(unsafe {
             ffi::cglucose4_propcheck(
                 self.handle,

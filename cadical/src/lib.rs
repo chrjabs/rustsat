@@ -75,7 +75,7 @@
 //!
 //! ## Minimum Supported Rust Version (MSRV)
 //!
-//! Currently, the MSRV is 1.77.0, the plan is to always support an MSRV that is at least a year
+//! Currently, the MSRV is 1.87.0, the plan is to always support an MSRV that is at least a year
 //! old.
 //!
 //! Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make
@@ -1097,7 +1097,7 @@ impl Propagate for CaDiCaL<'_, '_> {
         dbg!(res);
         match res {
             0 => {
-                let prop_ptr: *mut Vec<Lit> = &mut props;
+                let prop_ptr: *mut Vec<Lit> = &raw mut props;
                 unsafe {
                     ffi::ccadical_implied(
                         self.handle,
@@ -1108,7 +1108,7 @@ impl Propagate for CaDiCaL<'_, '_> {
             }
             10 => {
                 self.state = InternalSolverState::Sat;
-                let prop_ptr: *mut Vec<Lit> = &mut props;
+                let prop_ptr: *mut Vec<Lit> = &raw mut props;
                 unsafe {
                     ffi::ccadical_implied(
                         self.handle,

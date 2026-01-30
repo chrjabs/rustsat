@@ -338,7 +338,7 @@ impl NodeCon {
                 return (Into::<usize>::into(limit) + 1) * self.divisor() + self.offset();
             }
         }
-        if val % self.multiplier() > 0 {
+        if !val.is_multiple_of(self.multiplier()) {
             val += self.multiplier();
         }
         self.rev_map(val)
@@ -349,9 +349,9 @@ impl NodeCon {
     #[must_use]
     pub fn is_possible(&self, val: usize) -> bool {
         if let Some(limit) = self.len_limit {
-            val % self.multiplier() == 0 && val / self.multiplier() <= limit.into()
+            val.is_multiple_of(self.multiplier()) && val / self.multiplier() <= limit.into()
         } else {
-            val % self.multiplier() == 0
+            val.is_multiple_of(self.multiplier())
         }
     }
 }
@@ -515,7 +515,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
                     start += 1;
                     continue;
                 }
-                if true_width % 2 == 0 {
+                if true_width.is_multiple_of(2) {
                     let lcon = cons[start];
                     let rcon = cons[start + true_width / 2];
                     cons[start] = if lcon.multiplier() > 1 && lcon.multiplier() == rcon.multiplier()

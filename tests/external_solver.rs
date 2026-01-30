@@ -161,9 +161,9 @@ fn gimsatul_deadlock() {
     let slv = std::env::var("RS_EXT_SOLVER").expect(
         "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
     );
-    if !AsRef::<std::path::Path>::as_ref(&slv)
+    if AsRef::<std::path::Path>::as_ref(&slv)
         .file_name()
-        .is_some_and(|slv_name| slv_name == std::ffi::OsStr::new("gimsatul"))
+        .is_none_or(|slv_name| slv_name != std::ffi::OsStr::new("gimsatul"))
     {
         print!("skipping because not using gimsatul");
         return;

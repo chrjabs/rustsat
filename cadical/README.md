@@ -81,7 +81,7 @@ By default, the availability of all compiler/platform features is automatically 
 
 ## Minimum Supported Rust Version (MSRV)
 
-Currently, the MSRV is 1.77.0, the plan is to always support an MSRV that is at least a year
+Currently, the MSRV is 1.87.0, the plan is to always support an MSRV that is at least a year
 old.
 
 Bumps in the MSRV will _not_ be considered breaking changes. If you need a specific MSRV, make

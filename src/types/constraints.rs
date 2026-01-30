@@ -1739,7 +1739,7 @@ impl PbUbConstr {
             lits: self
                 .lits
                 .into_iter()
-                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .flat_map(|(l, w)| std::iter::repeat_n(l, w))
                 .collect(),
             b: self.b.unsigned_abs(),
         }
@@ -1868,7 +1868,7 @@ impl PbLbConstr {
             lits: self
                 .lits
                 .into_iter()
-                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .flat_map(|(l, w)| std::iter::repeat_n(l, w))
                 .collect(),
             b: self.b.unsigned_abs(),
         }
@@ -1994,7 +1994,7 @@ impl PbEqConstr {
             lits: self
                 .lits
                 .into_iter()
-                .flat_map(|(l, w)| std::iter::repeat(l).take(w))
+                .flat_map(|(l, w)| std::iter::repeat_n(l, w))
                 .collect(),
             b: self.b.unsigned_abs(),
         }

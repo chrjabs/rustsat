@@ -9,7 +9,7 @@ keywords = ["rustsat", "sat", "satisfiability"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 include = ["LICENSE", "CHANGELOG.md", "README.md", "/src/"]
-rust-version = "1.77.0"
+rust-version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

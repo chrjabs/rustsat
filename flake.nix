@@ -127,31 +127,16 @@
             );
 
           workspaceMsrv = (lib.importTOML ./Cargo.toml).workspace.package.rust-version;
-          crateMsrvs = {
-            # keep-sorted start
-            pigeons = (lib.importTOML ./pigeons/Cargo.toml).package.rust-version;
-            rustsat = workspaceMsrv;
-            rustsat-batsat = workspaceMsrv;
-            rustsat-cadical = (lib.importTOML ./cadical/Cargo.toml).package.rust-version;
-            rustsat-capi = workspaceMsrv;
-            rustsat-glucose = workspaceMsrv;
-            rustsat-ipasir = workspaceMsrv;
-            rustsat-kissat = (lib.importTOML ./kissat/Cargo.toml).package.rust-version;
-            rustsat-minisat = workspaceMsrv;
-            rustsat-pyapi = workspaceMsrv;
-            rustsat-tools = (lib.importTOML ./tools/Cargo.toml).package.rust-version;
-            # keep-sorted end
-          };
           checkMsrv =
             crate:
             let
               craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (
-                p: (p.extend (import inputs.rust-overlay)).rust-bin.stable."${crateMsrvs."${crate}"}".minimal
+                p: (p.extend (import inputs.rust-overlay)).rust-bin.stable."${workspaceMsrv}".minimal
               );
               cargoArtifacts = craneLib.buildDepsOnly (
                 commonArgs
                 // {
-                  pnameSuffix = "-${crateMsrvs."${crate}"}-deps";
+                  pnameSuffix = "-${workspaceMsrv}-deps";
                   buildPhaseCargoCommand = "cargo build --workspace --exclude rustsat-codegen";
                   checkPhaseCargoCommand = "";
                 }
@@ -169,7 +154,21 @@
           # Dummy derivation merging multiple MSRV check
           msrv = stdenv.mkDerivation {
             name = "rustsat-check-msrv";
-            nativeBuildInputs = map (crate: checkMsrv crate) (builtins.attrNames crateMsrvs);
+            nativeBuildInputs = map (crate: checkMsrv crate) [
+              # keep-sorted start
+              "pigeons"
+              "rustsat"
+              "rustsat-batsat"
+              "rustsat-cadical"
+              "rustsat-capi"
+              "rustsat-glucose"
+              "rustsat-ipasir"
+              "rustsat-kissat"
+              "rustsat-minisat"
+              "rustsat-pyapi"
+              "rustsat-tools"
+              # keep-sorted end
+            ];
             doCheck = false;
             unpackPhase = "true";
             buildPhase = ''

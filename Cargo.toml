@@ -21,7 +21,7 @@ resolver = "2"
 version = "0.7.5"
 license = "MIT"
 edition = "2021"
-rust-version = "1.76.0" # update the crate documentation if you change this
+rust-version = "1.87.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 # keep-sorted start block=yes

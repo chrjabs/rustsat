@@ -34,7 +34,7 @@ fn main() {
 
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
-        .rust_target("1.76.0".parse().unwrap()) // Set MSRV
+        .rust_target("1.87.0".parse().unwrap()) // Set MSRV
         .header("cppsrc/cglucose4.h")
         .allowlist_file("cppsrc/cglucose4.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))

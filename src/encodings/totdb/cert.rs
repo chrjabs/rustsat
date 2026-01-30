@@ -776,7 +776,7 @@ impl super::Db {
                 proof,
                 (leaves, leaves_init, true),
             )?;
-            debug_assert!(ret.map_or(true, |(_, i)| i));
+            debug_assert!(ret.is_none_or(|(_, i)| i));
             Ok(ret.map(|(l, _)| l))
         } else {
             // with length limit or offset, treat intermediate output nodes as leaves
