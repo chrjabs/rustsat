@@ -45,4 +45,5 @@ int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *const path);
 #ifdef V2_2
 int64_t ccadical_get_statistic_value(const CCaDiCaL *wrapper,
                                      const char *const);
+void ccadical_force_backtrack(const CCaDiCaL *wrapper, int new_level);
 #endif
