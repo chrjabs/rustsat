@@ -102,6 +102,10 @@ impl Version {
         }
     }
 
+    fn has_ipasir_up(self) -> bool {
+        self >= Version::V1_6
+    }
+
     fn has_proof_tracer(self) -> bool {
         self >= Version::V2_0
     }
@@ -159,9 +163,12 @@ impl Version {
 
     /// Sets custom `rustc` `--cfg` arguments for features only present in some version
     fn set_cfgs(self) {
-        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5\", \"v1.7\", \"v1.9\", \"v2.0\", \"v2.1\", \"v2.2\"))");
+        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5\", \"v1.6\", \"v1.7\", \"v1.9\", \"v2.0\", \"v2.1\", \"v2.2\"))");
         if self >= Version::V1_5 {
             println!("cargo:rustc-cfg=cadical_version=\"v1.5\"");
+        }
+        if self >= Version::V1_6 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.6\"");
         }
         if self >= Version::V1_7 {
             println!("cargo:rustc-cfg=cadical_version=\"v1.7\"");
@@ -253,14 +260,21 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
         .blocklist_function("ccadical_conclude")
         .blocklist_function("ccadical_simplify")
         .blocklist_function("ccadical_declare_one_more_variable");
-    let bindings = if version.has_proof_tracer() {
-        // in this case, `ccadical.h` is included from `ctracer.h`
-        bindings
-            .header("cpp-extension/ctracer.h")
-            .allowlist_file("cpp-extension/ctracer.h")
+    // mock top include header to generate bindings from
+    let mut contents = String::from("#include \"ccadical.h\"");
+    let bindings = if version.has_ipasir_up() {
+        contents.push_str("\n#include \"cipasirup.h\"");
+        bindings.allowlist_file("cpp-extension/cipasirup.h")
     } else {
         bindings.header(&header_path)
     };
+    let bindings = if version.has_proof_tracer() {
+        contents.push_str("\n#include \"ctracer.h\"");
+        bindings.allowlist_file("cpp-extension/ctracer.h")
+    } else {
+        bindings.header(&header_path)
+    };
+    let bindings = bindings.header_contents("top_includes.h", &contents);
     #[cfg(not(feature = "tracing"))]
     let bindings = bindings.blocklist_function("ccadical_trace_api_calls");
     let bindings = version.set_bindings_defines(bindings);
