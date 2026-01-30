@@ -1,6 +1,6 @@
 namespace CaDiCaL {
 
-#ifndef V220
+#ifndef V2_2
 int64_t Solver::propagations() const {
   TRACE("propagations");
   REQUIRE_VALID_STATE();
@@ -26,7 +26,7 @@ int64_t Solver::conflicts() const {
 }
 #endif
 
-#ifndef V213
+#ifndef V2_1
 // Propagate and check
 // This is based on the implementation in PySat
 // https://github.com/pysathq/pysat/blob/master/solvers/patches/cadical195.patch
@@ -37,22 +37,16 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
   }
 
   // saving default options
-#ifdef V190
+#ifdef V1_9
   int old_ilb = internal->opts.ilb;
-#ifndef V194
-  int old_reimply = internal->opts.reimply;
-#endif
 #endif
   int old_psave = internal->opts.rephase;
   int old_lucky = internal->opts.lucky;
   int old_resall = internal->opts.restoreall;
 
   // resetting the above options
-#ifdef V190
+#ifdef V1_9
   internal->opts.ilb = 0;
-#ifndef V194
-  internal->opts.reimply = 0;
-#endif
 #endif
   internal->opts.lucky = psaving;
   internal->opts.rephase = psaving;
@@ -63,11 +57,8 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     tmp = internal->restore_clauses();
   if (tmp) {
     // restoring default option values
-#ifdef V190
+#ifdef V1_9
     internal->opts.ilb = old_ilb;
-#ifndef V194
-    internal->opts.reimply = old_reimply;
-#endif
 #endif
     internal->opts.lucky = old_lucky;
     internal->opts.rephase = old_psave;
@@ -92,10 +83,10 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     if (tmp < 0) // if assumption is already set to false
       unsat = true;
     else {
-#ifdef V160
+#ifdef V1_6
       if (tmp > 0) {
         // add pseudo decision level
-#ifdef V190
+#ifdef V1_9
         internal->new_trail_level(0);
 #else
         internal->level++;
@@ -133,11 +124,8 @@ bool Solver::prop_check(const int *assumps, size_t assumps_len, bool psaving,
     internal->backtrack(level);
   }
 
-#ifdef V190
+#ifdef V1_9
   internal->opts.ilb = old_ilb;
-#ifndef V194
-  internal->opts.reimply = old_reimply;
-#endif
 #endif
 
   // restore phase saving

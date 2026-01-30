@@ -42,7 +42,7 @@ int ccadical_configure(CCaDiCaL *ptr, const char *name) {
   return ((Wrapper *)ptr)->solver->configure(name);
 }
 
-#ifndef V220
+#ifndef V2_2
 void ccadical_phase(CCaDiCaL *ptr, int lit) {
   ((Wrapper *)ptr)->solver->phase(lit);
 }
@@ -72,7 +72,7 @@ int ccadical_simplify_rounds(CCaDiCaL *wrapper, int rounds) {
 
 int ccadical_resize(CCaDiCaL *wrapper, int min_max_var) {
   try {
-#ifdef V220
+#ifdef V2_2
     ((Wrapper *)wrapper)->solver->resize(min_max_var);
 #else
     ((Wrapper *)wrapper)->solver->reserve(min_max_var);
@@ -83,7 +83,7 @@ int ccadical_resize(CCaDiCaL *wrapper, int min_max_var) {
   }
 }
 
-#ifndef V220
+#ifndef V2_2
 int64_t ccadical_propagations(CCaDiCaL *wrapper) {
   return ((Wrapper *)wrapper)->solver->propagations();
 }
@@ -97,7 +97,7 @@ int64_t ccadical_conflicts(CCaDiCaL *wrapper) {
 }
 #endif
 
-#ifdef V154
+#ifdef V1_5
 int ccadical_flip(CCaDiCaL *wrapper, int lit) {
   return ((Wrapper *)wrapper)->solver->flip(lit);
 }
@@ -107,7 +107,7 @@ int ccadical_flippable(CCaDiCaL *wrapper, int lit) {
 }
 #endif
 
-#ifndef V213
+#ifndef V2_1
 int ccadical_propcheck(CCaDiCaL *wrapper, const int *assumps,
                        size_t assumps_len, int psaving,
                        void (*prop_cb)(void *, int), void *cb_data) {
@@ -134,7 +134,7 @@ int ccadical_propagate(CCaDiCaL *wrapper) {
 void ccadical_implied(CCaDiCaL *wrapper, void (*implied_cb)(void *, int),
                       void *cb_data) {
   std::vector<int> implied{};
-#ifdef V220
+#ifdef V2_2
   ((Wrapper *)wrapper)->solver->implied(implied);
 #else
   ((Wrapper *)wrapper)->solver->get_entrailed_literals(implied);
@@ -160,13 +160,13 @@ int ccadical_trace_proof_path(CCaDiCaL *wrapper, const char *const path) {
 }
 }
 
-#ifdef V220
+#ifdef V2_2
 int64_t ccadical_get_statistic_value(const CCaDiCaL *wrapper,
                                      const char *const opt) {
   return ((Wrapper *)wrapper)->solver->get_statistic_value(opt);
 }
 #endif
 
-#ifdef V200
+#ifdef V2_0
 #include "ctracer.cpp"
 #endif

@@ -7,7 +7,7 @@
 
 namespace CaDiCaL {
 
-#ifdef V220
+#ifdef V2_2
 #define ID int64_t
 #else
 #define ID uint64_t
@@ -46,7 +46,7 @@ public:
   }
 
   void add_derived_clause(ID id, bool redundant,
-#ifdef V220
+#ifdef V2_2
                           int,
 #endif
                           const std::vector<int> &clause,
@@ -119,7 +119,7 @@ public:
     callbacks.conclude_sat(data, model.size(), model.data());
   }
 
-#ifdef V220
+#ifdef V2_2
   void conclude_unknown(const std::vector<int> &model) override {
     callbacks.conclude_unknown(data, model.size(), model.data());
   }

@@ -44,7 +44,7 @@ pub unsafe extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_i
     (*vec).push(lit);
 }
 
-#[cfg(cadical_version = "v2.0.0")]
+#[cfg(cadical_version = "v2.0")]
 pub mod prooftracer {
     use std::os::raw::{c_int, c_void};
 
