@@ -169,8 +169,16 @@ int64_t ccadical_get_statistic_value(const CCaDiCaL *wrapper,
                                      const char *const opt) {
   return ((Wrapper *)wrapper)->solver->get_statistic_value(opt);
 }
+
+void ccadical_force_backtrack(const CCaDiCaL *wrapper, int new_level) {
+  ((Wrapper *)wrapper)->solver->force_backtrack(new_level);
+}
 #endif
 
 #ifdef V2_0
 #include "ctracer.cpp"
+#endif
+
+#ifdef V1_6
+#include "cipasirup.cpp"
 #endif
