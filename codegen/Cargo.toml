@@ -12,7 +12,7 @@ publish = false
 [dependencies]
 # keep-sorted start block=yes
 cbindgen = "0.29.2"
-minijinja = { version = "2.14.0", default-features = false, features = [
+minijinja = { version = "2.15.1", default-features = false, features = [
   "multi_template",
   "serde",
   "loader",
