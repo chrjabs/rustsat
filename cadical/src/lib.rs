@@ -125,9 +125,9 @@ use thiserror::Error;
 
 mod ffi;
 
-#[cfg(cadical_version = "v2.0.0")]
+#[cfg(cadical_version = "v2.0")]
 mod prooftracer;
-#[cfg(cadical_version = "v2.0.0")]
+#[cfg(cadical_version = "v2.0")]
 pub use prooftracer::{
     CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ProofTracerHandle,
     ProofTracerNotConnected, TraceProof,
@@ -598,19 +598,19 @@ impl CaDiCaL<'_, '_> {
         let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
         let binary = match format {
             ProofFormat::Drat { binary } => binary,
-            #[cfg(cadical_version = "v1.7.0")]
+            #[cfg(cadical_version = "v1.7")]
             ProofFormat::Lrat { binary } => {
                 self.set_option("lrat", 1)
                     .expect("we know this option exists");
                 binary
             }
-            #[cfg(cadical_version = "v1.9.0")]
+            #[cfg(cadical_version = "v1.9")]
             ProofFormat::Frat { binary, drat } => {
                 self.set_option("frat", 1 + c_int::from(drat))
                     .expect("we know this option exists");
                 binary
             }
-            #[cfg(cadical_version = "v1.9.0")]
+            #[cfg(cadical_version = "v1.9")]
             ProofFormat::VeriPB {
                 checked_deletion,
                 drat,
@@ -622,13 +622,13 @@ impl CaDiCaL<'_, '_> {
                 .expect("we know this option exists");
                 false
             }
-            #[cfg(cadical_version = "v2.0.0")]
+            #[cfg(cadical_version = "v2.0")]
             ProofFormat::Idrup { binary } => {
                 self.set_option("idrup", 1)
                     .expect("we know this option exists");
                 binary
             }
-            #[cfg(cadical_version = "v2.0.0")]
+            #[cfg(cadical_version = "v2.0")]
             ProofFormat::Lidrup { binary } => {
                 self.set_option("lidrup", 1)
                     .expect("we know this option exists");
@@ -653,7 +653,7 @@ impl CaDiCaL<'_, '_> {
     /// # Panics
     ///
     /// If `num_additional > i32::MAX`
-    #[cfg(cadical_version = "v2.2.0")]
+    #[cfg(cadical_version = "v2.2")]
     pub fn declare_more_variables(&mut self, num_additional: u32) -> Var {
         Lit::from_ipasir(unsafe {
             ffi::ccadical_declare_more_variables(
@@ -668,13 +668,13 @@ impl CaDiCaL<'_, '_> {
 
     /// Increase the maximum variable index by one. This is a specialized
     /// version of [`Self::declare_more_variables`].
-    #[cfg(cadical_version = "v2.2.0")]
+    #[cfg(cadical_version = "v2.2")]
     pub fn declare_one_more_variable(&mut self) -> Var {
         self.declare_more_variables(1)
     }
 
     /// Gets statistic values from the solver
-    #[cfg(cadical_version = "v2.2.0")]
+    #[cfg(cadical_version = "v2.2")]
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn get_statistic(&self, statistic: Statistic) -> u64 {
@@ -999,7 +999,7 @@ impl FreezeVar for CaDiCaL<'_, '_> {
     }
 }
 
-#[cfg(cadical_version = "v1.5.4")]
+#[cfg(cadical_version = "v1.5")]
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
@@ -1046,10 +1046,10 @@ impl LimitDecisions for CaDiCaL<'_, '_> {
 
 impl GetInternalStats for CaDiCaL<'_, '_> {
     fn propagations(&self) -> usize {
-        #[cfg(cadical_version = "v2.2.0")]
+        #[cfg(cadical_version = "v2.2")]
         let res = usize::try_from(self.get_statistic(Statistic::Propagations))
             .expect("more than `usize::MAX` propagations");
-        #[cfg(not(cadical_version = "v2.2.0"))]
+        #[cfg(not(cadical_version = "v2.2"))]
         let res = unsafe { ffi::ccadical_propagations(self.handle) }
             .try_into()
             .unwrap();
@@ -1057,10 +1057,10 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
     }
 
     fn decisions(&self) -> usize {
-        #[cfg(cadical_version = "v2.2.0")]
+        #[cfg(cadical_version = "v2.2")]
         let res = usize::try_from(self.get_statistic(Statistic::Decisions))
             .expect("more than `usize::MAX` decisions");
-        #[cfg(not(cadical_version = "v2.2.0"))]
+        #[cfg(not(cadical_version = "v2.2"))]
         let res = unsafe { ffi::ccadical_decisions(self.handle) }
             .try_into()
             .unwrap();
@@ -1068,10 +1068,10 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
     }
 
     fn conflicts(&self) -> usize {
-        #[cfg(cadical_version = "v2.2.0")]
+        #[cfg(cadical_version = "v2.2")]
         let res = usize::try_from(self.get_statistic(Statistic::Conflicts))
             .expect("more than `usize::MAX` conflicts");
-        #[cfg(not(cadical_version = "v2.2.0"))]
+        #[cfg(not(cadical_version = "v2.2"))]
         let res = unsafe { ffi::ccadical_conflicts(self.handle) }
             .try_into()
             .unwrap();
@@ -1079,7 +1079,7 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
     }
 }
 
-#[cfg(cadical_version = "v2.1.3")]
+#[cfg(cadical_version = "v2.1")]
 impl Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
@@ -1134,7 +1134,7 @@ impl Propagate for CaDiCaL<'_, '_> {
     }
 }
 
-#[cfg(not(cadical_version = "v2.1.3"))]
+#[cfg(not(cadical_version = "v2.1"))]
 impl Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
@@ -1309,13 +1309,13 @@ pub enum ProofFormat {
         /// Whether to write a binary or an ASCII proof
         binary: bool,
     },
-    #[cfg(cadical_version = "v1.7.0")]
+    #[cfg(cadical_version = "v1.7")]
     /// The LRAT proof format
     Lrat {
         /// Whether to write a binary or an ASCII proof
         binary: bool,
     },
-    #[cfg(cadical_version = "v1.9.0")]
+    #[cfg(cadical_version = "v1.9")]
     /// The FRAT proof format
     Frat {
         /// Whether to write a binary or an ASCII proof
@@ -1323,7 +1323,7 @@ pub enum ProofFormat {
         /// Whether to use DRAT instead of LRAT
         drat: bool,
     },
-    #[cfg(cadical_version = "v1.9.0")]
+    #[cfg(cadical_version = "v1.9")]
     /// The VeriPB proof format
     VeriPB {
         /// Whether to use checked deletion
@@ -1331,13 +1331,13 @@ pub enum ProofFormat {
         /// Whether to disable (simulated) RUP with hints
         drat: bool,
     },
-    #[cfg(cadical_version = "v2.0.0")]
+    #[cfg(cadical_version = "v2.0")]
     /// The incremental proof format IDRUP
     Idrup {
         /// Whether to write a binary or an ASCII proof
         binary: bool,
     },
-    #[cfg(cadical_version = "v2.0.0")]
+    #[cfg(cadical_version = "v2.0")]
     /// The linear incremental proof format LIDRUP
     Lidrup {
         /// Whether to write a binary or an ASCII proof
@@ -1353,7 +1353,7 @@ impl Default for ProofFormat {
 
 /// Possible statistic values that can be read from the solver
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg(cadical_version = "v2.2.0")]
+#[cfg(cadical_version = "v2.2")]
 #[non_exhaustive]
 pub enum Statistic {
     /// The number of conflicts observed so far
@@ -1378,7 +1378,7 @@ pub enum Statistic {
     Substituted,
 }
 
-#[cfg(cadical_version = "v2.2.0")]
+#[cfg(cadical_version = "v2.2")]
 impl From<Statistic> for &'static CStr {
     fn from(value: Statistic) -> Self {
         match value {
@@ -1469,12 +1469,12 @@ mod test {
             ProofFormat::Drat { binary: false },
             ProofFormat::Drat { binary: true },
         ]);
-        #[cfg(cadical_version = "v1.7.0")]
+        #[cfg(cadical_version = "v1.7")]
         formats.extend([
             ProofFormat::Lrat { binary: false },
             ProofFormat::Lrat { binary: true },
         ]);
-        #[cfg(cadical_version = "v1.9.0")]
+        #[cfg(cadical_version = "v1.9")]
         formats.extend([
             ProofFormat::Frat {
                 binary: false,
@@ -1501,7 +1501,7 @@ mod test {
                 drat: true,
             },
         ]);
-        #[cfg(cadical_version = "v2.0.0")]
+        #[cfg(cadical_version = "v2.0")]
         formats.extend([
             ProofFormat::Idrup { binary: false },
             ProofFormat::Idrup { binary: true },

@@ -23,35 +23,15 @@ macro_rules! check_env_var {
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Version {
     // Note: derived order makes top < bottom
-    V150,
-    V151,
-    V152,
-    V153,
-    V154,
-    V155,
-    V156,
-    V160,
-    V170,
-    V171,
-    V172,
-    V173,
-    V174,
-    V175,
-    V180,
-    V190,
-    V191,
-    V192,
-    V193,
-    V194,
-    V195,
-    V200,
-    V210,
-    V211,
-    V212,
-    V213,
-    V220,
+    V1_5,
+    V1_6,
+    V1_7,
+    V1_8,
+    V1_9,
+    V2_0,
+    V2_1,
     #[default]
-    V221,
+    V2_2,
     // Don't forget to update the crate documentation when adding a newer version
 }
 
@@ -59,96 +39,36 @@ enum Version {
 macro_rules! version_set_manually {
     () => {
         cfg!(any(
-            feature = "v2-2-1",
-            feature = "v2-2-0",
-            feature = "v2-1-3",
-            feature = "v2-1-2",
-            feature = "v2-1-1",
-            feature = "v2-1-0",
-            feature = "v2-0-0",
-            feature = "v1-9-5",
-            feature = "v1-9-4",
-            feature = "v1-9-3",
-            feature = "v1-9-2",
-            feature = "v1-9-1",
-            feature = "v1-9-0",
-            feature = "v1-8-0",
-            feature = "v1-7-5",
-            feature = "v1-7-4",
-            feature = "v1-7-3",
-            feature = "v1-7-2",
-            feature = "v1-7-1",
-            feature = "v1-7-0",
-            feature = "v1-6-0",
-            feature = "v1-5-6",
-            feature = "v1-5-5",
-            feature = "v1-5-4",
-            feature = "v1-5-3",
-            feature = "v1-5-2",
-            feature = "v1-5-1",
-            feature = "v1-5-0",
+            feature = "v2-2",
+            feature = "v2-1",
+            feature = "v2-0",
+            feature = "v1-9",
+            feature = "v1-8",
+            feature = "v1-7",
+            feature = "v1-6",
+            feature = "v1-5",
         ))
     };
 }
 
 impl Version {
     fn determine() -> Self {
-        if cfg!(feature = "v2-2-1") {
-            Version::V221
-        } else if cfg!(feature = "v2-2-0") {
-            Version::V220
-        } else if cfg!(feature = "v2-1-3") {
-            Version::V213
-        } else if cfg!(feature = "v2-1-2") {
-            Version::V212
-        } else if cfg!(feature = "v2-1-1") {
-            Version::V211
-        } else if cfg!(feature = "v2-1-0") {
-            Version::V210
-        } else if cfg!(feature = "v2-0-0") {
-            Version::V200
-        } else if cfg!(feature = "v1-9-5") {
-            Version::V195
-        } else if cfg!(feature = "v1-9-4") {
-            Version::V194
-        } else if cfg!(feature = "v1-9-3") {
-            Version::V193
-        } else if cfg!(feature = "v1-9-2") {
-            Version::V192
-        } else if cfg!(feature = "v1-9-1") {
-            Version::V191
-        } else if cfg!(feature = "v1-9-0") {
-            Version::V190
-        } else if cfg!(feature = "v1-8-0") {
-            Version::V180
-        } else if cfg!(feature = "v1-7-5") {
-            Version::V175
-        } else if cfg!(feature = "v1-7-4") {
-            Version::V174
-        } else if cfg!(feature = "v1-7-3") {
-            Version::V173
-        } else if cfg!(feature = "v1-7-2") {
-            Version::V172
-        } else if cfg!(feature = "v1-7-1") {
-            Version::V171
-        } else if cfg!(feature = "v1-7-0") {
-            Version::V170
-        } else if cfg!(feature = "v1-6-0") {
-            Version::V160
-        } else if cfg!(feature = "v1-5-6") {
-            Version::V156
-        } else if cfg!(feature = "v1-5-5") {
-            Version::V155
-        } else if cfg!(feature = "v1-5-4") {
-            Version::V154
-        } else if cfg!(feature = "v1-5-3") {
-            Version::V153
-        } else if cfg!(feature = "v1-5-2") {
-            Version::V152
-        } else if cfg!(feature = "v1-5-1") {
-            Version::V151
-        } else if cfg!(feature = "v1-5-0") {
-            Version::V150
+        if cfg!(feature = "v2-2") {
+            Version::V2_2
+        } else if cfg!(feature = "v2-1") {
+            Version::V2_1
+        } else if cfg!(feature = "v2-0") {
+            Version::V2_0
+        } else if cfg!(feature = "v1-9") {
+            Version::V1_9
+        } else if cfg!(feature = "v1-8") {
+            Version::V1_8
+        } else if cfg!(feature = "v1-7") {
+            Version::V1_7
+        } else if cfg!(feature = "v1-6") {
+            Version::V1_6
+        } else if cfg!(feature = "v1-5") {
+            Version::V1_5
         } else {
             // default to newest version
             Version::default()
@@ -157,62 +77,33 @@ impl Version {
 
     fn reference(self) -> &'static str {
         match self {
-            Version::V150 => "refs/tags/rel-1.5.0",
-            Version::V151 => "refs/tags/rel-1.5.1",
-            Version::V152 => "refs/tags/rel-1.5.2",
-            Version::V153 => "refs/tags/rel-1.5.3",
-            Version::V154 => "refs/tags/rel-1.5.4",
-            Version::V155 => "refs/tags/rel-1.5.5",
-            Version::V156 => "refs/tags/rel-1.5.6",
-            Version::V160 => "refs/tags/rel-1.6.0",
-            Version::V170 => "refs/tags/rel-1.7.0",
-            Version::V171 => "refs/tags/rel-1.7.1",
-            Version::V172 => "refs/tags/rel-1.7.2",
-            Version::V173 => "refs/tags/rel-1.7.3",
-            Version::V174 => "refs/tags/rel-1.7.4",
-            Version::V175 => "refs/tags/rel-1.7.5",
-            Version::V180 => "refs/tags/rel-1.8.0",
-            Version::V190 => "refs/tags/rel-1.9.0",
-            Version::V191 => "refs/tags/rel-1.9.1",
-            Version::V192 => "refs/tags/rel-1.9.2",
-            Version::V193 => "refs/tags/rel-1.9.3",
-            Version::V194 => "refs/tags/rel-1.9.4",
-            Version::V195 => "refs/tags/rel-1.9.5",
-            Version::V200 => "refs/tags/rel-2.0.0",
-            Version::V210 => "refs/tags/rel-2.1.0",
-            Version::V211 => "refs/tags/rel-2.1.1",
-            Version::V212 => "refs/tags/rel-2.1.2",
-            Version::V213 => "refs/tags/rel-2.1.3",
-            Version::V220 => "refs/tags/rel-2.2.0",
-            Version::V221 => "refs/tags/rel-2.2.1",
+            Version::V1_5 => "refs/tags/rel-1.5.6",
+            Version::V1_6 => "refs/tags/rel-1.6.0",
+            Version::V1_7 => "refs/tags/rel-1.7.5",
+            Version::V1_8 => "refs/tags/rel-1.8.0",
+            Version::V1_9 => "refs/tags/rel-1.9.5",
+            Version::V2_0 => "refs/tags/rel-2.0.0",
+            Version::V2_1 => "refs/tags/rel-2.1.3",
+            Version::V2_2 => "refs/tags/rel-2.2.1",
         }
     }
 
     #[cfg(feature = "git")]
     fn patch(self) -> &'static str {
-        #![allow(clippy::enum_glob_use)]
-        use Version::*;
         match self {
-            V150 | V151 | V152 | V153 => "v150.patch",
-            V154 | V155 => "v154.patch",
-            V156 => "v156.patch",
-            V160 => "v160.patch",
-            V170 => "v170.patch",
-            V171 | V172 | V173 | V174 | V175 => "v171.patch",
-            V180 => "v180.patch",
-            V190 | V191 => "v190.patch",
-            V192 | V193 | V194 | V195 => "v192.patch",
-            V200 => "v200.patch",
-            V210 => "v210.patch",
-            V211 | V212 => "v211.patch",
-            V213 => "v213.patch",
-            V220 => "v220.patch",
-            V221 => "v221.patch",
+            Version::V1_5 => "v156.patch",
+            Version::V1_6 => "v160.patch",
+            Version::V1_7 => "v171.patch",
+            Version::V1_8 => "v180.patch",
+            Version::V1_9 => "v192.patch",
+            Version::V2_0 => "v200.patch",
+            Version::V2_1 => "v213.patch",
+            Version::V2_2 => "v221.patch",
         }
     }
 
     fn has_proof_tracer(self) -> bool {
-        self >= Version::V200
+        self >= Version::V2_0
     }
 
     fn set_defines(self, build: &mut cc::Build) {
@@ -230,65 +121,62 @@ impl Version {
         if !has_cpp_feature(CppFeature::UnlockedIo, run_cpp_tests) {
             build.define("NUNLOCKED", None);
         }
-        if self >= Version::V211 && !has_cpp_feature(CppFeature::Closefrom, run_cpp_tests) {
+        if self >= Version::V2_1 && !has_cpp_feature(CppFeature::Closefrom, run_cpp_tests) {
             build.define("NCLOSEFROM", None);
         }
-        if self >= Version::V154 {
-            build.define("V154", None);
+        if self >= Version::V1_5 {
+            build.define("V1_5", None);
         }
-        if self >= Version::V160 {
-            build.define("V160", None);
+        if self >= Version::V1_6 {
+            build.define("V1_6", None);
         }
-        if self >= Version::V190 {
-            build.define("V190", None);
+        if self >= Version::V1_9 {
+            build.define("V1_9", None);
         }
-        if self >= Version::V194 {
-            build.define("V194", None);
+        if self >= Version::V2_0 {
+            build.define("V2_0", None);
         }
-        if self >= Version::V200 {
-            build.define("V200", None);
+        if self >= Version::V2_1 {
+            build.define("V2_1", None);
         }
-        if self >= Version::V213 {
-            build.define("V213", None);
-        }
-        if self >= Version::V220 {
-            build.define("V220", None);
+        if self >= Version::V2_2 {
+            build.define("V2_2", None);
         }
     }
 
     fn set_bindings_defines(self, mut bindings: bindgen::Builder) -> bindgen::Builder {
-        if self >= Version::V154 {
-            bindings = bindings.clang_arg("-DV154");
+        if self >= Version::V1_5 {
+            bindings = bindings.clang_arg("-DV1_5");
         }
-        if self >= Version::V213 {
-            bindings = bindings.clang_arg("-DV213");
+        if self >= Version::V2_1 {
+            bindings = bindings.clang_arg("-DV2_1");
         }
-        if self >= Version::V220 {
-            bindings = bindings.clang_arg("-DV220");
+        if self >= Version::V2_2 {
+            bindings = bindings.clang_arg("-DV2_2");
         }
         bindings
     }
 
     /// Sets custom `rustc` `--cfg` arguments for features only present in some version
     fn set_cfgs(self) {
-        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5.4\", \"v1.7.0\", \"v1.9.0\", \"v2.0.0\", \"v2.1.3\", \"v2.2.0\"))");
-        if self >= Version::V154 {
-            println!("cargo:rustc-cfg=cadical_version=\"v1.5.4\"");
+        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5\", \"v1.7\", \"v1.9\", \"v2.0\", \"v2.1\", \"v2.2\"))");
+        if self >= Version::V1_5 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.5\"");
         }
-        if self >= Version::V170 {
-            println!("cargo:rustc-cfg=cadical_version=\"v1.7.0\"");
+        if self >= Version::V1_7 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.7\"");
         }
-        if self >= Version::V190 {
-            println!("cargo:rustc-cfg=cadical_version=\"v1.9.0\"");
+        if self >= Version::V1_9 {
+            println!("cargo:rustc-cfg=cadical_version=\"v1.9\"");
         }
-        if self >= Version::V200 {
-            println!("cargo:rustc-cfg=cadical_version=\"v2.0.0\"");
+        if self >= Version::V2_0 {
+            println!("cargo:rustc-cfg=cadical_version=\"v2.0\"");
         }
-        if self >= Version::V213 {
-            println!("cargo:rustc-cfg=cadical_version=\"v2.1.3\"");
+        if self >= Version::V2_1 {
+            println!("cargo:rustc-cfg=cadical_version=\"v2.1\"");
         }
-        if self >= Version::V220 {
-            println!("cargo:rustc-cfg=cadical_version=\"v2.2.0\"");
+        if self >= Version::V2_2 {
+            println!("cargo:rustc-cfg=cadical_version=\"v2.2\"");
         }
     }
 }
@@ -312,7 +200,7 @@ fn main() {
     println!("cargo:rustc-link-search={out_dir}");
     println!("cargo:rustc-link-search={out_dir}/lib");
     println!("cargo:rustc-link-lib=static=cadical");
-    if version >= Version::V220 {
+    if version >= Version::V2_2 {
         println!("cargo:rustc-link-lib=static=kitten");
     }
 
@@ -481,7 +369,7 @@ fn build(repo: &str, branch: &str, version: Version) {
                 cadical_version, version.reference(), compiler_desc, compiler_flags, chrono::Utc::now()
             ).expect("Failed to write CaDiCaL build.hpp");
     // Build Kitten
-    if version >= Version::V220 {
+    if version >= Version::V2_2 {
         let mut kitten_build = cadical_build.clone();
         kitten_build
             .cpp(false)
