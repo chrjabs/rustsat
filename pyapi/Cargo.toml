@@ -19,7 +19,7 @@ build = "build.rs"
 
 [dependencies]
 # keep-sorted start block=yes
-pyo3 = { version = "0.27.2", features = [
+pyo3 = { version = "0.28.0", features = [
   "extension-module",
   "abi3",
   "abi3-py37",
