@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.7.6 - 2026-02-07
+
+[457d6d7](457d6d7bf27998947edc45fa2200d6a5fef6c389)...[530e873](530e8730df54d1c602aa3f5886f23db95fa0bdd0)
+
+### <!-- 8 -->Miscellaneous Tasks
+
+- Update version in header ([530e873](530e8730df54d1c602aa3f5886f23db95fa0bdd0))
+
 ## rustsat-v0.7.5 - 2026-01-30
 
 [1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[9ae341d](9ae341d26bcfba2bd78869bcb31c27ccdfc44889)
