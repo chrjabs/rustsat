@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.7.5 - 2026-02-07
+
 ## rustsat-v0.7.5 - 2026-01-30
 
 [1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[7be4b8b](7be4b8b939241a262ac36fee22e9eb83c80f738d)
