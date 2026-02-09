@@ -64,7 +64,7 @@ where
 }
 
 impl<S, Init> Incremental<S, Init> {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =

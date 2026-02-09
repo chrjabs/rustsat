@@ -14,7 +14,7 @@ use super::{CAssumpCollector, CClauseCollector, ClauseCollector, MaybeError, Var
 
 /// Creates a new [`GeneralizedTotalizer`] pseudo-Boolean encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn gte_new() -> *mut GeneralizedTotalizer {
     Box::into_raw(Box::default())
 }
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn gte_enforce_ub(
 
 /// Creates a new [`BinaryAdder`] pseudo-Boolean encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn bin_adder_new() -> *mut BinaryAdder {
     Box::into_raw(Box::default())
 }
@@ -317,7 +317,7 @@ pub unsafe extern "C" fn bin_adder_enforce_lb(
 
 /// Creates a new [`DynamicPolyWatchdog`] pseudo-Boolean encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn dpw_new() -> *mut DynamicPolyWatchdog {
     Box::into_raw(Box::default())
 }

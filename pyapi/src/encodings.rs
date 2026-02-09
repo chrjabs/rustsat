@@ -8,7 +8,6 @@ pub mod am1;
 pub mod card;
 pub mod pb;
 
-#[allow(clippy::needless_pass_by_value)]
 fn convert_enforce_error(err: EnforceError) -> PyErr {
     match err {
         EnforceError::NotEncoded => {

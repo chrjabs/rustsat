@@ -18,7 +18,7 @@ use super::{CAssumpCollector, CClauseCollector, ClauseCollector, MaybeError, Var
 
 /// Creates a new [`{{ enc.name }}`] pseudo-Boolean encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn {{ enc.id }}_new() -> *mut {{ enc.name }} {
     Box::into_raw(Box::default())
 }

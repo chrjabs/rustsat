@@ -143,7 +143,7 @@ impl Default for Kissat<'_> {
 }
 
 impl Kissat<'_> {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
@@ -602,10 +602,6 @@ mod test {
 }
 
 mod ffi {
-    #![allow(non_upper_case_globals)]
-    #![allow(non_camel_case_types)]
-    #![allow(non_snake_case)]
-
     use core::ffi::{c_int, c_void};
 
     use rustsat::solvers::ControlSignal;

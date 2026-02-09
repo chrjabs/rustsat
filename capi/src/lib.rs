@@ -12,6 +12,6 @@
 //! [tests](https://github.com/chrjabs/rustsat/tree/main/capi/tests) might be a good starting
 //! point.
 #![warn(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
+#![expect(clippy::module_name_repetitions)]
 
 pub mod encodings;

@@ -13,7 +13,7 @@
 //! - \[2\] Niklas Eén and Niklas Sörensson: _Translating Pseudo-Boolean Constraints into SAT_,
 //!   JSAT 2006.
 
-#![allow(clippy::module_name_repetitions)]
+#![expect(clippy::module_name_repetitions)]
 
 use std::collections::VecDeque;
 
@@ -907,7 +907,7 @@ where
         let lhs_i = lhs[i]?;
         cl.add(!lhs_i);
 
-        #[allow(clippy::needless_range_loop)]
+        #[expect(clippy::needless_range_loop)]
         for j in i + 1..lhs.len() {
             if y(j) {
                 let lhs_j = lhs[j]?;
@@ -955,7 +955,7 @@ where
             cl.add(lhs_i);
         }
 
-        #[allow(clippy::needless_range_loop)]
+        #[expect(clippy::needless_range_loop)]
         for j in i + 1..lhs.len() {
             if y(j) {
                 let lhs_j = lhs[j]?;

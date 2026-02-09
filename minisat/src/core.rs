@@ -43,7 +43,7 @@ impl Default for Minisat {
 }
 
 impl Minisat {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
@@ -182,7 +182,7 @@ impl Solve for Minisat {
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
         handle_oom!(unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisat_reserve(self.handle, max_var.idx32() as c_int)
         });
         Ok(())
@@ -290,7 +290,7 @@ impl PhaseLit for Minisat {
             _ => (),
         }
         unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisat_unphase(self.handle, var.idx32() as c_int);
         };
         Ok(())

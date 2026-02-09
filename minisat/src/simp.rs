@@ -43,7 +43,7 @@ impl Default for Minisat {
 }
 
 impl Minisat {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
@@ -79,7 +79,7 @@ impl Minisat {
     /// Checks if a variable has been eliminated by preprocessing.
     pub fn var_eliminated(&mut self, var: Var) -> bool {
         (unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisatsimp_is_eliminated(self.handle, var.idx32() as c_int)
         } != 0)
     }
@@ -192,7 +192,7 @@ impl Solve for Minisat {
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
         handle_oom!(unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisatsimp_reserve(self.handle, max_var.idx32() as c_int)
         });
         Ok(())
@@ -305,7 +305,7 @@ impl PhaseLit for Minisat {
             _ => (),
         }
         unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisatsimp_unphase(self.handle, var.idx32() as c_int);
         };
         Ok(())
@@ -316,7 +316,7 @@ impl FreezeVar for Minisat {
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
         self.reserve(var)?;
         unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisatsimp_set_frozen(self.handle, var.idx32() as c_int, 1);
         };
         Ok(())
@@ -329,7 +329,7 @@ impl FreezeVar for Minisat {
             _ => (),
         }
         unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisatsimp_set_frozen(self.handle, var.idx32() as c_int, 0);
         };
         Ok(())
@@ -342,7 +342,7 @@ impl FreezeVar for Minisat {
             _ => (),
         }
         Ok(unsafe {
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap)]
             ffi::cminisatsimp_is_frozen(self.handle, var.idx32() as c_int)
         } != 0)
     }

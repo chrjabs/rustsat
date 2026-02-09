@@ -33,7 +33,7 @@ pub enum Conclusion {
 /// Rather than passing [`Clause`] to the tracer, we use [`CaDiCaLClause`], which
 /// lazily converts IPASIR literals to [`Lit`] to not perform any work if the clause is not actually
 /// used
-#[allow(unused_variables)]
+#[expect(unused_variables)]
 pub trait TraceProof {
     /// Notify the tracer that a original clause has been added.
     ///
@@ -196,7 +196,6 @@ impl super::CaDiCaL<'_, '_> {
     /// If the handle is not connected to the given solver, returns [`ProofTracerNotConnected`]
     // We intentionally pass the handle by value here so that it cannot be used afterwards, since
     // it is not Clone of Copy
-    #[allow(clippy::needless_pass_by_value)]
     pub fn disconnect_proof_tracer<PT>(
         &mut self,
         handle: ProofTracerHandle<PT>,
@@ -218,10 +217,10 @@ impl super::CaDiCaL<'_, '_> {
     /// Gets a mutable reference to a connected proof tracer
     // We are intentionally taking self, since the solver "owns" the tracer, even though the
     // compiler doesn't know this
-    #[allow(clippy::unused_self)]
+    #[expect(clippy::unused_self)]
     // The handle can only have originated from connect_proof_tracer, the pointer can therefore
     // never be null
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(clippy::missing_panics_doc)]
     pub fn proof_tracer_mut<PT>(&mut self, handle: &ProofTracerHandle<PT>) -> &mut PT
     where
         PT: TraceProof + 'static,

@@ -33,7 +33,7 @@ macro_rules! get_olit {
 }
 
 impl super::Db {
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn define_semantics<W>(
         &mut self,
         id: NodeId,
@@ -154,7 +154,7 @@ impl super::Db {
         Ok(defs)
     }
 
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     fn define_pseudo_semantics<W>(
         &mut self,
         id: NodeId,
@@ -400,7 +400,7 @@ impl super::Db {
     ///
     /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
     /// - If writing the proof fails, returns [`std::io::Error`].
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_lines)]
     pub fn define_weighted_cert<Col, W>(
         &mut self,
         id: NodeId,
@@ -884,7 +884,7 @@ impl super::Db {
         Ok(left_leaves_populated && right_leaves_populated)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn recurse_unweighted_single_node<Col, W>(
         &mut self,
         con: NodeCon,
@@ -968,8 +968,8 @@ impl super::Db {
     /// # Panics
     ///
     /// If the semantics are already encoded.
-    #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_lines)]
     fn encode_unweighted_cert<W, Col>(
         &mut self,
         id: NodeId,
@@ -1124,7 +1124,7 @@ impl super::Db {
     ///
     /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
     /// - If writing the proof fails, returns [`std::io::Error`]
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub fn define_unweighted_cert<Col, W>(
         &mut self,
         id: NodeId,

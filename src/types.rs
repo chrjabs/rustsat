@@ -1032,7 +1032,7 @@ impl Assignment {
     }
 
     /// Gets an iterator over literals assigned to true
-    #[allow(clippy::cast_possible_truncation)]
+    #[expect(clippy::cast_possible_truncation)]
     pub fn iter(&self) -> impl Iterator<Item = Lit> + '_ {
         self.assignment
             .iter()

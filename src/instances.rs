@@ -243,7 +243,7 @@ impl ManageVars for ReindexingVarManager {
 
 /// Manager keeping track of used variables and variables associated with objects
 #[derive(PartialEq, Eq)]
-#[allow(missing_debug_implementations)]
+#[expect(missing_debug_implementations)]
 pub struct ObjectVarManager {
     next_var: Var,
     object_map: RsHashMap<Box<dyn VarKey>, Var>,

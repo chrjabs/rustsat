@@ -324,7 +324,7 @@ impl Db {
                 idx + 1 - left_if_max..=right_if_max,
             )
         } else {
-            #[allow(clippy::reversed_empty_ranges)]
+            #[expect(clippy::reversed_empty_ranges)]
             (1..=0, 1..=0)
         };
 
@@ -336,7 +336,7 @@ impl Db {
                 idx - left_only_if_max..=right_only_if_max,
             )
         } else {
-            #[allow(clippy::reversed_empty_ranges)]
+            #[expect(clippy::reversed_empty_ranges)]
             (1..=0, 1..=0)
         };
 
@@ -634,7 +634,7 @@ impl Db {
     /// Computes the value of the node under a given assignment
     #[cfg(feature = "_internals")]
     #[must_use]
-    #[allow(clippy::missing_panics_doc)] // iterator is never empty
+    #[expect(clippy::missing_panics_doc)] // iterator is never empty
     pub fn value(&self, node: NodeId, assign: &Assignment) -> usize {
         let (id, val) = ValueIter::new(self, node, assign)
             .last()
@@ -1058,7 +1058,6 @@ impl Node {
     /// Adjusts the connections of the node to draining a range of nodes. If the
     /// nodes references a nodes within the drained range, it returns that
     /// [`NodeId`] as an Error.
-    #[allow(dead_code)]
     fn drain(&mut self, range: ops::Range<NodeId>) -> Result<(), NodeId> {
         match self {
             Node::Leaf(_) | Node::Dummy => Ok(()),
@@ -1837,7 +1836,7 @@ mod tests {
 
     #[test]
     #[cfg(any(feature = "_internals", feature = "proof-logging"))]
-    #[allow(clippy::many_single_char_names)]
+    #[expect(clippy::many_single_char_names)]
     fn leaf_iter_pseudo_leaf() {
         let mut vm = BasicVarManager::from_next_free(var![3]);
         let mut db = Db::default();

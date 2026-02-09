@@ -109,7 +109,7 @@ impl SubAssign<usize> for NodeId {
 }
 
 /// Trait for nodes in the tree
-#[allow(clippy::len_without_is_empty)]
+#[expect(clippy::len_without_is_empty)]
 pub trait NodeLike: ops::Index<usize, Output = Lit> {
     /// The type of iterator over the node's values
     type ValIter: DoubleEndedIterator<Item = usize>;
@@ -366,7 +366,7 @@ pub struct DrainError {
 }
 
 /// Trait for a database managing [`NodeLike`]s by their [`NodeId`]s
-#[allow(dead_code)]
+#[cfg_attr(not(feature = "_internals"), expect(dead_code))]
 pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// The type of node in the database
     type Node: NodeLike;
@@ -500,7 +500,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
         }
 
         debug_assert_eq!(width, 1);
-        #[allow(clippy::cast_possible_wrap)]
+        #[expect(clippy::cast_possible_wrap)]
         let mut reverse_width = reverse_width as isize;
         let mut last_reverse_width = reverse_width << 1;
 
@@ -564,7 +564,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
                 split_idx += 1;
                 start += true_width;
             }
-            #[allow(clippy::cast_sign_loss)]
+            #[expect(clippy::cast_sign_loss)]
             {
                 width = (width << 1) | (reverse_width as usize & 1);
             }

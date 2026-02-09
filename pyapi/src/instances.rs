@@ -148,8 +148,8 @@ impl Cnf {
         self.cnf.len()
     }
 
-    #[allow(clippy::cast_sign_loss)]
-    #[allow(clippy::needless_pass_by_value)]
+    #[expect(clippy::cast_sign_loss)]
+    #[expect(clippy::needless_pass_by_value)]
     fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<SingleOrList<Clause>> {
         if let Ok(idx) = idx.extract::<i32>() {
             let idx: usize = idx.try_into().expect("got unexpected negative index");
