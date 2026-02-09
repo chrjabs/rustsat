@@ -19,7 +19,7 @@ use crate::SingleOrList;
 /// whether the literal is negated or not. This way the literal can directly
 /// be used to index data structures with the two literals of a variable
 /// being close together.
-#[pyclass(frozen, eq, ord, hash)]
+#[pyclass(frozen, eq, ord, hash, from_py_object)]
 #[repr(transparent)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
 pub struct Lit(RsLit);
@@ -81,11 +81,17 @@ impl Lit {
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
-#[pyclass(sequence)]
-#[derive(Eq, PartialOrd, Ord, Clone, Default)]
+#[pyclass(sequence, from_py_object)]
+#[derive(Eq, PartialOrd, Ord, Default, Clone)]
 pub struct Clause {
     cl: RsClause,
     modified: bool,
+}
+
+impl Clause {
+    pub(crate) fn inner(&self) -> &RsClause {
+        &self.cl
+    }
 }
 
 impl From<RsClause> for Clause {

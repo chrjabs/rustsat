@@ -19,7 +19,7 @@ use crate::{
 /// Simple counting variable manager
 #[pyclass]
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct VarManager(BasicVarManager);
 
 impl From<BasicVarManager> for VarManager {
@@ -75,7 +75,7 @@ impl VarManager {
 /// Simple type representing a CNF formula. Other than [`SatInstance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
 #[pyclass(sequence)]
-#[derive(Debug, Clone, Eq, Default)]
+#[derive(Debug, Eq, Default)]
 pub struct Cnf {
     cnf: RsCnf,
     modified: bool,
@@ -106,9 +106,9 @@ impl PartialEq for Cnf {
 impl Cnf {
     /// Adds a clause to the CNF
     #[inline]
-    pub fn add_clause(&mut self, clause: Clause) {
+    pub fn add_clause(&mut self, clause: &Clause) {
         self.modified = true;
-        self.cnf.add_clause(clause.into());
+        self.cnf.add_clause(clause.inner().clone());
     }
 
     /// Adds a unit clause to the CNF
