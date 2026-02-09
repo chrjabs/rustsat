@@ -6,8 +6,8 @@
 
 use std::{io, ops::Range};
 
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
+use chacha20::ChaCha8Rng;
+use rand::{RngExt, SeedableRng};
 
 /// An instance of the (multi-criteria 0-1) knapsack problem
 #[derive(Clone, PartialEq, Eq)]

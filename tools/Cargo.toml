@@ -14,14 +14,14 @@ rust-version.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# keep-sorted start block=yes
 anyhow.workspace = true
+chacha20.workspace = true
 clap.workspace = true
 concolor-clap.workspace = true
 itertools.workspace = true
 nom.workspace = true
-termcolor.workspace = true
 rand.workspace = true
-rand_chacha.workspace = true
 rustsat = { workspace = true, features = [
   "compression",
   "multiopt",
@@ -30,6 +30,8 @@ rustsat = { workspace = true, features = [
 ] }
 rustsat-cadical = { workspace = true, optional = true }
 rustsat-minisat = { workspace = true, optional = true }
+termcolor.workspace = true
+# keep-sorted end
 
 [features]
 default = ["minisat"]
