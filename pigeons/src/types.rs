@@ -429,7 +429,7 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     ///
     /// The constraint must only use left and right variables that have been marked as used
     // Since we push `constr` into the definitions, `self.definition.len()` is never zero
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(clippy::missing_panics_doc)]
     pub fn add_definition_constraint(
         &mut self,
         constr: C,

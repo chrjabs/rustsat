@@ -64,7 +64,7 @@ impl Lit {
     }
 
     /// Gets the IPASIR/DIMACS representation of the literal
-    #[allow(clippy::wrong_self_convention)]
+    #[expect(clippy::wrong_self_convention)]
     fn to_ipasir(&self) -> c_int {
         let negated = self.0.is_neg();
         let idx: c_int = (self.0.vidx() + 1)
@@ -165,8 +165,8 @@ impl Clause {
         self.cl.len()
     }
 
-    #[allow(clippy::cast_sign_loss)]
-    #[allow(clippy::needless_pass_by_value)]
+    #[expect(clippy::cast_sign_loss)]
+    #[expect(clippy::needless_pass_by_value)]
     fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<SingleOrList<Lit>> {
         if let Ok(idx) = idx.extract::<i32>() {
             let idx: usize = idx.try_into().expect("got unexpected negative index");

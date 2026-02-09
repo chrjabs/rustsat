@@ -97,7 +97,7 @@ impl<Cb: Callbacks> Solver<Cb> {
         &mut self.internal
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses()) as f32)

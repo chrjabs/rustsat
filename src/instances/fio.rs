@@ -122,7 +122,7 @@ impl SolverOutput {
 
 /// Possible errors in SAT solver output parsing
 #[derive(Error, Debug)]
-#[allow(clippy::enum_variant_names)]
+#[expect(clippy::enum_variant_names)]
 pub enum SatSolverOutputError {
     /// The solver output does not contain an `s` line
     #[error("No solution line found in the output.")]

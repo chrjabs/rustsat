@@ -13,7 +13,7 @@ use super::{
 
 /// Creates a new [`Pairwise`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn pairwise_new() -> *mut Pairwise {
     Box::into_raw(Box::default())
 }
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn pairwise_add(pairwise: *mut Pairwise, lit: c_int) -> Ma
 /// # Safety
 ///
 /// `pairwise` must be a return value of [`pairwise_new`] that [`pairwise_drop`] has not yet been called on.
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn pairwise_encode(
     pairwise: *mut Pairwise,
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn pairwise_encode(
 
 /// Creates a new [`Ladder`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn ladder_new() -> *mut Ladder {
     Box::into_raw(Box::default())
 }
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn ladder_add(ladder: *mut Ladder, lit: c_int) -> MaybeErr
 /// # Safety
 ///
 /// `ladder` must be a return value of [`ladder_new`] that [`ladder_drop`] has not yet been called on.
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn ladder_encode(
     ladder: *mut Ladder,
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn ladder_encode(
 
 /// Creates a new [`Bitwise`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn bitwise_new() -> *mut Bitwise {
     Box::into_raw(Box::default())
 }
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn bitwise_add(bitwise: *mut Bitwise, lit: c_int) -> Maybe
 /// # Safety
 ///
 /// `bitwise` must be a return value of [`bitwise_new`] that [`bitwise_drop`] has not yet been called on.
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn bitwise_encode(
     bitwise: *mut Bitwise,
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn bitwise_encode(
 
 /// Creates a new [`Commander`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn commander_new() -> *mut Commander {
     Box::into_raw(Box::default())
 }
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn commander_add(commander: *mut Commander, lit: c_int) ->
 /// # Safety
 ///
 /// `commander` must be a return value of [`commander_new`] that [`commander_drop`] has not yet been called on.
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn commander_encode(
     commander: *mut Commander,
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn commander_encode(
 
 /// Creates a new [`Bimander`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn bimander_new() -> *mut Bimander {
     Box::into_raw(Box::default())
 }
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn bimander_add(bimander: *mut Bimander, lit: c_int) -> Ma
 /// # Safety
 ///
 /// `bimander` must be a return value of [`bimander_new`] that [`bimander_drop`] has not yet been called on.
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn bimander_encode(
     bimander: *mut Bimander,
@@ -330,7 +330,7 @@ pub unsafe extern "C" fn bimander_encode(
 
 /// Creates a new [`TwoProduct`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn twoproduct_new() -> *mut TwoProduct {
     Box::into_raw(Box::default())
 }
@@ -376,7 +376,7 @@ pub unsafe extern "C" fn twoproduct_add(twoproduct: *mut TwoProduct, lit: c_int)
 /// # Safety
 ///
 /// `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn twoproduct_encode(
     twoproduct: *mut TwoProduct,

@@ -104,9 +104,7 @@ macro_rules! handle_oom {
 pub(crate) use handle_oom;
 
 pub(crate) mod ffi {
-    #![allow(non_upper_case_globals)]
-    #![allow(non_camel_case_types)]
-    #![allow(non_snake_case)]
+    #![expect(non_camel_case_types)]
 
     use std::os::raw::c_void;
 

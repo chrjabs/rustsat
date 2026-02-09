@@ -14,7 +14,7 @@ use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager};
 
 /// Creates a new [`Totalizer`] cardinality encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn tot_new() -> *mut Totalizer {
     Box::into_raw(Box::default())
 }

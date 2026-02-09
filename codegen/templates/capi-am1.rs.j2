@@ -21,7 +21,7 @@ use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager,
 
 /// Creates a new [`{{ enc.name }}`] at-most-one encoding
 #[no_mangle]
-#[allow(clippy::missing_safety_doc)]
+#[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn {{ enc.id }}_new() -> *mut {{ enc.name }} {
     Box::into_raw(Box::default())
 }
@@ -49,7 +49,7 @@ pub unsafe extern "C" fn {{ enc.id }}_add({{ enc.id }}: *mut {{ enc.name }}, lit
 ///
 {% include 'capi-collector-n-vars.j2' %}
 {% include 'capi-safety.j2' %}
-#[allow(clippy::missing_panics_doc)]
+#[expect(clippy::missing_panics_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn {{ enc.id }}_encode(
     {{ enc.id }}: *mut {{ enc.name }},

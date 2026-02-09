@@ -263,7 +263,7 @@ impl CaDiCaL<'_, '_> {
         Ok(core)
     }
 
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
         self.stats.avg_clause_len =
@@ -589,7 +589,7 @@ impl CaDiCaL<'_, '_> {
     ///
     /// If the provided path contains a nul byte
     // We know that the set options exist and that this should therefore never panic
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(clippy::missing_panics_doc)]
     pub fn trace_proof<P: AsRef<Path>>(
         &mut self,
         path: P,
@@ -675,7 +675,7 @@ impl CaDiCaL<'_, '_> {
 
     /// Gets statistic values from the solver
     #[cfg(cadical_version = "v2.2")]
-    #[allow(clippy::missing_panics_doc)]
+    #[expect(clippy::missing_panics_doc)]
     #[must_use]
     pub fn get_statistic(&self, statistic: Statistic) -> u64 {
         let statistic: &CStr = statistic.into();

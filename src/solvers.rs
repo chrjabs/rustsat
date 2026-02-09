@@ -474,16 +474,16 @@ pub struct PropagateResult {
     pub conflict: bool,
 }
 
-#[allow(dead_code)]
-type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
-#[allow(dead_code)]
-type LearnCallbackPtr<'a> = Box<dyn FnMut(Clause) + 'a>;
-#[allow(dead_code)]
-/// Double boxing is necessary to get thin pointers for casting
-type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
-#[allow(dead_code)]
-/// Double boxing is necessary to get thin pointers for casting
-type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
+// #[expect(dead_code)]
+// type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+// #[expect(dead_code)]
+// type LearnCallbackPtr<'a> = Box<dyn FnMut(Clause) + 'a>;
+// #[expect(dead_code)]
+// /// Double boxing is necessary to get thin pointers for casting
+// type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
+// #[expect(dead_code)]
+// /// Double boxing is necessary to get thin pointers for casting
+// type OptLearnCallbackStore<'a> = Option<Box<LearnCallbackPtr<'a>>>;
 
 /// Solver statistics
 #[derive(Clone, PartialEq, Default, Debug)]

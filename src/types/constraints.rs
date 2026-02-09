@@ -818,7 +818,6 @@ impl CardConstraint {
     /// Checks whether the cardinality constraint is satisfied by the given assignment
     #[must_use]
     pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
-        #[allow(clippy::range_plus_one)]
         let range = self
             .iter()
             .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
@@ -1542,7 +1541,6 @@ impl PbConstraint {
     /// Checks whether the PB constraint is satisfied by the given assignment
     #[must_use]
     pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
-        #[allow(clippy::range_plus_one)]
         let range = self
             .iter()
             .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {

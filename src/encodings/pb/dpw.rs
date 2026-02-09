@@ -838,7 +838,7 @@ fn build_structure(
 /// # Panics
 ///
 /// - If `bot_struct` has no bottom buckets
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 #[cfg_attr(feature = "_internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn merge_structures<Col>(
