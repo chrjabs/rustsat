@@ -284,6 +284,41 @@ impl ops::SubAssign<u32> for Var {
     }
 }
 
+/// Bitwise operations: these should only be used for bit tricks where the underlying bit
+/// representation does not matter
+impl ops::BitOr<Var> for Var {
+    type Output = Var;
+
+    fn bitor(self, rhs: Var) -> Self::Output {
+        // SAFETY: since the highest bit is never set, it will never be set in the result
+        Var {
+            idx: LimitedU32(self.idx.0 | rhs.idx.0),
+        }
+    }
+}
+
+impl ops::BitAnd<Var> for Var {
+    type Output = Var;
+
+    fn bitand(self, rhs: Var) -> Self::Output {
+        // SAFETY: since the highest bit is never set, it will never be set in the result
+        Var {
+            idx: LimitedU32(self.idx.0 & rhs.idx.0),
+        }
+    }
+}
+
+impl ops::BitXor<Var> for Var {
+    type Output = Var;
+
+    fn bitxor(self, rhs: Var) -> Self::Output {
+        // SAFETY: since the highest bit is never set, it will never be set in the result
+        Var {
+            idx: LimitedU32(self.idx.0 ^ rhs.idx.0),
+        }
+    }
+}
+
 /// Variables can be printed with the [`Display`](std::fmt::Display) trait
 impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -621,6 +656,38 @@ impl ops::Sub<u32> for Lit {
 impl ops::SubAssign<u32> for Lit {
     fn sub_assign(&mut self, rhs: u32) {
         self.lidx -= 2 * rhs;
+    }
+}
+
+/// Bitwise operations: these should only be used for bit tricks where the underlying bit
+/// representation does not matter
+impl ops::BitOr<Lit> for Lit {
+    type Output = Lit;
+
+    fn bitor(self, rhs: Lit) -> Self::Output {
+        Lit {
+            lidx: self.lidx | rhs.lidx,
+        }
+    }
+}
+
+impl ops::BitAnd<Lit> for Lit {
+    type Output = Lit;
+
+    fn bitand(self, rhs: Lit) -> Self::Output {
+        Lit {
+            lidx: self.lidx & rhs.lidx,
+        }
+    }
+}
+
+impl ops::BitXor<Lit> for Lit {
+    type Output = Lit;
+
+    fn bitxor(self, rhs: Lit) -> Self::Output {
+        Lit {
+            lidx: self.lidx ^ rhs.lidx,
+        }
     }
 }
 
@@ -1636,6 +1703,22 @@ mod tests {
         assert_eq!(lits, vec![lit![0], !lit![1], lit![2], lit![4], !lit![5]]);
         // ensure assign is still around, so we actually used a reference
         assert_eq!(assign.len(), 6);
+    }
+
+    #[test]
+    fn lit_branchless_swap() {
+        let a = Lit::positive(42);
+        let b = Lit::positive(58);
+        let should_be_b = a ^ b ^ a;
+        assert_eq!(b, should_be_b);
+    }
+
+    #[test]
+    fn var_branchless_swap() {
+        let a = Var::new(42);
+        let b = Var::new(58);
+        let should_be_b = a ^ b ^ a;
+        assert_eq!(b, should_be_b);
     }
 }
 
