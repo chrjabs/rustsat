@@ -601,6 +601,12 @@ impl ops::Add<u32> for Lit {
     }
 }
 
+impl ops::AddAssign<u32> for Lit {
+    fn add_assign(&mut self, rhs: u32) {
+        self.lidx += 2 * rhs;
+    }
+}
+
 /// Decrementing literals. This preserves the sign of the literal.
 impl ops::Sub<u32> for Lit {
     type Output = Lit;
@@ -609,6 +615,12 @@ impl ops::Sub<u32> for Lit {
         Lit {
             lidx: self.lidx - 2 * rhs,
         }
+    }
+}
+
+impl ops::SubAssign<u32> for Lit {
+    fn sub_assign(&mut self, rhs: u32) {
+        self.lidx -= 2 * rhs;
     }
 }
 
