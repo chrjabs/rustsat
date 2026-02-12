@@ -419,6 +419,8 @@ macro_rules! generate_exhaustive {
         }
     };
 }
+
+#[cfg(feature = "proof-logging")]
 use generate_exhaustive;
 
 generate_exhaustive!(gte, GeneralizedTotalizer);
