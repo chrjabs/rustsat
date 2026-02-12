@@ -744,7 +744,7 @@ fn soft_clause(input: &mut &str) -> ModalResult<(usize, Clause)> {
 #[cfg(feature = "multiopt")]
 fn mo_soft_clause(input: &mut &str) -> ModalResult<(usize, usize, Clause)> {
     use winnow::combinator::cut_err;
-    seq! { _: 'o', cut_err(obj_idx), _: cut_err(space1), cut_err(weight), _: cut_err(space1), cut_err(clause) }
+    seq! { _: 'o', _: space0, cut_err(obj_idx), _: cut_err(space1), cut_err(weight), _: cut_err(space1), cut_err(clause) }
         .context(StrContext::Label("MO soft clause"))
         .parse_next(input)
 }
@@ -969,7 +969,7 @@ pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WC
         .enumerate()
         .try_for_each(|(idx, sft_cls)| {
             sft_cls.into_iter().try_for_each(|(cl, w)| {
-                write!(writer, "o{} {} ", idx + 1, w)?;
+                write!(writer, "o {} {} ", idx + 1, w)?;
                 write_clause(writer, &cl)
             })
         })?;
@@ -1005,7 +1005,7 @@ pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
             write_clause(writer, &cl)
         }
         McnfLine::Soft(cl, w, oidx) => {
-            write!(writer, "o{} {} ", oidx + 1, w)?;
+            write!(writer, "o {} {} ", oidx + 1, w)?;
             write_clause(writer, &cl)
         }
     })
@@ -1695,6 +1695,15 @@ mod tests {
                 .next()
                 .is_some_and(|res| res
                     .is_ok_and(|parsed| parsed == McnfData::Comment(String::from("c test")))));
+            assert!(Parser::<Mcnf, _>::new(Cursor::new("o 42 34 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == McnfData::SoftClause {
+                        obj_idx: 42,
+                        weight: 34,
+                        clause: clause![ipasir_lit![-16]]
+                    })));
+            // old format for backwards compatibility
             assert!(Parser::<Mcnf, _>::new(Cursor::new("o42 34 -16 0"))
                 .next()
                 .is_some_and(|res| res.is_ok_and(|parsed| parsed
@@ -1715,7 +1724,7 @@ mod tests {
 
         #[test]
         fn parse_mcnf_body_pass() {
-            let input = "h 1 2 0\no2 10 -3 4 5 0\n";
+            let input = "h 1 2 0\no 2 10 -3 4 5 0\n";
 
             let parser = Parser::<Mcnf, _>::new(Cursor::new(input));
             let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
@@ -1748,7 +1757,7 @@ mod tests {
 
         #[test]
         fn parse_mcnf() {
-            let input = "c test\nh 1 2 0\no2 10 -3 4 5 0\no1 3 -1 0\n";
+            let input = "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 1 3 -1 0\n";
 
             let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
                 &mut Cursor::new(input),
@@ -1777,7 +1786,7 @@ mod tests {
 
         #[test]
         fn parse_mcnf_duplication() {
-            let input = "c test\nh 1 2 0\no2 10 -3 4 5 0\no2 10 -3 4 5 0\no1 3 -1 0\no1 3 -1 0";
+            let input = "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 2 10 -3 4 5 0\no 1 3 -1 0\no 1 3 -1 0";
 
             let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
                 &mut Cursor::new(input),
