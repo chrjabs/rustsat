@@ -812,13 +812,14 @@ fn clause_ending<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
 ///
 /// If writing fails, returns [`io::Error`].
 pub fn write_cnf_annotated<W: Write>(
-    writer: &mut W,
+    mut writer: W,
     cnf: &Cnf,
     n_vars: u32,
 ) -> Result<(), io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
     writeln!(writer, "p cnf {n_vars} {}", cnf.len())?;
-    cnf.iter().try_for_each(|cl| write_clause(writer, cl))?;
+    cnf.iter()
+        .try_for_each(|cl| write_clause(&mut writer, cl))?;
     writer.flush()
 }
 
@@ -850,13 +851,13 @@ impl CnfLine {
 ///
 /// If writing fails, returns [`io::Error`].
 pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
-    writer: &mut W,
+    mut writer: W,
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
         CnfLine::Header(n_vars, n_clauses) => writeln!(writer, "p {n_vars} {n_clauses}"),
         CnfLine::Comment(c) => write!(writer, "c {c}"),
-        CnfLine::Clause(cl) => write_clause(writer, &cl),
+        CnfLine::Clause(cl) => write_clause(&mut writer, &cl),
     })
 }
 
@@ -867,7 +868,7 @@ pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
 ///
 /// If writing fails, returns [`io::Error`].
 pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
-    writer: &mut W,
+    mut writer: W,
     cnf: &Cnf,
     softs: (CI, isize),
     n_vars: Option<u32>,
@@ -883,11 +884,11 @@ pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
     writeln!(writer, "c objective offset: {offset}")?;
     cnf.iter().try_for_each(|cl| {
         write!(writer, "h ")?;
-        write_clause(writer, cl)
+        write_clause(&mut writer, cl)
     })?;
     soft_cls.into_iter().try_for_each(|(cl, w)| {
         write!(writer, "{w} ")?;
-        write_clause(writer, &cl)
+        write_clause(&mut writer, &cl)
     })?;
     writer.flush()
 }
@@ -911,18 +912,18 @@ pub enum WcnfLine {
 ///
 /// If writing fails, returns [`io::Error`].
 pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
-    writer: &mut W,
+    mut writer: W,
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
         WcnfLine::Comment(c) => write!(writer, "c {c}"),
         WcnfLine::Hard(cl) => {
             write!(writer, "h ")?;
-            write_clause(writer, &cl)
+            write_clause(&mut writer, &cl)
         }
         WcnfLine::Soft(cl, w) => {
             write!(writer, "{w} ")?;
-            write_clause(writer, &cl)
+            write_clause(&mut writer, &cl)
         }
     })
 }
@@ -934,7 +935,7 @@ pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
 ///
 /// If writing fails, returns [`io::Error`].
 pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WClsIter>(
-    writer: &mut W,
+    mut writer: W,
     cnf: &Cnf,
     softs: Iter,
     n_vars: Option<u32>,
@@ -962,7 +963,7 @@ pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WC
     writeln!(writer, ")")?;
     cnf.iter().try_for_each(|cl| {
         write!(writer, "h ")?;
-        write_clause(writer, cl)
+        write_clause(&mut writer, cl)
     })?;
     soft_cls
         .into_iter()
@@ -970,7 +971,7 @@ pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WC
         .try_for_each(|(idx, sft_cls)| {
             sft_cls.into_iter().try_for_each(|(cl, w)| {
                 write!(writer, "o {} {} ", idx + 1, w)?;
-                write_clause(writer, &cl)
+                write_clause(&mut writer, &cl)
             })
         })?;
     writer.flush()
@@ -995,18 +996,18 @@ pub enum McnfLine {
 ///
 /// If writing fails, returns [`io::Error`].
 pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
-    writer: &mut W,
+    mut writer: W,
     mut data: Iter,
 ) -> Result<(), io::Error> {
     data.try_for_each(|dat| match dat {
         McnfLine::Comment(c) => writeln!(writer, "c {c}"),
         McnfLine::Hard(cl) => {
             write!(writer, "h ")?;
-            write_clause(writer, &cl)
+            write_clause(&mut writer, &cl)
         }
         McnfLine::Soft(cl, w, oidx) => {
             write!(writer, "o {} {} ", oidx + 1, w)?;
-            write_clause(writer, &cl)
+            write_clause(&mut writer, &cl)
         }
     })
 }
@@ -1159,7 +1160,7 @@ mod tests {
         let input = "p cnf 5 2\n1 2 0\n\n-3 4 5 0\n";
 
         let data =
-            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
+            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
                 .unwrap();
 
         #[cfg(feature = "serde")]
@@ -1190,9 +1191,8 @@ mod tests {
     fn cnf_no_header() {
         let input = "c p cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let err =
-            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
-                .unwrap_err();
+        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
+            .unwrap_err();
 
         insta::assert_snapshot!("cnf_no_header", format!("{err}"), input);
     }
@@ -1201,9 +1201,8 @@ mod tests {
     fn cnf_invalid_header() {
         let input = "p cnf five 2\n1 2 0\n-3 4 5 0\n";
 
-        let err =
-            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
-                .unwrap_err();
+        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
+            .unwrap_err();
 
         insta::assert_snapshot!("cnf_invalid_header", format!("{err}"), input);
     }
@@ -1481,10 +1480,9 @@ mod tests {
         fn parse_wcnf_pre22() {
             let input = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
-            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
-            )
-            .unwrap();
+            let data =
+                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
+                    .unwrap();
 
             #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_pre22", data, input);
@@ -1510,10 +1508,9 @@ mod tests {
         fn parse_wcnf_pre22_duplication() {
             let input = "p wcnf 3 5 42\n1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\n42 -3 0\n";
 
-            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
-            )
-            .unwrap();
+            let data =
+                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
+                    .unwrap();
 
             #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_pre22_duplication", data, input);
@@ -1539,10 +1536,9 @@ mod tests {
         fn parse_wcnf_post22() {
             let input = "h 1 2 0\n10 -3 4 5 0\n";
 
-            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
-            )
-            .unwrap();
+            let data =
+                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
+                    .unwrap();
 
             #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_post22", data, input);
@@ -1562,10 +1558,9 @@ mod tests {
         fn parse_wcnf_post22_duplication() {
             let input = "1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\nh -3 0\n";
 
-            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
-            )
-            .unwrap();
+            let data =
+                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
+                    .unwrap();
 
             #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_post22_duplication", data, input);
@@ -1760,7 +1755,7 @@ mod tests {
             let input = "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 1 3 -1 0\n";
 
             let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
+                Cursor::new(input),
             )
             .unwrap();
 
@@ -1789,7 +1784,7 @@ mod tests {
             let input = "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 2 10 -3 4 5 0\no 1 3 -1 0\no 1 3 -1 0";
 
             let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
+                Cursor::new(input),
             )
             .unwrap();
 

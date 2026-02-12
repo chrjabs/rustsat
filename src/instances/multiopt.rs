@@ -265,7 +265,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> Result<(), WriteDimacsError> {
+    pub fn write_dimacs<W: io::Write>(&self, writer: W) -> Result<(), WriteDimacsError> {
         if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
             return Err(WriteDimacsError::RequiresClausal);
         }
@@ -313,7 +313,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// If the objective contains soft clauses or writing fails
     pub fn write_opb<W: io::Write>(
         &self,
-        writer: &mut W,
+        writer: W,
         opts: fio::opb::Options,
     ) -> Result<(), WriteOpbError> {
         let objs: Result<Vec<_>, RequiresSoftLits> = self
@@ -384,7 +384,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> Result<Self, fio::Error> {
         let mut constrs = SatInstance::<VM>::default();
         let mut objs = vec![];
         for data in fio::dimacs::Parser::<fio::dimacs::Mcnf, _>::new(reader) {
@@ -430,7 +430,7 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// [`io::Error`] or if parsing fails.
     pub fn from_opb<R: io::BufRead>(
-        reader: &mut R,
+        reader: R,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::Error> {
         fio::opb::Parser::new(reader, opts).collect()

@@ -406,7 +406,7 @@ pub enum FileLine<LI: crate::types::WLitIter> {
 ///
 /// If writing fails, returns [`io::Error`]
 #[cfg(not(feature = "optimization"))]
-pub fn write_opb_lines<W, Iter>(writer: &mut W, data: Iter, opts: Options) -> io::Result<()>
+pub fn write_opb_lines<W, Iter>(mut writer: W, data: Iter, opts: Options) -> io::Result<()>
 where
     W: Write,
     Iter: Iterator<Item = FileLine>,
@@ -414,9 +414,9 @@ where
     for dat in data {
         match dat {
             FileLine::Comment(c) => writeln!(writer, "* {c}")?,
-            FileLine::Clause(cl) => write_clause(writer, &cl, opts)?,
-            FileLine::Card(card) => write_card(writer, &card, opts)?,
-            FileLine::Pb(pb) => write_pb(writer, &pb, opts)?,
+            FileLine::Clause(cl) => write_clause(&mut writer, &cl, opts)?,
+            FileLine::Card(card) => write_card(&mut writer, &card, opts)?,
+            FileLine::Pb(pb) => write_pb(&mut writer, &pb, opts)?,
         }
     }
     Ok(())
@@ -428,7 +428,7 @@ where
 ///
 /// If writing fails, returns [`io::Error`]
 #[cfg(feature = "optimization")]
-pub fn write_opb_lines<W, LI, Iter>(writer: &mut W, data: Iter, opts: Options) -> io::Result<()>
+pub fn write_opb_lines<W, LI, Iter>(mut writer: W, data: Iter, opts: Options) -> io::Result<()>
 where
     W: Write,
     LI: crate::types::WLitIter,
@@ -437,10 +437,10 @@ where
     for dat in data {
         match dat {
             FileLine::Comment(c) => writeln!(writer, "* {c}")?,
-            FileLine::Clause(cl) => write_clause(writer, &cl, opts)?,
-            FileLine::Card(card) => write_card(writer, &card, opts)?,
-            FileLine::Pb(pb) => write_pb(writer, &pb, opts)?,
-            FileLine::Objective(obj) => write_objective(writer, (obj, 0), opts)?,
+            FileLine::Clause(cl) => write_clause(&mut writer, &cl, opts)?,
+            FileLine::Card(card) => write_card(&mut writer, &card, opts)?,
+            FileLine::Pb(pb) => write_pb(&mut writer, &pb, opts)?,
+            FileLine::Objective(obj) => write_objective(&mut writer, (obj, 0), opts)?,
         }
     }
     Ok(())
@@ -458,7 +458,7 @@ where
 /// - On upper bound constraint with weight sum larger than [`isize::MAX`]
 /// - On bounds lager than [`isize::MAX`]
 pub fn write_sat<W, VM>(
-    writer: &mut W,
+    mut writer: W,
     inst: &SatInstance<VM>,
     opts: Options,
 ) -> Result<(), io::Error>
@@ -481,13 +481,13 @@ where
     writeln!(writer, "* {} pseudo-boolean constraints", inst.pbs.len())?;
     inst.cnf
         .iter()
-        .try_for_each(|cl| write_clause(writer, cl, opts))?;
+        .try_for_each(|cl| write_clause(&mut writer, cl, opts))?;
     inst.cards
         .iter()
-        .try_for_each(|card| write_card(writer, card, opts))?;
+        .try_for_each(|card| write_card(&mut writer, card, opts))?;
     inst.pbs
         .iter()
-        .try_for_each(|pb| write_pb(writer, pb, opts))?;
+        .try_for_each(|pb| write_pb(&mut writer, pb, opts))?;
     writer.flush()
 }
 
@@ -504,7 +504,7 @@ where
 /// - On upper bound constraint with weight sum larger than [`isize::MAX`]
 /// - On bounds lager than [`isize::MAX`]
 pub fn write_opt<W, VM, LI>(
-    writer: &mut W,
+    mut writer: W,
     constrs: &SatInstance<VM>,
     obj: (LI, isize),
     opts: Options,
@@ -530,13 +530,14 @@ where
     writeln!(writer, "* {} original hard clauses", cnf.len())?;
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
-    write_objective(writer, obj, opts)?;
+    write_objective(&mut writer, obj, opts)?;
     cnf.iter()
-        .try_for_each(|cl| write_clause(writer, cl, opts))?;
+        .try_for_each(|cl| write_clause(&mut writer, cl, opts))?;
     cards
         .iter()
-        .try_for_each(|card| write_card(writer, card, opts))?;
-    pbs.iter().try_for_each(|pb| write_pb(writer, pb, opts))?;
+        .try_for_each(|card| write_card(&mut writer, card, opts))?;
+    pbs.iter()
+        .try_for_each(|pb| write_pb(&mut writer, pb, opts))?;
     writer.flush()
 }
 
@@ -553,7 +554,7 @@ where
 /// - On upper bound constraint with weight sum larger than [`isize::MAX`]
 /// - On bounds lager than [`isize::MAX`]
 pub fn write_multi_opt<W, VM, Iter, LI>(
-    writer: &mut W,
+    mut writer: W,
     constrs: &SatInstance<VM>,
     mut objs: Iter,
     opts: Options,
@@ -582,13 +583,14 @@ where
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
     write!(writer, "* ( ")?;
     writeln!(writer, ") relaxed and hardened soft clauses",)?;
-    objs.try_for_each(|softs| write_objective(writer, softs, opts))?;
+    objs.try_for_each(|softs| write_objective(&mut writer, softs, opts))?;
     cnf.iter()
-        .try_for_each(|cl| write_clause(writer, cl, opts))?;
+        .try_for_each(|cl| write_clause(&mut writer, cl, opts))?;
     cards
         .iter()
-        .try_for_each(|card| write_card(writer, card, opts))?;
-    pbs.iter().try_for_each(|pb| write_pb(writer, pb, opts))?;
+        .try_for_each(|card| write_card(&mut writer, card, opts))?;
+    pbs.iter()
+        .try_for_each(|pb| write_pb(&mut writer, pb, opts))?;
     writer.flush()
 }
 

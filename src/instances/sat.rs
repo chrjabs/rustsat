@@ -240,7 +240,7 @@ impl Cnf {
     /// # Errors
     ///
     /// If writing fails, returns [`io::Error`].
-    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W, n_vars: u32) -> Result<(), io::Error> {
+    pub fn write_dimacs<W: io::Write>(&self, writer: W, n_vars: u32) -> Result<(), io::Error> {
         fio::dimacs::write_cnf_annotated(writer, self, n_vars)
     }
 
@@ -781,7 +781,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs<W: io::Write>(&self, writer: &mut W) -> Result<(), WriteDimacsError> {
+    pub fn write_dimacs<W: io::Write>(&self, writer: W) -> Result<(), WriteDimacsError> {
         if self.n_cards() > 0 || self.n_pbs() > 0 {
             return Err(WriteDimacsError::RequiresClausal);
         }
@@ -814,7 +814,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// If writing fails, returns [`io::Error`].
     pub fn write_opb<W: io::Write>(
         &self,
-        writer: &mut W,
+        writer: W,
         opts: fio::opb::Options,
     ) -> Result<(), io::Error> {
         fio::opb::write_sat(writer, self, opts)
@@ -975,7 +975,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// # Errors
     ///
     /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs<R: io::BufRead>(reader: &mut R) -> Result<Self, fio::Error> {
+    pub fn from_dimacs<R: io::BufRead>(reader: R) -> Result<Self, fio::Error> {
         let header_data =
             fio::dimacs::Parser::<fio::dimacs::CnfHeader, _>::new(reader).forward_to_body()?;
         let mut inst = Self::default();
@@ -1014,7 +1014,7 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// [`io::Error`] or if parsing fails.
     pub fn from_opb<R: io::BufRead>(
-        reader: &mut R,
+        reader: R,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::Error> {
         let parser = fio::opb::Parser::new(reader, opts);

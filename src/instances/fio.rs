@@ -246,7 +246,7 @@ pub enum SatSolverOutputError {
 ///
 /// If reading the output of parsing it fails
 pub fn parse_sat_solver_output<R: BufRead>(
-    reader: &mut R,
+    reader: R,
 ) -> Result<SolverOutput, SatSolverOutputError> {
     let mut is_sat = false;
     let mut solution: Option<Assignment> = None;
