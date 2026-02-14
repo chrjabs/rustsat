@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.7.6 - 2026-02-14
+
+[457d6d7](457d6d7bf27998947edc45fa2200d6a5fef6c389)...[9f0cf4e](9f0cf4e9ecc35aeb7304b8ca4f0d0df43afb4823)
+
+### <!-- 8 -->Miscellaneous Tasks
+
+- Convert `allow` to `expect` for lints (#596) ([69b046d](69b046d090c4c51407278848a9f3de2926c6ed3c))
+- Update version in header ([9f0cf4e](9f0cf4e9ecc35aeb7304b8ca4f0d0df43afb4823))
+
 ## rustsat-v0.7.5 - 2026-01-30
 
 [1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[9ae341d](9ae341d26bcfba2bd78869bcb31c27ccdfc44889)
