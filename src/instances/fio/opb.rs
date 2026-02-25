@@ -155,6 +155,8 @@ enum OpbOperator {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Objective {
+    /// Whether the objective is to be minimized of maximized
+    pub sense: ObjectiveSense,
     /// The (normalized but not deduplicated) terms in the objective function
     pub terms: Vec<(usize, Lit)>,
     /// The constant offset value of the objective function
@@ -162,15 +164,43 @@ pub struct Objective {
 }
 
 #[cfg(feature = "optimization")]
-impl winnow::stream::Accumulate<(Lit, isize)> for Objective {
+impl Objective {
+    fn new(sense: ObjectiveSense, sum: ObjectiveSum) -> Self {
+        Self {
+            sense,
+            terms: sum.terms,
+            offset: sum.offset,
+        }
+    }
+}
+
+/// Whether the objective should be minimized or maximized
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Clone)]
+pub enum ObjectiveSense {
+    /// Minimization objective
+    Minimize,
+    /// Maximization objective
+    Maximize,
+}
+
+#[cfg(feature = "optimization")]
+#[derive(Debug)]
+struct ObjectiveSum {
+    terms: Vec<(usize, Lit)>,
+    offset: isize,
+}
+
+#[cfg(feature = "optimization")]
+impl winnow::stream::Accumulate<(Lit, isize)> for ObjectiveSum {
     fn initial(capacity: Option<usize>) -> Self {
         if let Some(capacity) = capacity {
-            Objective {
+            Self {
                 terms: Vec::with_capacity(capacity),
                 offset: 0,
             }
         } else {
-            Objective {
+            Self {
                 terms: Vec::new(),
                 offset: 0,
             }
@@ -345,8 +375,8 @@ fn constraint<'i>(opts: Options) -> impl OpbParser<'i, PbConstraint> {
 #[cfg(feature = "optimization")]
 /// Parses an OPB objective
 fn objective<'i>(opts: Options) -> impl OpbParser<'i, Objective> {
-    seq! { _: "min:", _: space0, cut_err(term_sum::<Objective>(opts)), _: cut_err(ending) }
-        .map(|(o,)| o)
+    seq! { alt(("min:".map(|_| ObjectiveSense::Minimize), "max:".map(|_| ObjectiveSense::Maximize))), _: space0, cut_err(term_sum::<ObjectiveSum>(opts)), _: cut_err(ending) }
+        .map(|(sense,sum )| Objective::new(sense, sum))
         .context(StrContext::Label("objective"))
 }
 
@@ -1080,6 +1110,18 @@ mod test {
             .unwrap();
         assert_eq!(rest, "");
         let should_be_obj = super::Objective {
+            sense: super::ObjectiveSense::Minimize,
+            terms: vec![(3, lit![0]), (2, lit![1])],
+            offset: -2,
+        };
+        assert_eq!(obj, should_be_obj);
+
+        let (rest, obj) = objective(Options::default())
+            .parse_peek("max: 3 x1 -2 ~x2;")
+            .unwrap();
+        assert_eq!(rest, "");
+        let should_be_obj = super::Objective {
+            sense: super::ObjectiveSense::Maximize,
             terms: vec![(3, lit![0]), (2, lit![1])],
             offset: -2,
         };
@@ -1092,19 +1134,11 @@ mod test {
         let (rest, obj) = objective(Options::default()).parse_peek("min:;").unwrap();
         assert_eq!(rest, "");
         let should_be_obj = super::Objective {
+            sense: super::ObjectiveSense::Minimize,
             terms: vec![],
             offset: 0,
         };
         assert_eq!(obj, should_be_obj);
-    }
-
-    #[cfg(not(feature = "optimization"))]
-    #[test]
-    fn parse_objective() {
-        assert_eq!(
-            objective(Options::default()).parse_peek("min: 3 x1 -2 ~x2;"),
-            Ok(("", "min: 3 x1 -2 ~x2;"))
-        );
     }
 
     #[cfg(feature = "optimization")]
@@ -1124,6 +1158,7 @@ mod test {
         #[cfg(feature = "optimization")]
         {
             let obj = super::Objective {
+                sense: super::ObjectiveSense::Minimize,
                 terms: vec![(3, !lit![0]), (4, lit![1])],
                 offset: -3,
             };

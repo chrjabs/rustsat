@@ -13,6 +13,7 @@ expression: "* test\n5 x1 -3 x2 >= 4;  \n\nmin: 1 x1;"
       weight_sum: 8
       b: 7
 - Obj:
+    sense: Minimize
     terms:
       - - 1
         - lidx: 0

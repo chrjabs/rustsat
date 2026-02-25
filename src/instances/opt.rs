@@ -1425,12 +1425,35 @@ impl<VM: ManageVars + Default> Instance<VM> {
                 }
             }
         }
-        let Some(fio::opb::Objective { terms, offset }) = obj else {
+        let Some(fio::opb::Objective {
+            sense,
+            terms,
+            offset,
+        }) = obj
+        else {
             return Err(fio::Error::NoObjective);
         };
-        let mut obj: crate::instances::Objective =
-            terms.into_iter().map(|(coeff, lit)| (lit, coeff)).collect();
-        obj.increase_offset(offset);
+        let obj = match sense {
+            fio::opb::ObjectiveSense::Minimize => {
+                let mut obj: crate::instances::Objective =
+                    terms.into_iter().map(|(coeff, lit)| (lit, coeff)).collect();
+                obj.increase_offset(offset);
+                obj
+            }
+            fio::opb::ObjectiveSense::Maximize => {
+                let Ok(coeff_sum) =
+                    isize::try_from(terms.iter().map(|(coeff, _)| *coeff).sum::<usize>())
+                else {
+                    return Err(fio::Error::ObjectiveConversionOverflow);
+                };
+                let mut obj: crate::instances::Objective = terms
+                    .into_iter()
+                    .map(|(coeff, lit)| (!lit, coeff))
+                    .collect();
+                obj.increase_offset(offset - coeff_sum);
+                obj
+            }
+        };
         Ok(Self::compose(sat_inst, obj))
     }
 
