@@ -48,6 +48,10 @@ pub enum Error {
     #[cfg(feature = "optimization")]
     #[error("single-objective OPB file has more than one objective")]
     MultipleObjectives,
+    /// Converting an OPB maximization objective to a minimization objective resulted in an overflow
+    #[cfg(feature = "optimization")]
+    #[error("overflow in converting maximization objective to minimization objective")]
+    ObjectiveConversionOverflow,
 }
 
 /// An error occurring during parsing

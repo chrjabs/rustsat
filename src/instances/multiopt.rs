@@ -481,15 +481,38 @@ impl<VM: ManageVars + Default> FromIterator<fio::opb::Data> for MultiOptInstance
             match data {
                 fio::opb::Data::Cmt(_) => {}
                 fio::opb::Data::Constr(constr) => inst.constraints_mut().add_pb_constr(constr),
-                fio::opb::Data::Obj(fio::opb::Objective { terms, offset }) => {
+                fio::opb::Data::Obj(fio::opb::Objective {
+                    sense,
+                    terms,
+                    offset,
+                }) => {
                     for (_, lit) in &terms {
                         inst.constraints_mut()
                             .var_manager_mut()
                             .mark_used(lit.var());
                     }
-                    let mut obj: crate::instances::Objective =
-                        terms.into_iter().map(|(coeff, lit)| (lit, coeff)).collect();
-                    obj.increase_offset(offset);
+                    let obj = match sense {
+                        fio::opb::ObjectiveSense::Minimize => {
+                            let mut obj: crate::instances::Objective =
+                                terms.into_iter().map(|(coeff, lit)| (lit, coeff)).collect();
+                            obj.increase_offset(offset);
+                            obj
+                        }
+                        fio::opb::ObjectiveSense::Maximize => {
+                            let coeff_sum = isize::try_from(
+                                terms.iter().map(|(coeff, _)| *coeff).sum::<usize>(),
+                            )
+                            .expect(
+                                "overflow in converting maximization objective to minimization",
+                            );
+                            let mut obj: crate::instances::Objective = terms
+                                .into_iter()
+                                .map(|(coeff, lit)| (!lit, coeff))
+                                .collect();
+                            obj.increase_offset(offset - coeff_sum);
+                            obj
+                        }
+                    };
                     inst.objs.push(obj);
                 }
             }

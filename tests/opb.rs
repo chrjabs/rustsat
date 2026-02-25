@@ -31,6 +31,7 @@ fn opb_tiny_unsat() {
     opb_test!("./data/tiny-unsat.opb", SolverResult::Unsat);
 }
 
+#[cfg(feature = "optimization")]
 #[test]
 fn opb_opt() {
     let inst: OptInstance =
@@ -45,6 +46,7 @@ fn opb_opt() {
     assert_eq!(inst, OptInstance::compose(true_constr, true_obj));
 }
 
+#[cfg(feature = "multiopt")]
 #[test]
 fn opb_multi_opt() {
     let inst: MultiOptInstance =
@@ -63,4 +65,17 @@ fn opb_multi_opt() {
         inst,
         MultiOptInstance::compose(true_constr, vec![true_obj_1, true_obj_2])
     );
+}
+
+#[cfg(feature = "optimization")]
+#[test]
+fn min_max_conversion() {
+    let min: OptInstance =
+        OptInstance::from_opb_path("./data/small-min.opb", Options::default()).unwrap();
+    let max: OptInstance =
+        OptInstance::from_opb_path("./data/small-max.opb", Options::default()).unwrap();
+    let (min_constr, min_obj) = min.decompose();
+    let (max_constr, max_obj) = max.decompose();
+    assert_eq!(min_constr, max_constr);
+    assert_eq!(min_obj, max_obj);
 }
