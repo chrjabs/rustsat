@@ -33,7 +33,7 @@ bindgen = { version = "0.72.1", default-features = false, features = [
 bzip2 = "0.6.1"
 cc = { version = "1.2.56", features = ["parallel"] }
 chacha20 = "0.10.0"
-chrono = "0.4.43"
+chrono = "0.4.44"
 clap = { version = "4.5.60", features = ["derive", "cargo"] }
 cmake = "0.1.57"
 concolor-clap = "0.1.0"
