@@ -25,7 +25,7 @@ rust-version = "1.87.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 # keep-sorted start block=yes
-annotate-snippets = "0.12.12"
+annotate-snippets = "0.12.13"
 anyhow = "1.0.102"
 bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
@@ -61,7 +61,7 @@ termcolor = "1.4.1"
 thiserror = "2.0.18"
 visibility = "0.1.1"
 web-time = "1.1.0"
-winnow = "0.7.14"
+winnow = "0.7.15"
 xz2 = "0.1.7"
 # keep-sorted end
 
