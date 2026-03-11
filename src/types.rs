@@ -286,41 +286,6 @@ impl ops::SubAssign<u32> for Var {
     }
 }
 
-/// Bitwise operations: these should only be used for bit tricks where the underlying bit
-/// representation does not matter
-impl ops::BitOr<Var> for Var {
-    type Output = Var;
-
-    fn bitor(self, rhs: Var) -> Self::Output {
-        // SAFETY: since the highest bit is never set, it will never be set in the result
-        Var {
-            idx: LimitedU32(self.idx.0 | rhs.idx.0),
-        }
-    }
-}
-
-impl ops::BitAnd<Var> for Var {
-    type Output = Var;
-
-    fn bitand(self, rhs: Var) -> Self::Output {
-        // SAFETY: since the highest bit is never set, it will never be set in the result
-        Var {
-            idx: LimitedU32(self.idx.0 & rhs.idx.0),
-        }
-    }
-}
-
-impl ops::BitXor<Var> for Var {
-    type Output = Var;
-
-    fn bitxor(self, rhs: Var) -> Self::Output {
-        // SAFETY: since the highest bit is never set, it will never be set in the result
-        Var {
-            idx: LimitedU32(self.idx.0 ^ rhs.idx.0),
-        }
-    }
-}
-
 /// Variables can be printed with the [`Display`](std::fmt::Display) trait
 impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -429,6 +394,17 @@ impl Lit {
         }
     }
 
+    /// Crates a new literal from a literal index.
+    ///
+    /// # Safety
+    ///
+    /// Since this relies on the internal bit representation of literals, this should only be used
+    /// with indices obtained from [`Lit::lidx32`]
+    #[must_use]
+    pub const unsafe fn from_lidx(lidx: u32) -> Lit {
+        Lit { lidx }
+    }
+
     /// Creates a new positive literal with a given index.
     /// Panics if `idx > Var::MAX_IDX`.
     #[inline]
@@ -526,6 +502,13 @@ impl Lit {
     #[must_use]
     pub fn lidx(self) -> usize {
         self.lidx as usize
+    }
+
+    /// Gets the internal 32-bit literal representation
+    #[inline]
+    #[must_use]
+    pub fn lidx32(self) -> u32 {
+        self.lidx
     }
 
     /// Gets the variables that the literal corresponds to.
@@ -657,38 +640,6 @@ impl ops::Sub<u32> for Lit {
 impl ops::SubAssign<u32> for Lit {
     fn sub_assign(&mut self, rhs: u32) {
         self.lidx -= 2 * rhs;
-    }
-}
-
-/// Bitwise operations: these should only be used for bit tricks where the underlying bit
-/// representation does not matter
-impl ops::BitOr<Lit> for Lit {
-    type Output = Lit;
-
-    fn bitor(self, rhs: Lit) -> Self::Output {
-        Lit {
-            lidx: self.lidx | rhs.lidx,
-        }
-    }
-}
-
-impl ops::BitAnd<Lit> for Lit {
-    type Output = Lit;
-
-    fn bitand(self, rhs: Lit) -> Self::Output {
-        Lit {
-            lidx: self.lidx & rhs.lidx,
-        }
-    }
-}
-
-impl ops::BitXor<Lit> for Lit {
-    type Output = Lit;
-
-    fn bitxor(self, rhs: Lit) -> Self::Output {
-        Lit {
-            lidx: self.lidx ^ rhs.lidx,
-        }
     }
 }
 
@@ -1743,7 +1694,7 @@ mod tests {
     fn lit_branchless_swap() {
         let a = Lit::positive(42);
         let b = Lit::positive(58);
-        let should_be_b = a ^ b ^ a;
+        let should_be_b = unsafe { Lit::from_lidx(a.lidx32() ^ b.lidx32() ^ a.lidx32()) };
         assert_eq!(b, should_be_b);
     }
 
@@ -1751,7 +1702,7 @@ mod tests {
     fn var_branchless_swap() {
         let a = Var::new(42);
         let b = Var::new(58);
-        let should_be_b = a ^ b ^ a;
+        let should_be_b = unsafe { Var::new_unchecked(a.idx32() ^ b.idx32() ^ a.idx32()) };
         assert_eq!(b, should_be_b);
     }
 }
