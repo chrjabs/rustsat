@@ -42,6 +42,12 @@ impl fmt::Display for ConstraintRef<'_> {
 /// Type representing a clause.
 /// Wrapper around a std collection to allow for changing the data structure.
 /// Optional clauses as sets will be included in the future.
+///
+/// ```
+/// use rustsat::types::Var;
+/// let clause = Var::new(0) | !Var::new(1);
+/// assert_eq!(clause.len(), 2);
+/// ```
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Clause {
@@ -167,6 +173,8 @@ impl Clause {
     }
 
     /// Adds a literal to the clause
+    ///
+    /// You can also use `self |= lit`
     pub fn add(&mut self, lit: Lit) {
         self.lits.push(lit);
     }
@@ -287,7 +295,7 @@ impl winnow::stream::Accumulate<Lit> for Clause {
     }
 
     fn accumulate(&mut self, acc: Lit) {
-        self.add(acc);
+        *self |= acc;
     }
 }
 
@@ -2070,7 +2078,7 @@ mod tests {
 
     #[test]
     fn clause_remove() {
-        let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
+        let mut cl = lit![0] | lit![1] | lit![2] | lit![1];
         assert!(!cl.remove(lit![3]));
         assert!(cl.remove(lit![1]));
         assert_eq!(cl.len(), 3);
@@ -2078,7 +2086,7 @@ mod tests {
 
     #[test]
     fn clause_remove_thorough() {
-        let mut cl = clause![lit![0], lit![1], lit![2], lit![1]];
+        let mut cl = lit![0] | lit![1] | lit![2] | lit![1];
         assert!(!cl.remove_thorough(lit![3]));
         assert!(cl.remove_thorough(lit![1]));
         assert_eq!(cl.len(), 2);
@@ -2086,27 +2094,12 @@ mod tests {
 
     #[test]
     fn clause_normalize() {
-        let taut = clause![lit![0], lit![1], lit![2], lit![3], !lit![2]];
+        let taut = lit![0] | lit![1] | lit![2] | lit![3] | !lit![2];
         assert_eq!(taut.normalize(), None);
-        let cl = clause![
-            lit![5],
-            !lit![2],
-            !lit![3],
-            lit![17],
-            lit![0],
-            lit![1],
-            !lit![2]
-        ];
+        let cl = lit![5] | !lit![2] | !lit![3] | lit![17] | lit![0] | lit![1] | !lit![2];
         assert_eq!(
             cl.normalize(),
-            Some(clause![
-                lit![0],
-                lit![1],
-                !lit![2],
-                !lit![3],
-                lit![5],
-                lit![17]
-            ])
+            Some(lit![0] | lit![1] | !lit![2] | !lit![3] | lit![5] | lit![17])
         );
     }
 
@@ -2122,7 +2115,7 @@ mod tests {
 
     #[test]
     fn clause_evaluate() {
-        let cl = clause![lit![0], lit![1], lit![2]];
+        let cl = lit![0] | lit![1] | lit![2];
         assert_eq!(cl.evaluate(&assign!(0b000)), TernaryVal::False);
         assert_eq!(cl.evaluate(&assign!(0b001)), TernaryVal::True);
         assert_eq!(cl.evaluate(&assign!(0b010)), TernaryVal::True);

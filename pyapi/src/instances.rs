@@ -120,14 +120,14 @@ impl Cnf {
     /// Adds a binary clause to the CNF
     pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
         self.modified = true;
-        self.cnf.add_clause(clause![lit1.into(), lit2.into()]);
+        self.cnf.add_clause(RsLit::from(lit1) | RsLit::from(lit2));
     }
 
     /// Adds a ternary clause to the CNF
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
         self.modified = true;
         self.cnf
-            .add_clause(clause![lit1.into(), lit2.into(), lit3.into()]);
+            .add_clause(RsLit::from(lit1) | RsLit::from(lit2) | RsLit::from(lit3));
     }
 
     #[new]

@@ -1031,7 +1031,6 @@ mod tests {
     use winnow::Parser as _;
 
     use crate::{
-        clause,
         instances::{Cnf, SatInstance},
         ipasir_lit,
     };
@@ -1096,12 +1095,11 @@ mod tests {
         assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 -16 0"))
             .next()
             .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                == CnfData::Clause(clause![ipasir_lit![42], ipasir_lit![34], ipasir_lit![-16]]))));
+                == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]))));
         assert!(Parser::<CnfBody, _>::new(Cursor::new(" 42 34"))
             .next()
-            .is_some_and(|res| res.is_ok_and(
-                |parsed| parsed == CnfData::Clause(clause![ipasir_lit![42], ipasir_lit![34]])
-            )));
+            .is_some_and(|res| res
+                .is_ok_and(|parsed| parsed == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34]))));
     }
 
     #[test]
@@ -1139,8 +1137,8 @@ mod tests {
         assert_eq!(
             data,
             vec![
-                CnfData::Clause(clause![ipasir_lit![1], ipasir_lit![2]]),
-                CnfData::Clause(clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]])
+                CnfData::Clause(ipasir_lit![1] | ipasir_lit![2]),
+                CnfData::Clause(!ipasir_lit![3] | ipasir_lit![4] | ipasir_lit![5])
             ]
         );
     }
@@ -1169,8 +1167,8 @@ mod tests {
         #[cfg(not(feature = "serde"))]
         {
             let mut true_inst: SatInstance = SatInstance::new();
-            true_inst.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-            true_inst.add_clause(clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+            true_inst.add_clause(ipasir_lit![1] | ipasir_lit![2]);
+            true_inst.add_clause(ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
 
             assert_eq!(data, true_inst);
         }
@@ -1239,8 +1237,8 @@ mod tests {
     #[test]
     fn write_parse_cnf() {
         let mut true_cnf = Cnf::new();
-        true_cnf.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-        true_cnf.add_clause(clause![ipasir_lit![2], ipasir_lit![1]]);
+        true_cnf.add_clause(ipasir_lit![1] | ipasir_lit![2]);
+        true_cnf.add_clause(ipasir_lit![2] | ipasir_lit![1]);
 
         let mut cursor = Cursor::new(vec![]);
 
@@ -1262,7 +1260,6 @@ mod tests {
         use winnow::Parser as _;
 
         use crate::{
-            clause,
             instances::{Objective, OptInstance, SatInstance},
             ipasir_lit,
         };
@@ -1339,7 +1336,7 @@ mod tests {
             .is_some_and(|res| res.is_ok_and(|parsed| parsed
                 == WcnfData::SoftClause {
                     weight: 42,
-                    clause: clause![ipasir_lit![34], ipasir_lit![-16]]
+                    clause: ipasir_lit![34] | ipasir_lit![-16]
                 })));
             assert!((Parser {
                 variant: WcnfPre22Body { top: 100 },
@@ -1348,9 +1345,9 @@ mod tests {
                 line_num: 0,
             })
             .next()
-            .is_some_and(|res| res
-                .is_ok_and(|parsed| parsed
-                    == WcnfData::HardClause(clause![ipasir_lit![34], ipasir_lit![-16]]))));
+            .is_some_and(|res| res.is_ok_and(
+                |parsed| parsed == WcnfData::HardClause(ipasir_lit![34] | ipasir_lit![-16])
+            )));
         }
 
         #[test]
@@ -1364,16 +1361,14 @@ mod tests {
                 .is_some_and(|res| res.is_ok_and(|parsed| parsed
                     == WcnfData::SoftClause {
                         weight: 42,
-                        clause: clause![ipasir_lit![34], ipasir_lit![-16]]
+                        clause: ipasir_lit![34] | ipasir_lit![-16]
                     })));
             assert!(Parser::<WcnfPost22, _>::new(Cursor::new("h 42 34 -16 0"))
                 .next()
                 .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == WcnfData::HardClause(clause![
-                        ipasir_lit![42],
-                        ipasir_lit![34],
-                        ipasir_lit![-16]
-                    ]))));
+                    == WcnfData::HardClause(
+                        ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]
+                    ))));
         }
 
         #[test]
@@ -1423,10 +1418,10 @@ mod tests {
             assert_eq!(
                 clauses,
                 vec![
-                    WcnfData::HardClause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                    WcnfData::HardClause(ipasir_lit![1] | ipasir_lit![2]),
                     WcnfData::SoftClause {
                         weight: 10,
-                        clause: clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]]
+                        clause: !ipasir_lit![3] | ipasir_lit![4] | ipasir_lit![5]
                     }
                 ]
             );
@@ -1457,10 +1452,10 @@ mod tests {
             assert_eq!(
                 clauses,
                 vec![
-                    WcnfData::HardClause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                    WcnfData::HardClause(ipasir_lit![1] | ipasir_lit![2]),
                     WcnfData::SoftClause {
                         weight: 10,
-                        clause: clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]]
+                        clause: !ipasir_lit![3] | ipasir_lit![4] | ipasir_lit![5]
                     }
                 ]
             );
@@ -1493,12 +1488,11 @@ mod tests {
 
                 let mut true_constrs: SatInstance = SatInstance::new();
                 let mut true_obj = Objective::new();
-                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
                 true_constrs
                     .var_manager_mut()
                     .increase_next_free(Var::new(5));
-                true_obj
-                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+                true_obj.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
 
                 assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
             }
@@ -1525,7 +1519,7 @@ mod tests {
                 true_constrs
                     .var_manager_mut()
                     .increase_next_free(Var::new(3));
-                true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj.add_soft_clause(2, ipasir_lit![1] | ipasir_lit![2]);
                 true_obj.add_soft_lit(10, ipasir_lit![3]);
 
                 assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
@@ -1547,9 +1541,8 @@ mod tests {
             {
                 let mut true_constrs: SatInstance = SatInstance::new();
                 let mut true_obj = Objective::new();
-                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-                true_obj
-                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
+                true_obj.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
 
                 assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
             }
@@ -1570,7 +1563,7 @@ mod tests {
                 let mut true_constrs: SatInstance = SatInstance::new();
                 let mut true_obj = Objective::new();
                 true_constrs.add_clause(clause![ipasir_lit![-3]]);
-                true_obj.add_soft_clause(2, clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_obj.add_soft_clause(2, ipasir_lit![1] | ipasir_lit![2]);
                 true_obj.add_soft_lit(10, ipasir_lit![3]);
 
                 assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
@@ -1649,8 +1642,8 @@ mod tests {
         fn write_parse_wcnf() {
             let mut true_constrs: SatInstance = SatInstance::new();
             let mut true_obj = Objective::new();
-            true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
-            true_obj.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+            true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
+            true_obj.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
             let offset = true_obj.offset();
 
             let mut cursor = Cursor::new(vec![]);
@@ -1710,11 +1703,9 @@ mod tests {
             assert!(Parser::<Mcnf, _>::new(Cursor::new("h 42 34 -16 0"))
                 .next()
                 .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == McnfData::HardClause(clause![
-                        ipasir_lit![42],
-                        ipasir_lit![34],
-                        ipasir_lit![-16]
-                    ]))));
+                    == McnfData::HardClause(
+                        ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]
+                    ))));
         }
 
         #[test]
@@ -1730,11 +1721,11 @@ mod tests {
             assert_eq!(
                 data,
                 vec![
-                    McnfData::HardClause(clause![ipasir_lit![1], ipasir_lit![2]]),
+                    McnfData::HardClause(ipasir_lit![1] | ipasir_lit![2]),
                     McnfData::SoftClause {
                         obj_idx: 2,
                         weight: 10,
-                        clause: clause![!ipasir_lit![3], ipasir_lit![4], ipasir_lit![5]]
+                        clause: !ipasir_lit![3] | ipasir_lit![4] | ipasir_lit![5]
                     }
                 ]
             );
@@ -1767,10 +1758,9 @@ mod tests {
                 let mut true_constrs: SatInstance = SatInstance::new();
                 let mut true_obj0 = Objective::new();
                 let mut true_obj1 = Objective::new();
-                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
                 true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
-                true_obj1
-                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+                true_obj1.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
 
                 assert_eq!(
                     data,
@@ -1796,16 +1786,13 @@ mod tests {
                 let mut true_constrs: SatInstance = SatInstance::new();
                 let mut true_obj0 = Objective::new();
                 let mut true_obj1 = Objective::new();
-                true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
                 true_obj0.add_soft_lit(3, ipasir_lit![1]);
                 // increasing an existing soft literal or soft clause causes the instance to become weighted.
                 true_obj0.increase_soft_lit(3, ipasir_lit![1]);
+                true_obj1.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
                 true_obj1
-                    .add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
-                true_obj1.increase_soft_clause(
-                    10,
-                    clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]],
-                );
+                    .increase_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
 
                 assert_eq!(
                     data,
@@ -1819,10 +1806,10 @@ mod tests {
             let mut true_constrs: SatInstance = SatInstance::new();
             let mut true_obj0 = Objective::new();
             let mut true_obj1 = Objective::new();
-            true_constrs.add_clause(clause![ipasir_lit![1], ipasir_lit![2]]);
+            true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
             true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
             let offset0 = true_obj0.offset();
-            true_obj1.add_soft_clause(10, clause![ipasir_lit![-3], ipasir_lit![4], ipasir_lit![5]]);
+            true_obj1.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
             let offset1 = true_obj1.offset();
 
             let mut cursor = Cursor::new(vec![]);

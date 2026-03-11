@@ -900,7 +900,6 @@ mod test {
     use winnow::{error::ContextError, Parser as _};
 
     use crate::{
-        clause,
         instances::SatInstance,
         lit,
         types::{
@@ -1201,7 +1200,7 @@ min: x1;";
 
     #[test]
     fn write_parse_clause() {
-        let cl = clause![!lit![0], lit![1], !lit![2]];
+        let cl = !lit![0] | lit![1] | !lit![2];
 
         let mut cursor = Cursor::new(vec![]);
 

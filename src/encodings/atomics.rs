@@ -2,25 +2,22 @@
 
 use std::ops::Not;
 
-use crate::{
-    clause,
-    types::{
-        constraints::{CardConstraint, PbConstraint},
-        Clause, Lit,
-    },
+use crate::types::{
+    constraints::{CardConstraint, PbConstraint},
+    Clause, Lit,
 };
 
 /// Implication of form `a -> b`
 #[must_use]
 pub fn lit_impl_lit(a: Lit, b: Lit) -> Clause {
-    clause![!a, b]
+    !a | b
 }
 
 /// Implication of form `a -> (b1 | b2 | ... | bm)`
 #[must_use]
 pub fn lit_impl_clause(a: Lit, b: &[Lit]) -> Clause {
     let mut cl = Clause::from(b);
-    cl.add(!a);
+    cl |= !a;
     cl
 }
 
@@ -28,7 +25,7 @@ pub fn lit_impl_clause(a: Lit, b: &[Lit]) -> Clause {
 #[must_use]
 pub fn cube_impl_lit(a: &[Lit], b: Lit) -> Clause {
     let mut cl: Clause = a.iter().copied().map(Not::not).collect();
-    cl.add(b);
+    cl |= b;
     cl
 }
 
@@ -42,12 +39,12 @@ pub fn cube_impl_clause(a: &[Lit], b: &[Lit]) -> Clause {
 
 /// Implication of form `a -> (b1 & b2 & ... & bm)`
 pub fn lit_impl_cube(a: Lit, b: &[Lit]) -> impl Iterator<Item = Clause> + '_ {
-    b.iter().map(move |bi| clause![!a, *bi])
+    b.iter().map(move |bi| !a | *bi)
 }
 
 /// Implication of form `(a1 | a2 | ... | an) -> b`
 pub fn clause_impl_lit(a: &[Lit], b: Lit) -> impl Iterator<Item = Clause> + '_ {
-    a.iter().map(move |ai| clause![!*ai, b])
+    a.iter().map(move |ai| !*ai | b)
 }
 
 /// Implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
@@ -57,7 +54,7 @@ pub fn clause_impl_clause<'all>(
 ) -> impl Iterator<Item = Clause> + 'all {
     a.iter().map(move |ai| {
         let mut cl = Clause::from(b);
-        cl.add(!*ai);
+        cl |= !*ai;
         cl
     })
 }
@@ -67,15 +64,14 @@ pub fn clause_impl_cube<'all>(
     a: &'all [Lit],
     b: &'all [Lit],
 ) -> impl Iterator<Item = Clause> + 'all {
-    a.iter()
-        .flat_map(move |ai| b.iter().map(|bi| clause![!*ai, *bi]))
+    a.iter().flat_map(move |ai| b.iter().map(|bi| !*ai | *bi))
 }
 
 /// Implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
 pub fn cube_impl_cube<'all>(a: &'all [Lit], b: &'all [Lit]) -> impl Iterator<Item = Clause> + 'all {
     b.iter().map(move |bi| {
         let mut cl: Clause = a.iter().copied().map(Not::not).collect();
-        cl.add(*bi);
+        cl |= *bi;
         cl
     })
 }

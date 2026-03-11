@@ -618,10 +618,10 @@ where
             let b = get_bit_if(*b, nodes, collector, var_manager)?;
             let c = get_bit_if(*c, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![!a, !b, !c, sum])?;
-            collector.add_clause(clause![!a, b, c, sum])?;
-            collector.add_clause(clause![a, !b, c, sum])?;
-            collector.add_clause(clause![a, b, !c, sum])?;
+            collector.add_clause(!a | !b | !c | sum)?;
+            collector.add_clause(!a | b | c | sum)?;
+            collector.add_clause(a | !b | c | sum)?;
+            collector.add_clause(a | b | !c | sum)?;
 
             Ok(sum)
         }
@@ -645,8 +645,8 @@ where
             let a = get_bit_if(*a, nodes, collector, var_manager)?;
             let b = get_bit_if(*b, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![!a, b, sum])?;
-            collector.add_clause(clause![a, !b, sum])?;
+            collector.add_clause(!a | b | sum)?;
+            collector.add_clause(a | !b | sum)?;
 
             Ok(sum)
         }
@@ -687,10 +687,10 @@ where
             let b = get_bit_only_if(*b, nodes, collector, var_manager)?;
             let c = get_bit_only_if(*c, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![a, b, c, !sum])?;
-            collector.add_clause(clause![a, !b, !c, !sum])?;
-            collector.add_clause(clause![!a, b, !c, !sum])?;
-            collector.add_clause(clause![!a, !b, c, !sum])?;
+            collector.add_clause(a | b | c | !sum)?;
+            collector.add_clause(a | !b | !c | !sum)?;
+            collector.add_clause(!a | b | !c | !sum)?;
+            collector.add_clause(!a | !b | c | !sum)?;
 
             Ok(sum)
         }
@@ -714,8 +714,8 @@ where
             let a = get_bit_only_if(*a, nodes, collector, var_manager)?;
             let b = get_bit_only_if(*b, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![a, b, !sum])?;
-            collector.add_clause(clause![!a, !b, !sum])?;
+            collector.add_clause(a | b | !sum)?;
+            collector.add_clause(!a | !b | !sum)?;
 
             Ok(sum)
         }
@@ -756,9 +756,9 @@ where
             let b = get_bit_if(*b, nodes, collector, var_manager)?;
             let c = get_bit_if(*c, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![!b, !c, carry])?;
-            collector.add_clause(clause![!a, !c, carry])?;
-            collector.add_clause(clause![!a, !b, carry])?;
+            collector.add_clause(!b | !c | carry)?;
+            collector.add_clause(!a | !c | carry)?;
+            collector.add_clause(!a | !b | carry)?;
 
             Ok(carry)
         }
@@ -782,7 +782,7 @@ where
             let a = get_bit_if(*a, nodes, collector, var_manager)?;
             let b = get_bit_if(*b, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![!a, !b, carry])?;
+            collector.add_clause(!a | !b | carry)?;
 
             Ok(carry)
         }
@@ -823,9 +823,9 @@ where
             let b = get_bit_if(*b, nodes, collector, var_manager)?;
             let c = get_bit_if(*c, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![b, c, !carry])?;
-            collector.add_clause(clause![a, c, !carry])?;
-            collector.add_clause(clause![a, b, !carry])?;
+            collector.add_clause(b | c | !carry)?;
+            collector.add_clause(a | c | !carry)?;
+            collector.add_clause(a | b | !carry)?;
 
             Ok(carry)
         }
@@ -849,8 +849,8 @@ where
             let a = get_bit_if(*a, nodes, collector, var_manager)?;
             let b = get_bit_if(*b, nodes, collector, var_manager)?;
 
-            collector.add_clause(clause![a, !carry])?;
-            collector.add_clause(clause![b, !carry])?;
+            collector.add_clause(a | !carry)?;
+            collector.add_clause(b | !carry)?;
 
             Ok(carry)
         }
@@ -905,19 +905,19 @@ where
         let mut cl = clause![];
 
         let lhs_i = lhs[i]?;
-        cl.add(!lhs_i);
+        cl |= !lhs_i;
 
         #[expect(clippy::needless_range_loop)]
         for j in i + 1..lhs.len() {
             if y(j) {
                 let lhs_j = lhs[j]?;
-                cl.add(!lhs_j);
+                cl |= !lhs_j;
             } else if let Some(lhs_j) = lhs[j] {
-                cl.add(lhs_j);
+                cl |= lhs_j;
             }
         }
 
-        cl.add(output);
+        cl |= output;
 
         Some(cl)
     };
@@ -952,20 +952,20 @@ where
         let mut cl = clause![];
 
         if let Some(lhs_i) = lhs[i] {
-            cl.add(lhs_i);
+            cl |= lhs_i;
         }
 
         #[expect(clippy::needless_range_loop)]
         for j in i + 1..lhs.len() {
             if y(j) {
                 let lhs_j = lhs[j]?;
-                cl.add(!lhs_j);
+                cl |= !lhs_j;
             } else if let Some(lhs_j) = lhs[j] {
-                cl.add(lhs_j);
+                cl |= lhs_j;
             }
         }
 
-        cl.add(!output);
+        cl |= !output;
 
         Some(cl)
     };

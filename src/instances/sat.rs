@@ -26,6 +26,12 @@ use super::{
 
 /// Simple type representing a CNF formula. Other than [`Instance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
+///
+/// ```
+/// use rustsat::types::Var;
+/// let cnf = (Var::new(0) | Var::new(1)) & (!Var::new(0) | !Var::new(1));
+/// assert_eq!(cnf.len(), 2);
+/// ```
 #[derive(Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cnf {
@@ -99,18 +105,20 @@ impl Cnf {
     }
 
     /// Adds a clause from a slice of literals
+    ///
+    /// You can also use `self &= Clause::from(lits)`
     pub fn add_nary(&mut self, lits: &[Lit]) {
-        self.add_clause(lits.into());
+        *self &= Clause::from(lits);
     }
 
     /// See [`atomics::lit_impl_lit`]
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        self.add_clause(atomics::lit_impl_lit(a, b));
+        *self &= atomics::lit_impl_lit(a, b);
     }
 
     /// See [`atomics::lit_impl_clause`]
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
-        self.add_clause(atomics::lit_impl_clause(a, b));
+        *self &= atomics::lit_impl_clause(a, b);
     }
 
     /// See [`atomics::lit_impl_cube`]
@@ -120,7 +128,7 @@ impl Cnf {
 
     /// See [`atomics::cube_impl_lit`]
     pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        self.add_clause(atomics::cube_impl_lit(a, b));
+        *self &= atomics::cube_impl_lit(a, b);
     }
 
     /// See [`atomics::clause_impl_lit`]
@@ -130,7 +138,7 @@ impl Cnf {
 
     /// See [`atomics::cube_impl_clause`]
     pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        self.add_clause(atomics::cube_impl_clause(a, b));
+        *self &= atomics::cube_impl_clause(a, b);
     }
 
     /// See [`atomics::clause_impl_clause`]
@@ -201,24 +209,32 @@ impl Cnf {
     }
 
     /// Adds a clause to the CNF
+    ///
+    /// You can also use `self &= clause`
     #[inline]
     pub fn add_clause(&mut self, clause: Clause) {
         self.clauses.push(clause);
     }
 
     /// Adds a unit clause to the CNF
+    ///
+    /// You can also use `self &= unit`
     pub fn add_unit(&mut self, unit: Lit) {
-        self.add_clause(clause![unit]);
+        *self &= unit;
     }
 
     /// Adds a binary clause to the CNF
+    ///
+    /// You can also use `self &= lit1 | lit2`
     pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(clause![lit1, lit2]);
+        *self &= lit1 | lit2;
     }
 
     /// Adds a ternary clause to the CNF
+    ///
+    /// You can also use `self &= lit1 | lit2 | lit3`
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(clause![lit1, lit2, lit3]);
+        *self &= lit1 | lit2 | lit3;
     }
 
     /// Writes the CNF to a DIMACS CNF file at a path
@@ -398,6 +414,8 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Adds a clause to the instance
+    ///
+    /// You can also use `self &= cl`
     pub fn add_clause(&mut self, cl: Clause) {
         cl.iter().for_each(|l| {
             self.var_manager.mark_used(l.var());
@@ -406,23 +424,27 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Adds a clause from a slice of literals
+    ///
+    /// You can also use `self &= Clause::from(lits)`
     pub fn add_nary(&mut self, lits: &[Lit]) {
-        self.add_clause(lits.into());
+        *self &= Clause::from(lits);
     }
 
     /// Adds a unit clause to the instance
+    ///
+    /// You can also use `self &= unit`
     pub fn add_unit(&mut self, unit: Lit) {
-        self.add_clause(clause![unit]);
+        *self &= unit;
     }
 
     /// Adds a binary clause to the instance
     pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
-        self.add_clause(clause![lit1, lit2]);
+        *self &= lit1 | lit2;
     }
 
     /// Adds a ternary clause to the instance
     pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
-        self.add_clause(clause![lit1, lit2, lit3]);
+        *self &= lit1 | lit2 | lit3;
     }
 
     /// Adds an implication of form `(a -> b)` to the instance
@@ -1114,6 +1136,12 @@ impl<VM: ManageVars + Default> From<Cnf> for Instance<VM> {
     }
 }
 
+impl<VM: ManageVars> Extend<Clause> for Instance<VM> {
+    fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        self.cnf.extend(iter);
+    }
+}
+
 impl CollectClauses for Instance {
     fn n_clauses(&self) -> usize {
         self.n_clauses()
@@ -1129,7 +1157,7 @@ impl CollectClauses for Instance {
 
 #[cfg(test)]
 mod tests {
-    use crate::{clause, instances::Cnf, lit};
+    use crate::{instances::Cnf, lit};
 
     #[test]
     fn reindex_ordered() {
@@ -1138,9 +1166,6 @@ mod tests {
         inst.add_nary(&[lit![0], lit![2]]);
         let inst = inst.reindex_ordered(super::super::ReindexingVarManager::default());
         let (cnf, _) = inst.into_cnf();
-        assert_eq!(
-            cnf,
-            Cnf::from_iter([clause![lit![3], lit![1]], clause![lit![0], lit![2]]])
-        );
+        assert_eq!(cnf, Cnf::from_iter([lit![3] | lit![1], lit![0] | lit![2]]));
     }
 }

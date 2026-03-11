@@ -668,11 +668,10 @@ impl Objective {
             } => {
                 cnf.clauses.reserve(soft_clauses.len());
                 soft_lits.reserve(soft_clauses.len());
-                for (mut cl, w) in soft_clauses.drain() {
+                for (cl, w) in soft_clauses.drain() {
                     debug_assert!(cl.len() > 1);
                     let relax_lit = var_manager.new_var().pos_lit();
-                    cl.add(relax_lit);
-                    cnf.add_clause(cl);
+                    cnf &= cl | relax_lit;
                     soft_lits.insert(relax_lit, w);
                 }
             }
@@ -683,11 +682,10 @@ impl Objective {
             } => {
                 cnf.clauses.reserve(soft_clauses.len());
                 soft_lits.reserve(soft_clauses.len());
-                for mut cl in soft_clauses.drain(..) {
+                for cl in soft_clauses.drain(..) {
                     debug_assert!(cl.len() > 1);
                     let relax_lit = var_manager.new_var().pos_lit();
-                    cl.add(relax_lit);
-                    cnf.add_clause(cl);
+                    cnf &= cl | relax_lit;
                     soft_lits.push(relax_lit);
                 }
             }
@@ -1493,15 +1491,14 @@ impl<VM: ManageVars + Default> Instance<VM> {
         solver
             .add_cnf(cnf)
             .expect("failed adding clauses to solver");
-        let handle_soft_cls = |(mut cl, weight): (Clause, usize)| {
+        let handle_soft_cls = |(cl, weight): (Clause, usize)| {
             debug_assert!(!cl.is_empty());
             if cl.len() == 1 {
                 return (!cl[0], weight);
             }
             let blit = vm.new_lit();
-            cl.add(!blit);
             solver
-                .add_clause(cl)
+                .add_clause(cl | !blit)
                 .expect("failed adding clause to solver");
             (blit, weight)
         };

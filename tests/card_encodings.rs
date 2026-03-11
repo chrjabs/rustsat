@@ -17,18 +17,18 @@ use rustsat::{
 fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
     // Set up instance
     let mut solver = rustsat_minisat::core::Minisat::default();
-    solver.add_clause(clause![lit![0], lit![1]]).unwrap();
+    solver.add_clause(lit![0] | lit![1]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
-    solver.add_clause(clause![lit![1], lit![2]]).unwrap();
-    solver.add_clause(clause![lit![2], lit![3]]).unwrap();
-    solver.add_clause(clause![lit![3], lit![4]]).unwrap();
+    solver.add_clause(lit![1] | lit![2]).unwrap();
+    solver.add_clause(lit![2] | lit![3]).unwrap();
+    solver.add_clause(lit![3] | lit![4]).unwrap();
     solver.add_clause(clause![lit![4]]).unwrap();
     solver.add_clause(clause![lit![5]]).unwrap();
-    solver.add_clause(clause![lit![6], lit![7]]).unwrap();
+    solver.add_clause(lit![6] | lit![7]).unwrap();
     solver.add_clause(clause![lit![7]]).unwrap();
-    solver.add_clause(clause![lit![7], lit![8]]).unwrap();
-    solver.add_clause(clause![lit![8], lit![9]]).unwrap();
-    solver.add_clause(clause![lit![9], lit![10]]).unwrap();
+    solver.add_clause(lit![7] | lit![8]).unwrap();
+    solver.add_clause(lit![8] | lit![9]).unwrap();
+    solver.add_clause(lit![9] | lit![10]).unwrap();
     solver.add_clause(clause![lit![10]]).unwrap();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![11]);
@@ -87,18 +87,18 @@ fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
 fn test_inc_ub_card<CE: BoundUpperIncremental + Extend<Lit> + Default>() {
     // Set up instance
     let mut solver = rustsat_minisat::core::Minisat::default();
-    solver.add_clause(clause![lit![0], lit![1]]).unwrap();
+    solver.add_clause(lit![0] | lit![1]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
-    solver.add_clause(clause![lit![1], lit![2]]).unwrap();
-    solver.add_clause(clause![lit![2], lit![3]]).unwrap();
-    solver.add_clause(clause![lit![3], lit![4]]).unwrap();
+    solver.add_clause(lit![1] | lit![2]).unwrap();
+    solver.add_clause(lit![2] | lit![3]).unwrap();
+    solver.add_clause(lit![3] | lit![4]).unwrap();
     solver.add_clause(clause![lit![4]]).unwrap();
     solver.add_clause(clause![lit![5]]).unwrap();
-    solver.add_clause(clause![lit![6], lit![7]]).unwrap();
+    solver.add_clause(lit![6] | lit![7]).unwrap();
     solver.add_clause(clause![lit![7]]).unwrap();
-    solver.add_clause(clause![lit![7], lit![8]]).unwrap();
-    solver.add_clause(clause![lit![8], lit![9]]).unwrap();
-    solver.add_clause(clause![lit![9], lit![10]]).unwrap();
+    solver.add_clause(lit![7] | lit![8]).unwrap();
+    solver.add_clause(lit![8] | lit![9]).unwrap();
+    solver.add_clause(lit![9] | lit![10]).unwrap();
     solver.add_clause(clause![lit![10]]).unwrap();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![11]);
@@ -152,11 +152,11 @@ fn test_inc_ub_card<CE: BoundUpperIncremental + Extend<Lit> + Default>() {
 fn test_both_card<CE: BoundBoth + From<Vec<Lit>>>() {
     // Set up instance
     let mut solver = rustsat_minisat::core::Minisat::default();
-    solver.add_clause(clause![lit![0], lit![1]]).unwrap();
+    solver.add_clause(lit![0] | lit![1]).unwrap();
     solver.add_clause(clause![lit![1]]).unwrap();
-    solver.add_clause(clause![lit![1], lit![2]]).unwrap();
-    solver.add_clause(clause![lit![2], lit![3]]).unwrap();
-    solver.add_clause(clause![lit![3], lit![4]]).unwrap();
+    solver.add_clause(lit![1] | lit![2]).unwrap();
+    solver.add_clause(lit![2] | lit![3]).unwrap();
+    solver.add_clause(lit![3] | lit![4]).unwrap();
     solver.add_clause(clause![lit![4]]).unwrap();
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![5]);
@@ -571,18 +571,18 @@ mod cert {
     fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
         // Set up instance
         let mut solver = rustsat_minisat::core::Minisat::default();
-        solver.add_clause(clause![lit![0], lit![1]]).unwrap();
+        solver.add_clause(lit![0] | lit![1]).unwrap();
         solver.add_clause(clause![lit![1]]).unwrap();
-        solver.add_clause(clause![lit![1], lit![2]]).unwrap();
-        solver.add_clause(clause![lit![2], lit![3]]).unwrap();
-        solver.add_clause(clause![lit![3], lit![4]]).unwrap();
+        solver.add_clause(lit![1] | lit![2]).unwrap();
+        solver.add_clause(lit![2] | lit![3]).unwrap();
+        solver.add_clause(lit![3] | lit![4]).unwrap();
         solver.add_clause(clause![lit![4]]).unwrap();
         solver.add_clause(clause![lit![5]]).unwrap();
-        solver.add_clause(clause![lit![6], lit![7]]).unwrap();
+        solver.add_clause(lit![6] | lit![7]).unwrap();
         solver.add_clause(clause![lit![7]]).unwrap();
-        solver.add_clause(clause![lit![7], lit![8]]).unwrap();
-        solver.add_clause(clause![lit![8], lit![9]]).unwrap();
-        solver.add_clause(clause![lit![9], lit![10]]).unwrap();
+        solver.add_clause(lit![7] | lit![8]).unwrap();
+        solver.add_clause(lit![8] | lit![9]).unwrap();
+        solver.add_clause(lit![9] | lit![10]).unwrap();
         solver.add_clause(clause![lit![10]]).unwrap();
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![11]);

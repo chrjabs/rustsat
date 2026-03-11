@@ -6,7 +6,6 @@
 
 use super::Encode;
 use crate::{
-    clause,
     encodings::{CollectClauses, EncodeStats, IterInputs},
     instances::ManageVars,
     types::Lit,
@@ -42,7 +41,7 @@ impl Encode for Pairwise {
         let prev_clauses = collector.n_clauses();
         let lits = &self.in_lits;
         let clause_iter = (0..self.in_lits.len()).flat_map(|first| {
-            (first + 1..self.in_lits.len()).map(move |second| clause![!lits[first], !lits[second]])
+            (first + 1..self.in_lits.len()).map(move |second| !lits[first] | !lits[second])
         });
         collector.extend_clauses(clause_iter)?;
         self.n_clauses = collector.n_clauses() - prev_clauses;

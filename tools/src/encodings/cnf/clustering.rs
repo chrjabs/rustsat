@@ -261,10 +261,10 @@ impl Iterator for Encoding {
                     let b2 = self.var_manager.id(VarId::Binary(idx2, k)).pos_lit();
                     let eql = self.var_manager.id(VarId::Eq(idx1, idx2, k)).pos_lit();
                     return Some(dimacs::McnfLine::Hard(match cidx {
-                        0 => clause![eql, b1, b2],
-                        1 => clause![eql, !b1, !b2],
-                        2 => clause![!eql, !b1, b2],
-                        3 => clause![!eql, b1, !b2],
+                        0 => eql | b1 | b2,
+                        1 => eql | !b1 | !b2,
+                        2 => !eql | !b1 | b2,
+                        3 => !eql | b1 | !b2,
                         _ => panic!(),
                     }));
                 }
@@ -294,13 +294,13 @@ impl Iterator for Encoding {
                     return Some(dimacs::McnfLine::Hard(match cidx {
                         cidx if cidx < self.a => {
                             let eql = self.var_manager.id(VarId::Eq(idx1, idx2, cidx)).pos_lit();
-                            clause![!sl, eql]
+                            !sl | eql
                         }
                         _ => {
                             let mut cl: rustsat::types::constraints::Clause = (0..self.a)
                                 .map(|k| self.var_manager.id(VarId::Eq(idx1, idx2, k)).neg_lit())
                                 .collect();
-                            cl.add(sl);
+                            cl |= sl;
                             cl
                         }
                     }));
@@ -330,9 +330,9 @@ impl Iterator for Encoding {
                     let b1 = self.var_manager.id(VarId::Binary(idx1, cidx / 2)).pos_lit();
                     let b2 = self.var_manager.id(VarId::Binary(idx2, cidx / 2)).pos_lit();
                     return Some(dimacs::McnfLine::Hard(if cidx % 2 == 0 {
-                        clause![!b1, b2]
+                        !b1 | b2
                     } else {
-                        clause![b1, !b2]
+                        b1 | !b2
                     }));
                 }
                 Clause::CannotLink(idx1, idx2) => {

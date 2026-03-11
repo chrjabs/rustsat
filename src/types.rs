@@ -20,6 +20,8 @@ use crate::{
     utils,
 };
 
+mod operators;
+
 /// The hash map to use throughout the library
 #[cfg(feature = "fxhash")]
 pub type RsHashMap<K, V> = rustc_hash::FxHashMap<K, V>;
@@ -582,30 +584,6 @@ impl Lit {
             Err(_) => return Err(TypeError::IdxTooHigh(self.vidx32() + 1, c_int::MAX as u32)),
         };
         Ok(if negated { -idx } else { idx })
-    }
-}
-
-/// Trait implementation allowing for negating literals with the `!` operator.
-impl ops::Not for Lit {
-    type Output = Lit;
-
-    #[inline]
-    fn not(self) -> Lit {
-        Lit {
-            lidx: self.lidx ^ 1u32,
-        }
-    }
-}
-
-/// Trait implementation allowing for negating literals with the unary `-` operator.
-impl ops::Neg for Lit {
-    type Output = Lit;
-
-    #[inline]
-    fn neg(self) -> Lit {
-        Lit {
-            lidx: self.lidx ^ 1u32,
-        }
     }
 }
 
