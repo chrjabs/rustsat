@@ -44,7 +44,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43d5b281e737544384e969a5ccad3f1cdd24b48086a0fc1b2a5262a26b8f4f4a"
 dependencies = [
  "anstyle",
- "anstyle-parse",
+ "anstyle-parse 0.2.7",
+ "anstyle-query",
+ "anstyle-wincon",
+ "colorchoice",
+ "is_terminal_polyfill",
+ "utf8parse",
+]
+
+[[package]]
+name = "anstream"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d"
+dependencies = [
+ "anstyle",
+ "anstyle-parse 1.0.0",
  "anstyle-query",
  "anstyle-wincon",
  "colorchoice",
@@ -54,15 +69,24 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.13"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5192cca8006f1fd4f7237516f40fa183bb07f8fbdfedaa0036de5ea9b0b45e78"
+checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
 name = "anstyle-parse"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7644824f0aa2c7b9384579234ef10eb7efb6a0deb83f9630a49594dd9c15c2"
+dependencies = [
+ "utf8parse",
+]
+
+[[package]]
+name = "anstyle-parse"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e"
 dependencies = [
  "utf8parse",
 ]
@@ -272,9 +296,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.60"
+version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2797f34da339ce31042b27d23607e051786132987f595b02ba4f6a6dffb7030a"
+checksum = "b193af5b67834b676abd72466a96c1024e6a6ad978a1f484bd90b85c94041351"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -282,11 +306,11 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.60"
+version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24a241312cea5059b13574bb9b3861cabf758b879c15190b37b6d6fd63ab6876"
+checksum = "714a53001bf66416adb0e2ef5ac857140e7dc3a0c48fb28b2f10762fc4b5069f"
 dependencies = [
- "anstream",
+ "anstream 1.0.0",
  "anstyle",
  "clap_lex",
  "strsim",
@@ -294,9 +318,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.55"
+version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a92793da1a46a5f2a02a6f4c46c6496b28c43638adea8306fcb0caa1634f24e5"
+checksum = "1110bd8a634a1ab8cb04345d8d878267d57c3cf1b38d91b71af6686408bbca6a"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -306,9 +330,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
+checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cmake"
@@ -321,9 +345,9 @@ dependencies = [
 
 [[package]]
 name = "colorchoice"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
+checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
 name = "concolor"
@@ -932,7 +956,7 @@ version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5297962ef19edda4ce33aaa484386e0a5b3d7f2f4e037cbeee00503ef6b29d33"
 dependencies = [
- "anstream",
+ "anstream 0.6.21",
  "anstyle",
  "clap",
  "escape8259",
@@ -1049,9 +1073,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.21.3"
+version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "once_cell_polyfill"
@@ -1067,9 +1091,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.111"
+version = "0.9.112"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82cab2d520aa75e3c58898289429321eb788c3106963d0dc886ec7a5f4adc321"
+checksum = "57d55af3b3e226502be1526dfdba67ab0e9c96fc293004e79576b2b9edb0dbdb"
 dependencies = [
  "cc",
  "libc",
@@ -1085,7 +1109,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "pigeons"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "itertools 0.14.0",
  "rustc-hash",
@@ -1311,7 +1335,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "annotate-snippets",
  "anyhow",
@@ -1342,7 +1366,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1352,7 +1376,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-cadical"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1370,7 +1394,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-capi"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "cc",
  "libtest-mimic",
@@ -1380,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-codegen"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "cbindgen",
  "minijinja",
@@ -1391,7 +1415,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-glucose"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1403,7 +1427,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-ipasir"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "rustsat",
@@ -1412,7 +1436,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-kissat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1429,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-minisat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1443,7 +1467,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-pyapi"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
@@ -1452,7 +1476,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-solvertests"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1462,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-tools"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "chacha20",
