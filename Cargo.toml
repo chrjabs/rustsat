@@ -34,7 +34,7 @@ bzip2 = "0.6.1"
 cc = { version = "1.2.57", features = ["parallel"] }
 chacha20 = "0.10.0"
 chrono = "0.4.44"
-clap = { version = "4.5.60", features = ["derive", "cargo"] }
+clap = { version = "4.6.0", features = ["derive", "cargo"] }
 cmake = "0.1.57"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
