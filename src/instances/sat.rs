@@ -33,7 +33,10 @@ use super::{
 /// assert_eq!(cnf.len(), 2);
 /// ```
 #[derive(Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Cnf {
     pub(super) clauses: Vec<Clause>,
 }
@@ -367,7 +370,10 @@ impl Index<usize> for Cnf {
 /// Type representing a satisfiability instance. Supported constraints are
 /// clauses, cardinality constraints and pseudo-boolean constraints.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Instance<VM: ManageVars = BasicVarManager> {
     pub(super) cnf: Cnf,
     pub(super) cards: Vec<CardConstraint>,

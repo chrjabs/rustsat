@@ -49,7 +49,10 @@ impl fmt::Display for ConstraintRef<'_> {
 /// assert_eq!(clause.len(), 2);
 /// ```
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct Clause {
     lits: Vec<Lit>,
 }
@@ -598,7 +601,10 @@ impl AsMut<Cl> for Cl {
 
 /// Type representing a cardinality constraint.
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum CardConstraint {
     /// An upper bound cardinality constraint
     Ub(CardUbConstr),
@@ -943,7 +949,10 @@ impl Iterator for PigeonLitIter<'_> {
 
 /// An upper bound cardinality constraint (`sum of lits <= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct CardUbConstr {
     lits: Vec<Lit>,
     b: usize,
@@ -1002,7 +1011,10 @@ impl CardUbConstr {
 
 /// A lower bound cardinality constraint (`sum of lits >= b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct CardLbConstr {
     lits: Vec<Lit>,
     b: usize,
@@ -1067,7 +1079,10 @@ impl CardLbConstr {
 
 /// An equality cardinality constraint (`sum of lits = b`)
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct CardEqConstr {
     lits: Vec<Lit>,
     b: usize,
@@ -1144,7 +1159,10 @@ pub enum PbToCardError {
 /// constraint, the constraint is transformed so that all coefficients are
 /// positive.
 #[derive(Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum PbConstraint {
     /// An upper bound pseudo-boolean constraint
     Ub(PbUbConstr),
@@ -1702,7 +1720,10 @@ impl From<CardConstraint> for PbConstraint {
 
 /// An upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct PbUbConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
@@ -1831,7 +1852,10 @@ impl PbUbConstr {
 
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct PbLbConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,
@@ -1959,7 +1983,10 @@ impl PbLbConstr {
 
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct PbEqConstr {
     lits: Vec<(Lit, usize)>,
     weight_sum: usize,

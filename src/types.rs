@@ -45,8 +45,11 @@ pub type RsHasher = std::collections::hash_map::DefaultHasher;
 
 /// [`u32`] with an upper bound, mainly used for safe `serde::Deserialize`
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(try_from = "u32"))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
+#[cfg_attr(any(feature = "serde", test), serde(try_from = "u32"))]
 #[repr(transparent)]
 struct LimitedU32<const U: u32>(u32);
 
@@ -79,7 +82,10 @@ const MAX_VAR_IDX: u32 = (u32::MAX - 1) / 2;
 /// because literals are represented as a single `u32` as well. The memory
 /// representation of variables is `u32`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Clone, Copy, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[repr(transparent)]
 // this is fine because we are going through `LimitedU32`, which is deserialized via `try_from`
 #[allow(clippy::unsafe_derive_deserialize)]
@@ -339,7 +345,10 @@ macro_rules! var {
 /// be used to index data structures with the two literals of a variable
 /// being close together.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[repr(transparent)]
 // this is fine because there aren't any invalid `Lit` representations, only invalid `Var` ones
 #[allow(clippy::unsafe_derive_deserialize)]
