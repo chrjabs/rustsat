@@ -233,7 +233,10 @@ where
 }
 
 /// Data that can appear in a CNF file body
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum CnfData {
     /// An input clause
@@ -306,7 +309,10 @@ pub enum WcnfHeaderData<R> {
 }
 
 #[cfg(feature = "optimization")]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug)]
 enum WcnfInternalHeaderData {
     Pre22 {
@@ -324,7 +330,10 @@ enum WcnfInternalHeaderData {
 /// transitions to either [`Parser<WcnfPre22Body, R>`] or [`Parser<WcnfPost22Body, R>`], where the
 /// file type variant is detected from the header.
 #[cfg(feature = "optimization")]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug, Default)]
 pub struct WcnfHeader {
     /// The data in the CNF header, if it has been encountered already
@@ -514,7 +523,10 @@ where
 
 /// Data that can appear in a WCNF file body
 #[cfg(feature = "optimization")]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum WcnfData {
     /// A hard input clause
@@ -632,7 +644,10 @@ where
 
 /// Data that can appear in a MCNF file body
 #[cfg(feature = "multiopt")]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum McnfData {
     /// A hard input clause
@@ -1131,16 +1146,7 @@ mod tests {
         let parser = Parser::<CnfBody, _>::new(Cursor::new(input));
         let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
-        #[cfg(feature = "serde")]
         insta::assert_yaml_snapshot!("cnf_body_pass", data, input);
-        #[cfg(not(feature = "serde"))]
-        assert_eq!(
-            data,
-            vec![
-                CnfData::Clause(ipasir_lit![1] | ipasir_lit![2]),
-                CnfData::Clause(!ipasir_lit![3] | ipasir_lit![4] | ipasir_lit![5])
-            ]
-        );
     }
 
     #[test]
@@ -1161,17 +1167,7 @@ mod tests {
             SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
                 .unwrap();
 
-        #[cfg(feature = "serde")]
         insta::assert_yaml_snapshot!("parse_cnf", data, input);
-
-        #[cfg(not(feature = "serde"))]
-        {
-            let mut true_inst: SatInstance = SatInstance::new();
-            true_inst.add_clause(ipasir_lit![1] | ipasir_lit![2]);
-            true_inst.add_clause(ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
-
-            assert_eq!(data, true_inst);
-        }
     }
 
     #[test]
@@ -1479,23 +1475,7 @@ mod tests {
                 OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
                     .unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_pre22", data, input);
-
-            #[cfg(not(feature = "serde"))]
-            {
-                use crate::{instances::ManageVars, types::Var};
-
-                let mut true_constrs: SatInstance = SatInstance::new();
-                let mut true_obj = Objective::new();
-                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
-                true_constrs
-                    .var_manager_mut()
-                    .increase_next_free(Var::new(5));
-                true_obj.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
-
-                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
-            }
         }
 
         #[test]
@@ -1506,24 +1486,7 @@ mod tests {
                 OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
                     .unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_pre22_duplication", data, input);
-
-            #[cfg(not(feature = "serde"))]
-            {
-                use crate::{instances::ManageVars, types::Var};
-
-                let mut true_constrs: SatInstance = SatInstance::new();
-                let mut true_obj = Objective::new();
-                true_constrs.add_clause(clause![ipasir_lit![-3]]);
-                true_constrs
-                    .var_manager_mut()
-                    .increase_next_free(Var::new(3));
-                true_obj.add_soft_clause(2, ipasir_lit![1] | ipasir_lit![2]);
-                true_obj.add_soft_lit(10, ipasir_lit![3]);
-
-                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
-            }
         }
 
         #[test]
@@ -1534,18 +1497,7 @@ mod tests {
                 OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
                     .unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_post22", data, input);
-
-            #[cfg(not(feature = "serde"))]
-            {
-                let mut true_constrs: SatInstance = SatInstance::new();
-                let mut true_obj = Objective::new();
-                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
-                true_obj.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
-
-                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
-            }
         }
         #[test]
         fn parse_wcnf_post22_duplication() {
@@ -1555,19 +1507,7 @@ mod tests {
                 OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
                     .unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_wcnf_post22_duplication", data, input);
-
-            #[cfg(not(feature = "serde"))]
-            {
-                let mut true_constrs: SatInstance = SatInstance::new();
-                let mut true_obj = Objective::new();
-                true_constrs.add_clause(clause![ipasir_lit![-3]]);
-                true_obj.add_soft_clause(2, ipasir_lit![1] | ipasir_lit![2]);
-                true_obj.add_soft_lit(10, ipasir_lit![3]);
-
-                assert_eq!(data, OptInstance::compose(true_constrs, true_obj));
-            }
         }
 
         #[test]
@@ -1715,20 +1655,7 @@ mod tests {
             let parser = Parser::<Mcnf, _>::new(Cursor::new(input));
             let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("mcnf_body_pass", data, input);
-            #[cfg(not(feature = "serde"))]
-            assert_eq!(
-                data,
-                vec![
-                    McnfData::HardClause(ipasir_lit![1] | ipasir_lit![2]),
-                    McnfData::SoftClause {
-                        obj_idx: 2,
-                        weight: 10,
-                        clause: !ipasir_lit![3] | ipasir_lit![4] | ipasir_lit![5]
-                    }
-                ]
-            );
         }
 
         #[test]
@@ -1750,23 +1677,7 @@ mod tests {
             )
             .unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_mcnf", data, input);
-
-            #[cfg(not(feature = "serde"))]
-            {
-                let mut true_constrs: SatInstance = SatInstance::new();
-                let mut true_obj0 = Objective::new();
-                let mut true_obj1 = Objective::new();
-                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
-                true_obj0.add_soft_clause(3, clause![ipasir_lit![-1]]);
-                true_obj1.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
-
-                assert_eq!(
-                    data,
-                    MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
-                );
-            }
         }
 
         #[test]
@@ -1778,27 +1689,7 @@ mod tests {
             )
             .unwrap();
 
-            #[cfg(feature = "serde")]
             insta::assert_yaml_snapshot!("parse_mcnf_duplication", data, input);
-
-            #[cfg(not(feature = "serde"))]
-            {
-                let mut true_constrs: SatInstance = SatInstance::new();
-                let mut true_obj0 = Objective::new();
-                let mut true_obj1 = Objective::new();
-                true_constrs.add_clause(ipasir_lit![1] | ipasir_lit![2]);
-                true_obj0.add_soft_lit(3, ipasir_lit![1]);
-                // increasing an existing soft literal or soft clause causes the instance to become weighted.
-                true_obj0.increase_soft_lit(3, ipasir_lit![1]);
-                true_obj1.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
-                true_obj1
-                    .increase_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
-
-                assert_eq!(
-                    data,
-                    MultiOptInstance::compose(true_constrs, vec![true_obj0, true_obj1])
-                );
-            }
         }
 
         #[test]

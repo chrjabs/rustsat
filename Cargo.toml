@@ -114,6 +114,7 @@ insta.workspace = true
 rustsat-minisat = { path = "./minisat" }
 rustsat-solvertests.workspace = true
 rustsat-tools = { path = "./tools" }
+serde.workspace = true
 serde_json.workspace = true
 termcolor.workspace = true
 # keep-sorted end

@@ -152,7 +152,10 @@ enum OpbOperator {
 /// The objective terms are normalized to positive coefficients and literals, potentially
 /// increasing the objective offset, i.e., the constant term.
 #[cfg(feature = "optimization")]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Objective {
     /// Whether the objective is to be minimized of maximized
@@ -175,7 +178,10 @@ impl Objective {
 }
 
 /// Whether the objective should be minimized or maximized
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum ObjectiveSense {
     /// Minimization objective
@@ -219,7 +225,10 @@ impl winnow::stream::Accumulate<(Lit, isize)> for ObjectiveSum {
 
 /// Possible parsing results for comment or constraint or objective
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub enum Data {
     /// A comment
     Cmt(String),
@@ -1180,15 +1189,7 @@ min: 1 x1;";
         let parser = Parser::new(Cursor::new(input), Options::default());
         let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
-        #[cfg(feature = "serde")]
         insta::assert_yaml_snapshot!("multi_opb_data_optimization_pass", data, input);
-        #[cfg(not(feature = "serde"))]
-        {
-            assert_eq!(data.len(), 3);
-            assert_eq!(data[0], Data::Cmt(String::from("* test\n")));
-            assert!(matches!(data[1], Data::Constr(_)));
-            assert!(matches!(data[2], Data::Obj(_)));
-        }
 
         let input = r"* test
 5 x1 -3 x2 >= 4;

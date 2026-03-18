@@ -89,7 +89,10 @@ pub trait ReindexVars: ManageVars {
 
 /// Simple counting variable manager
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    any(feature = "serde", test),
+    derive(serde::Serialize, serde::Deserialize)
+)]
 pub struct BasicVarManager {
     next_var: Var,
 }
