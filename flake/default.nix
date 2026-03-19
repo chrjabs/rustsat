@@ -38,4 +38,6 @@ in
   checks = import ./checks.nix (args // shared // { inherit inputs; });
 
   treefmt = import ./treefmt.nix args;
+
+  pre-commit = import ./githooks.nix args;
 }

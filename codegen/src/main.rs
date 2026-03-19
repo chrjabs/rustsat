@@ -199,7 +199,11 @@ fn clang_format(generated: String) -> String {
         std::process::exit(1);
     }
 
-    String::from_utf8(formatted_output.stdout).unwrap()
+    let mut formatted = String::from_utf8(formatted_output.stdout).unwrap();
+    // append trailing newline to satisfy end-of-file-fixer
+    formatted.push('\n');
+
+    formatted
 }
 
 fn diff(path: &str, generated: &str) -> bool {

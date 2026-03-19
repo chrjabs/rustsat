@@ -1182,7 +1182,7 @@ mod test {
     #[test]
     fn multi_opb_data() {
         let input = r"* test
-5 x1 -3 x2 >= 4;  
+5 x1 -3 x2 >= 4;
 
 min: 1 x1;";
 
