@@ -62,6 +62,8 @@ in
     ];
     VERIPB_CHECKER = lib.getExe pkgs.veripb;
     RS_EXT_SOLVER = lib.getExe' pkgs.cadical "cadical";
+    JJ_PRE_PUSH_CHECKER = lib.getExe pkgs.prek;
+    shellHook = config.pre-commit.shellHook;
   };
   semverChecks = mkBaseShell {
     nativeBuildInputs = with pkgs; [
