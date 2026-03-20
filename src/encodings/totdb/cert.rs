@@ -383,8 +383,8 @@ impl super::Db {
     {
         let iter = self
             .semantic_defs
-            .iter()
-            .flat_map(|(_, def)| def.iter())
+            .values()
+            .flat_map(SemDefs::iter)
             .map(Into::into);
         proof.delete_ids::<Var, crate::types::Clause, _, _>(iter, None)?;
         self.semantic_defs.clear();

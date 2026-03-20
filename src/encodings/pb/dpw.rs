@@ -732,7 +732,7 @@ fn build_structure(
     let mut top_buckets = vec![vec![]; basis_len - skipped_levels];
     // Converts a digit number to a corresponding index in the
     // `top_buckets`. Top buckets are ordered from smallest to highest.
-    let tb_idx = |digits: usize| (digits - 1 - skipped_levels) as usize;
+    let tb_idx = |digits: usize| digits - 1 - skipped_levels;
 
     // Loop while there are new weights that need to be added and distribute
     // them to relevant top buckets

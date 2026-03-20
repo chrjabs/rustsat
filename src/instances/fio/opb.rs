@@ -621,7 +621,7 @@ where
     writeln!(writer, "* {} cardinality constraints", cards.len())?;
     writeln!(writer, "* {} pseudo-boolean constraints", pbs.len())?;
     write!(writer, "* ( ")?;
-    writeln!(writer, ") relaxed and hardened soft clauses",)?;
+    writeln!(writer, ") relaxed and hardened soft clauses")?;
     objs.try_for_each(|softs| write_objective(&mut writer, softs, opts))?;
     cnf.iter()
         .try_for_each(|cl| write_clause(&mut writer, cl, opts))?;
