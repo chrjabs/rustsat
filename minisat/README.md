@@ -17,7 +17,7 @@ The Minisat SAT solver to be used with the [RustSAT](https://github.com/chrjabs/
 
 The version of Minisat in this crate is Version 2.2.0.
 The used Cpp source can be found
-[here](https://github.com/chrjabs/rustsat/tree/main/minisat/cppsrc).
+[here](https://github.com/chrjabs/rustsat/tree/main/minisat/vendor).
 
 ## Minimum Supported Rust Version (MSRV)
 

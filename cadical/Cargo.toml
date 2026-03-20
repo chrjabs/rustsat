@@ -16,10 +16,10 @@ include = [
   "/patches/",
   "/examples/",
   "/cpp-extension/",
-  "/cppsrc/src/",
-  "/cppsrc/README.md",
-  "/cppsrc/LICENSE",
-  "/cppsrc/VERSION",
+  "/vendor/src/",
+  "/vendor/README.md",
+  "/vendor/LICENSE",
+  "/vendor/VERSION",
 ]
 rust-version.workspace = true # When changing, update crate documentation, build script, and tools MSRV
 

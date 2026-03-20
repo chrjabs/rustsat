@@ -56,7 +56,7 @@
 //! - Solver crate:
 //!   [`https://crates.io/crates/rustsat-minisat`](https://crates.io/crates/rustsat-minisat)
 //! - Fork used in solver crate:
-//!   [`https://github.com/chrjabs/rustsat/tree/main/minisat/cppsrc`](https://github.com/chrjabs/rustsat/tree/main/minisat/cppsrc)
+//!   [`https://github.com/chrjabs/rustsat/tree/main/minisat/vendor`](https://github.com/chrjabs/rustsat/tree/main/minisat/vendor)
 //!
 //! ### Glucose
 //!
@@ -74,7 +74,7 @@
 //! - Solver crate:
 //!   [`https://crates.io/crates/rustsat-glucose`](https://crates.io/crates/rustsat-glucose)
 //! - Fork used in solver crate:
-//!   [`https://github.com/chrjabs/rustsat/tree/main/glucose/cppsrc`](https://github.com/chrjabs/rustsat/tree/main/glucose/cppsrc)
+//!   [`https://github.com/chrjabs/rustsat/tree/main/glucose/vendor`](https://github.com/chrjabs/rustsat/tree/main/glucose/vendor)
 //!
 //! ### BatSat
 //!

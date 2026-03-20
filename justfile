@@ -79,10 +79,10 @@ subtree tree cmd ref:
     #!/usr/bin/env -S bash -euo pipefail
     declare -A prefixes
     prefixes=(
-        ["minisat"]="minisat/cppsrc"
-        ["glucose"]="glucose/cppsrc"
-        ["cadical"]="cadical/cppsrc"
-        ["kissat"]="kissat/csrc"
+        ["minisat"]="minisat/vendor"
+        ["glucose"]="glucose/vendor"
+        ["cadical"]="cadical/vendor"
+        ["kissat"]="kissat/vendor"
     )
     declare -A repos
     repos=(

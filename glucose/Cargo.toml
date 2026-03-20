@@ -13,8 +13,8 @@ include = [
   "CHANGELOG.md",
   "README.md",
   "/src/",
-  "/cppsrc/",
-  "!/cppsrc/parallel/",
+  "/vendor/",
+  "!/vendor/parallel/",
 ]
 rust-version.workspace = true # When changing, update crate documentation and build script
 

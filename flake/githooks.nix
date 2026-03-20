@@ -18,13 +18,10 @@
       let
         exclude_external = [
           # keep-sorted start
+          "/vendor/"
           "\\.snap$"
-          "^cadical/cppsrc"
           "^cadical/patches"
           "^data/.+\\.log$"
-          "^glucose/cppsrc"
-          "^kissat/csrc"
-          "^minisat/cppsrc"
           # keep-sorted end
         ];
       in
