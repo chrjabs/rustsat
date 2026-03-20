@@ -17,11 +17,4 @@ lits = "lits"
 # keep-sorted end
 
 [files]
-extend-exclude = [
-  "data/**",
-  "cadical/cppsrc/**",
-  "cadical/patches/**",
-  "glucose/cppsrc/**",
-  "kissat/csrc/**",
-  "minisat/cppsrc/**",
-]
+extend-exclude = ["data/**", "*/vendor/**", "cadical/patches/**"]

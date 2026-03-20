@@ -18,7 +18,7 @@ fn main() {
 
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    println!("cargo:rerun-if-changed=cppsrc/");
+    println!("cargo:rerun-if-changed=vendor/");
 
     // Built solver is in out_dir
     println!("cargo:rustc-link-search={out_dir}");
@@ -35,8 +35,8 @@ fn main() {
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
         .rust_target("1.87.0".parse().unwrap()) // Set MSRV
-        .header("cppsrc/cglucose4.h")
-        .allowlist_file("cppsrc/cglucose4.h")
+        .header("vendor/cglucose4.h")
+        .allowlist_file("vendor/cglucose4.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate ffi bindings");
@@ -48,7 +48,7 @@ fn main() {
 fn build() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut glucose_dir_str = crate_dir.clone();
-    glucose_dir_str.push_str("/cppsrc");
+    glucose_dir_str.push_str("/vendor");
     let glucose_dir = Path::new(&glucose_dir_str);
     let mut conf = cmake::Config::new(glucose_dir);
     conf.define("BUILD_SYRUP", "OFF")

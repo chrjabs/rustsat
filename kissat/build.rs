@@ -137,7 +137,7 @@ fn get_kissat_src(version: Version) -> PathBuf {
     if version == Version::default() {
         // the sources for the default version are included with the crate and do not need to be
         // cloned
-        return PathBuf::from("csrc");
+        return PathBuf::from("vendor/");
     }
 
     #[cfg(feature = "git")]

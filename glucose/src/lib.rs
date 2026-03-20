@@ -11,7 +11,7 @@
 //!
 //! The version of Glucose in this crate is Version 4.2.1.
 //! The used Cpp source can be found
-//! [here](https://github.com/chrjabs/rustsat/tree/main/glucose/cppsrc).
+//! [here](https://github.com/chrjabs/rustsat/tree/main/glucose/vendor).
 //!
 //! ## Minimum Supported Rust Version (MSRV)
 //!

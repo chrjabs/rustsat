@@ -14,8 +14,8 @@ include = [
   "README.md",
   "/src/",
   "/examples/",
-  "/cppsrc/",
-  "!/cppsrc/doc/",
+  "/vendor/",
+  "!/vendor/doc/",
 ]
 rust-version.workspace = true # When changing, update crate documentation, build script, and tools MSRV
 

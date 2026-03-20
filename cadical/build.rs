@@ -290,7 +290,7 @@ fn get_cadical_dir(version: Version, _remote: Option<(&str, &str)>) -> String {
     if version == Version::default() {
         // the sources for the default version are included with the crate and do not need to be
         // cloned
-        return String::from("cppsrc");
+        return String::from("vendor/");
     }
 
     #[cfg(feature = "git")]
