@@ -865,8 +865,8 @@ impl Objective {
                 varset.extend(soft_lits.keys().map(|l| l.var()));
                 varset.extend(
                     soft_clauses
-                        .iter()
-                        .flat_map(|(cl, _)| cl.iter().map(|l| l.var())),
+                        .keys()
+                        .flat_map(|cl| cl.iter().map(|l| l.var())),
                 );
             }
             IntObj::Unweighted {

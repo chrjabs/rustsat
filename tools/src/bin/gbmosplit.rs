@@ -345,7 +345,7 @@ fn split<VM: ManageVars>(
     }
 
     let mut sorted_clauses: Vec<_> = softs.into_iter().collect();
-    sorted_clauses.sort_by(|wc1, wc2| wc1.1.cmp(&wc2.1));
+    sorted_clauses.sort_by_key(|wc1| wc1.1);
 
     let (mut objs, split_stats) = match cli.split_alg {
         SplitAlg::Bmo => split_bmo(sorted_clauses),
