@@ -44,7 +44,7 @@ glob = "0.3.3"
 gungraun = "0.17.2"
 insta = { version = "1.46.3", features = ["yaml"] }
 itertools = "0.14.0"
-libtest-mimic = "0.8.1"
+libtest-mimic = "0.8.2"
 pigeons = { version = "0.2.3", path = "./pigeons" }
 rand = "0.10.0"
 rustc-hash = "2.1.1"
