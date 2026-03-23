@@ -1,7 +1,8 @@
 //! # Low-Level Foreign Function Interface
 
-#![expect(non_upper_case_globals)]
-#![expect(non_camel_case_types)]
+// these are intentionally not `expect` since they are not fulfilled for all CaDiCaL versions
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
 
 use core::ffi::{c_int, c_void};
 
