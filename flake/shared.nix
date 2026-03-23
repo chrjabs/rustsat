@@ -18,6 +18,8 @@ let
       name = "source";
     };
 
+  stdenvSelector = ps: ps.clangStdenv;
+
   libDeps = with pkgs; [
     openssl
     xz
@@ -30,6 +32,7 @@ let
 
   commonArgs = {
     inherit src;
+    stdenv = stdenvSelector;
     strictDeps = true;
     nativeBuildInputs = with pkgs; [
       llvmPackages.bintools
@@ -47,10 +50,19 @@ let
     CI = "true";
   };
 
+  setupAsan = ''
+    export CARGO_BUILD_TARGET=$(rustc -vV | sed -n 's|host: ||p')
+    export CARGO_BUILD_TARGET_DIR="''${CARGO_TARGET_DIR:-target}/tests"
+    export CFLAGS="-fsanitize=address"
+    export CXXFLAGS="-fsanitize=address"
+    export RUSTFLAGS="-Zsanitizer=address"
+  '';
+
   cargoArtifacts = craneLib.buildDepsOnly (
     commonArgs
     // {
       nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ cargo-llvm-cov ]);
+      preCheck = setupAsan;
       # Also build tests for llvm cov
       checkPhaseCargoCommand = ''
         cargo test --locked --workspace --features=_test,_internals --no-run --exclude rustsat-pyapi
@@ -85,7 +97,7 @@ in
     cargoArtifacts
     ;
 
-  stdenv = pkgs.clangStdenv;
+  stdenv = stdenvSelector pkgs;
 
   cargoWasmArtifacts = wasmCraneLib.buildDepsOnly (
     commonArgs
@@ -122,6 +134,7 @@ in
       nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ jq ]);
       withLlvmCov = true;
       cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov --exclude-from-report rustsat-codegen";
+      preCheck = setupAsan;
       VERIPB_CHECKER = lib.getExe pkgs.veripb;
     }
   );

@@ -28,6 +28,10 @@ let
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         LD_LIBRARY_PATH = lib.makeLibraryPath libDeps;
         PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
+        shellHook = ''
+          export CC=${lib.getExe pkgs.clang}
+          export CXX=${lib.getExe' pkgs.clang "clang++"}
+        '';
       }
       // (builtins.removeAttrs args [ "nativeBuildInputs" ])
     );

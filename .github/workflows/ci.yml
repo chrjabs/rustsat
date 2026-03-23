@@ -23,11 +23,6 @@ jobs:
       - doc
       - cadical-each-feature
       - kissat-each-feature
-      - cadical-valgrind
-      - kissat-valgrind
-      - minisat-valgrind
-      - glucose-valgrind
-      - capi-valgrind
     if: ${{ always() }} # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
@@ -40,11 +35,6 @@ jobs:
           echo "📑 Check documentation: ${{ needs.doc.result }}"
           echo "🧪 CaDiCaL test each feature: ${{ needs.cadical-each-feature.result }}"
           echo "🧪 Kissat test each feature: ${{ needs.kissat-each-feature.result }}"
-          echo "🤖 CaDiCaL Valgrind: ${{ needs.cadical-valgrind.result }}"
-          echo "🤖 Kissat Valgrind: ${{ needs.kissat-valgrind.result }}"
-          echo "🤖 Minisat Valgrind: ${{ needs.minisat-valgrind.result }}"
-          echo "🤖 Glucose Valgrind: ${{ needs.glucose-valgrind.result }}"
-          echo "🤖 C-API Valgrind: ${{ needs.capi-valgrind.result }}"
       # Fail this required job if any of its dependent jobs have failed.
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
@@ -64,16 +54,6 @@ jobs:
       - if: ${{ needs.cadical-each-feature.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.kissat-each-feature.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.cadical-valgrind.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.kissat-valgrind.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.minisat-valgrind.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.glucose-valgrind.result == 'failure' }}
-        run: exit 1
-      - if: ${{ needs.capi-valgrind.result == 'failure' }}
         run: exit 1
   dev-deps:
     name: 🏗️ Dev dependencies
@@ -210,53 +190,3 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: 🧪 Test each feature
         run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run nextest run -p rustsat-kissat
-  cadical-valgrind:
-    name: 🤖 CaDiCaL Valgrind
-    runs-on: [self-hosted, nix]
-    needs:
-      - dev-deps
-    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/cadical')"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: 🧪 Tests through valgrind
-        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').cadicalValgrind"
-  kissat-valgrind:
-    name: 🤖 Kissat Valgrind
-    runs-on: [self-hosted, nix]
-    needs:
-      - dev-deps
-    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/kissat')"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: 🧪 Tests through valgrind
-        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').kissatValgrind"
-  minisat-valgrind:
-    name: 🤖 Minisat Valgrind
-    runs-on: [self-hosted, nix]
-    needs:
-      - dev-deps
-    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/minisat')"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: 🧪 Tests through valgrind
-        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').minisatValgrind"
-  glucose-valgrind:
-    name: 🤖 Glucose Valgrind
-    runs-on: [self-hosted, nix]
-    needs:
-      - dev-deps
-    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/glucose')"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: 🧪 Tests through valgrind
-        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').glucoseValgrind"
-  capi-valgrind:
-    name: 🤖 C-API Valgrind
-    runs-on: [self-hosted, nix]
-    needs:
-      - dev-deps
-    if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/capi')"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - name: 🧪 Tests through valgrind
-        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').capiValgrind"

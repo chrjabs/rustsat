@@ -46,33 +46,6 @@ let
         doCheck = false;
       }
     );
-
-  crateValgrind =
-    crate:
-    craneLib.mkCargoDerivation (
-      commonArgs
-      // {
-        pnameSuffix = "${crate}-valgrind";
-        cargoArtifacts = craneLib.buildDepsOnly (
-          commonArgs
-          // {
-            pnameSuffix = "-${crate}-test-deps";
-            inherit cargoArtifacts;
-            checkPhaseCargoCommand = "cargo test --locked --no-run -p ${crate}";
-          }
-        );
-        nativeBuildInputs =
-          commonArgs.nativeBuildInputs
-          ++ (with pkgs; [
-            jq
-            cargo-valgrind
-            cargo-nextest
-          ]);
-        buildPhaseCargoCommand = ''
-          cargo valgrind nextest run -p ${crate}
-        '';
-      }
-    );
 in
 {
   # from shared
@@ -228,32 +201,4 @@ in
       '';
     }
   );
-
-  capiValgrind = craneLib.mkCargoDerivation (
-    commonArgs
-    // {
-      pnameSuffix = "-capi-valgrind";
-      inherit cargoArtifacts;
-      nativeBuildInputs =
-        commonArgs.nativeBuildInputs
-        ++ (with pkgs; [
-          jq
-          valgrind
-          cargo-nextest
-        ]);
-      # libtestmimic calling threads is leaking memory
-      # C-API tests are only actually built when _executing_ them, so we can't use `--no-run`
-      buildPhaseCargoCommand = ''
-        cargo nextest run -p rustsat-capi
-        for test in capi/tests/*.c; do
-          valgrind ''${CARGO_TARGET_DIR:-target}/tmp/"$(basename -s .c "$test")"
-        done
-      '';
-    }
-  );
-
-  cadicalValgrind = crateValgrind "rustsat-cadical";
-  kissatValgrind = crateValgrind "rustsat-kissat";
-  minisatValgrind = crateValgrind "rustsat-minisat";
-  glucoseValgrind = crateValgrind "rustsat-glucose";
 }

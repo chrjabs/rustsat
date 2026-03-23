@@ -33,4 +33,5 @@ int main() {
     assert(dpw_enforce_ub(dpw, coarse_ub, &assump_counter, &n_assumps) == Ok);
     assert(n_assumps == 1);
   }
+  dpw_drop(dpw);
 }

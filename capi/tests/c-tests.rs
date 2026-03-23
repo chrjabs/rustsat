@@ -81,10 +81,10 @@ fn run_test(path: &Path) -> Result<(), Failed> {
             "-lrustsat_capi",
         ]);
     };
-    let compile = dbg!(compile).output()?;
+    let compile = compile.output()?;
     if !compile.status.success() {
         return Err(format!(
-            r#"failed to compile test `{path:?}`: exit code {}
+            r#"failed to compile test `{path:?}`: {}
             === stdout ===
             {}
             === stderr ===
@@ -101,7 +101,7 @@ fn run_test(path: &Path) -> Result<(), Failed> {
     let run = std::process::Command::new(cmd).output()?;
     if !run.status.success() {
         return Err(format!(
-            r#"test {name} failed: exit code {}
+            r#"test {name} failed: {}
             === stdout ===
             {}
             === stderr ===

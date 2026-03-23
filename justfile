@@ -7,13 +7,29 @@ test *args:
 
 test-external-solver *args:
     echo "RS_EXT_SOLVER=$RS_EXT_SOLVER"
-    cargo nextest run {{ args }} -p rustsat --test external_solver --verbose -- --ignored
+    cargo nextest run -p rustsat --test external_solver --verbose {{ args }} -- --ignored
+
+[env("CARGO_BUILD_TARGET_DIR", "target/tests")]
+[env("CFLAGS", "-fsanitize=address")]
+[env("CXXFLAGS", "-fsanitize=address")]
+[env("RUSTFLAGS", "-Zsanitizer=address")]
+test-asan *args:
+    CARGO_BUILD_TARGET=$(rustc -vV | sed -n 's|host: ||p') cargo nextest run --workspace --exclude rustsat-pyapi --features=_test {{ args }}
+
+[env("CARGO_BUILD_TARGET_DIR", "target/tests")]
+[env("CFLAGS", "-fsanitize=address")]
+[env("CXXFLAGS", "-fsanitize=address")]
+[env("RUSTFLAGS", "-Zsanitizer=address")]
+test-external-solver-asan *args:
+    echo "RS_EXT_SOLVER=$RS_EXT_SOLVER"
+    CARGO_BUILD_TARGET=$(rustc -vV | sed -n 's|host: ||p') cargo nextest run -p rustsat --test external_solver --verbose {{ args }} -- --ignored
 
 doc-tests *args:
     cargo test --workspace --exclude rustsat-capi --exclude rustsat-pyapi --features=_test --doc {{ args }}
 
+[env("CARGO_BUILD_TARGET_DIR", "target/clippy")]
 clippy *args:
-    cargo clippy --workspace --all-targets --target-dir target/clippy --features=_test {{ args }} -- -Dwarnings
+    cargo clippy --workspace --all-targets --features=_test {{ args }} -- -Dwarnings
 
 gen *args:
     cargo run -p rustsat-codegen -- {{ args }}
@@ -97,19 +113,6 @@ coverage *args:
     cargo llvm-cov --no-report nextest --workspace --exclude rustsat-pyapi --features=_test
     cargo llvm-cov --no-report --doc --workspace --exclude rustsat-ipasir --features=_test
     cargo llvm-cov report --doctests --html {{ args }}
-
-valgrind *args:
-    cargo valgrind nextest run {{ args }}
-
-# note: something in libtest-mimic seems to be leaking memory
-capi-valgrind:
-    #!/usr/bin/env -S bash -euo pipefail
-    cargo nextest run -p rustsat-capi
-    for test in capi/tests/*.c; do
-        valgrind target/tmp/"$(basename -s .c "$test")"
-    done
-
-all-valgrind *args: (valgrind "--workspace --exclude rustsat-pyapi --exclude rustsat-capi --features=_test" args) capi-valgrind
 
 miri *args:
     MIRIFLAGS=-Zmiri-disable-isolation cargo miri nextest run {{ args }}
