@@ -51,6 +51,7 @@ macro_rules! shared_pyapi {
         #[pymethods]
         impl $type {
             #[new]
+            #[pyo3(text_signature = "(lits = [])")]
             fn new(lits: Vec<(Lit, usize)>) -> Self {
                 let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
                 <$rstype>::from_iter(lits).into()
