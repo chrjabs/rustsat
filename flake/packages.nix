@@ -35,6 +35,18 @@
     '';
   };
 
+  testRecordings = stdenv.mkDerivation {
+    name = "rustsat-test-recordings";
+    unpackPhase = "true";
+    buildPhase = ''
+      mkdir -p $out
+      cp ${tests}/nextest-run-archive.zip $out/tests-run-archive.zip
+      cp ${externalCadical}/nextest-run-archive.zip $out/external-cadical-run-archive.zip
+      cp ${externalKissat}/nextest-run-archive.zip $out/external-kissat-run-archive.zip
+      cp ${externalGimsatul}/nextest-run-archive.zip $out/external-gimsatul-run-archive.zip
+    '';
+  };
+
   pages = stdenv.mkDerivation {
     name = "rustsat-pages";
     unpackPhase = "true";

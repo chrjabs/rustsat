@@ -73,14 +73,32 @@ let
     }
   );
 
+  nextestRecordingArgs = {
+    buildInputs = with pkgs; [ writableTmpDirAsHomeHook ];
+    preCheck = ''
+      mkdir nextest-config
+      printf '[experimental]\nrecord = true\n\n[record]\nenabled = true\n' \
+          > nextest-config/config.toml
+      cat nextest-config/config.toml
+    '';
+    cargoNextestExtraArgs = "--user-config-file nextest-config/config.toml";
+    postCheck = ''
+      cargo nextest store export latest \
+          --user-config-file nextest-config/config.toml \
+          --archive-file $out/nextest-run-archive.zip
+    '';
+  };
+
   externalSolverTest =
     slv:
     (craneLib.cargoNextest (
       commonArgs
+      // nextestRecordingArgs
       // {
         inherit cargoArtifacts;
         cargoExtraArgs = "--locked --features=_test,_internals";
-        cargoNextestExtraArgs = "-p rustsat --test external_solver -- --ignored";
+        cargoNextestExtraArgs =
+          nextestRecordingArgs.cargoNextestExtraArgs + " -p rustsat --test external_solver -- --ignored";
         withLlvmCov = true;
         cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov";
         RS_EXT_SOLVER = slv;
@@ -128,13 +146,17 @@ in
 
   tests = craneLib.cargoNextest (
     commonArgs
+    // nextestRecordingArgs
     // {
       inherit cargoArtifacts;
-      cargoNextestExtraArgs = "--exclude rustsat-pyapi";
+      cargoNextestExtraArgs = nextestRecordingArgs.cargoNextestExtraArgs + " --exclude rustsat-pyapi";
       nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ jq ]);
       withLlvmCov = true;
       cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov --exclude-from-report rustsat-codegen";
-      preCheck = setupAsan;
+      preCheck = ''
+        ${setupAsan}
+        ${nextestRecordingArgs.preCheck}
+      '';
       VERIPB_CHECKER = lib.getExe pkgs.veripb;
     }
   );
