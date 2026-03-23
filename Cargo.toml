@@ -60,7 +60,10 @@ termcolor = "1.4.1"
 thiserror = "2.0.18"
 visibility = "0.1.1"
 web-time = "1.1.0"
-winnow = "1.0.0"
+winnow = { version = "1.0.0", default-features = false, features = [
+  "std",
+  "ascii",
+] }
 xz2 = "0.1.7"
 # keep-sorted end
 
