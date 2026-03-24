@@ -6,7 +6,6 @@
 //!
 //! ## Features
 //!
-//! - `short-keywords`: use short rule keywords, e.g., `p` instead of `pol`
 //! - `serde`: add implementations for
 //!   [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for library
