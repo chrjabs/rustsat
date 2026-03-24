@@ -148,6 +148,7 @@
           pass_filenames = false;
           entry = ''
             ${lib.getExe' pkgs.rust-toolchain "cargo"} nextest run \
+              --profile git-hook \
               --workspace --exclude rustsat-pyapi --features=_test
           '';
           priority = 21;
