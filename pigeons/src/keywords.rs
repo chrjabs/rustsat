@@ -4,13 +4,6 @@ macro_rules! keyword {
     ($name:ident, $val:literal) => {
         pub const $name: &str = $val;
     };
-    ($name:ident, s = $sval:literal, l = $lval:literal) => {
-        pub const $name: &str = if cfg!(feature = "short-keywords") {
-            $sval
-        } else {
-            $lval
-        };
-    };
 }
 
 // General file layout
@@ -62,9 +55,9 @@ keyword!(OBJ_UPDATE_DIFF, "diff");
 keyword!(OBJ_UPDATE_NEW, "new");
 keyword!(ORDER_DEFINE, "def_order");
 keyword!(ORDER_LOAD, "load_order");
-keyword!(POLISH, s = "p", l = "pol");
+keyword!(POLISH, "pol");
 keyword!(REDUNDANT, "red");
-keyword!(RUP, s = "u", l = "rup");
+keyword!(RUP, "rup");
 keyword!(SOLUTION, "sol");
 keyword!(SOLUTION_EXCLUDE, "solx");
 keyword!(SOLUTION_IMPROVE, "soli");
