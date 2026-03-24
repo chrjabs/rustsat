@@ -22,9 +22,8 @@ serde = { workspace = true, optional = true }
 tempfile.workspace = true
 
 [features]
-short-keywords = []
 serde = ["dep:serde"]
-_test = ["short-keywords", "serde"]
+_test = ["serde"]
 _docs = ["serde"]
 
 [package.metadata.docs.rs]
