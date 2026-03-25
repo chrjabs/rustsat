@@ -7,7 +7,7 @@ use std::{fmt, io, path::PathBuf};
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use rustsat::{
-    instances::{fio, ManageVars, SatInstance},
+    instances::{fio, ManageVars, MultiOptInstance, OptInstance, SatInstance},
     solvers::{self, Solve, SolveIncremental},
     types::{Assignment, Var},
 };
@@ -23,6 +23,9 @@ struct Args {
     /// The maximum number of solutions to enumerate. Enumerates all by default.
     #[arg(short, long)]
     enumerate_until: Option<usize>,
+    /// Don't print objective values of solutions found
+    #[arg(long)]
+    no_objective_values: bool,
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 1)]
     opb_first_var_idx: u32,
@@ -34,7 +37,9 @@ struct Args {
 enum InputFormat {
     /// Infer the input file format from the file extension according to the following rules:
     /// - `.cnf`: DIMACS CNF file
-    /// - `.opb`: OPB file (without an objective)
+    /// - `.wcnf`: WCNF file
+    /// - `.mcnf`: MCNF file
+    /// - `.opb` / `.mopb` / `.pbmo`: OPB file
     ///
     /// All file extensions can also be appended with `.bz2`, `.xz`, or `.gz` if compression is used.
     #[default]
@@ -43,6 +48,10 @@ enum InputFormat {
     Cnf,
     /// An OPB file
     Opb,
+    /// A WCNF file
+    Wcnf,
+    /// A MCNF file
+    Mcnf,
 }
 
 impl fmt::Display for InputFormat {
@@ -50,6 +59,8 @@ impl fmt::Display for InputFormat {
         match self {
             InputFormat::Infer => write!(f, "infer"),
             InputFormat::Cnf => write!(f, "cnf"),
+            InputFormat::Wcnf => write!(f, "wcnf"),
+            InputFormat::Mcnf => write!(f, "mcnf"),
             InputFormat::Opb => write!(f, "opb"),
         }
     }
@@ -65,7 +76,7 @@ fn parse_instance(
     path: &Option<PathBuf>,
     file_format: InputFormat,
     opb_opts: fio::opb::Options,
-) -> anyhow::Result<SatInstance> {
+) -> anyhow::Result<MultiOptInstance> {
     Ok(match file_format {
         InputFormat::Infer => {
             if let Some(path) = path {
@@ -81,9 +92,14 @@ fn parse_instance(
                         ext
                     };
                     if is_one_of!(ext, "cnf") {
-                        SatInstance::from_dimacs_path(path)?
+                        MultiOptInstance::compose(SatInstance::from_dimacs_path(path)?, vec![])
+                    } else if is_one_of!(ext, "wcnf") {
+                        let (constr, obj) = OptInstance::from_dimacs_path(path)?.decompose();
+                        MultiOptInstance::compose(constr, vec![obj])
+                    } else if is_one_of!(ext, "mcnf") {
+                        MultiOptInstance::from_dimacs_path(path)?
                     } else if is_one_of!(ext, "opb", "pbmo", "mopb") {
-                        SatInstance::from_opb_path(path, opb_opts)?
+                        MultiOptInstance::from_opb_path(path, opb_opts)?
                     } else {
                         anyhow::bail!("unknown file extension")
                     }
@@ -96,16 +112,36 @@ fn parse_instance(
         }
         InputFormat::Cnf => {
             if let Some(path) = path {
-                SatInstance::from_dimacs_path(path)?
+                MultiOptInstance::compose(SatInstance::from_dimacs_path(path)?, vec![])
             } else {
-                SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?
+                MultiOptInstance::compose(
+                    SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?,
+                    vec![],
+                )
+            }
+        }
+        InputFormat::Wcnf => {
+            if let Some(path) = path {
+                let (constr, obj) = OptInstance::from_dimacs_path(path)?.decompose();
+                MultiOptInstance::compose(constr, vec![obj])
+            } else {
+                let (constr, obj) =
+                    OptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?.decompose();
+                MultiOptInstance::compose(constr, vec![obj])
+            }
+        }
+        InputFormat::Mcnf => {
+            if let Some(path) = path {
+                MultiOptInstance::from_dimacs_path(path)?
+            } else {
+                MultiOptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?
             }
         }
         InputFormat::Opb => {
             if let Some(path) = path {
-                SatInstance::from_opb_path(path, opb_opts)?
+                MultiOptInstance::from_opb_path(path, opb_opts)?
             } else {
-                SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)?
+                MultiOptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)?
             }
         }
     })
@@ -146,14 +182,14 @@ fn main() -> anyhow::Result<()> {
         ..fio::opb::Options::default()
     };
 
-    let inst = parse_instance(&args.in_path, args.input_format, opb_opts)?;
+    let (constr, objs) = parse_instance(&args.in_path, args.input_format, opb_opts)?.decompose();
 
-    let max_var = inst
+    let max_var = constr
         .var_manager_ref()
         .max_var()
         .expect("expected at least one variable in the instance");
 
-    let (cnf, vm) = inst.into_cnf();
+    let (cnf, vm) = constr.into_cnf();
 
     let mut solver = rustsat_tools::Solver::default();
     solver
@@ -164,6 +200,13 @@ fn main() -> anyhow::Result<()> {
     let enumerator = Enumerator { solver, max_var };
 
     for (cnt, sol) in enumerator.enumerate() {
+        if !args.no_objective_values && !objs.is_empty() {
+            print!("o");
+            for obj in &objs {
+                print!(" {}", obj.evaluate(&sol));
+            }
+            println!();
+        }
         println!("v {sol}");
         if args.enumerate_until.is_some_and(|max| cnt + 1 >= max) {
             break;
