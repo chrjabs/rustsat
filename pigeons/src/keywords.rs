@@ -11,6 +11,14 @@ macro_rules! keyword {
             $valv3
         };
     };
+    ($name:ident, $val:literal, v2) => {
+        #[cfg(feature = "version2")]
+        pub const $name: &str = $val;
+    };
+    ($name:ident, $val:literal, v3) => {
+        #[cfg(not(feature = "version2"))]
+        pub const $name: &str = $val;
+    };
 }
 
 // General file layout
@@ -54,6 +62,7 @@ keyword!(DEL_RANGE, "del range");
 keyword!(DEL_SPEC, "del spec");
 keyword!(DOMINATED, "dom");
 keyword!(EQUALS, "e");
+keyword!(EQUALS_ADD, "ea", v2);
 keyword!(IMPLIED, "i");
 keyword!(IMPLIED_ADD, "ia");
 keyword!(LEVEL_SET, v2 = "#", v3 = "setlvl");
@@ -74,8 +83,6 @@ keyword!(SOLUTION_EXCLUDE, "solx");
 keyword!(SOLUTION_IMPROVE, "soli");
 keyword!(STRENGTHENING_TO_CORE, "strengthening_to_core");
 // keep-sorted end
-#[cfg(feature = "version2")]
-keyword!(EQUALS_ADD, "ea");
 
 // Order definition
 // keep-sorted start
@@ -112,8 +119,12 @@ keyword!(OUTPUT_TYPE_PERMUTATION, "PERMUTATION");
 // Operations
 // keep-sorted start
 keyword!(ADD, "+");
-keyword!(DIV, "d");
 keyword!(MULT, "*");
+keyword!(NORM_DIV, "d");
+keyword!(NORM_MIR, "n", v3);
 keyword!(SATURATE, "s");
+keyword!(SUB, "-", v3);
+keyword!(VAR_DIV, "c", v3);
+keyword!(VAR_MIR, "m", v3);
 keyword!(WEAKEN, "w");
 // keep-sorted end

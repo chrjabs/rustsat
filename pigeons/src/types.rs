@@ -1,7 +1,6 @@
 //! # Most Types of the Library
 
 use std::{
-    collections::HashSet,
     fmt, io,
     marker::PhantomData,
     num::NonZeroUsize,
@@ -875,6 +874,7 @@ impl OutputType {
         O: ObjectiveLike<V>,
         I: IntoIterator<Item = C>,
     {
+        use std::collections::HashSet;
         let mut vars: HashSet<String> = HashSet::default();
         let objective = if let Some(objective) = objective {
             vars.extend(
