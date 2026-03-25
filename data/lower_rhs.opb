@@ -1,0 +1,2 @@
+* #variable= 3 #constraint= 1
+1 x1 3 x2 5 x3 >= 8 ;
