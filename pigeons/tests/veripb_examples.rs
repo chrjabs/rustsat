@@ -955,6 +955,142 @@ fn delete_core_subproof_proofgoal() {
     )
 }
 
+#[cfg(not(feature = "version2"))]
+#[test]
+fn variable_form_division() {
+    let mut proof = new_proof(4, false);
+    proof
+        .operations(&(OpsSeq::from(Id::abs(1)).variable_form_division(3)))
+        .unwrap();
+    proof
+        .equals(&Constr::parse("-1 x3 -1 x4 >= -1"), Some(Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(3)).variable_form_division(2)))
+        .unwrap();
+    proof
+        .equals(&Constr::parse(">= -1"), Some(Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(4)).variable_form_division(2)))
+        .unwrap();
+    proof
+        .equals(&Constr::parse(">= 0"), Some(Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(2)) + Id::abs(5)))
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(
+            &OutputGuarantee::None,
+            &Conclusion::Unsat(Some(Id::last(1))),
+        )
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/variable_form_division.opb"),
+        proof_file.path(),
+    );
+}
+
+#[cfg(not(feature = "version2"))]
+#[test]
+fn normalized_mir_cut() {
+    let mut proof = new_proof(4, false);
+    proof
+        .operations(&(OpsSeq::from(Id::abs(1)).normalized_form_mir_cut(3)))
+        .unwrap();
+    proof
+        .equals(
+            &Constr::parse("1 ~x1 2 x2 2 ~x3 3 x4 >= 4"),
+            Some(Id::last(1)),
+        )
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(2)) + Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(3)).normalized_form_mir_cut(2)))
+        .unwrap();
+    proof
+        .equals(&Constr::parse("1 ~x1 1 x2 1 x3 >= 1"), Some(Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(4)).normalized_form_mir_cut(2)))
+        .unwrap();
+    proof
+        .equals(
+            &Constr::parse("1 ~x1 1 x2 1 x3 1 x5 >= 2"),
+            Some(Id::last(1)),
+        )
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::Unsat(Some(Id::abs(6))))
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/normalized_mir_cut.opb"),
+        proof_file.path(),
+    );
+}
+
+#[cfg(not(feature = "version2"))]
+#[test]
+fn variable_form_mir_cut() {
+    let mut proof = new_proof(4, false);
+    proof
+        .operations(&(OpsSeq::from(Id::abs(1)).variable_form_mir_cut(3)))
+        .unwrap();
+    proof
+        .equals(
+            &Constr::parse("1 x1 -1 x2 -2 x3 3 x4 >= 2"),
+            Some(Id::last(1)),
+        )
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(2)) + Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(3)).variable_form_mir_cut(2)))
+        .unwrap();
+    proof
+        .equals(&Constr::parse("1 x3 >= 0"), Some(Id::last(1)))
+        .unwrap();
+    proof
+        .operations(&(OpsSeq::from(Id::abs(4)).variable_form_mir_cut(2)))
+        .unwrap();
+    proof
+        .equals(&Constr::parse("1 x2 1 x5 >= 1"), Some(Id::last(1)))
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::Unsat(Some(Id::abs(6))))
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/variable_form_mir_cut.opb"),
+        proof_file.path(),
+    );
+}
+
+#[cfg(not(feature = "version2"))]
+#[test]
+fn lower_rhs() {
+    let mut proof = new_proof(1, false);
+    proof.operations(&(OpsSeq::from(Id::abs(1)) - 5)).unwrap();
+    proof
+        .equals(&Constr::parse("1 x1 3 x2 5 x3 >= 3"), Some(Id::last(1)))
+        .unwrap();
+    proof.operations(&(OpsSeq::from(Id::abs(2)) - 5)).unwrap();
+    proof
+        .equals(&Constr::parse("1 x1 3 x2 5 x3 >= -2"), Some(Id::last(1)))
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(format!("{manifest}/data/lower_rhs.opb"), proof_file.path());
+}
+
 #[test]
 fn output_file() {
     let mut proof = new_proof(0, false);
