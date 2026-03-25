@@ -147,6 +147,45 @@ impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
         }
         self
     }
+
+    #[cfg(not(feature = "version2"))]
+    fn normalized_form_mir_cut(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() {
+            self.push(Operation::NormMir(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
+
+    #[cfg(not(feature = "version2"))]
+    fn variable_form_mir_cut(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() {
+            self.push(Operation::VarMir(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
+
+    fn normalized_form_division(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() {
+            self.push(Operation::NormDiv(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
+
+    #[cfg(not(feature = "version2"))]
+    fn variable_form_division(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() {
+            self.push(Operation::VarDiv(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
 }
 
 impl<V: VarLike> From<Operation<V>> for OperationSequence<V> {
@@ -206,20 +245,15 @@ impl<V: VarLike> Mul<OperationSequence<V>> for usize {
 impl<V: VarLike> Div<usize> for OperationSequence<V> {
     type Output = OperationSequence<V>;
 
-    fn div(mut self, rhs: usize) -> Self::Output {
-        if !self.is_empty() {
-            self.push(Operation::Div(
-                rhs.try_into().expect("cannot divide by zero"),
-            ));
-        }
-        self
+    fn div(self, rhs: usize) -> Self::Output {
+        self.normalized_form_division(rhs)
     }
 }
 
 impl<V: VarLike> DivAssign<usize> for OperationSequence<V> {
     fn div_assign(&mut self, rhs: usize) {
         if !self.is_empty() {
-            self.push(Operation::Div(
+            self.push(Operation::NormDiv(
                 rhs.try_into().expect("cannot divide by zero"),
             ));
         }
@@ -234,17 +268,28 @@ pub(crate) enum Operation<V: VarLike> {
     Id(ConstraintId),
     /// A (possibly negated) literal axiom
     Axiom(Axiom<V>),
-    /// A negative literal axiom
     /// An addition operation over two constraints
     Add,
     /// A constant multiplication operation
     Mult(NonZeroUsize),
-    /// A constant division operation
-    Div(NonZeroUsize),
+    /// A constant division operation in normalized constraint form
+    NormDiv(NonZeroUsize),
+    /// A constant division operation in variable constraint form
+    #[cfg(not(feature = "version2"))]
+    VarDiv(NonZeroUsize),
     /// A boolean saturation operation
     Sat,
     /// A weakening operation
     Weak,
+    /// A subtraction operation for the right-hand side
+    #[cfg(not(feature = "version2"))]
+    Sub(usize),
+    /// Mixed integer rounding cut in normalized constraint form
+    #[cfg(not(feature = "version2"))]
+    NormMir(NonZeroUsize),
+    /// Mixed integer rounding cut in variable constraint form
+    #[cfg(not(feature = "version2"))]
+    VarMir(NonZeroUsize),
 }
 
 impl<V: VarLike> From<ConstraintId> for Operation<V> {
@@ -266,13 +311,92 @@ impl<V: VarLike> fmt::Display for Operation<V> {
             Operation::Axiom(ax) => write!(f, "{ax}"),
             Operation::Add => write!(f, "{ADD}"),
             Operation::Mult(fact) => write!(f, "{fact} {MULT}"),
-            Operation::Div(div) => write!(f, "{div} {DIV}"),
+            Operation::NormDiv(div) => write!(f, "{div} {NORM_DIV}"),
+            #[cfg(not(feature = "version2"))]
+            Operation::VarDiv(div) => write!(f, "{div} {VAR_DIV}"),
             Operation::Sat => write!(f, "{SATURATE}"),
             Operation::Weak => write!(f, "{WEAKEN}"),
+            #[cfg(not(feature = "version2"))]
+            Operation::Sub(sub) => write!(f, "{sub} {SUB}"),
+            #[cfg(not(feature = "version2"))]
+            Operation::NormMir(div) => write!(f, "{div} {NORM_MIR}"),
+            #[cfg(not(feature = "version2"))]
+            Operation::VarMir(div) => write!(f, "{div} {VAR_MIR}"),
         }
     }
 }
 
+// helper macro for making trait bounds conditional on compilation features not as repetitive
+macro_rules! operation_like_def {
+    () => {
+        /// Applies saturation
+        #[must_use]
+        fn saturate(self) -> OperationSequence<V> {
+            Into::<OperationSequence<V>>::into(self).saturate()
+        }
+        /// Applies weakening
+        #[must_use]
+        fn weaken(self) -> OperationSequence<V> {
+            Into::<OperationSequence<V>>::into(self).weaken()
+        }
+        /// Derives a mixed-integer rounding cut in normalized constraint form
+        ///
+        /// # Panics
+        ///
+        /// If `div` is zero.
+        #[cfg(not(feature = "version2"))]
+        #[must_use]
+        fn normalized_form_mir_cut(self, div: usize) -> OperationSequence<V> {
+            Into::<OperationSequence<V>>::into(self).normalized_form_mir_cut(div)
+        }
+        /// Derives a mixed-integer rounding cut in variable constraint form
+        ///
+        /// # Panics
+        ///
+        /// If `div` is zero.
+        #[cfg(not(feature = "version2"))]
+        #[must_use]
+        fn variable_form_mir_cut(self, div: usize) -> OperationSequence<V> {
+            Into::<OperationSequence<V>>::into(self).variable_form_mir_cut(div)
+        }
+        /// Applies division in normalized constraint form
+        ///
+        /// # Panics
+        ///
+        /// If `div` is zero.
+        #[must_use]
+        fn normalized_form_division(self, div: usize) -> OperationSequence<V> {
+            Into::<OperationSequence<V>>::into(self).normalized_form_division(div)
+        }
+        /// Applies division in variable constraint form
+        ///
+        /// # Panics
+        ///
+        /// If `div` is zero.
+        #[cfg(not(feature = "version2"))]
+        #[must_use]
+        fn variable_form_division(self, div: usize) -> OperationSequence<V> {
+            Into::<OperationSequence<V>>::into(self).variable_form_division(div)
+        }
+    };
+}
+
+#[cfg(not(feature = "version2"))]
+/// A trait implemented by all types intended to be used in building an [`OperationSequence`]
+pub trait OperationLike<V: VarLike>:
+    Into<OperationSequence<V>>
+    + Add<OperationSequence<V>, Output = OperationSequence<V>>
+    + Add<ConstraintId, Output = OperationSequence<V>>
+    + Add<AbsConstraintId, Output = OperationSequence<V>>
+    + Add<Axiom<V>, Output = OperationSequence<V>>
+    + Mul<usize, Output = OperationSequence<V>>
+    + Div<usize, Output = OperationSequence<V>>
+    + std::ops::Sub<usize, Output = OperationSequence<V>>
+{
+    operation_like_def!();
+}
+
+#[cfg(feature = "version2")]
 /// A trait implemented by all types intended to be used in building an [`OperationSequence`]
 pub trait OperationLike<V: VarLike>:
     Into<OperationSequence<V>>
@@ -283,16 +407,7 @@ pub trait OperationLike<V: VarLike>:
     + Mul<usize, Output = OperationSequence<V>>
     + Div<usize, Output = OperationSequence<V>>
 {
-    /// Applies saturation
-    #[must_use]
-    fn saturate(self) -> OperationSequence<V> {
-        Into::<OperationSequence<V>>::into(self).saturate()
-    }
-    /// Applies weakening
-    #[must_use]
-    fn weaken(self) -> OperationSequence<V> {
-        Into::<OperationSequence<V>>::into(self).weaken()
-    }
+    operation_like_def!();
 }
 
 impl<V: VarLike, O: Into<OperationSequence<V>>> Add<O> for OperationSequence<V> {
@@ -324,6 +439,27 @@ impl<V: VarLike, O: Into<OperationSequence<V>>> AddAssign<O> for OperationSequen
             return;
         }
         self.push(Operation::Add);
+    }
+}
+
+#[cfg(not(feature = "version2"))]
+impl<V: VarLike> std::ops::Sub<usize> for OperationSequence<V> {
+    type Output = OperationSequence<V>;
+
+    fn sub(mut self, rhs: usize) -> Self::Output {
+        if !self.is_empty() {
+            self.push(Operation::Sub(rhs));
+        }
+        self
+    }
+}
+
+#[cfg(not(feature = "version2"))]
+impl<V: VarLike> std::ops::SubAssign<usize> for OperationSequence<V> {
+    fn sub_assign(&mut self, rhs: usize) {
+        if !self.is_empty() {
+            self.push(Operation::Sub(rhs));
+        }
     }
 }
 
@@ -427,6 +563,15 @@ impl<V: VarLike> Div<usize> for Axiom<V> {
     }
 }
 
+#[cfg(not(feature = "version2"))]
+impl<V: VarLike> std::ops::Sub<usize> for Axiom<V> {
+    type Output = OperationSequence<V>;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Into::<OperationSequence<V>>::into(self) - rhs
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::OperationLike;
@@ -451,9 +596,16 @@ mod tests {
     }
 
     #[test]
-    fn constr_div() {
+    fn constr_norm_div() {
         let mult = seq!(Id::abs(42)) / 5;
         assert_eq!(&format!("{mult}"), "42 5 d");
+    }
+
+    #[cfg(not(feature = "version2"))]
+    #[test]
+    fn constr_var_div() {
+        let mult = seq!(Id::abs(42)).variable_form_division(5);
+        assert_eq!(&format!("{mult}"), "42 5 c");
     }
 
     #[test]
@@ -481,5 +633,26 @@ mod tests {
     fn sequence() {
         let seq = (seq!(Id::abs(42)) * 3 + Id::abs(43)).saturate() / 2;
         assert_eq!(&format!("{seq}"), "42 3 * 43 + s 2 d");
+    }
+
+    #[cfg(not(feature = "version2"))]
+    #[test]
+    fn constr_sub() {
+        let sub = seq!(Id::abs(42)) - 5;
+        assert_eq!(&format!("{sub}"), "42 5 -");
+    }
+
+    #[cfg(not(feature = "version2"))]
+    #[test]
+    fn constr_norm_mir() {
+        let sub = seq!(Id::abs(42)).normalized_form_mir_cut(2);
+        assert_eq!(&format!("{sub}"), "42 2 n");
+    }
+
+    #[cfg(not(feature = "version2"))]
+    #[test]
+    fn constr_var_mir() {
+        let sub = seq!(Id::abs(42)).variable_form_mir_cut(2);
+        assert_eq!(&format!("{sub}"), "42 2 m");
     }
 }
