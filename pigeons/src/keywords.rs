@@ -95,8 +95,12 @@ keyword!(OUTPUT_TYPE_PERMUTATION, "PERMUTATION");
 // Operations
 // keep-sorted start
 keyword!(ADD, "+");
-keyword!(DIV, "d");
 keyword!(MULT, "*");
+keyword!(NORM_DIV, "d");
+keyword!(NORM_MIR, "n");
 keyword!(SATURATE, "s");
+keyword!(SUB, "-");
+keyword!(VAR_DIV, "c");
+keyword!(VAR_MIR, "m");
 keyword!(WEAKEN, "w");
 // keep-sorted end
