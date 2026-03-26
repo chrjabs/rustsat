@@ -54,6 +54,7 @@
             cargoArtifacts = self'.packages.cargoDevArtifactsMinimalDeps;
             cargoNextestExtraArgs = " --exclude rustsat-pyapi";
             nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ jq ]);
+            VERIPB_CHECKER = lib.getExe pkgs.veripb;
           }
         );
 
