@@ -1015,3 +1015,7 @@ impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ConstrFormatter<'_,
         )
     }
 }
+
+/// A proof checker timer handle, helping to only stop timer that have been started
+#[derive(Debug)]
+pub struct TimerHandle(pub(crate) String);
