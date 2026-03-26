@@ -63,8 +63,10 @@ keyword!(DEL_SPEC, "del spec");
 keyword!(DOMINATED, "dom");
 keyword!(EQUALS, "e");
 keyword!(EQUALS_ADD, "ea", v2);
+keyword!(FAIL, "fail", v3);
 keyword!(IMPLIED, "i");
 keyword!(IMPLIED_ADD, "ia");
+keyword!(IS_DELETED, "is_deleted", v3);
 keyword!(LEVEL_SET, v2 = "#", v3 = "setlvl");
 keyword!(LEVEL_WIPE, v2 = "w", v3 = "wiplvl");
 keyword!(NUM_CONSTRAINTS, "f");
@@ -82,6 +84,8 @@ keyword!(SOLUTION, "sol");
 keyword!(SOLUTION_EXCLUDE, "solx");
 keyword!(SOLUTION_IMPROVE, "soli");
 keyword!(STRENGTHENING_TO_CORE, "strengthening_to_core");
+keyword!(TIMER_END, "end_time", v3);
+keyword!(TIMER_START, "start_time", v3);
 // keep-sorted end
 
 // Order definition

@@ -56,6 +56,9 @@
 //! - [x] `load_order`
 //! - [x] `pbc`
 //! - [ ] `@` constraint labels
+//! - [x] `start_time` and `end_time`: [`Proof::start_checker_timer`] and [`Proof::end_checker_timer`]
+//! - [x] `is_deleted`: [`Proof::is_deleted`]
+//! - [x] `fail`: [`Proof::fail`]
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -74,6 +77,9 @@ pub use types::{
     OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar,
     SubproofElement, Substitution,
 };
+
+#[cfg(not(feature = "version2"))]
+pub use types::TimerHandle;
 
 mod ops;
 pub use ops::{OperationLike, OperationSequence};
@@ -1068,6 +1074,81 @@ where
             "{STRENGTHENING_TO_CORE} {}{RULE_TERM}",
             if value { ON } else { OFF }
         )
+    }
+
+    /// Starts a new performance timer at this point in the proof when checking it
+    ///
+    /// **Note**: while this rule is defined in the proof specification, the proof checker does
+    /// currently not implement it.
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `start_time <timer>` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    #[cfg(not(feature = "version2"))]
+    pub fn start_checker_timer<S>(&mut self, name: S) -> io::Result<TimerHandle>
+    where
+        S: AsRef<str>,
+    {
+        writeln!(self.writer, "{TIMER_START} {}{RULE_TERM}", name.as_ref())?;
+        Ok(TimerHandle(String::from(name.as_ref())))
+    }
+
+    /// Ends a previously started performance timer at this point in the proof when checking it
+    ///
+    /// **Note**: while this rule is defined in the proof specification, the proof checker does
+    /// currently not implement it.
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `end_time <timer>` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    #[cfg(not(feature = "version2"))]
+    pub fn end_checker_timer(&mut self, handle: TimerHandle) -> io::Result<()> {
+        let name = handle.0;
+        writeln!(self.writer, "{TIMER_END} {name}{RULE_TERM}")
+    }
+
+    /// Checks that a given constraint has been deleted from the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `is_deleted` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    #[cfg(not(feature = "version2"))]
+    pub fn is_deleted<V, C>(&mut self, constr: &C) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+    {
+        writeln!(
+            self.writer,
+            "{IS_DELETED} {} {RULE_TERM}",
+            ConstrFormatter::from(constr)
+        )
+    }
+
+    /// Causes an intentional failure of proof checking at this point in the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `fail` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    #[cfg(not(feature = "version2"))]
+    pub fn fail_checking(&mut self) -> io::Result<()> {
+        writeln!(self.writer, "{FAIL} {RULE_TERM}")
     }
 }
 

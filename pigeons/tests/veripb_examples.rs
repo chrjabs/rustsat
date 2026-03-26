@@ -945,9 +945,14 @@ fn delete_core_subproof_proofgoal() {
             )],
         )
         .unwrap();
+    #[cfg(not(feature = "version2"))]
+    proof
+        .is_deleted::<&'static str, Constr>(&Constr::parse("1 x1 1 x2 2 ~x3 >= 2"))
+        .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
+
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(
         format!("{manifest}/data/delete_core_subproof_proofgoal.opb"),
@@ -1089,6 +1094,19 @@ fn lower_rhs() {
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/lower_rhs.opb"), proof_file.path());
+}
+
+#[cfg(not(feature = "version2"))]
+#[test]
+#[should_panic]
+fn fail() {
+    let mut proof = new_proof(0, false);
+    proof.fail_checking().unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
 }
 
 #[test]
