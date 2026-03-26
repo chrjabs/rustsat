@@ -1016,3 +1016,8 @@ impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ConstrFormatter<'_, V, C
         )
     }
 }
+
+/// A proof checker timer handle, helping to only stop timer that have been started
+#[cfg(not(feature = "version2"))]
+#[derive(Debug)]
+pub struct TimerHandle(pub(crate) String);
