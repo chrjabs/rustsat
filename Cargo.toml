@@ -42,7 +42,7 @@ flate2 = { version = "1.1.9", features = ["zlib-ng"], default-features = false }
 git2 = "0.20.4"
 glob = "0.3.3"
 gungraun = "0.17.2"
-insta = { version = "1.46.3", features = ["yaml"] }
+insta = { version = "1.47.0", features = ["yaml"] }
 itertools = "0.14.0"
 libtest-mimic = "0.8.2"
 pigeons = { version = "0.2.3", path = "./pigeons" }
