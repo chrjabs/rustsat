@@ -47,7 +47,7 @@ itertools = "0.14.0"
 libtest-mimic = "0.8.2"
 pigeons = { version = "0.2.3", path = "./pigeons" }
 rand = "0.10.0"
-rustc-hash = "2.1.1"
+rustc-hash = "2.1.2"
 rustsat = { version = "0.7.5", path = "./", default-features = false }
 rustsat-cadical = { version = "0.7.5", path = "./cadical" }
 rustsat-minisat = { version = "0.7.5", path = "./minisat" }
