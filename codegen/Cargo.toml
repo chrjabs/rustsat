@@ -18,7 +18,7 @@ minijinja = { version = "2.19.0", default-features = false, features = [
   "loader",
 ] }
 serde.workspace = true
-similar = "2.7.0"
+similar = "3.0.0"
 tempfile.workspace = true
 # keep-sorted end
 
