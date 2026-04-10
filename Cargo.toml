@@ -25,13 +25,13 @@ rust-version = "1.87.0" # update the crate documentation if you change this
 
 [workspace.dependencies]
 # keep-sorted start block=yes
-annotate-snippets = "0.12.14"
+annotate-snippets = "0.12.15"
 anyhow = "1.0.102"
 bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
 ] }
 bzip2 = "0.6.1"
-cc = { version = "1.2.59", features = ["parallel"] }
+cc = { version = "1.2.60", features = ["parallel"] }
 chacha20 = "0.10.0"
 chrono = "0.4.44"
 clap = { version = "4.6.0", features = ["derive", "cargo"] }
