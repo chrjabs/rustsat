@@ -30,7 +30,7 @@ jobs:
           sccache: 'true'
           manylinux: auto
       - name: Upload wheels
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wheels-linux-${{ matrix.target }}
           path: dist
@@ -53,7 +53,7 @@ jobs:
           args: --release --out dist --manifest-path pyapi/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wheels-windows-${{ matrix.target }}
           path: dist
@@ -75,7 +75,7 @@ jobs:
           args: --release --out dist --manifest-path pyapi/Cargo.toml
           sccache: 'true'
       - name: Upload wheels
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wheels-macos-${{ matrix.target }}
           path: dist
@@ -91,7 +91,7 @@ jobs:
           command: sdist
           args: --out dist --manifest-path pyapi/Cargo.toml
       - name: Upload sdist
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: wheels-sdist
           path: dist
