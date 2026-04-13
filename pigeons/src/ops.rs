@@ -139,9 +139,9 @@ impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
         self
     }
 
-    fn weaken(mut self) -> Self {
+    fn weaken(mut self, variable: V) -> Self {
         if !self.is_empty() {
-            self.push(Operation::Weak);
+            self.push(Operation::Weak(variable));
         }
         self
     }
@@ -274,7 +274,7 @@ pub(crate) enum Operation<V: VarLike> {
     /// A boolean saturation operation
     Sat,
     /// A weakening operation
-    Weak,
+    Weak(V),
     /// A subtraction operation for the right-hand side
     Sub(usize),
     /// Mixed integer rounding cut in normalized constraint form
@@ -305,7 +305,7 @@ impl<V: VarLike> std::fmt::Display for Operation<V> {
             Operation::NormDiv(div) => write!(f, "{div} {NORM_DIV}"),
             Operation::VarDiv(div) => write!(f, "{div} {VAR_DIV}"),
             Operation::Sat => write!(f, "{SATURATE}"),
-            Operation::Weak => write!(f, "{WEAKEN}"),
+            Operation::Weak(v) => write!(f, "{} {WEAKEN}", V::Formatter::from(*v)),
             Operation::Sub(sub) => write!(f, "{sub} {SUB}"),
             Operation::NormMir(div) => write!(f, "{div} {NORM_MIR}"),
             Operation::VarMir(div) => write!(f, "{div} {VAR_MIR}"),
@@ -331,8 +331,8 @@ pub trait OperationLike<V: VarLike>:
     }
     /// Applies weakening
     #[must_use]
-    fn weaken(self) -> OperationSequence<V> {
-        Into::<OperationSequence<V>>::into(self).weaken()
+    fn weaken(self, variable: V) -> OperationSequence<V> {
+        Into::<OperationSequence<V>>::into(self).weaken(variable)
     }
     /// Derives a mixed-integer rounding cut in normalized constraint form
     ///
@@ -576,8 +576,8 @@ mod tests {
 
     #[test]
     fn constr_weaken() {
-        let mult = seq!(Id::abs(42)).weaken();
-        assert_eq!(&format!("{mult}"), "42 w");
+        let mult = seq!(Id::abs(42)).weaken("x1");
+        assert_eq!(&format!("{mult}"), "42 x1 w");
     }
 
     #[test]
