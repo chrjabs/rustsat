@@ -93,5 +93,39 @@ macro_rules! implement {
             Ok(self.new_id())
         }
     };
+
+    (redundant) => {
+        /// Adds a constraint that is redundant, checked via redundance based strengthening
+        ///
+        /// # Proof Log
+        ///
+        /// Adds a `red`-rule line.
+        ///
+        /// # Errors
+        ///
+        /// If writing the proof fails.
+        pub fn redundant<C, SI>(
+            &mut self,
+            constr: &C,
+            subs: SI,
+        ) -> std::io::Result<crate::guards::SubProof<'_, Self, AbsConstraintId, true>>
+        where
+            C: crate::ConstraintLike,
+            SI: IntoIterator<Item = crate::Substitution<C::Var>>,
+        {
+            let level = self.level();
+            write!(
+                self.writer(),
+                "{:indent$}{red} {constr} {sep} {subs}",
+                "",
+                indent = level * 2,
+                red = crate::keywords::REDUNDANT,
+                constr = crate::ConstrFormatter::from(constr),
+                sep = crate::keywords::SEP_A,
+                subs = subs.into_iter().format(" ")
+            )?;
+            Ok(crate::guards::SubProof::new(self, 1))
+        }
+    }
 }
 pub(crate) use implement;

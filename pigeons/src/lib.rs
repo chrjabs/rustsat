@@ -42,7 +42,7 @@
 //! - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
 //!   [`Proof::update_default_conclusion`]
 //! - [x] Sub-proofs
-//!     - [ ] `scope leq` and `scope geq` in `red` and `dom` rules
+//!     - [x] `scope leq` and `scope geq` in `red` and `dom` rules
 //! - [x] `e`: [`Proof::equals`]
 //! - [x] `eobj`: [`Proof::obj_equals`]
 //! - [x] `i`: [`Proof::implied`]
@@ -72,7 +72,9 @@ pub use types::Conclusion;
 pub use types::ConstraintId;
 pub use types::ObjectiveUpdate;
 pub use types::Order;
+pub use types::OrderAuxVar;
 pub use types::OrderDefinitionProofGoalId;
+pub use types::OrderInputVar;
 pub use types::OrderVar;
 pub use types::OutputGuarantee;
 pub use types::OutputType;
@@ -129,6 +131,8 @@ pub struct Proof<Writer: std::io::Write> {
     first_proof_id: AbsConstraintId,
     /// The default conclusion that will be written when the proof is dropped
     default_conclusion: (OutputGuarantee, String),
+    /// The number of specification constraints of the currently active order
+    num_order_spec_constrs: usize,
 }
 
 impl<Writer: std::io::Write> Drop for Proof<Writer> {
@@ -183,6 +187,7 @@ where
                 OutputGuarantee::None,
                 format!("{}", Conclusion::<&'static str>::None),
             ),
+            num_order_spec_constrs: 0,
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
@@ -223,6 +228,7 @@ where
             problem_type: ProblemType::default(),
             first_proof_id: next_id,
             default_conclusion: (output_guarantee, format!("{conclusion}")),
+            num_order_spec_constrs: 0,
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
@@ -508,7 +514,7 @@ where
         &mut self,
         constr: &C,
         subs: SI,
-    ) -> std::io::Result<guards::SubProof<'_, Self>>
+    ) -> std::io::Result<guards::SubProof<'_, Self, AbsConstraintId, true>>
     where
         C: ConstraintLike,
         SI: IntoIterator<Item = Substitution<C::Var>>,
@@ -535,7 +541,7 @@ where
         &mut self,
         constr: &C,
         subs: SI,
-    ) -> std::io::Result<guards::SubProof<'_, Self>>
+    ) -> std::io::Result<guards::SubProof<'_, Self, AbsConstraintId, true>>
     where
         V: VarLike,
         C: ConstraintLike,
@@ -917,6 +923,7 @@ where
         V: VarLike,
         I: IntoIterator<Item = V>,
     {
+        self.num_order_spec_constrs = order.num_spec_constraints();
         writeln!(
             self.writer,
             "{ORDER_LOAD} {} {}{RULE_TERM}",
@@ -936,6 +943,7 @@ where
     ///
     /// If writing the proof fails.
     pub fn unload_order(&mut self) -> std::io::Result<()> {
+        self.num_order_spec_constrs = 0;
         writeln!(self.writer, "{ORDER_LOAD} {RULE_TERM}")
     }
 
