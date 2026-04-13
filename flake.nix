@@ -6,6 +6,8 @@
 
     flake-parts.url = "github:hercules-ci/flake-parts";
 
+    import-tree.url = "github:vic/import-tree";
+
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -22,19 +24,5 @@
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs =
-    inputs@{ flake-parts, ... }:
-    flake-parts.lib.mkFlake { inherit inputs; } (_: {
-      imports = [
-        inputs.treefmt-nix.flakeModule
-        inputs.git-hooks.flakeModule
-      ];
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "x86_64-darwin"
-        "aarch64-darwin"
-      ];
-      perSystem = import ./flake inputs;
-    });
+  outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } (inputs.import-tree ./flake);
 }

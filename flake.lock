@@ -110,6 +110,21 @@
         "type": "github"
       }
     },
+    "import-tree": {
+      "locked": {
+        "lastModified": 1773693634,
+        "narHash": "sha256-BtZ2dtkBdSUnFPPFc+n0kcMbgaTxzFNPv2iaO326Ffg=",
+        "owner": "vic",
+        "repo": "import-tree",
+        "rev": "c41e7d58045f9057880b0d85e1152d6a4430dbf1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "vic",
+        "repo": "import-tree",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1774078191,
@@ -186,6 +201,7 @@
         "crane": "crane",
         "flake-parts": "flake-parts",
         "git-hooks": "git-hooks",
+        "import-tree": "import-tree",
         "nixpkgs": "nixpkgs",
         "nur-packages": "nur-packages",
         "rust-overlay": "rust-overlay",
