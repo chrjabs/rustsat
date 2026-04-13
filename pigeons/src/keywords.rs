@@ -16,6 +16,9 @@ keyword!(CONCLUSION, "conclusion");
 keyword!(PROOF, "proof");
 keyword!(QED, "qed");
 keyword!(PROOFGOAL, "proofgoal");
+keyword!(SCOPE, "scope");
+keyword!(LEQ_SCOPE, "leq");
+keyword!(GEQ_SCOPE, "geq");
 
 // Syntax delimiters
 // keep-sorted start
@@ -71,8 +74,12 @@ keyword!(TIMER_START, "start_time");
 // keep-sorted start
 keyword!(ORDER_DEFINITION, "def");
 keyword!(ORDER_REFLEXIVITY, "reflexivity");
+keyword!(ORDER_SPECIFICATION, "spec");
 keyword!(ORDER_TRANSITIVITY, "transitivity");
 keyword!(ORDER_VARS, "vars");
+keyword!(ORDER_VARS_AUX, "aux");
+keyword!(ORDER_VARS_FRESH_AUX_1, "fresh_aux_1");
+keyword!(ORDER_VARS_FRESH_AUX_2, "fresh_aux_2");
 keyword!(ORDER_VARS_FRESH_RIGHT, "fresh_right");
 keyword!(ORDER_VARS_LEFT, "left");
 keyword!(ORDER_VARS_RIGHT, "right");

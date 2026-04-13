@@ -813,10 +813,10 @@ fn dominance_simple_order() {
     let mut proof = new_proof(10, false);
 
     let mut order = proof.define_order("simple").unwrap();
-    let (left, right) = order.add_input_var("x1");
+    let ovar = order.add_input_var("x1");
     let mut order = order.definition().unwrap();
     let goal = order
-        .definition_constraint(&c!(-1 false left, 1 false right; 0))
+        .definition_constraint(&c!(-1 false ovar.left(), 1 false ovar.right(); 0))
         .unwrap();
     let mut order = order.transitivity_proof().unwrap();
     let mut goal = order.proof_goal(goal).unwrap();
@@ -1007,6 +1007,305 @@ fn fail() {
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+}
+
+#[test]
+fn dominance_with_aux_vars() {
+    let mut proof = new_proof(1, false);
+    let mut order = proof.define_order("lex").unwrap();
+
+    let x_s = [
+        order.add_input_var("x1"),
+        order.add_input_var("x2"),
+        order.add_input_var("x3"),
+        order.add_input_var("x4"),
+        order.add_input_var("x5"),
+    ];
+    let a_s: Vec<_> = (1..=4).map(|idx| format!("a{idx}")).collect();
+    let a_s: Vec<_> = a_s
+        .iter()
+        .map(|name| order.add_aux_var(name.as_str()))
+        .collect();
+    let d_s: Vec<_> = (1..=5).map(|idx| format!("d{idx}")).collect();
+    let d_s: Vec<_> = d_s
+        .iter()
+        .map(|name| order.add_aux_var(name.as_str()))
+        .collect();
+
+    let mut spec = order.specification().unwrap();
+    spec.redundant(
+        &c![1 true a_s[0].aux(), 1 false x_s[0].left(), 1 true x_s[0].right(); 1],
+        [a_s[0].aux().substitute_fixed(false)],
+    )
+    .unwrap()
+    .finish()
+    .unwrap();
+    spec.redundant(
+        &c![2 false a_s[0].aux(), 1 true x_s[0].left(), 1 false x_s[0].right(); 2],
+        [a_s[0].aux().substitute_fixed(true)],
+    )
+    .unwrap()
+    .finish()
+    .unwrap();
+
+    for idx in 2..=4 {
+        spec.redundant(
+            &c![3 true a_s[idx-1].aux(), 2 false a_s[idx-2].aux(), 1 false
+            x_s[idx-1].left(), 1 true x_s[idx-1].right(); 3],
+            [a_s[idx - 1].aux().substitute_fixed(false)],
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+        spec.redundant(
+            &c![2 false a_s[idx-1].aux(), 2 true a_s[idx-2].aux(), 1 true
+            x_s[idx-1].left(), 1 false x_s[idx-1].right(); 2],
+            [a_s[idx - 1].aux().substitute_fixed(true)],
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+    }
+
+    spec.redundant(
+        &c![1 true d_s[0].aux(), 1 true x_s[0].left(), 1 false x_s[0].right();
+        1],
+        [d_s[0].aux().substitute_fixed(false)],
+    )
+    .unwrap()
+    .finish()
+    .unwrap();
+    spec.redundant(
+        &c![2 false d_s[0].aux(), 1 false x_s[0].left(), 1 true x_s[0].right();
+        2],
+        [d_s[0].aux().substitute_fixed(true)],
+    )
+    .unwrap()
+    .finish()
+    .unwrap();
+
+    for idx in 2..=5 {
+        spec.redundant(
+            &c![4 true d_s[idx-1].aux(), 3 false d_s[idx-2].aux(), 1 true
+            a_s[idx-2].aux(), 1 true x_s[idx-1].left(), 1 false x_s[idx-1].right(); 4],
+            [d_s[idx - 1].aux().substitute_fixed(false)],
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+        spec.redundant(
+            &c![3 false d_s[idx-1].aux(), 3 true d_s[idx-2].aux(), 1 false
+            a_s[idx-2].aux(), 1 false x_s[idx-1].left(), 1 true x_s[idx-1].right(); 3],
+            [d_s[idx - 1].aux().substitute_fixed(true)],
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+    }
+
+    let mut def = spec.definition().unwrap();
+
+    let pid = def
+        .definition_constraint(&c![1 false d_s[4].aux(); 1])
+        .unwrap();
+
+    let mut trans_proof = def.transitivity_proof().unwrap();
+    let mut tp_goal = trans_proof.proof_goal(pid).unwrap();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::abs(55)) * 4 + Id::abs(17)))
+        .unwrap();
+
+    for idx in 0..3 {
+        let d = d_s[3 - idx].aux();
+        tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
+        tp_goal
+            .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+            .unwrap();
+        tp_goal
+            .operations(&(OpsSeq::from(Id::last(2)) * 4 + Id::abs(15 - 2 * idx)))
+            .unwrap();
+    }
+
+    let d = d_s[0].aux();
+    tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
+    tp_goal
+        .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+        .unwrap();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::last(2)) + Id::abs(9)))
+        .unwrap();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::abs(56)) * 4 + Id::abs(35)))
+        .unwrap();
+
+    for idx in 0..3 {
+        let d = d_s[3 - idx].fresh_1();
+        tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
+        tp_goal
+            .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+            .unwrap();
+        tp_goal
+            .operations(&(OpsSeq::from(Id::last(2)) * 4 + Id::abs(33 - 2 * idx)))
+            .unwrap();
+    }
+
+    let d = d_s[0].fresh_1();
+    tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
+    tp_goal
+        .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+        .unwrap();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::last(2)) + Id::abs(27)))
+        .unwrap();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::abs(2)) + Id::abs(37) + Id::last(1)).saturate())
+        .unwrap();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::abs(20)) + Id::abs(37) + Id::abs(70)).saturate())
+        .unwrap();
+
+    for idx in 0..3 {
+        let u = x_s[idx + 1].left();
+        let w = x_s[idx + 1].fresh_right();
+        let c = a_s[idx].fresh_2();
+        tp_goal
+            .operations(
+                &OperationSequence::from(Id::abs(39 + idx * 2))
+                    .weaken(u)
+                    .weaken(w)
+                    .saturate(),
+            )
+            .unwrap();
+        tp_goal
+            .operations(&(OpsSeq::from(Id::last(1)) + Id::last(3)))
+            .unwrap();
+        tp_goal
+            .operations(&(OpsSeq::from(Id::last(2)) + Id::last(3)))
+            .unwrap();
+        tp_goal
+            .operations(
+                &OperationSequence::from(Id::abs(39 + idx * 2))
+                    .weaken(c)
+                    .saturate(),
+            )
+            .unwrap();
+        tp_goal
+            .operations(
+                &(OpsSeq::from(Id::last(2))
+                    + Id::abs(82 - idx * 3)
+                    + Id::last(1)
+                    + (OpsSeq::from(Id::last(3)) * 2)
+                    + Id::abs(4 + idx * 2))
+                .saturate(),
+            )
+            .unwrap();
+        tp_goal
+            .operations(
+                &(OpsSeq::from(Id::last(4))
+                    + Id::abs(69 - idx * 3)
+                    + Id::last(2)
+                    + (OpsSeq::from(Id::last(3)) * 2)
+                    + Id::abs(22 + idx * 2))
+                .saturate(),
+            )
+            .unwrap();
+    }
+
+    tp_goal
+        .operations(&(OpsSeq::from(Id::abs(70)) + Id::abs(83)))
+        .unwrap();
+
+    for idx in 0..4 {
+        tp_goal
+            .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(46 + idx * 2)).saturate())
+            .unwrap();
+        tp_goal
+            .operations(
+                &((OpsSeq::from(Id::abs(69 - idx * 3))
+                    + Id::abs(82 - idx * 3)
+                    + Id::abs(84 + idx * 6)
+                    + Id::abs(85 + idx * 6))
+                .saturate()
+                    + (OpsSeq::from(Id::last(1)) * 3)),
+            )
+            .unwrap();
+    }
+
+    tp_goal
+        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(54)).saturate())
+        .unwrap();
+    let negated_constraint = tp_goal.negated_constraint_id();
+    tp_goal
+        .operations(&(OpsSeq::from(Id::last(1)) + negated_constraint))
+        .unwrap();
+    tp_goal.finish().unwrap();
+
+    let mut ref_proof = trans_proof.reflexivity_proof().unwrap();
+    let mut rp_goal = ref_proof.proof_goal(pid).unwrap();
+    rp_goal
+        .reverse_unit_prop::<Constr, _>(&c![; 1], None)
+        .unwrap();
+    rp_goal.finish().unwrap();
+
+    let order = ref_proof.finish().unwrap();
+
+    proof
+        .load_order(&order, ["x1", "x2", "x3", "x4", "x5"])
+        .unwrap();
+
+    let mut subproof = proof
+        .dominated(
+            &c!(1 false "x5"; 1),
+            [
+                "x5".substitute_fixed(true),
+                "x4".substitute_literal("x3".pos_axiom()),
+                "x3".substitute_literal("x2".pos_axiom()),
+                "x2".substitute_literal("x1".pos_axiom()),
+                "x1".substitute_literal("x5".pos_axiom()),
+            ],
+        )
+        .unwrap();
+    let mut leq_scope = subproof.leq_scope().unwrap();
+    let mut goal = leq_scope.proof_goal(ProofGoalId::specific(1)).unwrap();
+    let neg_constr = goal.negated_constraint_id();
+    goal.reverse_unit_prop(
+        &c![1 true "x1"; 1],
+        [
+            Id::abs(2),
+            Id::abs(3),
+            Id::abs(5),
+            Id::abs(7),
+            Id::abs(9),
+            Id::abs(12),
+            Id::abs(14),
+            Id::abs(16),
+            Id::abs(18),
+            Id::abs(20),
+            neg_constr.into(),
+        ],
+    )
+    .unwrap();
+    goal.reverse_unit_prop(&c![1 true "x2"; 1], None).unwrap();
+    goal.reverse_unit_prop(&c![1 true "x3"; 1], None).unwrap();
+    goal.reverse_unit_prop(&c![1 true "x4"; 1], None).unwrap();
+    goal.reverse_unit_prop::<Constr, _>(&c![;1], None).unwrap();
+    goal.finish().unwrap();
+    leq_scope.finish().unwrap();
+    let mut geq_scope = subproof.geq_scope().unwrap();
+    let mut goal = geq_scope.proof_goal(ProofGoalId::specific(2)).unwrap();
+    goal.reverse_unit_prop::<Constr, _>(&c![;1], None).unwrap();
+    goal.finish().unwrap();
+    geq_scope.finish().unwrap();
+    subproof.finish().unwrap();
+
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/dominance_with_aux_vars.opb"),
+        proof_file.path(),
+    );
 }
 
 #[test]

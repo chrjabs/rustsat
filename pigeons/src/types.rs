@@ -365,6 +365,7 @@ impl<V: VarLike> std::fmt::Display for SubstituteWith<V> {
 pub struct Order {
     name: String,
     num_def_constraints: usize,
+    num_spec_constraints: usize,
 }
 
 impl Order {
@@ -372,6 +373,7 @@ impl Order {
         Self {
             name,
             num_def_constraints: 0,
+            num_spec_constraints: 0,
         }
     }
 
@@ -388,6 +390,15 @@ impl Order {
     #[must_use]
     pub(crate) fn num_def_constraints(&self) -> usize {
         self.num_def_constraints
+    }
+
+    pub(crate) fn new_spec_constraint(&mut self) {
+        self.num_spec_constraints += 1;
+    }
+
+    #[must_use]
+    pub(crate) fn num_spec_constraints(&self) -> usize {
+        self.num_spec_constraints
     }
 }
 
@@ -411,16 +422,81 @@ impl std::fmt::Display for OrderDefinitionProofGoalId {
     }
 }
 
-/// A variable to be used in an order definition
+/// A input variable to an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum OrderVar<V: VarLike> {
+pub struct OrderInputVar<V: VarLike>(V);
+
+impl<V: VarLike> OrderInputVar<V> {
+    pub(crate) fn new(var: V) -> Self {
+        Self(var)
+    }
+
+    /// Gets the "left" variable variant
+    pub fn left(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::Left(self.0))
+    }
+
+    /// Gets the "right" variable variant
+    pub fn right(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::Right(self.0))
+    }
+
+    /// Gets the "fresh right" variable variant to be used in the transitivity proof
+    pub fn fresh_right(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::FreshRight(self.0))
+    }
+}
+
+/// A auxiliary variable of an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderAuxVar<V: VarLike>(V);
+
+impl<V: VarLike> OrderAuxVar<V> {
+    pub(crate) fn new(var: V) -> Self {
+        Self(var)
+    }
+
+    /// Gets the usable auxiliary variable
+    #[must_use]
+    pub fn aux(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::Aux(self.0))
+    }
+
+    /// Gets the first fresh variable variant to be used in the transitivity proof
+    #[must_use]
+    pub fn fresh_1(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::FreshAux1(self.0))
+    }
+
+    /// Gets the second fresh variable variant to be used in the transitivity proof
+    #[must_use]
+    pub fn fresh_2(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::FreshAux2(self.0))
+    }
+}
+
+/// A variable to be used in an order definition
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OrderVar<V: VarLike>(IntOrderVar<V>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum IntOrderVar<V: VarLike> {
     /// A variable of the left side of the order definition
     Left(V),
     /// A variable of the right side of the order definition
     Right(V),
     /// A fresh right variable used in a transitivity proof
     FreshRight(V),
+    /// An auxiliary variable
+    Aux(V),
+    /// A fresh auxiliary variable of set 1
+    FreshAux1(V),
+    /// A fresh auxiliary variable of set 2
+    FreshAux2(V),
 }
 
 impl<V: VarLike> VarLike for OrderVar<V> {
@@ -429,10 +505,13 @@ impl<V: VarLike> VarLike for OrderVar<V> {
 
 impl<V: VarLike> std::fmt::Display for OrderVar<V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(*v)),
-            OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
-            OrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(*v)),
+        match self.0 {
+            IntOrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(v)),
+            IntOrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(v)),
+            IntOrderVar::Aux(v) => write!(f, "$uv_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshAux1(v) => write!(f, "$vw_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshAux2(v) => write!(f, "$uw_{}", V::Formatter::from(v)),
         }
     }
 }
