@@ -74,8 +74,8 @@ use itertools::Itertools;
 mod types;
 pub use types::{
     AbsConstraintId, Axiom, Conclusion, ConstraintId, Derivation, ObjectiveUpdate, Order, OrderVar,
-    OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar,
-    SubproofElement, Substitution,
+    OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar, Scope,
+    ScopedSubproofElement, SubproofElement, Substitution,
 };
 
 #[cfg(not(feature = "version2"))]
@@ -258,6 +258,68 @@ where
                         writeln!(self.writer)?;
                         // negated proof goal + 1 for each derivation
                         1 + goal.n_derivations()
+                    }
+                };
+                self.next_id += bump_ids;
+            }
+            write!(self.writer, "{QED}")?;
+        }
+        Ok(())
+    }
+
+    /// Writes a scoped sub-proof, if the iterator is not empty
+    fn write_scoped_subproof<V, C, PI>(
+        &mut self,
+        mut proof: std::iter::Peekable<PI>,
+    ) -> io::Result<()>
+    where
+        V: VarLike,
+        C: ConstraintLike<V>,
+        PI: Iterator<Item = ScopedSubproofElement<V, C>>,
+    {
+        if proof.peek().is_some() {
+            self.next_id += 1; // negated `constr`
+            writeln!(self.writer, " {SEP_A} {SUBPROOF}")?;
+            for element in proof {
+                let bump_ids = match element {
+                    ScopedSubproofElement::Derivation(derivation) => {
+                        writeln!(self.writer, "  {derivation}")?;
+                        1
+                    }
+                    ScopedSubproofElement::Goal(goal) => {
+                        goal.write_indented(&mut self.writer, 2)?;
+                        writeln!(self.writer)?;
+                        // negated proof goal + 1 for each derivation
+                        1 + goal.n_derivations()
+                    }
+                    ScopedSubproofElement::Scope(scope) => {
+                        writeln!(
+                            &mut self.writer,
+                            "  {SCOPE} {}",
+                            match &scope {
+                                Scope::Leq(_) => LEQ_SCOPE,
+                                Scope::Geq(_) => GEQ_SCOPE,
+                            }
+                        );
+                        let se = match scope {
+                            Scope::Leq(se) | Scope::Geq(se) => se,
+                        };
+                        let mut bump = 0;
+                        for subelement in se {
+                            match subelement {
+                                SubproofElement::Derivation(derivation) => {
+                                    writeln!(self.writer, "    {derivation}")?;
+                                    bump += 1;
+                                }
+                                SubproofElement::Goal(goal) => {
+                                    goal.write_indented(&mut self.writer, 4)?;
+                                    writeln!(self.writer)?;
+                                    // negated proof goal + 1 for each derivation
+                                    bump += 1 + goal.n_derivations();
+                                }
+                            }
+                        }
+                        bump
                     }
                 };
                 self.next_id += bump_ids;
@@ -601,7 +663,7 @@ where
         V: VarLike,
         C: ConstraintLike<V>,
         SI: IntoIterator<Item = Substitution<V>>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
+        PI: IntoIterator<Item = ScopedSubproofElement<V, C>>,
     {
         write!(
             self.writer,
@@ -609,7 +671,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof.into_iter().peekable())?;
+        self.write_scoped_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")?;
         Ok(self.new_id())
     }
@@ -633,7 +695,7 @@ where
         V: VarLike,
         C: ConstraintLike<V>,
         SI: IntoIterator<Item = Substitution<V>>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
+        PI: IntoIterator<Item = ScopedSubproofElement<V, C>>,
     {
         write!(
             self.writer,
@@ -641,7 +703,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof.into_iter().peekable())?;
+        self.write_scoped_subproof(proof.into_iter().peekable())?;
         writeln!(self.writer, "{RULE_TERM}")?;
         Ok(self.new_id())
     }
@@ -1029,10 +1091,10 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> io::Result<()>
+    pub fn define_order<'a, V, C>(&mut self, order: &Order<'a, V, C>) -> io::Result<()>
     where
         V: VarLike,
-        C: ConstraintLike<OrderVar<V>>,
+        C: ConstraintLike<OrderVar<'a, V>>,
     {
         writeln!(self.writer, "{order}{RULE_TERM}")
     }

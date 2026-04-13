@@ -360,42 +360,98 @@ impl<V: VarLike> fmt::Display for SubstituteWith<V> {
 
 /// An order in the proof
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
+pub struct Order<'a, V: VarLike, C: ConstraintLike<OrderVar<'a, V>>> {
     name: String,
     used_vars: rustc_hash::FxHashSet<V>,
     definition: Vec<C>,
-    trans_proof: Vec<ProofGoal<OrderVar<V>, C>>,
-    refl_proof: Option<Vec<ProofGoal<OrderVar<V>, C>>>,
+    trans_proof: Vec<ProofGoal<OrderVar<'a, V>, C>>,
+    refl_proof: Option<Vec<ProofGoal<OrderVar<'a, V>, C>>>,
+}
+
+/// A input variable to an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderInputVar<V: VarLike>(V);
+
+impl<V: VarLike> OrderInputVar<V> {
+    /// Gets the "left" variable variant
+    pub fn left(self) -> OrderVar<'static, V> {
+        OrderVar(IntOrderVar::Left(self.0))
+    }
+
+    /// Gets the "right" variable variant
+    pub fn right(self) -> OrderVar<'static, V> {
+        OrderVar(IntOrderVar::Right(self.0))
+    }
+
+    /// Gets the "fresh right" variable variant to be used in the transitivity proof
+    pub fn fresh_right(self) -> OrderVar<'static, V> {
+        OrderVar(IntOrderVar::FreshRight(self.0))
+    }
+}
+
+/// A auxiliary variable of an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderAuxVar(String);
+
+impl<'a> OrderAuxVar {
+    /// Gets the usable auxiliary variable
+    pub fn aux<V: VarLike>(&'a self) -> OrderVar<'a, V> {
+        OrderVar(IntOrderVar::Aux(&self.0))
+    }
+
+    /// Gets the first fresh variable variant to be used in the transitivity proof
+    pub fn fresh_1<V: VarLike>(&'a self) -> OrderVar<'a, V> {
+        OrderVar(IntOrderVar::FreshAux1(&self.0))
+    }
+
+    /// Gets the second fresh variable variant to be used in the transitivity proof
+    pub fn fresh_2<V: VarLike>(&'a self) -> OrderVar<'a, V> {
+        OrderVar(IntOrderVar::FreshAux2(&self.0))
+    }
 }
 
 /// A variable to be used in an order definition
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum OrderVar<V: VarLike> {
+pub struct OrderVar<'a, InVar: VarLike>(IntOrderVar<'a, InVar>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum IntOrderVar<'a, InVar: VarLike> {
     /// A variable of the left side of the order definition
-    Left(V),
+    Left(InVar),
     /// A variable of the right side of the order definition
-    Right(V),
+    Right(InVar),
     /// A fresh right variable used in a transitivity proof
-    FreshRight(V),
+    FreshRight(InVar),
+    /// An auxiliary variable
+    Aux(&'a str),
+    /// A fresh auxiliary variable of set 1
+    FreshAux1(&'a str),
+    /// A fresh auxiliary variable of set 2
+    FreshAux2(&'a str),
 }
 
-impl<V: VarLike> VarLike for OrderVar<V> {
+impl<V: VarLike> VarLike for OrderVar<'_, V> {
     type Formatter = Self;
 }
 
-impl<V: VarLike> fmt::Display for OrderVar<V> {
+impl<V: VarLike> fmt::Display for OrderVar<'_, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(*v)),
-            OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
-            OrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(*v)),
+        match self.0 {
+            IntOrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(v)),
+            IntOrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(v)),
+            IntOrderVar::Aux(name) => write!(f, "aux_{name}"),
+            IntOrderVar::FreshAux1(name) => write!(f, "aux1_{name}"),
+            IntOrderVar::FreshAux2(name) => write!(f, "aux2_{name}"),
         }
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
+impl<'a, V: VarLike, C: ConstraintLike<OrderVar<'a, V>>> Order<'a, V, C> {
     /// Creates a new builder structure
     #[must_use]
     pub fn new(name: String) -> Self {
@@ -421,9 +477,14 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
 
     /// Marks a variable as used in the order and gets its left and right variants to be used in
     /// the definitions
-    pub fn use_var(&mut self, v: V) -> (OrderVar<V>, OrderVar<V>) {
+    pub fn use_var(&mut self, v: V) -> OrderInputVar<V> {
         self.used_vars.insert(v);
-        (OrderVar::Left(v), OrderVar::Right(v))
+        OrderInputVar(v)
+    }
+
+    /// Creates a new auxiliary variable that can be used in the order specification
+    pub fn new_aux_var(&mut self, name: String) -> OrderAuxVar {
+        OrderAuxVar(name)
     }
 
     /// Adds a constraint to the order definition
@@ -434,8 +495,8 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     pub fn add_definition_constraint(
         &mut self,
         constr: C,
-        trans_proof: Vec<Derivation<OrderVar<V>, C>>,
-        refl_proof: Option<Vec<Derivation<OrderVar<V>, C>>>,
+        trans_proof: Vec<Derivation<OrderVar<'a, V>, C>>,
+        refl_proof: Option<Vec<Derivation<OrderVar<'a, V>, C>>>,
     ) {
         self.definition.push(constr);
         self.trans_proof.push(ProofGoal {
@@ -458,7 +519,7 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
+impl<'a, V: VarLike, C: ConstraintLike<OrderVar<'a, V>>> fmt::Display for Order<'a, V, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{ORDER_DEFINE} {}", self.name)?;
         // Variables
@@ -468,14 +529,20 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
             "    {ORDER_VARS_LEFT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("u_{}", V::Formatter::from(*v))))
+                .format_with(" ", |v, f| f(&format_args!(
+                    "{}",
+                    OrderVar(IntOrderVar::Left(*v))
+                )))
         )?;
         writeln!(
             f,
             "    {ORDER_VARS_RIGHT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("v_{}", V::Formatter::from(*v))))
+                .format_with(" ", |v, f| f(&format_args!(
+                    "{}",
+                    OrderVar(IntOrderVar::Right(*v))
+                )))
         )?;
         writeln!(f, "    {ORDER_VARS_AUX}{RULE_TERM}")?;
         writeln!(f, "  {END}{RULE_TERM}")?;
@@ -493,7 +560,10 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
             "      {ORDER_VARS_FRESH_RIGHT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
+                .format_with(" ", |v, f| f(&format_args!(
+                    "{}",
+                    OrderVar(IntOrderVar::FreshRight(*v))
+                )))
         )?;
         writeln!(f, "    {END}{RULE_TERM}")?;
         writeln!(f, "    {PROOF}")?;
@@ -575,6 +645,32 @@ impl<V: VarLike, C> From<Derivation<V, C>> for SubproofElement<V, C> {
 impl<V: VarLike, C> From<ProofGoal<V, C>> for SubproofElement<V, C> {
     fn from(value: ProofGoal<V, C>) -> Self {
         SubproofElement::Goal(value)
+    }
+}
+
+/// An element of a sub-proof that can contain scopes
+///
+/// Sub-proofs with scopes are a sequence of [`Derivation`]s, [`ProofGoal`]s, and [`Scope`]s
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScopedSubproofElement<V: VarLike, C> {
+    /// A derivation outside a proof goal
+    Derivation(Derivation<V, C>),
+    /// A proof goal in the sub proof
+    Goal(ProofGoal<V, C>),
+    /// A subproof scope
+    Scope(Scope<V, C>),
+}
+
+impl<V: VarLike, C> From<Derivation<V, C>> for ScopedSubproofElement<V, C> {
+    fn from(value: Derivation<V, C>) -> Self {
+        ScopedSubproofElement::Derivation(value)
+    }
+}
+
+impl<V: VarLike, C> From<ProofGoal<V, C>> for ScopedSubproofElement<V, C> {
+    fn from(value: ProofGoal<V, C>) -> Self {
+        ScopedSubproofElement::Goal(value)
     }
 }
 
@@ -664,6 +760,52 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
 impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ProofGoal<V, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.format_indented(f, 0)
+    }
+}
+
+/// A proof target of a sub-proof
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Scope<V: VarLike, C> {
+    /// A `leq` proof scope
+    Leq(Vec<SubproofElement<V, C>>),
+    /// A `geq` proof scope
+    Geq(Vec<SubproofElement<V, C>>),
+}
+
+impl<V: VarLike, C: ConstraintLike<V>> Extend<SubproofElement<V, C>> for Scope<V, C> {
+    fn extend<T: IntoIterator<Item = SubproofElement<V, C>>>(&mut self, iter: T) {
+        match self {
+            Scope::Leq(se) | Scope::Geq(se) => se.extend(iter),
+        }
+    }
+}
+
+impl<V: VarLike, C: ConstraintLike<V>> Scope<V, C> {
+    /// Creates a new `leq` scope
+    #[must_use]
+    pub fn leq<I>(subproof_elements: I) -> Self
+    where
+        I: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Leq(subproof_elements.into_iter().collect())
+    }
+
+    /// Creates a new `geq` scope
+    #[must_use]
+    pub fn geq<I>(subproof_elements: I) -> Self
+    where
+        I: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Geq(subproof_elements.into_iter().collect())
+    }
+
+    /// Gets the number of subproof elements in the scope
+    #[must_use]
+    pub fn n_subproof_elements(&self) -> usize {
+        match self {
+            Scope::Leq(se) | Scope::Geq(se) => se.len(),
+        }
     }
 }
 

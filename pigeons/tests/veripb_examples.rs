@@ -867,16 +867,16 @@ fn objective_update() {
 }
 
 struct OrderConstr<'slf> {
-    terms: Vec<(isize, bool, OrderVar<&'slf str>)>,
+    terms: Vec<(isize, bool, OrderVar<'slf, &'slf str>)>,
     rhs: isize,
 }
 
-impl<'slf> ConstraintLike<OrderVar<&'slf str>> for OrderConstr<'slf> {
+impl<'slf> ConstraintLike<OrderVar<'slf, &'slf str>> for OrderConstr<'slf> {
     fn rhs(&self) -> isize {
         self.rhs
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<OrderVar<&'slf str>>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<OrderVar<'slf, &'slf str>>)> {
         self.terms
             .iter()
             .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))
@@ -887,10 +887,10 @@ impl<'slf> ConstraintLike<OrderVar<&'slf str>> for OrderConstr<'slf> {
 fn dominance_simple_order() {
     let mut proof = new_proof(10, false);
     let mut order = Order::<&'static str, OrderConstr>::new("simple".to_string());
-    let (left, right) = order.use_var("x1");
+    let ovar = order.use_var("x1");
     order.add_definition_constraint(
         OrderConstr {
-            terms: vec![(-1, false, left), (1, false, right)],
+            terms: vec![(-1, false, ovar.left()), (1, false, ovar.right())],
             rhs: 0,
         },
         vec![Derivation::Operations(
@@ -1107,6 +1107,17 @@ fn fail() {
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+}
+
+#[test]
+fn dominance_with_aux_vars() {
+    let mut proof = new_proof(11, false);
+    todo!();
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(format!("{manifest}/data/lower_rhs.opb"), proof_file.path());
 }
 
 #[test]

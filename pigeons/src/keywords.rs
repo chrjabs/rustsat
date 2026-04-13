@@ -35,6 +35,9 @@ keyword!(CONCLUSION, "conclusion");
 keyword!(PROOF, "proof");
 keyword!(QED, "qed");
 keyword!(PROOFGOAL, "proofgoal");
+keyword!(SCOPE, "scope", v3);
+keyword!(LEQ_SCOPE, "leq", v3);
+keyword!(GEQ_SCOPE, "geq", v3);
 
 // Syntax delimiters
 // keep-sorted start
