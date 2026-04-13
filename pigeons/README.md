@@ -48,7 +48,7 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `conclusion`: [`Proof::conclude`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.conclude), [`Proof::new_with_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.new_with_conclusion),
   [`Proof::update_default_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.update_default_conclusion)
 - [x] Sub-proofs
-    - [ ] `scope leq` and `scope geq` in `red` and `dom` rules
+    - [x] `scope leq` and `scope geq` in `red` and `dom` rules
 - [x] `e`: [`Proof::equals`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.equals)
 - [x] `eobj`: [`Proof::obj_equals`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.obj_equals)
 - [x] `i`: [`Proof::implied`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.implied)
