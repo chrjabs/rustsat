@@ -796,16 +796,16 @@ fn objective_update() {
     )
 }
 
-type OrderConstr = Constr<OrderVar<&'static str>>;
+type OrderConstr<'slf> = Constr<OrderVar<'slf, &'static str>>;
 
 #[test]
 fn dominance_simple_order() {
     let mut proof = new_proof(10, false);
     let mut order = Order::<&'static str, OrderConstr>::new("simple".to_string());
-    let (left, right) = order.use_var("x1");
+    let ovar = order.use_var("x1");
     order.add_definition_constraint(
-        c!(-1 false left, 1 false right; 0),
-        vec![Derivation::Operations(
+        c!(-1 false ovar.left(), 1 false ovar.right(); 0),
+        [Derivation::operations(
             OperationSequence::from(Id::last(2)) + Id::last(3) + Id::last(1),
         )],
         None,
@@ -1000,6 +1000,233 @@ fn fail() {
         .unwrap();
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
+}
+
+#[test]
+#[cfg(not(feature = "version2"))]
+fn dominance_with_aux_vars() {
+    use pigeons::{RedundantDerivation as RedD, ScopedSubproofElement};
+
+    let mut proof = new_proof(1, false);
+    let mut ord = Order::<&'static str, OrderConstr<'static>>::new("lex");
+
+    let x_s = [
+        ord.use_var("x1"),
+        ord.use_var("x2"),
+        ord.use_var("x3"),
+        ord.use_var("x4"),
+        ord.use_var("x5"),
+    ];
+    let a_s: Vec<_> = (1..=4)
+        .map(|idx| ord.new_aux_var(format!("a{idx}")))
+        .collect();
+    let d_s: Vec<_> = (1..=5)
+        .map(|idx| ord.new_aux_var(format!("d{idx}")))
+        .collect();
+
+    ord.add_specification_constraint(RedD::redundant(
+        c![1 true a_s[0].aux(), 1 false x_s[0].left(), 1 true x_s[0].right(); 1],
+        [a_s[0].aux().substitute_fixed(false)],
+        None,
+    ));
+    ord.add_specification_constraint(RedD::redundant(
+        c![2 false a_s[0].aux(), 1 true x_s[0].left(), 1 false x_s[0].right(); 2],
+        [a_s[0].aux().substitute_fixed(true)],
+        None,
+    ));
+
+    for idx in 2..=4 {
+        ord.add_specification_constraint(RedD::redundant(
+            c![3 true a_s[idx-1].aux(), 2 false a_s[idx-2].aux(), 1 false x_s[idx-1].left(), 1 true x_s[idx-1].right(); 3],
+            [a_s[idx-1].aux().substitute_fixed(false)],
+            None,
+        ));
+        ord.add_specification_constraint(RedD::redundant(
+            c![2 false a_s[idx-1].aux(), 2 true a_s[idx-2].aux(), 1 true x_s[idx-1].left(), 1 false x_s[idx-1].right(); 2],
+            [a_s[idx-1].aux().substitute_fixed(true)],
+            None,
+        ));
+    }
+
+    ord.add_specification_constraint(RedD::redundant(
+        c![1 true d_s[0].aux(), 1 true x_s[0].left(), 1 false x_s[0].right(); 1],
+        [d_s[0].aux().substitute_fixed(false)],
+        None,
+    ));
+    ord.add_specification_constraint(RedD::redundant(
+        c![2 false d_s[0].aux(), 1 false x_s[0].left(), 1 true x_s[0].right(); 2],
+        [d_s[0].aux().substitute_fixed(true)],
+        None,
+    ));
+
+    for idx in 2..=5 {
+        ord.add_specification_constraint(RedD::redundant(
+            c![4 true d_s[idx-1].aux(), 3 false d_s[idx-2].aux(), 1 true a_s[idx-2].aux(), 1 true x_s[idx-1].left(), 1 false x_s[idx-1].right(); 4],
+            [d_s[idx-1].aux().substitute_fixed(false)],
+            None,
+        ));
+        ord.add_specification_constraint(RedD::redundant(
+            c![3 false d_s[idx-1].aux(), 3 true d_s[idx-2].aux(), 1 false a_s[idx-2].aux(), 1 false x_s[idx-1].left(), 1 true x_s[idx-1].right(); 3],
+            [d_s[idx-1].aux().substitute_fixed(true)],
+            None,
+        ));
+    }
+
+    let mut trans_proof = vec![Derivation::operations(
+        OperationSequence::from(Id::abs(55)) * 4 + Id::abs(17),
+    )];
+
+    for idx in 0..3 {
+        let d = d_s[3 - idx].aux();
+        trans_proof.extend([
+            Derivation::reverse_unit_prop(c![1 false d; 1], None),
+            Derivation::operations(OperationSequence::from(Id::last(2)).weaken(d)),
+            Derivation::operations(
+                OperationSequence::from(Id::last(2)) * 4 + Id::abs(15 - 2 * idx),
+            ),
+        ]);
+    }
+
+    let d = d_s[0].aux();
+    trans_proof.extend([
+        Derivation::reverse_unit_prop(c![1 false d; 1], None),
+        Derivation::operations(OperationSequence::from(Id::last(2)).weaken(d)),
+        Derivation::operations(OperationSequence::from(Id::last(2)) + Id::abs(9)),
+        Derivation::operations(OperationSequence::from(Id::abs(56)) * 4 + Id::abs(35)),
+    ]);
+
+    for idx in 0..3 {
+        let d = d_s[3 - idx].fresh_1();
+        trans_proof.extend([
+            Derivation::reverse_unit_prop(c![1 false d; 1], None),
+            Derivation::operations(OperationSequence::from(Id::last(2)).weaken(d)),
+            Derivation::operations(
+                OperationSequence::from(Id::last(2)) * 4 + Id::abs(33 - 2 * idx),
+            ),
+        ]);
+    }
+
+    let d = d_s[0].fresh_1();
+    trans_proof.extend([
+        Derivation::reverse_unit_prop(c![1 false d; 1], None),
+        Derivation::operations(OperationSequence::from(Id::last(2)).weaken(d)),
+        Derivation::operations(OperationSequence::from(Id::last(2)) + Id::abs(27)),
+        Derivation::operations(
+            (OperationSequence::from(Id::abs(2)) + Id::abs(37) + Id::last(1)).saturate(),
+        ),
+        Derivation::operations(
+            (OperationSequence::from(Id::abs(20)) + Id::abs(37) + Id::abs(70)).saturate(),
+        ),
+    ]);
+
+    for idx in 0..3 {
+        let u = x_s[idx + 1].left();
+        let w = x_s[idx + 1].fresh_right();
+        let c = a_s[idx].fresh_2();
+        trans_proof.extend([
+            Derivation::operations(
+                OperationSequence::from(Id::abs(39 + idx * 2))
+                    .weaken(u)
+                    .weaken(w)
+                    .saturate(),
+            ),
+            Derivation::operations(OperationSequence::from(Id::last(1)) + Id::last(3)),
+            Derivation::operations(OperationSequence::from(Id::last(2)) + Id::last(3)),
+            Derivation::operations(
+                OperationSequence::from(Id::abs(39 + idx * 2))
+                    .weaken(c)
+                    .saturate(),
+            ),
+            Derivation::operations(
+                (OperationSequence::from(Id::last(2))
+                    + Id::abs(82 - idx * 3)
+                    + Id::last(1)
+                    + (OperationSequence::from(Id::last(3)) * 2)
+                    + Id::abs(4 + idx * 2))
+                .saturate(),
+            ),
+            Derivation::operations(
+                (OperationSequence::from(Id::last(4))
+                    + Id::abs(69 - idx * 3)
+                    + Id::last(2)
+                    + (OperationSequence::from(Id::last(3)) * 2)
+                    + Id::abs(22 + idx * 2))
+                .saturate(),
+            ),
+        ]);
+    }
+
+    trans_proof.push(Derivation::operations(
+        OperationSequence::from(Id::abs(70)) + Id::abs(83),
+    ));
+
+    for idx in 0..4 {
+        trans_proof.extend([
+            Derivation::operations(
+                (OperationSequence::from(Id::last(1)) + Id::abs(46 + idx * 2)).saturate(),
+            ),
+            Derivation::operations(
+                (OperationSequence::from(Id::abs(69 - idx * 3))
+                    + Id::abs(82 - idx * 3)
+                    + Id::abs(84 + idx * 6)
+                    + Id::abs(85 + idx * 6))
+                .saturate()
+                    + (OperationSequence::from(Id::last(1)) * 3),
+            ),
+        ]);
+    }
+
+    trans_proof.extend([
+        Derivation::operations((OperationSequence::from(Id::last(1)) + Id::abs(54)).saturate()),
+        Derivation::operations(OperationSequence::from(Id::last(1)) + Id::abs(57)),
+    ]);
+
+    ord.add_definition_constraint(
+        c![1 false d_s[4].aux(); 1],
+        trans_proof,
+        [Derivation::reverse_unit_prop(c![; 1], None)],
+    );
+
+    proof.define_order(&ord).unwrap();
+    proof.load_order(ord.name(), ord.used_vars()).unwrap();
+
+    proof
+        .dominated(
+            &c!(1 false "x5"; 1),
+            [
+                "x5".substitute_fixed(true),
+                "x4".substitute_literal("x3".pos_axiom()),
+                "x3".substitute_literal("x2".pos_axiom()),
+                "x2".substitute_literal("x1".pos_axiom()),
+                "x1".substitute_literal("x5".pos_axiom()),
+            ],
+            [
+                ScopedSubproofElement::leq([SubproofElement::goal(
+                    ProofGoalId::specific(1),
+                    [
+                        Derivation::reverse_unit_prop(c![1 true "x1"; 1], None),
+                        Derivation::reverse_unit_prop(c![1 true "x2"; 1], None),
+                        Derivation::reverse_unit_prop(c![1 true "x3"; 1], None),
+                        Derivation::reverse_unit_prop(c![1 true "x4"; 1], None),
+                        Derivation::reverse_unit_prop(c![;1], None),
+                    ],
+                )]),
+                ScopedSubproofElement::geq([SubproofElement::goal(
+                    ProofGoalId::specific(2),
+                    [Derivation::reverse_unit_prop(c![;1], None)],
+                )]),
+            ],
+        )
+        .unwrap();
+
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(
+        format!("{manifest}/data/dominance_with_aux_vars.opb"),
+        proof_file.path(),
+    );
 }
 
 #[test]

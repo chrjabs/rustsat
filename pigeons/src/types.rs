@@ -360,51 +360,147 @@ impl<V: VarLike> fmt::Display for SubstituteWith<V> {
 
 /// An order in the proof
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
+pub struct Order<'a, V: VarLike, C: ConstraintLike<OrderVar<'a, V>>> {
     name: String,
     used_vars: rustc_hash::FxHashSet<V>,
+    aux_vars: rustc_hash::FxHashSet<OrderAuxVar>,
+    specification: Vec<RedundantDerivation<OrderVar<'a, V>, C>>,
     definition: Vec<C>,
-    trans_proof: Vec<ProofGoal<OrderVar<V>, C>>,
-    refl_proof: Option<Vec<ProofGoal<OrderVar<V>, C>>>,
+    trans_proof: Vec<ProofGoal<OrderVar<'a, V>, C>>,
+    refl_proof: Vec<ProofGoal<OrderVar<'a, V>, C>>,
+}
+
+/// A input variable to an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderInputVar<V: VarLike>(V);
+
+impl<V: VarLike> OrderInputVar<V> {
+    /// Gets the "left" variable variant
+    pub fn left(self) -> OrderVar<'static, V> {
+        OrderVar(IntOrderVar::Left(self.0))
+    }
+
+    /// Gets the "right" variable variant
+    pub fn right(self) -> OrderVar<'static, V> {
+        OrderVar(IntOrderVar::Right(self.0))
+    }
+
+    /// Gets the "fresh right" variable variant to be used in the transitivity proof
+    pub fn fresh_right(self) -> OrderVar<'static, V> {
+        OrderVar(IntOrderVar::FreshRight(self.0))
+    }
+}
+
+/// A auxiliary variable of an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderAuxVar(String);
+
+impl<'a> OrderAuxVar {
+    /// Gets the usable auxiliary variable
+    pub fn aux<V: VarLike>(&'a self) -> OrderVar<'a, V> {
+        OrderVar(IntOrderVar::Aux(&self.0))
+    }
+
+    /// Gets the first fresh variable variant to be used in the transitivity proof
+    pub fn fresh_1<V: VarLike>(&'a self) -> OrderVar<'a, V> {
+        OrderVar(IntOrderVar::FreshAux1(&self.0))
+    }
+
+    /// Gets the second fresh variable variant to be used in the transitivity proof
+    pub fn fresh_2<V: VarLike>(&'a self) -> OrderVar<'a, V> {
+        OrderVar(IntOrderVar::FreshAux2(&self.0))
+    }
 }
 
 /// A variable to be used in an order definition
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum OrderVar<V: VarLike> {
+pub struct OrderVar<'a, InVar: VarLike>(IntOrderVar<'a, InVar>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum IntOrderVar<'a, InVar: VarLike> {
     /// A variable of the left side of the order definition
-    Left(V),
+    Left(InVar),
     /// A variable of the right side of the order definition
-    Right(V),
+    Right(InVar),
     /// A fresh right variable used in a transitivity proof
-    FreshRight(V),
+    FreshRight(InVar),
+    /// An auxiliary variable
+    Aux(&'a str),
+    /// A fresh auxiliary variable of set 1
+    FreshAux1(&'a str),
+    /// A fresh auxiliary variable of set 2
+    FreshAux2(&'a str),
 }
 
-impl<V: VarLike> VarLike for OrderVar<V> {
+impl<V: VarLike> VarLike for OrderVar<'_, V> {
     type Formatter = Self;
 }
 
-impl<V: VarLike> fmt::Display for OrderVar<V> {
+impl<V: VarLike> fmt::Display for OrderVar<'_, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(*v)),
-            OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
-            OrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(*v)),
+        match self.0 {
+            IntOrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(v)),
+            IntOrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(v)),
+            IntOrderVar::Aux(name) => write!(f, "${name}"),
+            IntOrderVar::FreshAux1(name) => write!(f, "$1_{name}"),
+            IntOrderVar::FreshAux2(name) => write!(f, "$2_{name}"),
         }
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
+/// A variable type that can be used if original and order variables need to be used together
+///
+/// This is typically the case in sub-proofs of dominance or redundance rules
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OrderOrOrigVar<'a, V: VarLike> {
+    /// An original variable
+    Original(V),
+    /// An order variable
+    Order(OrderVar<'a, V>),
+}
+
+impl<'slf, V: VarLike> OrderOrOrigVar<'slf, V> {
+    /// Creates a new wrapped original variable
+    pub fn original(var: V) -> Self {
+        Self::Original(var)
+    }
+
+    /// Creates a new wrapped order variable
+    pub fn order(var: OrderVar<'slf, V>) -> Self {
+        Self::Order(var)
+    }
+}
+
+impl<V: VarLike> VarLike for OrderOrOrigVar<'_, V> {
+    type Formatter = Self;
+}
+
+impl<V: VarLike> fmt::Display for OrderOrOrigVar<'_, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OrderOrOrigVar::Original(var) => write!(f, "{}", V::Formatter::from(*var)),
+            OrderOrOrigVar::Order(var) => write!(f, "{var}"),
+        }
+    }
+}
+
+impl<'a, V: VarLike, C: ConstraintLike<OrderVar<'a, V>>> Order<'a, V, C> {
     /// Creates a new builder structure
     #[must_use]
-    pub fn new(name: String) -> Self {
+    pub fn new<S: Into<String>>(name: S) -> Self {
         Order {
-            name,
+            name: name.into(),
             used_vars: rustc_hash::FxHashSet::default(),
+            aux_vars: rustc_hash::FxHashSet::default(),
+            specification: vec![],
             definition: vec![],
             trans_proof: vec![],
-            refl_proof: None,
+            refl_proof: vec![],
         }
     }
 
@@ -421,44 +517,58 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
 
     /// Marks a variable as used in the order and gets its left and right variants to be used in
     /// the definitions
-    pub fn use_var(&mut self, v: V) -> (OrderVar<V>, OrderVar<V>) {
+    pub fn use_var(&mut self, v: V) -> OrderInputVar<V> {
         self.used_vars.insert(v);
-        (OrderVar::Left(v), OrderVar::Right(v))
+        OrderInputVar(v)
+    }
+
+    /// Creates a new auxiliary variable that can be used in the order specification
+    pub fn new_aux_var<S: Into<String>>(&mut self, name: S) -> OrderAuxVar {
+        let var = OrderAuxVar(name.into());
+        self.aux_vars.insert(var.clone());
+        var
+    }
+
+    /// Adds a constraint to the order specification
+    pub fn add_specification_constraint(
+        &mut self,
+        derivation: RedundantDerivation<OrderVar<'a, V>, C>,
+    ) {
+        self.specification.push(derivation);
     }
 
     /// Adds a constraint to the order definition
     ///
     /// The constraint must only use left and right variables that have been marked as used
+    ///
+    /// Both the transitivity proof and the reflexivity proof are optional
     // Since we push `constr` into the definitions, `self.definition.len()` is never zero
     #[expect(clippy::missing_panics_doc)]
-    pub fn add_definition_constraint(
-        &mut self,
-        constr: C,
-        trans_proof: Vec<Derivation<OrderVar<V>, C>>,
-        refl_proof: Option<Vec<Derivation<OrderVar<V>, C>>>,
-    ) {
+    pub fn add_definition_constraint<TI, RI>(&mut self, constr: C, trans_proof: TI, refl_proof: RI)
+    where
+        TI: IntoIterator<Item = Derivation<OrderVar<'a, V>, C>>,
+        RI: IntoIterator<Item = Derivation<OrderVar<'a, V>, C>>,
+    {
         self.definition.push(constr);
-        self.trans_proof.push(ProofGoal {
-            id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-            derivations: trans_proof,
-        });
-        if let Some(new_goal) = refl_proof {
-            if let Some(proof) = &mut self.refl_proof {
-                proof.push(ProofGoal {
-                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-                    derivations: new_goal,
-                });
-            } else {
-                self.refl_proof = Some(vec![ProofGoal {
-                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-                    derivations: new_goal,
-                }]);
-            }
+        let trans_proof: Vec<_> = trans_proof.into_iter().collect();
+        if !trans_proof.is_empty() {
+            self.trans_proof.push(ProofGoal {
+                id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
+                derivations: trans_proof,
+            });
+        }
+        let refl_proof: Vec<_> = refl_proof.into_iter().collect();
+        if !refl_proof.is_empty() {
+            self.refl_proof.push(ProofGoal {
+                id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
+                derivations: refl_proof,
+            });
         }
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
+impl<'a, V: VarLike, C: ConstraintLike<OrderVar<'a, V>>> fmt::Display for Order<'a, V, C> {
+    #[expect(clippy::too_many_lines)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{ORDER_DEFINE} {}", self.name)?;
         // Variables
@@ -468,17 +578,43 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
             "    {ORDER_VARS_LEFT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("u_{}", V::Formatter::from(*v))))
+                .format_with(" ", |v, f| f(&format_args!(
+                    "{}",
+                    OrderVar(IntOrderVar::Left(*v))
+                )))
         )?;
         writeln!(
             f,
             "    {ORDER_VARS_RIGHT} {}{RULE_TERM}",
             self.used_vars
                 .iter()
-                .format_with(" ", |v, f| f(&format_args!("v_{}", V::Formatter::from(*v))))
+                .format_with(" ", |v, f| f(&format_args!(
+                    "{}",
+                    OrderVar(IntOrderVar::Right(*v))
+                )))
         )?;
-        writeln!(f, "    {ORDER_VARS_AUX}{RULE_TERM}")?;
+        if cfg!(feature = "version2") || !self.aux_vars.is_empty() {
+            writeln!(
+                f,
+                "    {ORDER_VARS_AUX} {}{RULE_TERM}",
+                self.aux_vars
+                    .iter()
+                    .format_with(" ", |v, f| f(&format_args!(
+                        "{}",
+                        OrderVar(IntOrderVar::<V>::Aux(&v.0))
+                    )))
+            )?;
+        }
         writeln!(f, "  {END}{RULE_TERM}")?;
+        // Order specification
+        if !self.specification.is_empty() {
+            writeln!(f, "  {ORDER_SPECIFICATION}")?;
+            for spec in &self.specification {
+                spec.format_indented(f, 4)?;
+                writeln!(f)?;
+            }
+            writeln!(f, "  {END}{RULE_TERM}")?;
+        }
         // Order definition
         writeln!(f, "  {ORDER_DEFINITION}")?;
         for def in &self.definition {
@@ -486,27 +622,54 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
         }
         writeln!(f, "  {END}{RULE_TERM}")?;
         // Proofs
-        writeln!(f, "  {ORDER_TRANSITIVITY}")?;
-        writeln!(f, "    {ORDER_VARS}")?;
-        writeln!(
-            f,
-            "      {ORDER_VARS_FRESH_RIGHT} {}{RULE_TERM}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(f, "    {END}{RULE_TERM}")?;
-        writeln!(f, "    {PROOF}")?;
-        for goal in &self.trans_proof {
-            goal.format_indented(f, 6)?;
-            writeln!(f)?;
+        if !self.trans_proof.is_empty() {
+            writeln!(f, "  {ORDER_TRANSITIVITY}")?;
+            writeln!(f, "    {ORDER_VARS}")?;
+            writeln!(
+                f,
+                "      {ORDER_VARS_FRESH_RIGHT} {}{RULE_TERM}",
+                self.used_vars
+                    .iter()
+                    .format_with(" ", |v, f| f(&format_args!(
+                        "{}",
+                        OrderVar(IntOrderVar::FreshRight(*v))
+                    )))
+            )?;
+            if !self.aux_vars.is_empty() {
+                writeln!(
+                    f,
+                    "      {ORDER_VARS_FRESH_AUX_1} {}{RULE_TERM}",
+                    self.aux_vars
+                        .iter()
+                        .format_with(" ", |v, f| f(&format_args!(
+                            "{}",
+                            OrderVar(IntOrderVar::<V>::FreshAux1(&v.0))
+                        )))
+                )?;
+                writeln!(
+                    f,
+                    "      {ORDER_VARS_FRESH_AUX_2} {}{RULE_TERM}",
+                    self.aux_vars
+                        .iter()
+                        .format_with(" ", |v, f| f(&format_args!(
+                            "{}",
+                            OrderVar(IntOrderVar::<V>::FreshAux2(&v.0))
+                        )))
+                )?;
+            }
+            writeln!(f, "    {END}{RULE_TERM}")?;
+            writeln!(f, "    {PROOF}")?;
+            for goal in &self.trans_proof {
+                goal.format_indented(f, 6)?;
+                writeln!(f)?;
+            }
+            writeln!(f, "    {QED}{RULE_TERM}")?;
+            writeln!(f, "  {END}{RULE_TERM}")?;
         }
-        writeln!(f, "    {QED}{RULE_TERM}")?;
-        writeln!(f, "  {END}{RULE_TERM}")?;
-        if let Some(proof) = &self.refl_proof {
+        if !self.refl_proof.is_empty() {
             writeln!(f, "  {ORDER_REFLEXIVITY}")?;
             writeln!(f, "    {PROOF}")?;
-            for goal in proof {
+            for goal in &self.refl_proof {
                 goal.format_indented(f, 6)?;
                 writeln!(f)?;
             }
@@ -527,6 +690,21 @@ pub enum Derivation<V: VarLike, C> {
     Operations(OperationSequence<V>),
 }
 
+impl<V: VarLike, C: ConstraintLike<V>> Derivation<V, C> {
+    /// Creates a RUP derivation
+    pub fn reverse_unit_prop<I>(constr: C, hints: I) -> Self
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        Self::Rup(constr, hints.into_iter().collect())
+    }
+
+    /// Creates a new derivation by operations
+    pub fn operations(operations: OperationSequence<V>) -> Self {
+        Self::Operations(operations)
+    }
+}
+
 impl<V, C> From<OperationSequence<V>> for Derivation<V, C>
 where
     V: VarLike,
@@ -543,14 +721,149 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Derivation::Rup(constr, hints) => write!(
-                f,
-                "{RUP} {} {SEP_A} {}{RULE_TERM}",
-                ConstrFormatter::from(constr),
-                hints.iter().format(" ")
-            ),
+            Derivation::Rup(constr, hints) => {
+                if hints.is_empty() {
+                    write!(
+                        f,
+                        "{RUP} {}{SEP_AS_TERM}{RULE_TERM}",
+                        ConstrFormatter::from(constr),
+                    )
+                } else {
+                    write!(
+                        f,
+                        "{RUP} {} {SEP_A} {}{RULE_TERM}",
+                        ConstrFormatter::from(constr),
+                        hints.iter().format(" ")
+                    )
+                }
+            }
             Derivation::Operations(ops) => write!(f, "{POLISH} {ops}{RULE_TERM}"),
         }
+    }
+}
+
+/// A derivation step or a redundant derivation
+///
+/// Used in the specification of orders
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum RedundantDerivation<V: VarLike, C> {
+    /// A constraint added by reverse unit propagation, including hints
+    Rup(C, Vec<ConstraintId>),
+    /// A constraint derived by a sequence of operations
+    Operations(OperationSequence<V>),
+    /// A redundance based strengthening derivation
+    Redundant(C, Vec<Substitution<V>>, Vec<SubproofElement<V, C>>),
+}
+
+impl<V: VarLike, C: ConstraintLike<V>> RedundantDerivation<V, C> {
+    /// Creates a RUP derivation
+    pub fn reverse_unit_prop<I>(constr: C, hints: I) -> Self
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        Self::Rup(constr, hints.into_iter().collect())
+    }
+
+    /// Creates a new derivation by operations
+    pub fn operations(operations: OperationSequence<V>) -> Self {
+        Self::Operations(operations)
+    }
+
+    /// Creates a redundant derivation
+    pub fn redundant<SI, PI>(constr: C, subs: SI, proof: PI) -> Self
+    where
+        SI: IntoIterator<Item = Substitution<V>>,
+        PI: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Redundant(
+            constr,
+            subs.into_iter().collect(),
+            proof.into_iter().collect(),
+        )
+    }
+
+    /// Formats the derivation with a given indentation level
+    ///
+    /// # Errors
+    ///
+    /// If writing fails, returns an error
+    pub fn format_indented<W: fmt::Write>(&self, formatter: &mut W, indent: usize) -> fmt::Result {
+        match self {
+            RedundantDerivation::Rup(constr, hints) => {
+                if hints.is_empty() {
+                    write!(
+                        formatter,
+                        "{:indent$}{RUP} {constr} {SEP_AS_TERM}{RULE_TERM}",
+                        "",
+                        indent = indent,
+                        constr = ConstrFormatter::from(constr),
+                    )
+                } else {
+                    write!(
+                        formatter,
+                        "{:indent$}{RUP} {constr} {SEP_A} {hints}{RULE_TERM}",
+                        "",
+                        indent = indent,
+                        constr = ConstrFormatter::from(constr),
+                        hints = hints.iter().format(" ")
+                    )
+                }
+            }
+            RedundantDerivation::Operations(ops) => {
+                write!(
+                    formatter,
+                    "{:indent$}{POLISH} {ops}{RULE_TERM}",
+                    "",
+                    indent = indent
+                )
+            }
+            RedundantDerivation::Redundant(constr, subs, proof) => {
+                write!(
+                    formatter,
+                    "{:indent$}{REDUNDANT} {constr} {SEP_A} {subs}",
+                    "",
+                    indent = indent,
+                    constr = ConstrFormatter::from(constr),
+                    subs = subs.iter().format(" ")
+                )?;
+                if !proof.is_empty() {
+                    writeln!(formatter, " {SEP_A} {SUBPROOF}")?;
+                    for element in proof {
+                        match element {
+                            SubproofElement::Derivation(derivation) => {
+                                writeln!(formatter, "  {derivation}")?;
+                            }
+                            SubproofElement::Goal(goal) => {
+                                goal.format_indented(formatter, indent + 2)?;
+                                writeln!(formatter)?;
+                            }
+                        }
+                    }
+                    write!(formatter, "{QED}")?;
+                }
+                write!(formatter, "{RULE_TERM}")
+            }
+        }
+    }
+}
+
+impl<V, C> From<OperationSequence<V>> for RedundantDerivation<V, C>
+where
+    V: VarLike,
+{
+    fn from(value: OperationSequence<V>) -> Self {
+        RedundantDerivation::Operations(value)
+    }
+}
+
+impl<V, C> fmt::Display for RedundantDerivation<V, C>
+where
+    V: VarLike,
+    C: ConstraintLike<V>,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.format_indented(f, 0)
     }
 }
 
@@ -566,6 +879,29 @@ pub enum SubproofElement<V: VarLike, C> {
     Goal(ProofGoal<V, C>),
 }
 
+impl<V: VarLike, C: ConstraintLike<V>> SubproofElement<V, C> {
+    /// Creates a new proof goal
+    pub fn goal<I>(id: ProofGoalId, derivations: I) -> Self
+    where
+        I: IntoIterator<Item = Derivation<V, C>>,
+    {
+        Self::Goal(ProofGoal::new(id, derivations))
+    }
+
+    /// Creates a new reverse unit propagation derivation
+    pub fn reverse_unit_prop<I>(constr: C, hints: I) -> Self
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        Self::Derivation(Derivation::reverse_unit_prop(constr, hints))
+    }
+
+    /// Creates a new derivation by operations
+    pub fn operations(operations: OperationSequence<V>) -> Self {
+        Self::Derivation(Derivation::operations(operations))
+    }
+}
+
 impl<V: VarLike, C> From<Derivation<V, C>> for SubproofElement<V, C> {
     fn from(value: Derivation<V, C>) -> Self {
         SubproofElement::Derivation(value)
@@ -575,6 +911,76 @@ impl<V: VarLike, C> From<Derivation<V, C>> for SubproofElement<V, C> {
 impl<V: VarLike, C> From<ProofGoal<V, C>> for SubproofElement<V, C> {
     fn from(value: ProofGoal<V, C>) -> Self {
         SubproofElement::Goal(value)
+    }
+}
+
+/// An element of a sub-proof that can contain scopes
+///
+/// Sub-proofs with scopes are a sequence of [`Derivation`]s, [`ProofGoal`]s, and [`Scope`]s
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScopedSubproofElement<V: VarLike, C> {
+    /// A derivation outside a proof goal
+    Derivation(Derivation<V, C>),
+    /// A proof goal in the sub proof
+    Goal(ProofGoal<V, C>),
+    /// A sub-proof scope
+    #[cfg(not(feature = "version2"))]
+    Scope(Scope<V, C>),
+}
+
+impl<V: VarLike, C: ConstraintLike<V>> ScopedSubproofElement<V, C> {
+    /// Creates a new proof goal
+    pub fn goal<I>(id: ProofGoalId, derivations: I) -> Self
+    where
+        I: IntoIterator<Item = Derivation<V, C>>,
+    {
+        Self::Goal(ProofGoal::new(id, derivations))
+    }
+
+    /// Creates a new reverse unit propagation derivation
+    pub fn reverse_unit_prop<I>(constr: C, hints: I) -> Self
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        Self::Derivation(Derivation::reverse_unit_prop(constr, hints))
+    }
+
+    /// Creates a new derivation by operations
+    pub fn operations(operations: OperationSequence<V>) -> Self {
+        Self::Derivation(Derivation::operations(operations))
+    }
+
+    /// Creates a new `leq` scope
+    #[cfg(not(feature = "version2"))]
+    #[must_use]
+    pub fn leq<I>(subproof_elements: I) -> Self
+    where
+        I: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Scope(Scope::leq(subproof_elements))
+    }
+
+    /// Creates a new `geq` scope
+    #[cfg(not(feature = "version2"))]
+    #[must_use]
+    pub fn geq<I>(subproof_elements: I) -> Self
+    where
+        I: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Scope(Scope::geq(subproof_elements))
+    }
+}
+
+impl<V: VarLike, C> From<Derivation<V, C>> for ScopedSubproofElement<V, C> {
+    fn from(value: Derivation<V, C>) -> Self {
+        ScopedSubproofElement::Derivation(value)
+    }
+}
+
+impl<V: VarLike, C> From<ProofGoal<V, C>> for ScopedSubproofElement<V, C> {
+    fn from(value: ProofGoal<V, C>) -> Self {
+        ScopedSubproofElement::Goal(value)
     }
 }
 
@@ -646,24 +1052,70 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     /// # Errors
     ///
     /// If formatting fails, returns an error
-    pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
+    pub fn format_indented<W: fmt::Write>(&self, formatter: &mut W, indent: usize) -> fmt::Result {
         writeln!(
-            writer,
+            formatter,
             "{:indent$}{PROOFGOAL} {}",
             "",
             self.id,
             indent = indent
         )?;
         for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
+            writeln!(formatter, "{:indent$}  {der}", "", indent = indent)?;
         }
-        write!(writer, "{:indent$}{QED}{RULE_TERM}", "", indent = indent)
+        write!(formatter, "{:indent$}{QED}{RULE_TERM}", "", indent = indent)
     }
 }
 
 impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ProofGoal<V, C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.format_indented(f, 0)
+    }
+}
+
+/// A proof target of a sub-proof
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Scope<V: VarLike, C> {
+    /// A `leq` proof scope
+    Leq(Vec<SubproofElement<V, C>>),
+    /// A `geq` proof scope
+    Geq(Vec<SubproofElement<V, C>>),
+}
+
+impl<V: VarLike, C: ConstraintLike<V>> Extend<SubproofElement<V, C>> for Scope<V, C> {
+    fn extend<T: IntoIterator<Item = SubproofElement<V, C>>>(&mut self, iter: T) {
+        match self {
+            Scope::Leq(se) | Scope::Geq(se) => se.extend(iter),
+        }
+    }
+}
+
+impl<V: VarLike, C: ConstraintLike<V>> Scope<V, C> {
+    /// Creates a new `leq` scope
+    #[must_use]
+    pub fn leq<I>(subproof_elements: I) -> Self
+    where
+        I: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Leq(subproof_elements.into_iter().collect())
+    }
+
+    /// Creates a new `geq` scope
+    #[must_use]
+    pub fn geq<I>(subproof_elements: I) -> Self
+    where
+        I: IntoIterator<Item = SubproofElement<V, C>>,
+    {
+        Self::Geq(subproof_elements.into_iter().collect())
+    }
+
+    /// Gets the number of sub-proof elements in the scope
+    #[must_use]
+    pub fn n_subproof_elements(&self) -> usize {
+        match self {
+            Scope::Leq(se) | Scope::Geq(se) => se.len(),
+        }
     }
 }
 
