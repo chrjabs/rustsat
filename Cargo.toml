@@ -31,7 +31,7 @@ bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
 ] }
 bzip2 = "0.6.1"
-cc = { version = "1.2.60", features = ["parallel"] }
+cc = { version = "1.2.61", features = ["parallel"] }
 chacha20 = "0.10.0"
 chrono = "0.4.44"
 clap = { version = "4.6.1", features = ["derive", "cargo"] }
@@ -60,7 +60,7 @@ termcolor = "1.4.1"
 thiserror = "2.0.18"
 visibility = "0.1.1"
 web-time = "1.1.0"
-winnow = { version = "1.0.1", default-features = false, features = [
+winnow = { version = "1.0.2", default-features = false, features = [
   "std",
   "ascii",
 ] }
