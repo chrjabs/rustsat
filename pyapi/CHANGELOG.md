@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.7.6 - 2026-04-24
+
+[457d6d7](457d6d7bf27998947edc45fa2200d6a5fef6c389)...[7ad01c7](7ad01c76e73feccf926d02ac6aa51c8c8d905598)
+
+### <!-- 0 -->Features
+
+- Operators for generating formulas ([310029b](310029bde60abb5b7beb12a44aff32380cea42b2))
+
+### <!-- 1 -->Bug Fixes
+
+- Update patch updates to 0.28.1 (#601) ([ea369d0](ea369d084d576b0de0bc0ef3664fbcbf0ffb9dfb)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Update patch updates (#606) ([140802d](140802d5f982460a381b09acff12d9f83f3dab9f)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Correctly specify default arguments for `__new__` methods ([9a5354d](9a5354df5ed795b392be1aaa85903e6ad3d167fa))
+- Update patch updates (#641) ([437b854](437b854498f872dc2fad43940c34e3381c8e24d0)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+
+### <!-- 5 -->Refactor
+
+- Make flake dendritic (#659) ([7ad01c7](7ad01c76e73feccf926d02ac6aa51c8c8d905598))
+
+### <!-- 8 -->Miscellaneous Tasks
+
+- Update `pyo3` to 0.28.0 ([27a7d93](27a7d93aaefc3e7b649c772244c95ab209d859da)), closes #591, closes #593
+- Convert `allow` to `expect` for lints (#596) ([69b046d](69b046d090c4c51407278848a9f3de2926c6ed3c))
+
 ## rustsat-v0.7.5 - 2026-01-30
 
 [1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[7be4b8b](7be4b8b939241a262ac36fee22e9eb83c80f738d)
