@@ -572,9 +572,9 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "gungraun"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e2e7d17b75a18300d495a5e79970067b92d74e4858c28326e125f2d55b1b566"
+checksum = "3bfa183cef2c88324b20de9727befd262c35592d9885ffd93b8b102536a81cf2"
 dependencies = [
  "bincode",
  "derive_more",
@@ -600,9 +600,9 @@ dependencies = [
 
 [[package]]
 name = "gungraun-runner"
-version = "0.18.1"
+version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c19bb4c552085f983300b11694022d7584810dca3500c220962ab2353327fb45"
+checksum = "2ebdac6d5fe0aa9d9623d690fbfdb759e0ed44115e0685b9abc4568fe47db364"
 dependencies = [
  "serde",
 ]
