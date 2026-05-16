@@ -60,7 +60,7 @@ termcolor = "1.4.1"
 thiserror = "2.0.18"
 visibility = "0.1.1"
 web-time = "1.1.0"
-winnow = { version = "1.0.2", default-features = false, features = [
+winnow = { version = "1.0.3", default-features = false, features = [
   "std",
   "ascii",
 ] }
