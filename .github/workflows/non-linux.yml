@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: taiki-e/install-action@2e807a7ddd7369dd12a3ec9a19d156f0660ecc9e # nextest
+      - uses: taiki-e/install-action@65fc166a1bb551ad18f0c44c1e423f73176e5186 # nextest
       - name: 🧪 Run tests
         run: cargo nextest run --profile ci --workspace --exclude rustsat-pyapi --verbose --features=_test
   windows-tests:
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: taiki-e/install-action@2e807a7ddd7369dd12a3ec9a19d156f0660ecc9e # nextest
+      - uses: taiki-e/install-action@65fc166a1bb551ad18f0c44c1e423f73176e5186 # nextest
       - name: 🧪 Run tests
         run: cargo nextest run --profile ci --workspace --exclude rustsat-cadical --exclude rustsat-kissat --exclude rustsat-pyapi --verbose --features=_test
   python-api:
