@@ -48,7 +48,7 @@
       "matchDepTypes": [
         "action"
       ],
-      "automerge": true
+      "automerge": false
     },
     {
       "matchDatasources": [
@@ -66,6 +66,15 @@
     {
       "matchManagers": [
         "dockerfile"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "rust-toolchain"
+      ],
+      "matchDepTypes": [
+        "toolchain"
       ],
       "enabled": false
     }
