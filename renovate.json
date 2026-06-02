@@ -48,7 +48,7 @@
       "matchDepTypes": [
         "action"
       ],
-      "automerge": true
+      "automerge": false
     },
     {
       "matchDatasources": [
