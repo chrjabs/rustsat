@@ -68,6 +68,15 @@
         "dockerfile"
       ],
       "enabled": false
+    },
+    {
+      "matchManagers": [
+        "rust-toolchain"
+      ],
+      "matchDepTypes": [
+        "toolchain"
+      ],
+      "enabled": false
     }
   ],
   "lockFileMaintenance": {
