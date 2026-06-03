@@ -356,6 +356,26 @@ impl pigeons::ConstraintLike<crate::types::Var> for Cl {
     }
 }
 
+impl std::borrow::Borrow<Cl> for Clause {
+    fn borrow(&self) -> &Cl {
+        self
+    }
+}
+
+impl std::borrow::BorrowMut<Cl> for Clause {
+    fn borrow_mut(&mut self) -> &mut Cl {
+        self
+    }
+}
+
+impl std::borrow::ToOwned for Cl {
+    type Owned = Clause;
+
+    fn to_owned(&self) -> Self::Owned {
+        AsRef::<[Lit]>::as_ref(&self).into()
+    }
+}
+
 /// Creates a clause from a list of literals
 #[macro_export]
 macro_rules! clause {
@@ -2274,5 +2294,12 @@ mod tests {
         assert!(!PbConstraint::new_ub(lits.clone(), 4).is_clause());
         assert!(!PbConstraint::new_lb(lits.clone(), 3).is_clause());
         assert!(!PbConstraint::new_eq(lits.clone(), 2).is_card());
+    }
+
+    #[test]
+    fn build_clause_cow() {
+        let cl = lit![0] | lit![1] | lit![2] | lit![1];
+        let mut cow = std::borrow::Cow::Borrowed(&cl);
+        cow.to_mut().add(lit![42]);
     }
 }
