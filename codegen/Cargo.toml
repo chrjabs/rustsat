@@ -11,14 +11,14 @@ publish = false
 
 [dependencies]
 # keep-sorted start block=yes
-cbindgen = "0.29.2"
+cbindgen = "0.29.3"
 minijinja = { version = "2.20.0", default-features = false, features = [
   "multi_template",
   "serde",
   "loader",
 ] }
 serde.workspace = true
-similar = "3.1.0"
+similar = "3.1.1"
 tempfile.workspace = true
 # keep-sorted end
 
