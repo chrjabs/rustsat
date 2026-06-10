@@ -223,6 +223,11 @@ required-features = ["optimization"]
 name = "construct_trees"
 harness = false
 
+[[bench]]
+name = "parsers"
+harness = false
+required-features = ["optimization", "multiopt"]
+
 [profile.profiling]
 inherits = "release"
 debug = 1
