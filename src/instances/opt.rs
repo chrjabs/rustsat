@@ -447,23 +447,31 @@ impl Objective {
 
     /// Increases the weight of a soft literal. Returns the old weight, if the
     /// literal was already in the objective.
-    pub fn increase_soft_lit(&mut self, add_w: usize, l: Lit) -> Option<usize> {
+    pub fn increase_soft_lit(&mut self, add_w: usize, l: Lit) {
         if add_w == 0 {
-            return self.lit_weight(l);
+            return;
         }
-        if self.lit_weight(l).is_none() {
-            return self.add_soft_lit(add_w, l);
-        }
-        self.unweighted_2_weighted();
         match &mut self.0 {
-            IntObj::Weighted { soft_lits, .. } => match soft_lits.get_mut(&l) {
-                Some(old_w) => {
-                    *old_w += add_w;
-                    Some(*old_w - add_w)
+            IntObj::Weighted { soft_lits, .. } => {
+                *soft_lits.entry(l).or_default() += add_w;
+            }
+            IntObj::Unweighted {
+                unit_weight,
+                soft_lits,
+                ..
+            } => {
+                if let Some(unit_weight) = unit_weight {
+                    if add_w == *unit_weight {
+                        soft_lits.push(l);
+                    } else {
+                        self.unweighted_2_weighted();
+                        self.increase_soft_lit(add_w, l);
+                    }
+                } else {
+                    soft_lits.push(l);
+                    *unit_weight = Some(add_w);
                 }
-                None => soft_lits.insert(l, add_w),
-            },
-            IntObj::Unweighted { .. } => unreachable!(),
+            }
         }
     }
 
@@ -539,26 +547,34 @@ impl Objective {
 
     /// Increases the weight of a soft clause. Returns the old weight, if the
     /// clause was already in the objective.
-    pub fn increase_soft_clause(&mut self, add_w: usize, cl: Clause) -> Option<usize> {
+    pub fn increase_soft_clause(&mut self, add_w: usize, cl: Clause) {
+        if add_w == 0 {
+            return;
+        }
         if cl.len() == 1 {
             return self.increase_soft_lit(add_w, !cl[0]);
         }
-        if add_w == 0 {
-            return self.clause_weight(&cl);
-        }
-        if self.clause_weight(&cl).is_none() {
-            return self.add_soft_clause(add_w, cl);
-        }
-        self.unweighted_2_weighted();
         match &mut self.0 {
-            IntObj::Weighted { soft_clauses, .. } => match soft_clauses.get_mut(&cl) {
-                Some(old_w) => {
-                    *old_w += add_w;
-                    Some(*old_w - add_w)
+            IntObj::Weighted { soft_clauses, .. } => {
+                *soft_clauses.entry(cl).or_default() += add_w;
+            }
+            IntObj::Unweighted {
+                unit_weight,
+                soft_clauses,
+                ..
+            } => {
+                if let Some(unit_weight) = unit_weight {
+                    if add_w == *unit_weight {
+                        soft_clauses.push(cl);
+                    } else {
+                        self.unweighted_2_weighted();
+                        self.increase_soft_clause(add_w, cl);
+                    }
+                } else {
+                    soft_clauses.push(cl);
+                    *unit_weight = Some(add_w);
                 }
-                None => soft_clauses.insert(cl, add_w),
-            },
-            IntObj::Unweighted { .. } => unreachable!(),
+            }
         }
     }
 

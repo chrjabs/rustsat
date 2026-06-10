@@ -1,6 +1,6 @@
 ---
 source: src/instances/fio/dimacs.rs
-expression: "c test\nh 1 2 0\no2 10 -3 4 5 0\no2 10 -3 4 5 0\no1 3 -1 0\no1 3 -1 0"
+expression: "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 2 10 -3 4 5 0\no 1 3 -1 0\no 1 3 -1 0"
 ---
 constrs:
   cnf:
@@ -14,18 +14,23 @@ constrs:
     next_var:
       idx: 5
 objs:
-  - Weighted:
+  - Unweighted:
       offset: 0
+      unit_weight: 3
       soft_lits:
-        ? lidx: 0
-        : 6
-      soft_clauses: {}
-  - Weighted:
+        - lidx: 0
+        - lidx: 0
+      soft_clauses: []
+  - Unweighted:
       offset: 0
-      soft_lits: {}
+      unit_weight: 10
+      soft_lits: []
       soft_clauses:
-        ? lits:
+        - lits:
             - lidx: 5
             - lidx: 6
             - lidx: 8
-        : 20
+        - lits:
+            - lidx: 5
+            - lidx: 6
+            - lidx: 8
