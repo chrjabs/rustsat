@@ -348,13 +348,18 @@ impl Objective {
                 soft_clauses,
             } => {
                 if let Some(unit_weight) = unit_weight {
+                    let mut new_soft_lits: RsHashMap<Lit, usize> = RsHashMap::default();
+                    for lit in soft_lits.drain(..) {
+                        *new_soft_lits.entry(lit).or_default() += *unit_weight;
+                    }
+                    let mut new_soft_clauses: RsHashMap<Clause, usize> = RsHashMap::default();
+                    for clause in soft_clauses.drain(..) {
+                        *new_soft_clauses.entry(clause).or_default() += *unit_weight;
+                    }
                     *self = IntObj::Weighted {
                         offset: *offset,
-                        soft_lits: soft_lits.drain(..).map(|l| (l, *unit_weight)).collect(),
-                        soft_clauses: soft_clauses
-                            .drain(..)
-                            .map(|cl| (cl, *unit_weight))
-                            .collect(),
+                        soft_lits: new_soft_lits,
+                        soft_clauses: new_soft_clauses,
                     }
                     .into();
                 } else {
