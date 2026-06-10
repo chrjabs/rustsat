@@ -121,13 +121,29 @@ impl Clause {
         self.lits.drain(range)
     }
 
-    /// Normalizes the clause. This includes sorting the literals, removing
-    /// duplicates and removing the entire clause if it is a tautology.
-    /// Comparing two normalized clauses checks their logical equivalence.
+    /// Normalizes the clause
+    ///
+    /// This includes sorting the literals, removing duplicates and removing the entire clause if it
+    /// is a tautology. Comparing two normalized clauses checks their logical equivalence.
     #[must_use]
     pub fn normalize(mut self) -> Option<Self> {
+        if self.normalize_in_place() {
+            None
+        } else {
+            Some(self)
+        }
+    }
+
+    /// Normalizes the clause in place
+    ///
+    /// This includes sorting the literals, and removing duplicates. If the clause is a tautology,
+    /// returns true, and false otherwise. The state of the clause if it is a tautology is
+    /// undefined. Comparing two normalized, non-tautological clauses checks their logical
+    /// equivalence.
+    #[must_use]
+    pub(crate) fn normalize_in_place(&mut self) -> bool {
         if self.len() <= 1 {
-            return Some(self);
+            return false;
         }
         // Sort and filter duplicates
         self.lits.sort_unstable();
@@ -144,9 +160,9 @@ impl Clause {
             neg_last = Some(!*l);
             Ok(())
         }) {
-            return None;
+            return true;
         }
-        Some(self)
+        false
     }
 
     /// Sanitizes the clause. This includes removing duplicates and removing the

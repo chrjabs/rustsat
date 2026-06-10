@@ -1,0 +1,9 @@
+---
+source: src/instances/opt.rs
+expression: "{\n    let mut obj = super::Objective::default();\n    obj.add_soft_clause(42, clause![lit![1], lit![1]]);\n    obj.add_soft_lit(42, lit![1]); obj.normalize()\n}"
+---
+Unweighted:
+  offset: 42
+  unit_weight: ~
+  soft_lits: []
+  soft_clauses: []

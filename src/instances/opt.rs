@@ -890,20 +890,152 @@ impl Objective {
     }
 
     /// Normalizes the objective to a unified representation. This sorts internal data structures.
+    #[expect(clippy::missing_panics_doc)]
+    #[expect(clippy::too_many_lines)]
     #[must_use]
     pub fn normalize(mut self) -> Self {
         match &mut self.0 {
-            IntObj::Weighted { .. } => (),
+            IntObj::Weighted {
+                soft_clauses,
+                soft_lits,
+                offset,
+            } => {
+                let old_clauses = {
+                    let mut old = RsHashMap::default();
+                    std::mem::swap(&mut old, soft_clauses);
+                    old
+                };
+                for (clause, weight) in old_clauses {
+                    let Some(clause) = clause.normalize() else {
+                        continue;
+                    };
+                    debug_assert!(!clause.is_empty());
+                    if clause.len() == 1 {
+                        match soft_lits.entry(clause[0]) {
+                            hash_map::Entry::Occupied(mut neg_lit) => {
+                                match neg_lit.get().cmp(&weight) {
+                                    cmp::Ordering::Less => {
+                                        let neg_weight = neg_lit.remove();
+                                        *offset += isize::try_from(neg_weight)
+                                            .expect("only support weights up to `isize::MAX`");
+                                        *soft_lits.entry(!clause[0]).or_default() +=
+                                            weight - neg_weight;
+                                    }
+                                    cmp::Ordering::Equal => {
+                                        *offset += isize::try_from(weight)
+                                            .expect("only support weights up to `isize::MAX`");
+                                        neg_lit.remove();
+                                    }
+                                    cmp::Ordering::Greater => {
+                                        *offset += isize::try_from(weight)
+                                            .expect("only support weights up to `isize::MAX`");
+                                        *neg_lit.get_mut() -= weight;
+                                    }
+                                }
+                            }
+                            hash_map::Entry::Vacant(_) => {
+                                *soft_lits.entry(!clause[0]).or_default() += weight;
+                            }
+                        }
+                        continue;
+                    }
+                    *soft_clauses.entry(clause).or_default() += weight;
+                }
+                if soft_clauses.is_empty() && soft_lits.is_empty() {
+                    return Self::default();
+                }
+                let unit_weight = *soft_lits
+                    .values()
+                    .next()
+                    .unwrap_or_else(|| soft_clauses.values().next().expect("not both are empty"));
+                for (_, w) in soft_lits.iter() {
+                    if *w != unit_weight {
+                        return self;
+                    }
+                }
+                for (_, w) in soft_clauses.iter() {
+                    if *w != unit_weight {
+                        return self;
+                    }
+                }
+                let mut soft_lits: Vec<_> = soft_lits.drain().map(|(l, _)| l).collect();
+                soft_lits.sort_unstable();
+                let mut soft_clauses: Vec<_> = soft_clauses.drain().map(|(c, _)| c).collect();
+                soft_clauses.sort_unstable();
+                Self(IntObj::Unweighted {
+                    offset: *offset,
+                    soft_lits,
+                    soft_clauses,
+                    unit_weight: Some(unit_weight),
+                })
+            }
             IntObj::Unweighted {
                 soft_lits,
                 soft_clauses,
-                ..
+                offset,
+                unit_weight: self_unit_weight,
             } => {
-                soft_lits.sort_unstable();
+                let Some(unit_weight) = *self_unit_weight else {
+                    debug_assert!(soft_lits.is_empty());
+                    debug_assert!(soft_clauses.is_empty());
+                    return self;
+                };
+                let mut next = 0;
+                let mut end = 0;
+                while next < soft_clauses.len() {
+                    let clause = &mut soft_clauses[next];
+                    if clause.normalize_in_place() {
+                        next += 1;
+                        continue;
+                    }
+                    if clause.len() == 1 {
+                        soft_lits.push(!clause[0]);
+                        next += 1;
+                        continue;
+                    }
+                    soft_clauses.swap(end, next);
+                    end += 1;
+                    next += 1;
+                }
+                soft_clauses.truncate(end);
                 soft_clauses.sort_unstable();
+                for pair in soft_clauses.windows(2) {
+                    if pair[0] == pair[1] {
+                        // duplicate clause: objective is actually weighted
+                        self.unweighted_2_weighted();
+                        return self.normalize();
+                    }
+                }
+
+                soft_lits.sort_unstable();
+                let mut next = 0;
+                let mut end = 0;
+                while next < soft_lits.len() - 1 {
+                    if soft_lits[next] == !soft_lits[next + 1] {
+                        // skip conflicting literals
+                        *offset += isize::try_from(unit_weight)
+                            .expect("can only handle weights up to `isize::MAX`");
+                        next += 2;
+                        continue;
+                    }
+                    if soft_lits[next] == soft_lits[next + 1] {
+                        // duplicate literal: objective is actually weighted
+                        self.unweighted_2_weighted();
+                        return self.normalize();
+                    }
+                    soft_lits.swap(end, next);
+                    end += 1;
+                    next += 1;
+                }
+                soft_lits.truncate(end + usize::from(next < soft_lits.len()));
+
+                if soft_lits.is_empty() && soft_clauses.is_empty() {
+                    *self_unit_weight = None;
+                }
+
+                self
             }
         }
-        self
     }
 
     #[cfg(feature = "rand")]
@@ -1546,6 +1678,8 @@ impl<VM: ManageVars + Default> FromIterator<WcnfLine> for Instance<VM> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{clause, lit};
+
     #[cfg(feature = "proof-logging")]
     #[test]
     fn proof_log_obj() {
@@ -1568,5 +1702,54 @@ mod tests {
             ),
             truth
         );
+    }
+
+    #[test]
+    fn normalize_duplicate_lit_soft_clause() {
+        insta::assert_yaml_snapshot!("normalize_duplicate_lit_soft_clause", {
+            let mut obj = super::Objective::default();
+            obj.add_soft_clause(42, clause![lit![1], lit![1]]);
+            obj.normalize()
+        },);
+    }
+
+    #[test]
+    fn normalize_duplicate_clause() {
+        insta::assert_yaml_snapshot!("normalize_duplicate_clause", {
+            let mut obj = super::Objective::default();
+            obj.add_soft_clause(42, clause![lit![1], lit![1]]);
+            obj.add_soft_clause(42, clause![lit![1], lit![1], lit![1]]);
+            obj.normalize()
+        },);
+    }
+
+    #[test]
+    fn normalize_duplicate_soft_clause_and_lit() {
+        insta::assert_yaml_snapshot!("normalize_duplicate_soft_clause_and_lit", {
+            let mut obj = super::Objective::default();
+            obj.add_soft_clause(42, clause![lit![1], lit![1]]);
+            obj.add_soft_lit(23, !lit![1]);
+            obj.normalize()
+        },);
+    }
+
+    #[test]
+    fn normalize_negated_soft_lit() {
+        insta::assert_yaml_snapshot!("normalize_negated_soft_lit", {
+            let mut obj = super::Objective::default();
+            obj.add_soft_clause(42, clause![lit![1], lit![1]]);
+            obj.add_soft_lit(23, lit![1]);
+            obj.normalize()
+        },);
+    }
+
+    #[test]
+    fn normalize_negated_soft_lit_unweighted() {
+        insta::assert_yaml_snapshot!("normalize_negated_soft_lit_unweighted", {
+            let mut obj = super::Objective::default();
+            obj.add_soft_clause(42, clause![lit![1], lit![1]]);
+            obj.add_soft_lit(42, lit![1]);
+            obj.normalize()
+        },);
     }
 }
