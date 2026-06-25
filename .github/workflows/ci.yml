@@ -60,6 +60,8 @@ jobs:
     runs-on: [self-hosted, nix]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: 🏗️ Build dev dependencies
         run: nix build .#cargoDevArtifacts
   tests:
@@ -70,6 +72,8 @@ jobs:
     if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: 🧪 Run tests
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').tests"
       - name: 🧪 Run tests for external solver CaDiCaL
@@ -84,6 +88,8 @@ jobs:
     if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: 🏗️ Check MSRV builds
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').msrv"
   wasm-check:
@@ -92,6 +98,8 @@ jobs:
     if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: 🏄 Check WASM compatibility
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').wasm"
   code-quality:
@@ -101,6 +109,8 @@ jobs:
       - dev-deps
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: ✨ Check formatting
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').treefmt"
       - name: ✨ Cargo deny bans licenses sources
@@ -125,7 +135,11 @@ jobs:
     if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: ✨ Build Python API and check
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').pyapi"
   doc:
@@ -136,7 +150,11 @@ jobs:
     if: '!github.event.pull_request.draft'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: ✨ Build doc
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').doc"
       - name: 🧪 Run doc tests
@@ -149,6 +167,8 @@ jobs:
       - doc
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: ✨ Collect coverage reports
         run: |
           nix build .#testCoverage
@@ -168,6 +188,8 @@ jobs:
     if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'heavy-tests')"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: ✨ Run feature powerset checks
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').featurePowerset"
   cadical-each-feature:
@@ -178,6 +200,8 @@ jobs:
     if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/cadical')"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: 🧪 Test each feature
         run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run --exclude-features logging nextest run -p rustsat-cadical
   kissat-each-feature:
@@ -188,5 +212,7 @@ jobs:
     if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/kissat')"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - name: 🧪 Test each feature
         run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run nextest run -p rustsat-kissat
