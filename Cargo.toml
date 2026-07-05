@@ -31,7 +31,7 @@ bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
 ] }
 bzip2 = "0.6.1"
-cc = { version = "1.2.65", features = ["parallel"] }
+cc = { version = "1.2.66", features = ["parallel"] }
 chacha20 = "0.10.1"
 chrono = "0.4.45"
 clap = { version = "4.6.1", features = ["derive", "cargo"] }
@@ -46,8 +46,8 @@ insta = { version = "1.48.0", features = ["yaml"] }
 itertools = "0.15.0"
 libtest-mimic = "0.8.2"
 pigeons = { version = "0.2.3", path = "./pigeons" }
-rand = "0.10.1"
-rustc-hash = "2.1.2"
+rand = "0.10.2"
+rustc-hash = "2.1.3"
 rustsat = { version = "0.7.5", path = "./", default-features = false }
 rustsat-cadical = { version = "0.7.5", path = "./cadical" }
 rustsat-minisat = { version = "0.7.5", path = "./minisat" }
