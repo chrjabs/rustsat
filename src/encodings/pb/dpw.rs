@@ -1063,7 +1063,7 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>
             break;
         }
     }
-    debug_assert!(ub == enforced_weight);
+    debug_assert_eq!(ub, enforced_weight);
 
     Ok(assumps)
 }

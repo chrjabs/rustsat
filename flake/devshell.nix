@@ -18,6 +18,7 @@ flake-args: {
             clang
             cmake
             jq
+            libgit2
             llvmPackages.bintools
             pkg-config
             # keep-sorted end

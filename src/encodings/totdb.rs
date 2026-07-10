@@ -607,9 +607,7 @@ impl Db {
             match node {
                 Node::Leaf(_) | Node::Dummy => (),
                 Node::Unit(UnitNode { lits, .. }) => {
-                    for lit in lits {
-                        *lit = LitData::None;
-                    }
+                    lits.fill(LitData::None);
                 }
                 Node::General(GeneralNode { lits, .. }) => {
                     for (_, lit) in lits.iter_mut() {
@@ -1519,14 +1517,14 @@ impl Iterator for OLitIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let (val, lit_data) = match self {
-            OLitIter::Unit(iter) => match iter.next() {
-                Some(val) => (val.0 + 1, *val.1),
-                None => return None,
-            },
-            OLitIter::General(iter) => match iter.next() {
-                Some(val) => (val.0, val.1),
-                None => return None,
-            },
+            OLitIter::Unit(iter) => {
+                let val = iter.next()?;
+                (val.0 + 1, *val.1)
+            }
+            OLitIter::General(iter) => {
+                let val = iter.next()?;
+                *val
+            }
             OLitIter::None => return None,
         };
         match lit_data {

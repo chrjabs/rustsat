@@ -91,6 +91,18 @@
         inherit system;
         overlays = [
           inputs.nur-packages.overlays.default
+          # Pin cargo-rdme to 1.x until https://github.com/orium/cargo-rdme/issues/271 is resolved
+          (final: _: {
+            cargo-rdme = final.rustPlatform.buildRustPackage (finalAttrs: {
+              pname = "cargo-rdme";
+              version = "1.5.1";
+              src = final.fetchCrate {
+                inherit (finalAttrs) pname version;
+                hash = "sha256-d3WughXxh9cBzy33s3iB75paldZFokGGI1L9yTLGYoc=";
+              };
+              cargoHash = "sha256-26Poh5lUCYi+a+/E7pOYwilKX+eqRmbRNYRFdVfRSCw=";
+            });
+          })
         ];
       };
     };

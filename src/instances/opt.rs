@@ -964,12 +964,12 @@ impl Objective {
                     .values()
                     .next()
                     .unwrap_or_else(|| soft_clauses.values().next().expect("not both are empty"));
-                for (_, w) in soft_lits.iter() {
+                for w in soft_lits.values() {
                     if *w != unit_weight {
                         return self;
                     }
                 }
-                for (_, w) in soft_clauses.iter() {
+                for w in soft_clauses.values() {
                     if *w != unit_weight {
                         return self;
                     }
