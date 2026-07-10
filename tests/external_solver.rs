@@ -1,6 +1,6 @@
 mod file_file {
-    use rustsat::solvers::{external, ExternalSolver};
-    use std::process::Command;
+    use rustsat::solvers::external;
+    use rustsat::solvers::ExternalSolver;
 
     rustsat_solvertests::base_tests!(
         {
@@ -9,7 +9,7 @@ mod file_file {
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
             ExternalSolver::new(
-                Command::new(slv),
+                std::process::Command::new(slv),
                 external::InputVia::file_last(format!(
                     "{manifest}/target/extsolver_file_file_{testid}.cnf"
                 )),
@@ -26,8 +26,8 @@ mod file_file {
 }
 
 mod file_pipe {
-    use rustsat::solvers::{external, ExternalSolver};
-    use std::process::Command;
+    use rustsat::solvers::external;
+    use rustsat::solvers::ExternalSolver;
 
     rustsat_solvertests::base_tests!(
         {
@@ -36,7 +36,7 @@ mod file_pipe {
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
             ExternalSolver::new(
-                Command::new(slv),
+                std::process::Command::new(slv),
                 external::InputVia::file_last(format!(
                     "{manifest}/target/extsolver_file_pipe_{testid}.cnf"
                 )),
@@ -51,8 +51,8 @@ mod file_pipe {
 }
 
 mod tempfile_pipe {
-    use rustsat::solvers::{external, ExternalSolver};
-    use std::process::Command;
+    use rustsat::solvers::external;
+    use rustsat::solvers::ExternalSolver;
 
     rustsat_solvertests::base_tests!(
         {
@@ -60,7 +60,7 @@ mod tempfile_pipe {
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
             ExternalSolver::new(
-                Command::new(slv),
+                std::process::Command::new(slv),
                 external::InputVia::tempfile_last(),
                 external::OutputVia::pipe(),
                 "extsolver",
@@ -73,8 +73,8 @@ mod tempfile_pipe {
 }
 
 mod pipe_pipe {
-    use rustsat::solvers::{external, ExternalSolver};
-    use std::process::Command;
+    use rustsat::solvers::external;
+    use rustsat::solvers::ExternalSolver;
 
     rustsat_solvertests::base_tests!(
         {
@@ -82,7 +82,7 @@ mod pipe_pipe {
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
             ExternalSolver::new(
-                Command::new(slv),
+                std::process::Command::new(slv),
                 external::InputVia::pipe(),
                 external::OutputVia::pipe(),
                 "extsolver",
@@ -95,8 +95,8 @@ mod pipe_pipe {
 }
 
 mod pipe_file {
-    use rustsat::solvers::{external, ExternalSolver};
-    use std::process::Command;
+    use rustsat::solvers::external;
+    use rustsat::solvers::ExternalSolver;
 
     rustsat_solvertests::base_tests!(
         {
@@ -105,7 +105,7 @@ mod pipe_file {
             );
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             ExternalSolver::new(
-                Command::new(slv),
+                std::process::Command::new(slv),
                 external::InputVia::pipe(),
                 external::OutputVia::file(format!(
                     "{manifest}/target/extsolver_pipe_file_{testid}.log"
@@ -120,8 +120,10 @@ mod pipe_file {
 }
 
 mod simulator {
-    use rustsat::solvers::{external, simulators, ExternalSolver, Initialize};
-    use std::process::Command;
+    use rustsat::solvers::external;
+    use rustsat::solvers::simulators;
+    use rustsat::solvers::ExternalSolver;
+    use rustsat::solvers::Initialize;
 
     struct Init;
 
@@ -131,7 +133,7 @@ mod simulator {
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
             ExternalSolver::new(
-                Command::new(slv),
+                std::process::Command::new(slv),
                 external::InputVia::pipe(),
                 external::OutputVia::pipe(),
                 "extsolver",

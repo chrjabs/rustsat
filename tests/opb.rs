@@ -1,14 +1,12 @@
-use rustsat::{
-    instances::{fio::opb::Options, SatInstance},
-    solvers::{Solve, SolverResult},
-};
-
+use rustsat::instances::fio::opb::Options;
 use rustsat::instances::MultiOptInstance;
-use rustsat::{
-    instances::{Objective, OptInstance},
-    lit,
-    types::constraints::PbConstraint,
-};
+use rustsat::instances::Objective;
+use rustsat::instances::OptInstance;
+use rustsat::instances::SatInstance;
+use rustsat::lit;
+use rustsat::solvers::Solve;
+use rustsat::solvers::SolverResult;
+use rustsat::types::constraints::PbConstraint;
 
 macro_rules! opb_test {
     ($path:expr, $expect:expr) => {{

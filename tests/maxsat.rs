@@ -1,4 +1,6 @@
-use rustsat::{algs::maxsat, encodings::pb, instances::OptInstance};
+use rustsat::algs::maxsat;
+use rustsat::encodings::pb;
+use rustsat::instances::OptInstance;
 
 #[test]
 fn sis_small_gte() {

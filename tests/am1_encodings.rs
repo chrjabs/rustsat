@@ -1,16 +1,16 @@
-use rustsat::{
-    encodings::{am1, EncodeStats, IterInputs},
-    instances::{BasicVarManager, Cnf, ManageVars},
-    lit,
-    solvers::{
-        Solve, SolveIncremental,
-        SolverResult::{Sat, Unsat},
-    },
-    types::Lit,
-    var,
-};
-
-use rustsat_tools::{test_all, test_assignment};
+use rustsat::encodings::am1;
+use rustsat::encodings::EncodeStats;
+use rustsat::encodings::IterInputs;
+use rustsat::instances::BasicVarManager;
+use rustsat::instances::Cnf;
+use rustsat::instances::ManageVars;
+use rustsat::lit;
+use rustsat::solvers::Solve;
+use rustsat::solvers::SolveIncremental;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Lit;
+use rustsat::var;
+use rustsat_tools::test_all;
 
 macro_rules! gen_tests {
     ($mod:ident, $enc:ty) => {
@@ -53,14 +53,14 @@ fn test_am1<AM1: am1::Encode + From<Vec<Lit>>>() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Unsat, // 111
-        Unsat, // 110
-        Unsat, // 101
-        Sat,   // 100
-        Unsat, // 011
-        Sat,   // 010
-        Sat,   // 001
-        Sat    // 000
+        SolverResult::Unsat, // 111
+        SolverResult::Unsat, // 110
+        SolverResult::Unsat, // 101
+        SolverResult::Sat,   // 100
+        SolverResult::Unsat, // 011
+        SolverResult::Sat,   // 010
+        SolverResult::Sat,   // 001
+        SolverResult::Sat    // 000
     );
 
     let mut solver = rustsat_minisat::core::Minisat::default();
@@ -76,22 +76,22 @@ fn test_am1<AM1: am1::Encode + From<Vec<Lit>>>() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Unsat, // 1111
-        Unsat, // 1110
-        Unsat, // 1101
-        Unsat, // 1100
-        Unsat, // 1011
-        Unsat, // 1010
-        Unsat, // 1001
-        Sat,   // 1000
-        Unsat, // 0111
-        Unsat, // 0110
-        Unsat, // 0101
-        Sat,   // 0100
-        Unsat, // 0011
-        Sat,   // 0010
-        Sat,   // 0001
-        Sat    // 0000
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 }
 
@@ -109,14 +109,14 @@ fn test_am1_duplicate<AM1: am1::Encode + From<Vec<Lit>>>() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Unsat, // 111
-        Unsat, // 110
-        Unsat, // 101
-        Unsat, // 100
-        Unsat, // 011
-        Sat,   // 010
-        Sat,   // 001
-        Sat    // 000
+        SolverResult::Unsat, // 111
+        SolverResult::Unsat, // 110
+        SolverResult::Unsat, // 101
+        SolverResult::Unsat, // 100
+        SolverResult::Unsat, // 011
+        SolverResult::Sat,   // 010
+        SolverResult::Sat,   // 001
+        SolverResult::Sat    // 000
     );
 }
 
@@ -134,14 +134,14 @@ fn test_am1_negated<AM1: am1::Encode + From<Vec<Lit>>>() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Unsat, // 111
-        Unsat, // 110
-        Unsat, // 101
-        Sat,   // 100
-        Unsat, // 011
-        Unsat, // 010
-        Unsat, // 001
-        Sat    // 000
+        SolverResult::Unsat, // 111
+        SolverResult::Unsat, // 110
+        SolverResult::Unsat, // 101
+        SolverResult::Sat,   // 100
+        SolverResult::Unsat, // 011
+        SolverResult::Unsat, // 010
+        SolverResult::Unsat, // 001
+        SolverResult::Sat    // 000
     );
 }
 

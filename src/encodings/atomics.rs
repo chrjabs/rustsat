@@ -1,11 +1,9 @@
 //! # "Atomic"/"Trivial" Encodings
 
-use std::ops::Not;
-
-use crate::types::{
-    constraints::{CardConstraint, PbConstraint},
-    Clause, Lit,
-};
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::PbConstraint;
+use crate::types::Clause;
+use crate::types::Lit;
 
 /// Implication of form `a -> b`
 #[must_use]
@@ -24,7 +22,7 @@ pub fn lit_impl_clause(a: Lit, b: &[Lit]) -> Clause {
 /// Implication of form `(a1 & a2 & ... & an) -> b`
 #[must_use]
 pub fn cube_impl_lit(a: &[Lit], b: Lit) -> Clause {
-    let mut cl: Clause = a.iter().copied().map(Not::not).collect();
+    let mut cl: Clause = a.iter().copied().map(std::ops::Not::not).collect();
     cl |= b;
     cl
 }
@@ -33,7 +31,7 @@ pub fn cube_impl_lit(a: &[Lit], b: Lit) -> Clause {
 #[must_use]
 pub fn cube_impl_clause(a: &[Lit], b: &[Lit]) -> Clause {
     let mut cl = Clause::from(b);
-    cl.extend(a.iter().copied().map(Not::not));
+    cl.extend(a.iter().copied().map(std::ops::Not::not));
     cl
 }
 
@@ -70,7 +68,7 @@ pub fn clause_impl_cube<'all>(
 /// Implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
 pub fn cube_impl_cube<'all>(a: &'all [Lit], b: &'all [Lit]) -> impl Iterator<Item = Clause> + 'all {
     b.iter().map(move |bi| {
-        let mut cl: Clause = a.iter().copied().map(Not::not).collect();
+        let mut cl: Clause = a.iter().copied().map(std::ops::Not::not).collect();
         cl |= *bi;
         cl
     })
@@ -110,7 +108,9 @@ pub fn lit_impl_card(lit: Lit, card: &CardConstraint) -> PbConstraint {
                 isize::try_from(*bound).expect("cannot handle bounds larger than `isize::MAX`"),
             )
         }
-        CardConstraint::Eq(_) => panic!("equality constraint cannot be trivially reified"),
+        CardConstraint::Eq(_) => {
+            panic!("equality constraint cannot be trivially reified")
+        }
     }
 }
 
@@ -150,7 +150,9 @@ pub fn card_impl_lit(card: &CardConstraint, lit: Lit) -> PbConstraint {
                 isize::try_from(bound).expect("cannot handle bounds larger than `isize::MAX`"),
             )
         }
-        CardConstraint::Eq(_) => panic!("equality constraint cannot be trivially reified"),
+        CardConstraint::Eq(_) => {
+            panic!("equality constraint cannot be trivially reified")
+        }
     }
 }
 
@@ -180,7 +182,9 @@ pub fn lit_impl_pb(lit: Lit, pb: &PbConstraint) -> PbConstraint {
         PbConstraint::Lb(_) => {
             pb.add([(!lit, pb.bound())]);
         }
-        PbConstraint::Eq(_) => panic!("equality constraint cannot be trivially reified"),
+        PbConstraint::Eq(_) => {
+            panic!("equality constraint cannot be trivially reified")
+        }
     }
     pb
 }
@@ -222,6 +226,8 @@ pub fn pb_impl_lit(pb: &PbConstraint, lit: Lit) -> PbConstraint {
             lits.push((lit, bound));
             PbConstraint::new_lb(lits, bound)
         }
-        PbConstraint::Eq(_) => panic!("equality constraint cannot be trivially reified"),
+        PbConstraint::Eq(_) => {
+            panic!("equality constraint cannot be trivially reified")
+        }
     }
 }

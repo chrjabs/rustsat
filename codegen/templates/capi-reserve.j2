@@ -5,6 +5,6 @@
 {% include 'capi-safety.j2' %}
 #[no_mangle]
 pub unsafe extern "C" fn {{ enc.id }}_reserve({{ enc.id }}: *mut {{ enc.name }}, n_vars_used: &mut u32) {
-    let mut var_manager = VarManager::new(n_vars_used);
+    let mut var_manager = super::VarManager::new(n_vars_used);
     (*{{ enc.id }}).reserve(&mut var_manager);
 }

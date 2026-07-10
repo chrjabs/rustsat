@@ -8,24 +8,38 @@
 //!
 //! - [OPB](https://www.cril.univ-artois.fr/PB12/format.pdf)
 
-use std::io::{self, BufRead, Write};
+use winnow::ascii::dec_int;
+use winnow::ascii::digit0;
+use winnow::ascii::line_ending;
+use winnow::ascii::space0;
+use winnow::ascii::space1;
+use winnow::ascii::till_line_ending;
+use winnow::combinator::alt;
+use winnow::combinator::cut_err;
+use winnow::combinator::dispatch;
+use winnow::combinator::empty;
+use winnow::combinator::eof;
+use winnow::combinator::opt;
+use winnow::combinator::preceded;
+use winnow::combinator::separated;
+use winnow::combinator::seq;
+use winnow::error::ContextError;
+use winnow::error::ErrMode;
+use winnow::error::StrContext;
+use winnow::token::one_of;
+use winnow::token::rest;
+use winnow::ModalResult;
+use winnow::Parser as _;
 
-use winnow::{
-    ascii::{dec_int, digit0, line_ending, space0, space1, till_line_ending},
-    combinator::{alt, cut_err, dispatch, empty, eof, opt, preceded, separated, seq},
-    error::{ContextError, ErrMode, StrContext},
-    token::{one_of, rest},
-    ModalResult, Parser as _,
-};
-
-use crate::{
-    instances::{ManageVars, SatInstance},
-    types::{
-        constraints::{CardConstraint, PbConstraint},
-        Cl, Clause, Lit, Var,
-    },
-    utils,
-};
+use crate::instances::ManageVars;
+use crate::instances::SatInstance;
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::PbConstraint;
+use crate::types::Cl;
+use crate::types::Clause;
+use crate::types::Lit;
+use crate::types::Var;
+use crate::utils;
 
 use super::ParsingError;
 
@@ -48,7 +62,7 @@ impl<R> Parser<R> {
     /// Creates a new parser iterator from a reader and parsing settings
     pub fn new(reader: R, opts: Options) -> Self
     where
-        R: io::BufRead,
+        R: std::io::BufRead,
     {
         Self {
             reader,
@@ -67,7 +81,7 @@ impl<R> Parser<R> {
 
 impl<R> Iterator for Parser<R>
 where
-    R: BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<Data, super::Error>;
 
@@ -443,11 +457,11 @@ pub enum FileLine<LI: crate::types::WLitIter> {
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`]
+/// If writing fails, returns [`std::io::Error`]
 #[cfg(not(feature = "optimization"))]
-pub fn write_opb_lines<W, Iter>(mut writer: W, data: Iter, opts: Options) -> io::Result<()>
+pub fn write_opb_lines<W, Iter>(mut writer: W, data: Iter, opts: Options) -> std::io::Result<()>
 where
-    W: Write,
+    W: std::io::Write,
     Iter: Iterator<Item = FileLine>,
 {
     for dat in data {
@@ -465,11 +479,11 @@ where
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`]
+/// If writing fails, returns [`std::io::Error`]
 #[cfg(feature = "optimization")]
-pub fn write_opb_lines<W, LI, Iter>(mut writer: W, data: Iter, opts: Options) -> io::Result<()>
+pub fn write_opb_lines<W, LI, Iter>(mut writer: W, data: Iter, opts: Options) -> std::io::Result<()>
 where
-    W: Write,
+    W: std::io::Write,
     LI: crate::types::WLitIter,
     Iter: Iterator<Item = FileLine<LI>>,
 {
@@ -489,7 +503,7 @@ where
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
+/// If writing fails, returns [`std::io::Error`].
 ///
 /// # Panics
 ///
@@ -500,9 +514,9 @@ pub fn write_sat<W, VM>(
     mut writer: W,
     inst: &SatInstance<VM>,
     opts: Options,
-) -> Result<(), io::Error>
+) -> Result<(), std::io::Error>
 where
-    W: Write,
+    W: std::io::Write,
     VM: ManageVars,
 {
     writeln!(
@@ -535,7 +549,7 @@ where
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
+/// If writing fails, returns [`std::io::Error`].
 ///
 /// # Panics
 ///
@@ -547,9 +561,9 @@ pub fn write_opt<W, VM, LI>(
     constrs: &SatInstance<VM>,
     obj: (LI, isize),
     opts: Options,
-) -> Result<(), io::Error>
+) -> Result<(), std::io::Error>
 where
-    W: Write,
+    W: std::io::Write,
     LI: crate::types::WLitIter,
     VM: ManageVars,
 {
@@ -585,7 +599,7 @@ where
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
+/// If writing fails, returns [`std::io::Error`].
 ///
 /// # Panics
 ///
@@ -597,9 +611,9 @@ pub fn write_multi_opt<W, VM, Iter, LI>(
     constrs: &SatInstance<VM>,
     mut objs: Iter,
     opts: Options,
-) -> Result<(), io::Error>
+) -> Result<(), std::io::Error>
 where
-    W: Write,
+    W: std::io::Write,
     VM: ManageVars,
     Iter: Iterator<Item = (LI, isize)>,
     LI: crate::types::WLitIter,
@@ -637,10 +651,10 @@ where
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-fn write_clause<W, C>(writer: &mut W, clause: &C, opts: Options) -> Result<(), io::Error>
+/// If writing fails, returns [`std::io::Error`].
+fn write_clause<W, C>(writer: &mut W, clause: &C, opts: Options) -> Result<(), std::io::Error>
 where
-    W: Write,
+    W: std::io::Write,
     C: AsRef<Cl> + ?Sized,
 {
     if opts.no_negated_lits {
@@ -670,17 +684,17 @@ where
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
+/// If writing fails, returns [`std::io::Error`].
 ///
 /// # Panics
 ///
 /// - On upper bounding constraint with more than [`isize::MAX`] literals
 /// - On bounds lager than [`isize::MAX`]
-fn write_card<W: Write>(
+fn write_card<W: std::io::Write>(
     writer: &mut W,
     card: &CardConstraint,
     opts: Options,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     let mut iter_a;
     let mut iter_b;
     let neg_lit = |l: &Lit| !*l;
@@ -771,13 +785,17 @@ fn write_card<W: Write>(
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
+/// If writing fails, returns [`std::io::Error`].
 ///
 /// # Panics
 ///
 /// - On weights larger than [`isize::MAX`]
 /// - On upper bound constraint with weight sum larger than [`isize::MAX`]
-fn write_pb<W: Write>(writer: &mut W, pb: &PbConstraint, opts: Options) -> Result<(), io::Error> {
+fn write_pb<W: std::io::Write>(
+    writer: &mut W,
+    pb: &PbConstraint,
+    opts: Options,
+) -> Result<(), std::io::Error> {
     let mut iter_a;
     let mut iter_b;
     let neg_lit = |(l, w): &(Lit, usize)| (!*l, *w);
@@ -861,12 +879,12 @@ fn write_pb<W: Write>(writer: &mut W, pb: &PbConstraint, opts: Options) -> Resul
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-fn write_objective<W: Write, LI: crate::types::WLitIter>(
+/// If writing fails, returns [`std::io::Error`].
+fn write_objective<W: std::io::Write, LI: crate::types::WLitIter>(
     writer: &mut W,
     softs: (LI, isize),
     opts: Options,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     let (soft_lits, mut offset) = softs;
     write!(writer, "min:")?;
     if opts.no_negated_lits {
@@ -904,27 +922,33 @@ fn write_objective<W: Write, LI: crate::types::WLitIter>(
 
 #[cfg(test)]
 mod test {
-    use std::io::{Cursor, Seek};
+    use std::io::Seek;
 
-    use winnow::{error::ContextError, Parser as _};
+    use winnow::error::ContextError;
+    use winnow::Parser as _;
 
-    use crate::{
-        instances::SatInstance,
-        lit,
-        types::{
-            constraints::{CardConstraint, PbConstraint},
-            Var,
-        },
-        var,
-    };
+    use crate::instances::SatInstance;
+    use crate::lit;
+    use crate::types::constraints::CardConstraint;
+    use crate::types::constraints::PbConstraint;
+    use crate::types::Var;
+    use crate::var;
 
-    use super::{
-        coeff, comment, constraint, ending, literal, objective, operator, term, term_sum,
-        write_clause, write_sat, OpbOperator, Options, Parser, VarParser,
-    };
-
-    #[cfg(feature = "optimization")]
-    use super::{opb_data, Data};
+    use super::coeff;
+    use super::comment;
+    use super::constraint;
+    use super::ending;
+    use super::literal;
+    use super::objective;
+    use super::operator;
+    use super::term;
+    use super::term_sum;
+    use super::write_clause;
+    use super::write_sat;
+    use super::OpbOperator;
+    use super::Options;
+    use super::Parser;
+    use super::VarParser;
 
     #[test]
     fn match_comment() {
@@ -1153,16 +1177,16 @@ mod test {
     #[test]
     fn single_opb_data() {
         assert_eq!(
-            opb_data(Options::default()).parse_peek("* test\n"),
-            Ok(("", Data::Cmt(String::from("* test\n"))))
+            super::opb_data(Options::default()).parse_peek("* test\n"),
+            Ok(("", super::Data::Cmt(String::from("* test\n"))))
         );
         let lits = vec![(lit![0], 3), (!lit![1], -2)];
         let should_be_constr = PbConstraint::new_ub(lits, 4);
         assert_eq!(
-            opb_data(Options::default()).parse_peek("3 x1 -2 ~x2 <= 4;\n"),
-            Ok(("", Data::Constr(should_be_constr)))
+            super::opb_data(Options::default()).parse_peek("3 x1 -2 ~x2 <= 4;\n"),
+            Ok(("", super::Data::Constr(should_be_constr)))
         );
-        assert!(opb_data(Options::default()).parse_peek("").is_err());
+        assert!(super::opb_data(Options::default()).parse_peek("").is_err());
         #[cfg(feature = "optimization")]
         {
             let obj = super::Objective {
@@ -1171,10 +1195,12 @@ mod test {
                 offset: -3,
             };
             assert_eq!(
-                opb_data(Options::default()).parse_peek("min: -3 x1 4 x2;"),
-                Ok(("", Data::Obj(obj)))
+                super::opb_data(Options::default()).parse_peek("min: -3 x1 4 x2;"),
+                Ok(("", super::Data::Obj(obj)))
             );
-            assert!(opb_data(Options::default()).parse_peek("min: x1;").is_err());
+            assert!(super::opb_data(Options::default())
+                .parse_peek("min: x1;")
+                .is_err());
         }
     }
 
@@ -1186,7 +1212,7 @@ mod test {
 
 min: 1 x1;";
 
-        let parser = Parser::new(Cursor::new(input), Options::default());
+        let parser = Parser::new(std::io::Cursor::new(input), Options::default());
         let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
         insta::assert_yaml_snapshot!("multi_opb_data_optimization_pass", data, input);
@@ -1194,7 +1220,7 @@ min: 1 x1;";
         let input = r"* test
 5 x1 -3 x2 >= 4;
 min: x1;";
-        let parser = Parser::new(Cursor::new(input), Options::default());
+        let parser = Parser::new(std::io::Cursor::new(input), Options::default());
         let error = parser.collect::<Result<Vec<_>, _>>().err().unwrap();
         insta::assert_snapshot!("multi_opb_data_fail", error, input);
     }
@@ -1203,7 +1229,7 @@ min: x1;";
     fn write_parse_clause() {
         let cl = !lit![0] | lit![1] | !lit![2];
 
-        let mut cursor = Cursor::new(vec![]);
+        let mut cursor = std::io::Cursor::new(vec![]);
 
         write_clause(&mut cursor, &cl, Options::default()).unwrap();
 
@@ -1221,7 +1247,7 @@ min: x1;";
     }
 
     fn write_parse_inst_test(in_inst: &SatInstance, true_inst: SatInstance, opts: Options) {
-        let mut cursor = Cursor::new(vec![]);
+        let mut cursor = std::io::Cursor::new(vec![]);
 
         write_sat(&mut cursor, in_inst, opts).unwrap();
 
@@ -1342,14 +1368,15 @@ min: x1;";
     #[cfg(feature = "optimization")]
     #[test]
     fn write_parse_opt() {
-        use crate::instances::{Objective, OptInstance};
+        use crate::instances::Objective;
+        use crate::instances::OptInstance;
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj = Objective::new();
         true_constrs.add_pb_constr(PbConstraint::new_lb(vec![(lit![0], 2), (lit![1], 2)], 2));
         true_obj.add_soft_lit(10, lit![2]);
 
-        let mut cursor = Cursor::new(vec![]);
+        let mut cursor = std::io::Cursor::new(vec![]);
 
         let true_inst = OptInstance::compose(true_constrs, true_obj);
 
@@ -1368,7 +1395,8 @@ min: x1;";
     #[cfg(feature = "multiopt")]
     #[test]
     fn write_parse_multiopt() {
-        use crate::instances::{MultiOptInstance, Objective};
+        use crate::instances::MultiOptInstance;
+        use crate::instances::Objective;
 
         let mut true_constrs: SatInstance = SatInstance::new();
         let mut true_obj_1 = Objective::new();
@@ -1377,7 +1405,7 @@ min: x1;";
         true_obj_1.add_soft_lit(10, lit![2]);
         true_obj_2.add_soft_lit(42, lit![1]);
 
-        let mut cursor = Cursor::new(vec![]);
+        let mut cursor = std::io::Cursor::new(vec![]);
 
         let true_inst = MultiOptInstance::compose(true_constrs, vec![true_obj_1, true_obj_2]);
 

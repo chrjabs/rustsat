@@ -1,10 +1,8 @@
 //! # PB (Multi-Criteria) Knapsack Encoding
 
-use rustsat::{
-    instances::fio::opb,
-    lit,
-    types::{constraints::PbConstraint, Lit},
-};
+use rustsat::instances::fio::opb;
+use rustsat::types::constraints::PbConstraint;
+use rustsat::types::Lit;
 
 use crate::encodings::knapsack::Knapsack;
 
@@ -58,7 +56,7 @@ impl Iterator for Encoding {
                         .items
                         .iter()
                         .enumerate()
-                        .map(|(iidx, item)| (!lit![iidx as u32], item.values[oidx]))
+                        .map(|(iidx, item)| (Lit::new(iidx as u32, true), item.values[oidx]))
                         .collect();
                     self.next_line = Some(if oidx + 1 < self.data.items[0].values.len() {
                         Line::Objective(oidx + 1)
@@ -69,14 +67,13 @@ impl Iterator for Encoding {
                 }
                 Line::Capacity => {
                     self.next_line = None;
-                    let cap_constr = PbConstraint::new_ub(
-                        self.data
-                            .items
-                            .iter()
-                            .enumerate()
-                            .map(|(idx, item)| (lit![idx as u32], item.weight as isize)),
-                        self.data.capacity as isize,
-                    );
+                    let cap_constr =
+                        PbConstraint::new_ub(
+                            self.data.items.iter().enumerate().map(|(idx, item)| {
+                                (Lit::new(idx as u32, false), item.weight as isize)
+                            }),
+                            self.data.capacity as isize,
+                        );
                     opb::FileLine::Pb(cap_constr)
                 }
             }),

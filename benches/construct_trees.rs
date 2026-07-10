@@ -1,11 +1,9 @@
 use std::hint::black_box;
 
-use gungraun::{library_benchmark, library_benchmark_group, main};
-use rustsat::{
-    encodings::{nodedb::NodeById, totdb::Db},
-    lit,
-    types::Lit,
-};
+use rustsat::encodings::nodedb::NodeById;
+use rustsat::encodings::totdb::Db;
+use rustsat::lit;
+use rustsat::types::Lit;
 
 #[rustfmt::skip]
 static THOUSAND_LITS: &[Lit] = &[
@@ -136,7 +134,7 @@ static THOUSAND_LITS: &[Lit] = &[
     lit![994], lit![995], lit![996], lit![997], lit![998], lit![999],
 ];
 
-#[library_benchmark]
+#[gungraun::library_benchmark]
 #[bench::short(20)]
 #[bench::mid(100)]
 #[bench::long(1000)]
@@ -146,7 +144,7 @@ fn tot_tree(len: usize) {
         .unwrap();
 }
 
-#[library_benchmark]
+#[gungraun::library_benchmark]
 fn gte_tree() {
     let mut db = Db::default();
     db.weighted_lit_tree(&[
@@ -160,5 +158,5 @@ fn gte_tree() {
     ]);
 }
 
-library_benchmark_group!(name = benches; benchmarks = tot_tree, gte_tree);
-main!(library_benchmark_groups = benches);
+gungraun::library_benchmark_group!(name = benches; benchmarks = tot_tree, gte_tree);
+gungraun::main!(library_benchmark_groups = benches);

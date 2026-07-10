@@ -2,26 +2,21 @@
 //!
 //! A small tool for converting multi-objective MaxSAT/PBO instances to the custom MO-ILP input formats.
 
-use std::{fmt, io, path::PathBuf};
-
 use anyhow::Context;
-use clap::{Parser, ValueEnum};
 use itertools::Itertools;
-use rustsat::{
-    instances::{
-        fio::{self, opb::Options as OpbOptions},
-        BasicVarManager, ManageVars, MultiOptInstance, Objective, ReindexingVarManager,
-    },
-    types::{constraints::PbConstraint, Var},
-};
+use rustsat::instances::fio;
+use rustsat::instances::ManageVars;
+use rustsat::instances::MultiOptInstance;
+use rustsat::types::constraints::PbConstraint;
+use rustsat::types::Var;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The MCNF/MOPB input file. Reads from `stdin` if not given.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// The output path. Writes to `stdout` if not given.
-    out_path: Option<PathBuf>,
+    out_path: Option<std::path::PathBuf>,
     /// The input file format
     #[arg(long, value_enum, default_value_t = InputFormat::Infer)]
     input_format: InputFormat,
@@ -36,7 +31,7 @@ struct Args {
     unused_vars: UnusedVars,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum InputFormat {
     /// Infer the file format from the file extension according to the following rules:
     /// - `.mcnf`: Multi-objective MaxSAT file
@@ -50,7 +45,7 @@ enum InputFormat {
     Opb,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum OutputFormat {
     /// Custom input format for [Bauss et al. 2023](https://git.uni-wuppertal.de/bauss/adaptive-improvements-of-multi-objective-branch-and-bound)
     Bauss,
@@ -59,7 +54,7 @@ enum OutputFormat {
 }
 
 /// What to do with variables that do not appear in the instance
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 enum UnusedVars {
     /// Don't do anything
     Nothing,
@@ -70,10 +65,10 @@ enum UnusedVars {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    let opb_opts = OpbOptions {
+    let args = <Args as clap::Parser>::parse();
+    let opb_opts = fio::opb::Options {
         first_var_idx: args.first_var_idx,
-        ..OpbOptions::default()
+        ..fio::opb::Options::default()
     };
 
     let inst = parse_instance(args.in_path, args.input_format, opb_opts)
@@ -83,11 +78,12 @@ fn main() -> anyhow::Result<()> {
         UnusedVars::Nothing => inst,
         UnusedVars::Remove => {
             let (mut constr, objs) = inst
-                .reindex_ordered(ReindexingVarManager::default())
+                .reindex_ordered(rustsat::instances::ReindexingVarManager::default())
                 .decompose();
             let next_free = constr.new_var();
-            let (constr, _) =
-                constr.change_var_manager(|_| BasicVarManager::from_next_free(next_free));
+            let (constr, _) = constr.change_var_manager(|_| {
+                rustsat::instances::BasicVarManager::from_next_free(next_free)
+            });
             MultiOptInstance::compose(constr, objs)
         }
         UnusedVars::AssignZero => {
@@ -114,7 +110,7 @@ fn main() -> anyhow::Result<()> {
         write_instance(
             inst,
             args.output_format,
-            &mut io::BufWriter::new(io::stdout()),
+            &mut std::io::BufWriter::new(std::io::stdout()),
         )?;
     }
     Ok(())
@@ -127,9 +123,9 @@ macro_rules! is_one_of {
 }
 
 fn parse_instance(
-    path: Option<PathBuf>,
+    path: Option<std::path::PathBuf>,
     file_format: InputFormat,
-    opb_opts: OpbOptions,
+    opb_opts: fio::opb::Options,
 ) -> anyhow::Result<MultiOptInstance> {
     Ok(match file_format {
         InputFormat::Infer => {
@@ -164,24 +160,27 @@ fn parse_instance(
             if let Some(path) = path {
                 MultiOptInstance::from_dimacs_path(path)?
             } else {
-                MultiOptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?
+                MultiOptInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))?
             }
         }
         InputFormat::Opb => {
             if let Some(path) = path {
                 MultiOptInstance::from_opb_path(path, opb_opts)?
             } else {
-                MultiOptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)?
+                MultiOptInstance::from_opb(
+                    &mut std::io::BufReader::new(std::io::stdin()),
+                    opb_opts,
+                )?
             }
         }
     })
 }
 
-fn write_instance<W: io::Write>(
+fn write_instance<W: std::io::Write>(
     inst: MultiOptInstance,
     format: OutputFormat,
     writer: &mut W,
-) -> io::Result<()> {
+) -> std::io::Result<()> {
     let (constr, mut objs) = inst.decompose();
     let (mut pbs, mut vm) = constr.into_pbs();
     let omv = objs.iter().fold(Var::new(0), |v, o| {
@@ -201,7 +200,10 @@ fn write_instance<W: io::Write>(
 
     // compute non-zeroes
     let non_zero_constrs: usize = pbs.iter().map(PbConstraint::len).sum();
-    let non_zero_objs: usize = objs.iter().map(Objective::n_softs).sum();
+    let non_zero_objs: usize = objs
+        .iter()
+        .map(rustsat::instances::Objective::n_softs)
+        .sum();
 
     match format {
         OutputFormat::Bauss => {
@@ -237,7 +239,7 @@ fn write_instance<W: io::Write>(
     let bounds = pbs
         .into_iter()
         .map(|c| write_constraint(c, vm.n_used(), writer))
-        .collect::<io::Result<Vec<_>>>()?;
+        .collect::<std::io::Result<Vec<_>>>()?;
     writeln!(writer)?;
 
     // rhs
@@ -254,7 +256,11 @@ fn write_instance<W: io::Write>(
     Ok(())
 }
 
-fn write_objective<W: io::Write>(obj: Objective, n_vars: u32, writer: &mut W) -> io::Result<()> {
+fn write_objective<W: std::io::Write>(
+    obj: rustsat::instances::Objective,
+    n_vars: u32,
+    writer: &mut W,
+) -> std::io::Result<()> {
     let mut coefs = vec![0; n_vars as usize];
     for (lit, coef) in obj.iter_soft_lits().unwrap() {
         let mut coef =
@@ -269,11 +275,11 @@ fn write_objective<W: io::Write>(obj: Objective, n_vars: u32, writer: &mut W) ->
     writeln!(writer, "{}", coefs.into_iter().format(" "))
 }
 
-fn write_constraint<W: io::Write>(
+fn write_constraint<W: std::io::Write>(
     constr: PbConstraint,
     n_vars: u32,
     writer: &mut W,
-) -> io::Result<(Operator, isize)> {
+) -> std::io::Result<(Operator, isize)> {
     let mut coefs = vec![0; n_vars as usize];
     let (lits, op, mut bound) = match constr {
         PbConstraint::Ub(constr) => {
@@ -309,8 +315,8 @@ enum Operator {
     Eq,
 }
 
-impl fmt::Display for Operator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Operator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Operator::Gte => write!(f, "0"),
             Operator::Lte => write!(f, "1"),

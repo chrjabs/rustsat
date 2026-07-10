@@ -1,13 +1,10 @@
-use rustsat::{
-    instances::Cnf,
-    lit,
-    solvers::{
-        Solve, SolveIncremental,
-        SolverResult::{Sat, Unsat},
-    },
-    types::Lit,
-};
-use rustsat_tools::{test_all, test_assignment};
+use rustsat::instances::Cnf;
+use rustsat::lit;
+use rustsat::solvers::Solve;
+use rustsat::solvers::SolveIncremental;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Lit;
+use rustsat_tools::test_all;
 
 #[test]
 fn cnf_implications() {
@@ -15,7 +12,14 @@ fn cnf_implications() {
     cnf.add_lit_impl_lit(lit![0], lit![1]);
     let mut solver = rustsat_minisat::core::Minisat::default();
     solver.add_cnf(cnf).unwrap();
-    test_all!(solver, Vec::<Lit>::new(), Sat, Unsat, Sat, Sat);
+    test_all!(
+        solver,
+        Vec::<Lit>::new(),
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Sat
+    );
 
     let mut cnf = Cnf::new();
     cnf.add_lit_impl_clause(lit![0], &[lit![1], lit![2]]);
@@ -24,14 +28,14 @@ fn cnf_implications() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Sat,
-        Sat,
-        Sat,
-        Unsat,
-        Sat,
-        Sat,
-        Sat,
-        Sat
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat
     );
 
     let mut cnf = Cnf::new();
@@ -41,14 +45,14 @@ fn cnf_implications() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Sat,
-        Unsat,
-        Unsat,
-        Unsat,
-        Sat,
-        Sat,
-        Sat,
-        Sat
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Unsat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat
     );
 
     let mut cnf = Cnf::new();
@@ -58,14 +62,14 @@ fn cnf_implications() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Sat,
-        Unsat,
-        Sat,
-        Sat,
-        Sat,
-        Sat,
-        Sat,
-        Sat
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat,
+        SolverResult::Sat
     );
 
     let mut cnf = Cnf::new();
@@ -75,14 +79,14 @@ fn cnf_implications() {
     test_all!(
         solver,
         Vec::<Lit>::new(),
-        Sat,
-        Unsat,
-        Sat,
-        Unsat,
-        Sat,
-        Unsat,
-        Sat,
-        Sat
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Unsat,
+        SolverResult::Sat,
+        SolverResult::Sat
     );
 
     let mut cnf = Cnf::new();
@@ -91,23 +95,23 @@ fn cnf_implications() {
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
-        Vec::<Lit>::new(), //
-        Sat,               // 1111
-        Sat,               // 1110
-        Sat,               // 1101
-        Unsat,             // 1100
-        Sat,               // 1011
-        Sat,               // 1010
-        Sat,               // 1001
-        Sat,               // 1000
-        Sat,               // 0111
-        Sat,               // 0110
-        Sat,               // 0101
-        Sat,               // 0100
-        Sat,               // 0011
-        Sat,               // 0010
-        Sat,               // 0001
-        Sat                // 0000
+        Vec::<Lit>::new(),
+        SolverResult::Sat,   // 1111
+        SolverResult::Sat,   // 1110
+        SolverResult::Sat,   // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Sat,   // 1011
+        SolverResult::Sat,   // 1010
+        SolverResult::Sat,   // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Sat,   // 0111
+        SolverResult::Sat,   // 0110
+        SolverResult::Sat,   // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 
     let mut cnf = Cnf::new();
@@ -116,23 +120,23 @@ fn cnf_implications() {
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
-        Vec::<Lit>::new(), //
-        Sat,               // 1111
-        Sat,               // 1110
-        Sat,               // 1101
-        Unsat,             // 1100
-        Sat,               // 1011
-        Sat,               // 1010
-        Sat,               // 1001
-        Unsat,             // 1000
-        Sat,               // 0111
-        Sat,               // 0110
-        Sat,               // 0101
-        Unsat,             // 0100
-        Sat,               // 0011
-        Sat,               // 0010
-        Sat,               // 0001
-        Sat                // 0000
+        Vec::<Lit>::new(),
+        SolverResult::Sat,   // 1111
+        SolverResult::Sat,   // 1110
+        SolverResult::Sat,   // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Sat,   // 1011
+        SolverResult::Sat,   // 1010
+        SolverResult::Sat,   // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Sat,   // 0111
+        SolverResult::Sat,   // 0110
+        SolverResult::Sat,   // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 
     let mut cnf = Cnf::new();
@@ -141,23 +145,23 @@ fn cnf_implications() {
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
-        Vec::<Lit>::new(), //
-        Sat,               // 1111
-        Unsat,             // 1110
-        Unsat,             // 1101
-        Unsat,             // 1100
-        Sat,               // 1011
-        Unsat,             // 1010
-        Unsat,             // 1001
-        Unsat,             // 1000
-        Sat,               // 0111
-        Unsat,             // 0110
-        Unsat,             // 0101
-        Unsat,             // 0100
-        Sat,               // 0011
-        Sat,               // 0010
-        Sat,               // 0001
-        Sat                // 0000
+        Vec::<Lit>::new(),
+        SolverResult::Sat,   // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Sat,   // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Sat,   // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 
     let mut cnf = Cnf::new();
@@ -166,22 +170,22 @@ fn cnf_implications() {
     solver.add_cnf(cnf).unwrap();
     test_all!(
         solver,
-        Vec::<Lit>::new(), //
-        Sat,               // 1111
-        Unsat,             // 1110
-        Unsat,             // 1101
-        Unsat,             // 1100
-        Sat,               // 1011
-        Sat,               // 1010
-        Sat,               // 1001
-        Sat,               // 1000
-        Sat,               // 0111
-        Sat,               // 0110
-        Sat,               // 0101
-        Sat,               // 0100
-        Sat,               // 0011
-        Sat,               // 0010
-        Sat,               // 0001
-        Sat                // 0000
+        Vec::<Lit>::new(),
+        SolverResult::Sat,   // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Sat,   // 1011
+        SolverResult::Sat,   // 1010
+        SolverResult::Sat,   // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Sat,   // 0111
+        SolverResult::Sat,   // 0110
+        SolverResult::Sat,   // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 }

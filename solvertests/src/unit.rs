@@ -1,11 +1,11 @@
 extern crate proc_macro;
 
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{LitStr, Type};
-
-pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream {
-    let mut ts = quote! {
+pub fn basic(
+    slv: syn::Type,
+    signature: syn::LitStr,
+    multi_threaded: bool,
+) -> proc_macro2::TokenStream {
+    let mut ts = quote::quote! {
         #[test]
         fn build_destroy() {
             let _solver = #slv::default();
@@ -20,6 +20,7 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
         #[test]
         fn signature() {
             use rustsat::solvers::Solve;
+
             let pat = #signature;
             let sig = #slv::default().signature();
             let mut pat_chars = pat.chars();
@@ -115,7 +116,10 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
 
         #[test]
         fn stats() {
-            use rustsat::{lit, var, solvers::{Solve, SolveStats}};
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolveStats;
+            use rustsat::var;
 
             let mut solver = #slv::default();
 
@@ -152,7 +156,9 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
 
         #[test]
         fn tiny_instance_sat() {
-            use rustsat::{lit, solvers::{Solve, SolverResult}};
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
 
             let mut solver = #slv::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
@@ -167,7 +173,9 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
 
         #[test]
         fn tiny_instance_unsat() {
-            use rustsat::{lit, solvers::{Solve, SolverResult}};
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
 
             let mut solver = #slv::default();
             solver.add_unit(!lit![0]).unwrap();
@@ -183,13 +191,16 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
         }
     };
     if multi_threaded {
-        ts.extend(quote! {
+        ts.extend(quote::quote! {
             #[test]
             fn tiny_instance_multithreaded_sat() {
-                use std::{sync::{Arc, Mutex}, thread};
-                use rustsat::{lit, var, types::TernaryVal, solvers::{Solve, SolverResult}};
+                use rustsat::lit;
+                use rustsat::solvers::Solve;
+                use rustsat::solvers::SolverResult;
+                use rustsat::types::TernaryVal;
+                use rustsat::var;
 
-                let mutex_solver = Arc::new(Mutex::new(#slv::default()));
+                let mutex_solver = std::sync::Arc::new(std::sync::Mutex::new(#slv::default()));
 
                 {
                     // Build in one thread
@@ -201,7 +212,7 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
 
                 // Now in another thread
                 let s = mutex_solver.clone();
-                let ret = thread::spawn(move || {
+                let ret = std::thread::spawn(move || {
                     let mut solver = s.lock().unwrap();
                     solver.solve()
                 })
@@ -228,11 +239,15 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
     ts
 }
 
-pub fn termination(slv: Type) -> TokenStream {
-    quote! {
+pub fn termination(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn termination_callback() {
-            use rustsat::{lit, solvers::{Solve, SolverResult, Terminate, ControlSignal}};
+            use rustsat::lit;
+            use rustsat::solvers::ControlSignal;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
+            use rustsat::solvers::Terminate;
 
             let mut solver = #slv::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
@@ -261,11 +276,14 @@ pub fn termination(slv: Type) -> TokenStream {
     }
 }
 
-pub fn learn(slv: Type) -> TokenStream {
-    quote! {
+pub fn learn(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn learner_callback() {
-            use rustsat::{lit, solvers::{Solve, SolverResult, Learn}};
+            use rustsat::lit;
+            use rustsat::solvers::Learn;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
 
             let mut solver = #slv::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
@@ -305,11 +323,15 @@ pub fn learn(slv: Type) -> TokenStream {
     }
 }
 
-pub fn freezing(slv: Type) -> TokenStream {
-    quote! {
+pub fn freezing(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn freezing() {
-            use rustsat::{lit, var, solvers::{Solve, FreezeVar}};
+            use rustsat::lit;
+            use rustsat::solvers::FreezeVar;
+            use rustsat::solvers::Solve;
+            use rustsat::var;
+
             let mut solver = #slv::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
 
@@ -324,11 +346,14 @@ pub fn freezing(slv: Type) -> TokenStream {
     }
 }
 
-pub fn propagate(slv: Type) -> TokenStream {
-    quote! {
+pub fn propagate(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn propagate() {
-            use rustsat::{lit, solvers::{Solve, Propagate}};
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::Propagate;
+
             let mut solver = #slv::default();
             solver.add_binary(!lit![0], lit![1]).unwrap();
             solver.add_binary(!lit![1], lit![2]).unwrap();

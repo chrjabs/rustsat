@@ -3,17 +3,15 @@
 //! A small tool for converting DIMACS MCNF files to OPB.
 
 use anyhow::Context;
-use clap::Parser;
-use rustsat::instances::{fio::opb::Options as OpbOptions, MultiOptInstance};
-use std::{io, path::PathBuf};
+use rustsat::instances::MultiOptInstance;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The DIMACS MCNF input file. Reads from `stdin` if not given.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// The OPB output path. Writes to `stdout` if not given.
-    out_path: Option<PathBuf>,
+    out_path: Option<std::path::PathBuf>,
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 1)]
     first_var_idx: u32,
@@ -23,8 +21,8 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    let opb_opts = OpbOptions {
+    let args = <Args as clap::Parser>::parse();
+    let opb_opts = rustsat::instances::fio::opb::Options {
         first_var_idx: args.first_var_idx,
         no_negated_lits: args.avoid_negated_lits,
     };
@@ -32,7 +30,7 @@ fn main() -> anyhow::Result<()> {
     let inst: MultiOptInstance = if let Some(in_path) = args.in_path {
         MultiOptInstance::from_dimacs_path(in_path).context("error parsing the input file")?
     } else {
-        MultiOptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+        MultiOptInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))
             .context("error parsing input")?
     };
 
@@ -47,7 +45,7 @@ fn main() -> anyhow::Result<()> {
         inst.write_opb_path(out_path, opb_opts)
             .context("error writing the output file")?;
     } else {
-        inst.write_opb(&mut io::stdout(), opb_opts)
+        inst.write_opb(&mut std::io::stdout(), opb_opts)
             .context("error writing the output file")?;
     }
     Ok(())

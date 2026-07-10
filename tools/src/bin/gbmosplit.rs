@@ -10,35 +10,35 @@
 //! - \[1\] Tobias Paxian, Pascal Raiola and Bernd Becker: _On Preprocessing for Weighted MaxSAT_, VMCAI 2021.
 //! - \[2\] Josep Argelich, Ines Lynce and Joao Marques-Silva: _On Solving Boolean Multilevel Optimization Problems, IJCAI 2009.
 
-use clap::{Parser, ValueEnum};
-use rustsat::{
-    instances::{fio, ManageVars, MultiOptInstance, Objective, OptInstance},
-    types::Clause,
-};
-use std::{
-    collections::BTreeSet,
-    fmt,
-    io::{self, IsTerminal, Write},
-    path::PathBuf,
-};
-use termcolor::{Buffer, BufferWriter, Color, ColorSpec, WriteColor};
+use std::io::IsTerminal;
+use std::io::Write;
+
+use rustsat::instances::fio;
+use rustsat::instances::MultiOptInstance;
+use rustsat::instances::Objective;
+use rustsat::instances::OptInstance;
+use rustsat::types::Clause;
+use termcolor::Buffer;
+use termcolor::Color;
+use termcolor::ColorSpec;
+use termcolor::WriteColor;
 
 struct Cli {
-    in_path: Option<PathBuf>,
-    out_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
+    out_path: Option<std::path::PathBuf>,
     input_format: InputFormat,
     output_format: OutputFormat,
     split_alg: SplitAlg,
     max_combs: usize,
     always_dump: bool,
     opb_opts: fio::opb::Options,
-    stdout: BufferWriter,
-    stderr: BufferWriter,
+    stdout: termcolor::BufferWriter,
+    stderr: termcolor::BufferWriter,
 }
 
 impl Cli {
     fn init() -> Self {
-        let args = Args::parse();
+        let args = <Args as clap::Parser>::parse();
         Self {
             in_path: args.in_path,
             out_path: args.out_path,
@@ -51,22 +51,22 @@ impl Cli {
                 first_var_idx: args.opb_first_var_idx,
                 ..fio::opb::Options::default()
             },
-            stdout: BufferWriter::stdout(match args.color.color {
+            stdout: termcolor::BufferWriter::stdout(match args.color.color {
                 concolor_clap::ColorChoice::Always => termcolor::ColorChoice::Always,
                 concolor_clap::ColorChoice::Never => termcolor::ColorChoice::Never,
                 concolor_clap::ColorChoice::Auto => {
-                    if io::stdout().is_terminal() {
+                    if std::io::stdout().is_terminal() {
                         termcolor::ColorChoice::Auto
                     } else {
                         termcolor::ColorChoice::Never
                     }
                 }
             }),
-            stderr: BufferWriter::stderr(match args.color.color {
+            stderr: termcolor::BufferWriter::stderr(match args.color.color {
                 concolor_clap::ColorChoice::Always => termcolor::ColorChoice::Always,
                 concolor_clap::ColorChoice::Never => termcolor::ColorChoice::Never,
                 concolor_clap::ColorChoice::Auto => {
-                    if io::stderr().is_terminal() {
+                    if std::io::stderr().is_terminal() {
                         termcolor::ColorChoice::Auto
                     } else {
                         termcolor::ColorChoice::Never
@@ -160,7 +160,7 @@ impl Cli {
         Self::end_block(buffer);
     }
 
-    fn print_parameter<V: fmt::Display>(buffer: &mut Buffer, name: &str, val: V) {
+    fn print_parameter<V: std::fmt::Display>(buffer: &mut Buffer, name: &str, val: V) {
         buffer
             .set_color(ColorSpec::new().set_fg(Some(Color::Cyan)))
             .unwrap();
@@ -184,13 +184,13 @@ impl Cli {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The path to the input file. If no path is given, will read from `stdin`.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// The optional output path. If no path is given, will write to `stdout`.
-    out_path: Option<PathBuf>,
+    out_path: Option<std::path::PathBuf>,
     /// The splitting algorithm to use
     #[arg(long, default_value_t = SplitAlg::default())]
     split_alg: SplitAlg,
@@ -213,7 +213,7 @@ struct Args {
     color: concolor_clap::Color,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum, Default)]
 enum InputFormat {
     /// Infer the input file format from the file extension according to the following rules:
     /// - `.wcnf`: Weighted DIMACS CNF (MaxSAT) file
@@ -228,8 +228,8 @@ enum InputFormat {
     Opb,
 }
 
-impl fmt::Display for InputFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for InputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InputFormat::Infer => write!(f, "infer"),
             InputFormat::Wcnf => write!(f, "wcnf"),
@@ -238,7 +238,7 @@ impl fmt::Display for InputFormat {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum, Default)]
 enum OutputFormat {
     /// Same as the input format
     #[default]
@@ -249,8 +249,8 @@ enum OutputFormat {
     Opb,
 }
 
-impl fmt::Display for OutputFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OutputFormat::AsInput => write!(f, "as-input"),
             OutputFormat::Mcnf => write!(f, "mcnf"),
@@ -275,7 +275,7 @@ enum WriteFormat {
     Opb,
 }
 
-#[derive(ValueEnum, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(clap::ValueEnum, Default, Clone, Copy, PartialEq, Eq)]
 enum SplitAlg {
     /// Only detect non-generalized boolean multilevel optimization. (This
     /// detects lexicographic optimization of unweighted MO instances.)
@@ -291,8 +291,8 @@ enum SplitAlg {
     Gbmo,
 }
 
-impl fmt::Display for SplitAlg {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for SplitAlg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SplitAlg::Bmo => write!(f, "bmo"),
             SplitAlg::Gcd => write!(f, "gcd"),
@@ -313,7 +313,7 @@ struct ObjStats {
     multiplier: usize,
 }
 
-fn split<VM: ManageVars>(
+fn split<VM: rustsat::instances::ManageVars>(
     so_inst: OptInstance<VM>,
     cli: &Cli,
 ) -> (MultiOptInstance<VM>, SplitStats) {
@@ -464,7 +464,7 @@ fn check_split_thorough_gbmo(
     }
     // Check all weight combinations (disclaimer: exponential runtime).
     let right_sum = right_partition.iter().fold(0, |s, (_, w)| s + w);
-    let mut all_weight_combs: BTreeSet<usize> = BTreeSet::new();
+    let mut all_weight_combs = std::collections::BTreeSet::<usize>::new();
     for (_, w) in right_partition {
         let w = *w;
         // add w to all previous weight combs and compare to adjacent weight combs.
@@ -547,7 +547,7 @@ macro_rules! is_one_of {
 }
 
 fn parse_instance(
-    path: &Option<PathBuf>,
+    path: &Option<std::path::PathBuf>,
     file_format: InputFormat,
     opb_opts: fio::opb::Options,
 ) -> anyhow::Result<(OptInstance, WriteFormat)> {
@@ -584,13 +584,13 @@ fn parse_instance(
         InputFormat::Wcnf => Ok(if let Some(path) = path {
             OptInstance::from_dimacs_path(path).map(|inst| (inst, WriteFormat::Mcnf))
         } else {
-            OptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+            OptInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))
                 .map(|inst| (inst, WriteFormat::Mcnf))
         }?),
         InputFormat::Opb => Ok(if let Some(path) = path {
             OptInstance::from_opb_path(path, opb_opts).map(|inst| (inst, WriteFormat::Opb))
         } else {
-            OptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)
+            OptInstance::from_opb(&mut std::io::BufReader::new(std::io::stdin()), opb_opts)
                 .map(|inst| (inst, WriteFormat::Opb))
         }?),
     }
@@ -649,7 +649,7 @@ fn main() -> anyhow::Result<()> {
                     handle_error!(no-anyhow: mo_inst.write_dimacs_path(path), cli);
                 } else {
                     handle_error!(no-anyhow:
-                        mo_inst.write_dimacs(&mut io::BufWriter::new(io::stdout())),
+                        mo_inst.write_dimacs(&mut std::io::BufWriter::new(std::io::stdout())),
                         cli
                     );
                 }
@@ -665,7 +665,7 @@ fn main() -> anyhow::Result<()> {
                     handle_error!(no-anyhow: mo_inst.write_opb_path(path, cli.opb_opts), cli);
                 } else {
                     handle_error!(no-anyhow:
-                        mo_inst.write_opb(&mut io::BufWriter::new(io::stdout()), cli.opb_opts),
+                        mo_inst.write_opb(&mut std::io::BufWriter::new(std::io::stdout()), cli.opb_opts),
                         cli
                     );
                 }
@@ -681,7 +681,8 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use rustsat::{clause, lit};
+    use rustsat::clause;
+    use rustsat::lit;
 
     #[test]
     fn split_bmo() {

@@ -19,33 +19,24 @@
 //!   correlation clustering via weighted partial Maximum Satisfiability_, AIJ
 //!   2017.
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
-use core::fmt;
-use rustsat::{
-    encodings::pb as pb_enc,
-    instances::fio::{dimacs, opb},
-    types::{Lit, WLitIter},
-};
-use rustsat_tools::encodings::{
-    assignment,
-    cnf::{
-        self,
-        clustering::{self, saturating_map, scaling_map, Encoding},
-    },
-    facilitylocation, knapsack, pb,
-};
-use std::{fs::File, io, path::PathBuf};
+use rustsat::instances::fio;
+use rustsat::types::Lit;
+use rustsat_tools::encodings::assignment;
+use rustsat_tools::encodings::cnf;
+use rustsat_tools::encodings::facilitylocation;
+use rustsat_tools::encodings::knapsack;
+use rustsat_tools::encodings::pb;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct CliArgs {
     /// The output path. Writes to `stdout` if not given.
-    out_path: Option<PathBuf>,
+    out_path: Option<std::path::PathBuf>,
     #[command(subcommand)]
     fmt: Format,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 enum Format {
     /// Generate a CNF encoding
     Cnf(CnfArgs),
@@ -53,7 +44,7 @@ enum Format {
     Pb(PbArgs),
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct CnfArgs {
     #[command(subcommand)]
     enc: CnfEncoding,
@@ -61,7 +52,7 @@ struct CnfArgs {
     single_objective: bool,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 enum CnfEncoding {
     /// Generate a clustering encoding
     Clustering(ClusteringArgs),
@@ -69,7 +60,7 @@ enum CnfEncoding {
     Knapsack(KnapsackArgs),
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct PbArgs {
     /// The index in the OPB file to treat as the lowest variable
     #[arg(long, default_value_t = 1)]
@@ -81,7 +72,7 @@ struct PbArgs {
     enc: PbEncoding,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 enum PbEncoding {
     /// Generate a knapsack encoding
     Knapsack(KnapsackArgs),
@@ -91,12 +82,12 @@ enum PbEncoding {
     FacilityLocation(FacilityLocationArgs),
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct ClusteringArgs {
     /// The input file. Each line represents an edge between two nodes in the
     /// form `[nodeA] [nodeB] [similarity value]`. Reads from `stdin` if not
     /// given.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// Instead of outputting a multi-objective MCNF file, output the
     /// single-objective MaxSAT encoding.
     #[arg(long)]
@@ -117,13 +108,13 @@ struct ClusteringArgs {
     hard_threshold: usize,
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct KnapsackArgs {
     #[command(subcommand)]
     variant: KnapsackCommand,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 enum KnapsackCommand {
     /// Encode a given input instance
     Input(InputKnapsackArgs),
@@ -131,15 +122,15 @@ enum KnapsackCommand {
     Random(RandomKnapsackArgs),
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct InputKnapsackArgs {
     /// The input file
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     #[arg(long, default_value_t = KnapsackInputFormat::default())]
     in_format: KnapsackInputFormat,
 }
 
-#[derive(Default, ValueEnum, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, clap::ValueEnum, Clone, Copy, PartialEq, Eq)]
 enum KnapsackInputFormat {
     /// Input files as provided by [MOO-Library](http://home.ku.edu.tr/~moolibrary/)
     #[default]
@@ -148,20 +139,20 @@ enum KnapsackInputFormat {
     VOptLib,
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct AssignmentArgs {
     /// The input file in the format as provided by [MOO-Library](http://home.ku.edu.tr/~moolibrary/)
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct FacilityLocationArgs {
     /// The input file in the format as provided by [vOptLib](https://github.com/vOptSolver/vOptLib/tree/master/UFLP)
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
 }
 
-impl fmt::Display for KnapsackInputFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for KnapsackInputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KnapsackInputFormat::MooLibrary => write!(f, "moo-library"),
             KnapsackInputFormat::VOptLib => write!(f, "v-opt-lib"),
@@ -178,7 +169,7 @@ impl From<KnapsackInputFormat> for knapsack::FileFormat {
     }
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 struct RandomKnapsackArgs {
     /// The number of items to select from
     #[arg(long, default_value_t = 20)]
@@ -206,19 +197,22 @@ struct RandomKnapsackArgs {
     seed: u64,
 }
 
-fn clustering(args: ClusteringArgs) -> anyhow::Result<impl Iterator<Item = dimacs::McnfLine>> {
+fn clustering(args: ClusteringArgs) -> anyhow::Result<impl Iterator<Item = fio::dimacs::McnfLine>> {
     if let Some(in_path) = args.in_path {
-        clustering::Encoding::new(io::BufReader::new(File::open(in_path)?), |sim| {
-            saturating_map(
-                scaling_map(sim, args.multiplier) - args.offset,
-                args.dont_care,
-                args.hard_threshold,
-            )
-        })
+        cnf::clustering::Encoding::new(
+            std::io::BufReader::new(std::fs::File::open(in_path)?),
+            |sim| {
+                cnf::clustering::saturating_map(
+                    cnf::clustering::scaling_map(sim, args.multiplier) - args.offset,
+                    args.dont_care,
+                    args.hard_threshold,
+                )
+            },
+        )
     } else {
-        Encoding::new(io::BufReader::new(io::stdin()), |sim| {
-            saturating_map(
-                scaling_map(sim, args.multiplier) - args.offset,
+        cnf::clustering::Encoding::new(std::io::BufReader::new(std::io::stdin()), |sim| {
+            cnf::clustering::saturating_map(
+                cnf::clustering::scaling_map(sim, args.multiplier) - args.offset,
                 args.dont_care,
                 args.hard_threshold,
             )
@@ -239,35 +233,38 @@ fn random_knapsack(args: &RandomKnapsackArgs) -> knapsack::Knapsack {
 
 fn input_knapsack(args: &InputKnapsackArgs) -> anyhow::Result<knapsack::Knapsack> {
     if let Some(path) = &args.in_path {
-        let reader = io::BufReader::new(File::open(path)?);
+        let reader = std::io::BufReader::new(std::fs::File::open(path)?);
         knapsack::Knapsack::from_file(reader, args.in_format.into())
     } else {
-        knapsack::Knapsack::from_file(io::BufReader::new(io::stdin()), args.in_format.into())
+        knapsack::Knapsack::from_file(
+            std::io::BufReader::new(std::io::stdin()),
+            args.in_format.into(),
+        )
     }
 }
 
-fn cnf_knapsack(inst: knapsack::Knapsack) -> impl Iterator<Item = dimacs::McnfLine> {
-    cnf::knapsack::Encoding::new::<pb_enc::DynamicPolyWatchdog>(inst)
+fn cnf_knapsack(inst: knapsack::Knapsack) -> impl Iterator<Item = fio::dimacs::McnfLine> {
+    cnf::knapsack::Encoding::new::<rustsat::encodings::pb::DynamicPolyWatchdog>(inst)
 }
 
 fn pb_knapsack(
     inst: knapsack::Knapsack,
-) -> impl Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+) -> impl Iterator<Item = fio::opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
     pb::knapsack::Encoding::new(inst)
 }
 
 fn input_assignment(args: &AssignmentArgs) -> anyhow::Result<assignment::Assignment> {
     if let Some(path) = &args.in_path {
-        let reader = io::BufReader::new(File::open(path)?);
+        let reader = std::io::BufReader::new(std::fs::File::open(path)?);
         assignment::Assignment::from_file(reader)
     } else {
-        assignment::Assignment::from_file(io::BufReader::new(io::stdin()))
+        assignment::Assignment::from_file(std::io::BufReader::new(std::io::stdin()))
     }
 }
 
 fn pb_assignment(
     inst: assignment::Assignment,
-) -> impl Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+) -> impl Iterator<Item = fio::opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
     pb::assignment::Encoding::new(inst)
 }
 
@@ -275,65 +272,65 @@ fn input_facility_location(
     args: &FacilityLocationArgs,
 ) -> anyhow::Result<facilitylocation::FacilityLocation> {
     if let Some(path) = &args.in_path {
-        let reader = io::BufReader::new(File::open(path)?);
+        let reader = std::io::BufReader::new(std::fs::File::open(path)?);
         facilitylocation::FacilityLocation::from_file(reader)
     } else {
-        facilitylocation::FacilityLocation::from_file(io::BufReader::new(io::stdin()))
+        facilitylocation::FacilityLocation::from_file(std::io::BufReader::new(std::io::stdin()))
     }
 }
 
 fn pb_facility_location(
     inst: facilitylocation::FacilityLocation,
-) -> impl Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
+) -> impl Iterator<Item = fio::opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>> {
     pb::facilitylocation::Encoding::new(inst)
 }
 
 fn write_cnf(
-    encoding: impl Iterator<Item = dimacs::McnfLine>,
-    path: Option<PathBuf>,
+    encoding: impl Iterator<Item = fio::dimacs::McnfLine>,
+    path: Option<std::path::PathBuf>,
     single_objective: bool,
 ) -> anyhow::Result<()> {
-    let mcnf_to_wcnf = |line: dimacs::McnfLine| match line {
-        dimacs::McnfLine::Comment(c) => dimacs::WcnfLine::Comment(c),
-        dimacs::McnfLine::Hard(cl) => dimacs::WcnfLine::Hard(cl),
-        dimacs::McnfLine::Soft(cl, w, _) => dimacs::WcnfLine::Soft(cl, w),
+    let mcnf_to_wcnf = |line: fio::dimacs::McnfLine| match line {
+        fio::dimacs::McnfLine::Comment(c) => fio::dimacs::WcnfLine::Comment(c),
+        fio::dimacs::McnfLine::Hard(cl) => fio::dimacs::WcnfLine::Hard(cl),
+        fio::dimacs::McnfLine::Soft(cl, w, _) => fio::dimacs::WcnfLine::Soft(cl, w),
     };
 
     if let Some(out_path) = path {
-        let mut file = io::BufWriter::new(File::create(out_path)?);
+        let mut file = std::io::BufWriter::new(std::fs::File::create(out_path)?);
         if single_objective {
-            dimacs::write_wcnf(&mut file, encoding.map(mcnf_to_wcnf))?;
+            fio::dimacs::write_wcnf(&mut file, encoding.map(mcnf_to_wcnf))?;
         } else {
-            dimacs::write_mcnf(&mut file, encoding)?;
+            fio::dimacs::write_mcnf(&mut file, encoding)?;
         }
     } else if single_objective {
-        dimacs::write_wcnf(&mut io::stdout(), encoding.map(mcnf_to_wcnf))?;
+        fio::dimacs::write_wcnf(&mut std::io::stdout(), encoding.map(mcnf_to_wcnf))?;
     } else {
-        dimacs::write_mcnf(&mut io::stdout(), encoding)?;
+        fio::dimacs::write_mcnf(&mut std::io::stdout(), encoding)?;
     }
     Ok(())
 }
 
-fn write_pb<LI: WLitIter>(
-    encoding: impl Iterator<Item = opb::FileLine<LI>>,
-    path: Option<PathBuf>,
-    opts: opb::Options,
+fn write_pb<LI: rustsat::types::WLitIter>(
+    encoding: impl Iterator<Item = fio::opb::FileLine<LI>>,
+    path: Option<std::path::PathBuf>,
+    opts: fio::opb::Options,
 ) -> anyhow::Result<()> {
     if let Some(out_path) = path {
-        let mut file = io::BufWriter::new(File::create(out_path)?);
-        opb::write_opb_lines(&mut file, encoding, opts)?;
+        let mut file = std::io::BufWriter::new(std::fs::File::create(out_path)?);
+        fio::opb::write_opb_lines(&mut file, encoding, opts)?;
     } else {
-        opb::write_opb_lines(&mut io::stdout(), encoding, opts)?;
+        fio::opb::write_opb_lines(&mut std::io::stdout(), encoding, opts)?;
     }
     Ok(())
 }
 
-type BoxedDimacsIter = Box<dyn Iterator<Item = dimacs::McnfLine>>;
+type BoxedDimacsIter = Box<dyn Iterator<Item = fio::dimacs::McnfLine>>;
 type BoxedOpbIter =
-    Box<dyn Iterator<Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>>>;
+    Box<dyn Iterator<Item = fio::opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>>>;
 
 fn main() -> anyhow::Result<()> {
-    let args = CliArgs::parse();
+    let args = <CliArgs as clap::Parser>::parse();
 
     let out_path = args.out_path;
     match args.fmt {
@@ -351,7 +348,7 @@ fn main() -> anyhow::Result<()> {
             write_cnf(enc, out_path, args.single_objective)
         }
         Format::Pb(args) => {
-            let opts = opb::Options {
+            let opts = fio::opb::Options {
                 first_var_idx: args.first_var_idx,
                 no_negated_lits: args.avoid_negated_lits,
             };
@@ -381,7 +378,6 @@ fn main() -> anyhow::Result<()> {
 mod tests {
     #[test]
     fn verify_cli_args() {
-        use clap::CommandFactory;
-        super::CliArgs::command().debug_assert()
+        <super::CliArgs as clap::CommandFactory>::command().debug_assert()
     }
 }

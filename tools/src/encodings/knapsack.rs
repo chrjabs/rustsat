@@ -4,11 +4,6 @@
 //! - Input parser
 //! - Random generator
 
-use std::{io, ops::Range};
-
-use chacha20::ChaCha8Rng;
-use rand::{RngExt, SeedableRng};
-
 /// An instance of the (multi-criteria 0-1) knapsack problem
 #[derive(Clone, PartialEq, Eq)]
 pub struct Knapsack {
@@ -34,12 +29,15 @@ impl Knapsack {
     pub fn random(
         n_items: usize,
         n_objectives: usize,
-        value_range: Range<usize>,
-        weight_range: Range<usize>,
+        value_range: std::ops::Range<usize>,
+        weight_range: std::ops::Range<usize>,
         capacity: Capacity,
         seed: u64,
     ) -> Self {
-        let mut rng = ChaCha8Rng::seed_from_u64(seed);
+        use rand::RngExt;
+        use rand::SeedableRng;
+
+        let mut rng = chacha20::ChaCha8Rng::seed_from_u64(seed);
         let items: Vec<_> = (0..n_items)
             .map(|_| {
                 let weight = rng.random_range(weight_range.clone());
@@ -58,7 +56,7 @@ impl Knapsack {
         Self { items, capacity }
     }
 
-    pub fn from_file(reader: impl io::BufRead, format: FileFormat) -> anyhow::Result<Self> {
+    pub fn from_file(reader: impl std::io::BufRead, format: FileFormat) -> anyhow::Result<Self> {
         match format {
             FileFormat::MooLibrary => parsing::parse_moolib(reader),
             FileFormat::VOptLib => parsing::parse_voptlib(reader),
@@ -76,18 +74,19 @@ pub enum FileFormat {
 }
 
 mod parsing {
-    use std::io;
-
     use anyhow::Context;
-    use rustsat::{instances::fio::ParsingError, utils};
-    use winnow::{
-        ascii::{dec_uint, space0},
-        error::{ContextError, StrContext, StrContextValue},
-        token::rest,
-        Parser,
-    };
+    use rustsat::instances::fio::ParsingError;
+    use rustsat::utils;
+    use winnow::ascii::dec_uint;
+    use winnow::ascii::space0;
+    use winnow::error::ContextError;
+    use winnow::error::StrContext;
+    use winnow::error::StrContextValue;
+    use winnow::token::rest;
+    use winnow::Parser;
 
-    use crate::parsing::{single_value, ListCallbackParser};
+    use crate::parsing::single_value;
+    use crate::parsing::ListCallbackParser;
 
     macro_rules! next_non_comment_line {
         ($reader:expr, $lineno:expr) => {
@@ -105,7 +104,7 @@ mod parsing {
         };
     }
 
-    pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
+    pub fn parse_moolib(mut reader: impl std::io::BufRead) -> anyhow::Result<super::Knapsack> {
         let mut line_num = 0;
         let line = next_non_comment_line!(reader, line_num)
             .context("file ended before number of objectives line")?;
@@ -251,7 +250,7 @@ mod parsing {
         Ok(inst)
     }
 
-    pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::Knapsack> {
+    pub fn parse_voptlib(mut reader: impl std::io::BufRead) -> anyhow::Result<super::Knapsack> {
         let mut line_num = 0;
         let line = next_non_comment_line!(reader, line_num)
             .context("file ended before number of items line")?;
@@ -313,13 +312,11 @@ mod parsing {
 
     #[cfg(test)]
     mod tests {
-        use std::{fs::File, io::BufReader};
-
         #[test]
         fn moolib() {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-            let reader = BufReader::new(
-                File::open(format!("{manifest}/data/KP_p-3_n-10_ins-1.dat")).unwrap(),
+            let reader = std::io::BufReader::new(
+                std::fs::File::open(format!("{manifest}/data/KP_p-3_n-10_ins-1.dat")).unwrap(),
             );
             super::parse_moolib(reader).unwrap();
         }
@@ -327,8 +324,9 @@ mod parsing {
         #[test]
         fn voptlib() {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-            let reader =
-                BufReader::new(File::open(format!("{manifest}/data/F5050W01.dat")).unwrap());
+            let reader = std::io::BufReader::new(
+                std::fs::File::open(format!("{manifest}/data/F5050W01.dat")).unwrap(),
+            );
             super::parse_voptlib(reader).unwrap();
         }
     }

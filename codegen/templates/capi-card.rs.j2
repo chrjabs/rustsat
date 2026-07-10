@@ -1,18 +1,23 @@
 {% include 'codegen-header.j2' %}
 
-use std::ffi::{c_int, c_void};
+use core::ffi::c_int;
+use core::ffi::c_void;
 
-use rustsat::{
-    encodings::card::{
-        {%- if ub -%}BoundUpper, BoundUpperIncremental, {% endif %}{%- if lb -%}BoundLower, BoundLowerIncremental, {% endif %}EncodeIncremental,
-        {%- for enc in encodings -%}
-        {%- if not enc.from_super -%}{{ enc.name }},{%- endif -%}
-        {%- endfor -%}
-    },
-    types::Lit,
-};
-
-use super::{CClauseCollector, ClauseCollector, MaybeError, VarManager};
+{%- if ub -%}
+use rustsat::encodings::card::BoundUpper;
+use rustsat::encodings::card::BoundUpperIncremental;
+{%- endif -%}
+{%- if lb -%}
+use rustsat::encodings::card::BoundLower;
+use rustsat::encodings::card::BoundLowerIncremental;
+{%- endif -%}
+use rustsat::encodings::card::EncodeIncremental;
+{%- for enc in encodings -%}
+{%- if not enc.from_super -%}
+use rustsat::encodings::card::{{ enc.name }};
+{%- endif -%}
+{%- endfor -%}
+use rustsat::types::Lit;
 
 {% for enc in encodings %}
 
@@ -34,12 +39,12 @@ pub unsafe extern "C" fn {{ enc.id }}_new() -> *mut {{ enc.name }} {
 {% include 'capi-ipasir-lit.j2' %}
 {% include 'capi-safety.j2' %}
 #[no_mangle]
-pub unsafe extern "C" fn {{ enc.id }}_add({{ enc.id }}: *mut {{ enc.name }}, lit: c_int) -> MaybeError {
+pub unsafe extern "C" fn {{ enc.id }}_add({{ enc.id }}: *mut {{ enc.name }}, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
-        return MaybeError::InvalidLiteral;
+        return super::MaybeError::InvalidLiteral;
     };
     (*{{ enc.id }}).extend([lit]);
-    MaybeError::Ok
+    super::MaybeError::Ok
 }
 
 {%- if enc.ub -%}
@@ -60,12 +65,12 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_ub(
     min_bound: usize,
     max_bound: usize,
     n_vars_used: &mut u32,
-    collector: CClauseCollector,
+    collector: super::CClauseCollector,
     collector_data: *mut c_void,
 ) {
     assert!(min_bound <= max_bound);
-    let mut collector = ClauseCollector::new(collector, collector_data);
-    let mut var_manager = VarManager::new(n_vars_used);
+    let mut collector = super::ClauseCollector::new(collector, collector_data);
+    let mut var_manager = super::VarManager::new(n_vars_used);
     (*{{ enc.id }})
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
@@ -73,19 +78,19 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_ub(
 
 /// Returns an assumption/unit for enforcing an upper bound (`sum of lits <= ub`). Make sure that
 /// [`{{ enc.id }}_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
-/// [`MaybeError::NotEncoded`] will be returned.
+/// [`super::MaybeError::NotEncoded`] will be returned.
 {% include 'capi-safety.j2' %}
 #[no_mangle]
 pub unsafe extern "C" fn {{ enc.id }}_enforce_ub(
     {{ enc.id }}: *mut {{ enc.name }},
     ub: usize,
     assump: &mut c_int,
-) -> MaybeError {
+) -> super::MaybeError {
     match (*{{ enc.id }}).enforce_ub(ub) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();
-            MaybeError::Ok
+            super::MaybeError::Ok
         }
         Err(err) => err.into(),
     }
@@ -111,12 +116,12 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_lb(
     min_bound: usize,
     max_bound: usize,
     n_vars_used: &mut u32,
-    collector: CClauseCollector,
+    collector: super::CClauseCollector,
     collector_data: *mut c_void,
 ) {
     assert!(min_bound <= max_bound);
-    let mut collector = ClauseCollector::new(collector, collector_data);
-    let mut var_manager = VarManager::new(n_vars_used);
+    let mut collector = super::ClauseCollector::new(collector, collector_data);
+    let mut var_manager = super::VarManager::new(n_vars_used);
     (*{{ enc.id }})
         .encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
@@ -124,19 +129,19 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_lb(
 
 /// Returns an assumption/unit for enforcing a lower bound (`sum of lits >= lb`). Make sure that
 /// [`{{ enc.id }}_encode_lb`] has been called adequately and nothing has been called afterwards, otherwise
-/// [`MaybeError::NotEncoded`] will be returned.
+/// [`super::MaybeError::NotEncoded`] will be returned.
 {% include 'capi-safety.j2' %}
 #[no_mangle]
 pub unsafe extern "C" fn {{ enc.id }}_enforce_lb(
     {{ enc.id }}: *mut {{ enc.name }},
     lb: usize,
     assump: &mut c_int,
-) -> MaybeError {
+) -> super::MaybeError {
     match (*{{ enc.id }}).enforce_lb(lb) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();
-            MaybeError::Ok
+            super::MaybeError::Ok
         }
         Err(err) => err.into(),
     }

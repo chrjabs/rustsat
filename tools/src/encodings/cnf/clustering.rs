@@ -8,23 +8,18 @@
 //!   correlation clustering via weighted partial Maximum Satisfiability_, AIJ
 //!   2017.
 
-use std::io;
-
-use rustsat::{
-    clause,
-    instances::{
-        fio::{dimacs, ParsingError},
-        ManageVars,
-    },
-    types::{RsHashMap, Var},
-    utils,
-};
-use winnow::{
-    ascii::{alphanumeric1, float, multispace1},
-    combinator::{alt, repeat},
-    error::ContextError,
-    seq, Parser,
-};
+use rustsat::instances::fio::dimacs;
+use rustsat::instances::fio::ParsingError;
+use rustsat::instances::ManageVars;
+use rustsat::types::RsHashMap;
+use rustsat::types::Var;
+use rustsat::utils;
+use winnow::ascii::alphanumeric1;
+use winnow::ascii::float;
+use winnow::ascii::multispace1;
+use winnow::combinator::alt;
+use winnow::combinator::repeat;
+use winnow::error::ContextError;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 enum VarId {
@@ -136,21 +131,21 @@ pub struct Encoding {
 }
 
 impl Encoding {
-    pub fn new<R: io::BufRead, Map: Fn(f64) -> Similarity>(
+    pub fn new<R: std::io::BufRead, Map: Fn(f64) -> Similarity>(
         in_reader: R,
         sim_map: Map,
     ) -> anyhow::Result<Self> {
         let mut ident_map = RsHashMap::default();
         let mut next_idx: u32 = 0;
         let process_line =
-            |(line_num, line): (usize, Result<String, io::Error>)| -> Option<anyhow::Result<(String, String, f64)>> {
+            |(line_num, line): (usize, Result<String, std::io::Error>)| -> Option<anyhow::Result<(String, String, f64)>> {
                 let full_line = line.ok()?;
                 let line = full_line.trim_start();
                 if line.starts_with('%') {
                     return None;
                 }
-                let tup = Parser::<_, _, ContextError>::parse(
-                    &mut seq! {
+                let tup = winnow::Parser::<_, _, ContextError>::parse(
+                    &mut winnow::seq! {
                         ident(),
                         _: multispace1::<_, ContextError>,
                         ident(),
@@ -373,7 +368,10 @@ impl Iterator for Encoding {
                         self.similarities[Self::sim_idx(idx1, idx2, self.n)]
                     {
                         return Some(dimacs::McnfLine::Soft(
-                            clause![self.var_manager.id(VarId::Same(idx1, idx2)).pos_lit()],
+                            rustsat::clause![self
+                                .var_manager
+                                .id(VarId::Same(idx1, idx2))
+                                .pos_lit()],
                             weight,
                             0,
                         ));
@@ -392,7 +390,10 @@ impl Iterator for Encoding {
                         self.similarities[Self::sim_idx(idx1, idx2, self.n)]
                     {
                         return Some(dimacs::McnfLine::Soft(
-                            clause![!self.var_manager.id(VarId::Same(idx1, idx2)).pos_lit()],
+                            rustsat::clause![!self
+                                .var_manager
+                                .id(VarId::Same(idx1, idx2))
+                                .pos_lit()],
                             weight,
                             1,
                         ));
@@ -403,7 +404,7 @@ impl Iterator for Encoding {
     }
 }
 
-fn ident<'i>() -> impl Parser<&'i str, String, ContextError> {
+fn ident<'i>() -> impl winnow::Parser<&'i str, String, ContextError> {
     repeat(1.., alt((alphanumeric1, "_")))
 }
 

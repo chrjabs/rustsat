@@ -197,7 +197,7 @@ void pairwise_drop(struct Pairwise *pairwise);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -245,7 +245,7 @@ void ladder_drop(struct Ladder *ladder);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -293,7 +293,7 @@ void bitwise_drop(struct Bitwise *bitwise);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -341,7 +341,7 @@ void commander_drop(struct Commander *commander);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -389,7 +389,7 @@ void bimander_drop(struct Bimander *bimander);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -437,7 +437,7 @@ void twoproduct_drop(struct TwoProduct *twoproduct);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -497,7 +497,7 @@ void tot_reserve(struct Totalizer *tot, uint32_t *n_vars_used);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -537,7 +537,7 @@ void tot_encode_ub(struct Totalizer *tot,
 /**
  * Returns an assumption/unit for enforcing an upper bound (`sum of lits <= ub`). Make sure that
  * [`tot_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
- * [`MaybeError::NotEncoded`] will be returned.
+ * [`super::MaybeError::NotEncoded`] will be returned.
  *
  * # Safety
  *
@@ -577,7 +577,7 @@ void tot_encode_lb(struct Totalizer *tot,
 /**
  * Returns an assumption/unit for enforcing a lower bound (`sum of lits >= lb`). Make sure that
  * [`tot_encode_lb`] has been called adequately and nothing has been called afterwards, otherwise
- * [`MaybeError::NotEncoded`] will be returned.
+ * [`super::MaybeError::NotEncoded`] will be returned.
  *
  * # Safety
  *
@@ -604,9 +604,9 @@ size_t dpw_coarse_ub(struct DynamicPolyWatchdog *dpw, size_t ub);
  *
  * # Errors
  *
- * - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
+ * - If `divisor` is not a power of 2, [`super::MaybeError::PrecisionNotPow2`] is returned
  * - If `divisor` is larger than the last divisor, i.e., precision is attempted to be decreased,
- *   [`MaybeError::PrecisionDecreased`] is returned
+ *   [`super::MaybeError::PrecisionDecreased`] is returned
  *
  * # Safety
  *
@@ -702,7 +702,7 @@ void gte_reserve(struct GeneralizedTotalizer *gte, uint32_t *n_vars_used);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -742,7 +742,7 @@ void gte_encode_ub(struct GeneralizedTotalizer *gte,
 /**
  * Returns assumptions/units for enforcing an upper bound (`sum of lits <= ub`). Make sure that
  * [`gte_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
- * [`MaybeError::NotEncoded`] will be returned.
+ * [`super::MaybeError::NotEncoded`] will be returned.
  *
  * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
  * assumptions are passed when [`gte_enforce_ub`] returns.
@@ -789,7 +789,7 @@ void bin_adder_reserve(struct BinaryAdder *bin_adder,
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -831,7 +831,7 @@ void bin_adder_encode_ub(struct BinaryAdder *bin_adder,
 /**
  * Returns assumptions/units for enforcing an upper bound (`sum of lits <= ub`). Make sure that
  * [`bin_adder_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
- * [`MaybeError::NotEncoded`] will be returned.
+ * [`super::MaybeError::NotEncoded`] will be returned.
  *
  * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
  * assumptions are passed when [`bin_adder_enforce_ub`] returns.
@@ -877,7 +877,7 @@ void bin_adder_encode_lb(struct BinaryAdder *bin_adder,
 /**
  * Returns assumptions/units for enforcing a lower bound (`sum of lits <= ub`). Make sure that
  * [`bin_adder_encode_lb`] has been called adequately and nothing has been called afterwards, otherwise
- * [`MaybeError::NotEncoded`] will be returned.
+ * [`super::MaybeError::NotEncoded`] will be returned.
  *
  * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
  * assumptions are passed when [`bin_adder_enforce_ub`] returns.
@@ -923,7 +923,7 @@ void dpw_reserve(struct DynamicPolyWatchdog *dpw, uint32_t *n_vars_used);
  * # Errors
  *
  * - If `lit` is not a valid IPASIR-style literal (e.g., `lit = 0`),
- *   [`MaybeError::InvalidLiteral`] is returned
+ *   [`super::MaybeError::InvalidLiteral`] is returned
  *
  * # Safety
  *
@@ -963,7 +963,7 @@ void dpw_encode_ub(struct DynamicPolyWatchdog *dpw,
 /**
  * Returns assumptions/units for enforcing an upper bound (`sum of lits <= ub`). Make sure that
  * [`dpw_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
- * [`MaybeError::NotEncoded`] will be returned.
+ * [`super::MaybeError::NotEncoded`] will be returned.
  *
  * Assumptions are returned via the collector callback. There is _no_ terminating zero, all
  * assumptions are passed when [`dpw_enforce_ub`] returns.

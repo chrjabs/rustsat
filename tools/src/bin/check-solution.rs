@@ -2,18 +2,12 @@
 //!
 //! A small tool for checking solutions to SAT and optimization instances.
 
-use std::{io, path::PathBuf};
+use rustsat::instances::fio;
+use rustsat::instances::MultiOptInstance;
+use rustsat::instances::OptInstance;
+use rustsat::instances::SatInstance;
 
-use clap::{Parser, ValueEnum};
-use rustsat::{
-    instances::{
-        fio::{self, opb::Options as OpbOptions},
-        MultiOptInstance, OptInstance, SatInstance,
-    },
-    types::Assignment,
-};
-
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 pub enum FileFormat {
     /// Infer the file format from the file extension according to the following rules:
     /// - `.cnf`: DIMACS CNF file
@@ -34,14 +28,14 @@ pub enum FileFormat {
     Opb,
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The instance to check the solution against
-    instance: PathBuf,
+    instance: std::path::PathBuf,
     /// The solution specified as one or multiple v-lines. If not specified, will be read from
     /// `stdin`.
-    solution: Option<PathBuf>,
+    solution: Option<std::path::PathBuf>,
     /// The file format of the instance. With infer, the file format is
     /// inferred from the file extension.
     #[arg(long, value_enum, default_value_t = FileFormat::Infer)]
@@ -52,20 +46,20 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    let opb_opts = OpbOptions {
+    let args = <Args as clap::Parser>::parse();
+    let opb_opts = fio::opb::Options {
         first_var_idx: args.opb_first_var_idx,
-        ..OpbOptions::default()
+        ..fio::opb::Options::default()
     };
     let (constrs, objs) = parse_instance(args.instance, args.file_format, opb_opts)?.decompose();
 
     let mut reader = if let Some(solution) = args.solution {
         fio::open_compressed_uncompressed_read(solution)?
     } else {
-        Box::new(io::BufReader::new(io::stdin()))
+        Box::new(std::io::BufReader::new(std::io::stdin()))
     };
 
-    let mut sol = Assignment::default();
+    let mut sol = rustsat::types::Assignment::default();
     loop {
         let mut buf = String::new();
         let read = reader.read_line(&mut buf)?;
@@ -100,7 +94,7 @@ macro_rules! is_one_of {
 }
 
 fn parse_instance(
-    inst_path: PathBuf,
+    inst_path: std::path::PathBuf,
     file_format: FileFormat,
     opb_opts: fio::opb::Options,
 ) -> anyhow::Result<MultiOptInstance> {

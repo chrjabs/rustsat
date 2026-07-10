@@ -24,9 +24,9 @@ macro_rules! test_all {
      $r0:expr ) => {{
         println!("testing with assumptions {:?}", $assumps);
         println!("testing 1");
-        test_assignment!($solver, $assumps, [lit![0]], $r1);
+        $crate::test_assignment!($solver, $assumps, [rustsat::lit![0]], $r1);
         println!("testing 0");
-        test_assignment!($solver, $assumps, [!lit![0]], $r0);
+        $crate::test_assignment!($solver, $assumps, [!rustsat::lit![0]], $r0);
     }};
     ($solver:expr,
      $assumps:expr,
@@ -36,13 +36,33 @@ macro_rules! test_all {
      $r00:expr ) => {{
         println!("testing with assumptions {:?}", $assumps);
         println!("testing 11");
-        test_assignment!($solver, $assumps, [lit![0], lit![1]], $r11);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [rustsat::lit![0], rustsat::lit![1]],
+            $r11
+        );
         println!("testing 10");
-        test_assignment!($solver, $assumps, [lit![0], !lit![1]], $r10);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [rustsat::lit![0], !rustsat::lit![1]],
+            $r10
+        );
         println!("testing 01");
-        test_assignment!($solver, $assumps, [!lit![0], lit![1]], $r01);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [!rustsat::lit![0], rustsat::lit![1]],
+            $r01
+        );
         println!("testing 00");
-        test_assignment!($solver, $assumps, [!lit![0], !lit![1]], $r00);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [!rustsat::lit![0], !rustsat::lit![1]],
+            $r00
+        );
     }};
     ($solver:expr,
      $assumps:expr,
@@ -56,21 +76,61 @@ macro_rules! test_all {
      $r000:expr ) => {{
         println!("testing with assumptions {:?}", $assumps);
         println!("testing 111");
-        test_assignment!($solver, $assumps, [lit![0], lit![1], lit![2]], $r111);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [rustsat::lit![0], rustsat::lit![1], rustsat::lit![2]],
+            $r111
+        );
         println!("testing 110");
-        test_assignment!($solver, $assumps, [lit![0], lit![1], !lit![2]], $r110);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [rustsat::lit![0], rustsat::lit![1], !rustsat::lit![2]],
+            $r110
+        );
         println!("testing 101");
-        test_assignment!($solver, $assumps, [lit![0], !lit![1], lit![2]], $r101);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [rustsat::lit![0], !rustsat::lit![1], rustsat::lit![2]],
+            $r101
+        );
         println!("testing 100");
-        test_assignment!($solver, $assumps, [lit![0], !lit![1], !lit![2]], $r100);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [rustsat::lit![0], !rustsat::lit![1], !rustsat::lit![2]],
+            $r100
+        );
         println!("testing 011");
-        test_assignment!($solver, $assumps, [!lit![0], lit![1], lit![2]], $r011);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [!rustsat::lit![0], rustsat::lit![1], rustsat::lit![2]],
+            $r011
+        );
         println!("testing 010");
-        test_assignment!($solver, $assumps, [!lit![0], lit![1], !lit![2]], $r010);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [!rustsat::lit![0], rustsat::lit![1], !rustsat::lit![2]],
+            $r010
+        );
         println!("testing 001");
-        test_assignment!($solver, $assumps, [!lit![0], !lit![1], lit![2]], $r001);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [!rustsat::lit![0], !rustsat::lit![1], rustsat::lit![2]],
+            $r001
+        );
         println!("testing 000");
-        test_assignment!($solver, $assumps, [!lit![0], !lit![1], !lit![2]], $r000);
+        $crate::test_assignment!(
+            $solver,
+            $assumps,
+            [!rustsat::lit![0], !rustsat::lit![1], !rustsat::lit![2]],
+            $r000
+        );
     }};
     ($solver:expr,
      $assumps:expr,
@@ -92,115 +152,195 @@ macro_rules! test_all {
      $r0000:expr ) => {{
         println!("testing with assumptions {:?}", $assumps);
         println!("testing 1111");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], lit![1], lit![2], lit![3]],
+            [
+                rustsat::lit![0],
+                rustsat::lit![1],
+                rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r1111
         );
         println!("testing 1110");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], lit![1], lit![2], !lit![3]],
+            [
+                rustsat::lit![0],
+                rustsat::lit![1],
+                rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r1110
         );
         println!("testing 1101");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], lit![1], !lit![2], lit![3]],
+            [
+                rustsat::lit![0],
+                rustsat::lit![1],
+                !rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r1101
         );
         println!("testing 1100");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], lit![1], !lit![2], !lit![3]],
+            [
+                rustsat::lit![0],
+                rustsat::lit![1],
+                !rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r1100
         );
         println!("testing 1011");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], !lit![1], lit![2], lit![3]],
+            [
+                rustsat::lit![0],
+                !rustsat::lit![1],
+                rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r1011
         );
         println!("testing 1010");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], !lit![1], lit![2], !lit![3]],
+            [
+                rustsat::lit![0],
+                !rustsat::lit![1],
+                rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r1010
         );
         println!("testing 1001");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], !lit![1], !lit![2], lit![3]],
+            [
+                rustsat::lit![0],
+                !rustsat::lit![1],
+                !rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r1001
         );
         println!("testing 1000");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [lit![0], !lit![1], !lit![2], !lit![3]],
+            [
+                rustsat::lit![0],
+                !rustsat::lit![1],
+                !rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r1000
         );
         println!("testing 0111");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], lit![1], lit![2], lit![3]],
+            [
+                !rustsat::lit![0],
+                rustsat::lit![1],
+                rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r0111
         );
         println!("testing 0110");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], lit![1], lit![2], !lit![3]],
+            [
+                !rustsat::lit![0],
+                rustsat::lit![1],
+                rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r0110
         );
         println!("testing 0101");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], lit![1], !lit![2], lit![3]],
+            [
+                !rustsat::lit![0],
+                rustsat::lit![1],
+                !rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r0101
         );
         println!("testing 0100");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], lit![1], !lit![2], !lit![3]],
+            [
+                !rustsat::lit![0],
+                rustsat::lit![1],
+                !rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r0100
         );
         println!("testing 0011");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], !lit![1], lit![2], lit![3]],
+            [
+                !rustsat::lit![0],
+                !rustsat::lit![1],
+                rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r0011
         );
         println!("testing 0010");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], !lit![1], lit![2], !lit![3]],
+            [
+                !rustsat::lit![0],
+                !rustsat::lit![1],
+                rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r0010
         );
         println!("testing 0001");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], !lit![1], !lit![2], lit![3]],
+            [
+                !rustsat::lit![0],
+                !rustsat::lit![1],
+                !rustsat::lit![2],
+                rustsat::lit![3]
+            ],
             $r0001
         );
         println!("testing 0000");
-        test_assignment!(
+        $crate::test_assignment!(
             $solver,
             $assumps,
-            [!lit![0], !lit![1], !lit![2], !lit![3]],
+            [
+                !rustsat::lit![0],
+                !rustsat::lit![1],
+                !rustsat::lit![2],
+                !rustsat::lit![3]
+            ],
             $r0000
         );
     }};

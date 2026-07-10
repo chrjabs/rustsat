@@ -1,21 +1,15 @@
 extern crate proc_macro;
 
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{parse_quote, Attribute};
-
-use super::IntegrationInput;
-
-pub fn base(input: IntegrationInput) -> TokenStream {
+pub fn base(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -44,7 +38,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn small_sat() {
@@ -54,7 +48,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(1);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn small_unsat() {
@@ -64,7 +58,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(2);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn minisat_segfault() {
@@ -76,16 +70,16 @@ pub fn base(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn incremental(input: IntegrationInput) -> TokenStream {
+pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -96,15 +90,15 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn assumption_sequence() {
-            use rustsat::{
-                instances::{SatInstance},
-                lit,
-                solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolveIncremental;
+            use rustsat::solvers::SolverResult;
 
             let testid = "assumption_sequence";
             let mut solver = init_slv!(#slv);
@@ -112,104 +106,104 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
                 SatInstance::from_dimacs_path("data/small.cnf").unwrap();
             solver.add_cnf(inst.into_cnf().0).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             let res = solver.solve_assumps(&[!lit![0], !lit![1]]).unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let mut core = solver.core().unwrap();
             core.sort_unstable();
             assert_eq!(core, vec![lit![0], lit![1]]);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             assert!(solver.core().is_err());
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             assert!(solver.core().is_err());
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             assert!(solver.core().is_err());
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             assert!(solver.core().is_err());
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
         }
     });
     let ignore = ignoretok(1);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn core_implied() {
-            use rustsat::{
-                instances::{SatInstance},
-                lit,
-                solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolveIncremental;
+            use rustsat::solvers::SolverResult;
 
             let testid = "assumption_sequence";
             let mut solver = init_slv!(#slv);
@@ -219,85 +213,85 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let core = solver.core().unwrap();
             solver.add_clause_ref(&core[..]).unwrap();
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[lit![0], lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[lit![0], !lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             let res = solver
                 .solve_assumps(&[!lit![0], lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], !lit![2], lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver
                 .solve_assumps(&[!lit![0], !lit![1], !lit![2], !lit![3]])
                 .unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
         }
     });
     let ignore = ignoretok(2);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn assumption_empty() {
-            use rustsat::{
-                instances::{SatInstance},
-                lit,
-                solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolveIncremental;
+            use rustsat::solvers::SolverResult;
 
             let testid = "assumption_empty";
             let mut solver = init_slv!(#slv);
@@ -310,55 +304,55 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
             instance.add_binary(!l1, !l2);
             solver.add_cnf(instance.into_cnf().0).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let res = solver.solve_assumps(&[]).unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
             let mut core = solver.core().unwrap();
             assert_eq!(core, &[]);
         }
     });
     let ignore = ignoretok(3);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn solution_caching() {
-            use rustsat::{
-                instances::{SatInstance},
-                lit,
-                solvers::{Solve, SolveIncremental, SolverResult::{Sat, Unsat}},
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolveIncremental;
+            use rustsat::solvers::SolverResult;
 
             let mut solver = init_slv!(#slv);
             let res = solver.solve().unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             solver.add_binary(lit![0], lit![1]).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             solver.add_binary(!lit![0], !lit![1]).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             solver.add_unit(!lit![0]).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             solver.add_unit(!lit![1]).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Unsat);
+            assert_eq!(res, SolverResult::Unsat);
         }
     });
 
     ts
 }
 
-pub fn learning(input: IntegrationInput) -> TokenStream {
+pub fn learning(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -369,17 +363,15 @@ pub fn learning(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn learner_callback() {
-            use rustsat::{
-                instances::{SatInstance},
-                lit,
-                solvers::{Learn, Solve, SolverResult::Unsat},
-                types::TernaryVal::{True, False},
-                var,
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::solvers::Learn;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
+
             let mut n_learned = 0;
             {
                 let mut solver = init_slv!(#slv);
@@ -388,7 +380,7 @@ pub fn learning(input: IntegrationInput) -> TokenStream {
                 solver.add_cnf(inst.into_cnf().0).unwrap();
                 solver.attach_learner(|_| {n_learned += 1;}, 42);
                 let res = solver.solve().unwrap();
-                assert_eq!(res, Unsat);
+                assert_eq!(res, SolverResult::Unsat);
             }
             assert!(n_learned > 0);
         }
@@ -396,16 +388,16 @@ pub fn learning(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn phasing(input: IntegrationInput) -> TokenStream {
+pub fn phasing(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -416,17 +408,18 @@ pub fn phasing(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn user_phases() {
-            use rustsat::{
-                instances::{SatInstance},
-                lit,
-                solvers::{PhaseLit, Solve, SolverResult::Sat},
-                types::TernaryVal::{True, False},
-                var,
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::lit;
+            use rustsat::solvers::PhaseLit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
+            use rustsat::types::TernaryVal;
+            use rustsat::var;
+
             let testid = "user_phases";
             let mut solver = init_slv!(#slv);
             let inst: SatInstance =
@@ -437,12 +430,12 @@ pub fn phasing(input: IntegrationInput) -> TokenStream {
             solver.phase_lit(lit![2]).unwrap();
             solver.phase_lit(!lit![3]).unwrap();
             let res = solver.solve().unwrap();
-            assert_eq!(res, Sat);
+            assert_eq!(res, SolverResult::Sat);
             let sol = solver.solution(var![3]).unwrap();
-            assert_eq!(sol.lit_value(lit![0]), True);
-            assert_eq!(sol.lit_value(lit![1]), False);
-            assert_eq!(sol.lit_value(lit![2]), True);
-            assert_eq!(sol.lit_value(lit![3]), False);
+            assert_eq!(sol.lit_value(lit![0]), TernaryVal::True);
+            assert_eq!(sol.lit_value(lit![1]), TernaryVal::False);
+            assert_eq!(sol.lit_value(lit![2]), TernaryVal::True);
+            assert_eq!(sol.lit_value(lit![3]), TernaryVal::False);
             solver.unphase_var(var![1]).unwrap();
             solver.unphase_var(var![0]).unwrap();
         }
@@ -450,16 +443,16 @@ pub fn phasing(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn flipping(input: IntegrationInput) -> TokenStream {
+pub fn flipping(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -470,14 +463,17 @@ pub fn flipping(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn flipping_lits() {
-            use rustsat::{
-                clause, lit,
-                solvers::{FlipLit, Solve, SolveIncremental, SolverResult},
-            };
+            use rustsat::clause;
+            use rustsat::lit;
+            use rustsat::solvers::FlipLit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolveIncremental;
+            use rustsat::solvers::SolverResult;
+
             let mut solver = init_slv!(#slv);
             solver.add_clause(clause![lit![0]]).unwrap();
             solver.add_clause(clause![lit![1], lit![2]]).unwrap();
@@ -495,16 +491,16 @@ pub fn flipping(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn internal_stats(input: IntegrationInput) -> TokenStream {
+pub fn internal_stats(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -515,20 +511,21 @@ pub fn internal_stats(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn internal_stats() {
-            use rustsat::{
-                instances::{SatInstance, BasicVarManager},
-                solvers::{GetInternalStats, Solve, SolverResult},
-            };
+            use rustsat::instances::SatInstance;
+            use rustsat::solvers::GetInternalStats;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
+
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let mut solver = init_slv!(#slv);
             assert_eq!(solver.propagations(), 0);
             assert_eq!(solver.decisions(), 0);
             assert_eq!(solver.conflicts(), 0);
-            let inst = SatInstance::<BasicVarManager>::from_dimacs_path(format!("{manifest}/data/AProVE11-12.cnf"))
+            let inst: SatInstance = SatInstance::from_dimacs_path(format!("{manifest}/data/AProVE11-12.cnf"))
                 .expect("failed to parse instance");
             solver.add_cnf_ref(inst.cnf()).expect("failed to add cnf to solver");
             let res = solver.solve().expect("failed solving");

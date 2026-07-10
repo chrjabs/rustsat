@@ -104,34 +104,22 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use std::{
-    cmp::Ordering,
-    ffi::{c_int, c_void, CStr, CString, NulError},
-    fmt,
-    path::Path,
-};
+use core::ffi::c_int;
+use core::ffi::c_void;
+use core::ffi::CStr;
 
-use rustsat::types::{Cl, Clause, Lit, TernaryVal, Var};
-use rustsat::{
-    solvers::{
-        ControlSignal, FreezeVar, GetInternalStats, Interrupt, InterruptSolver, Learn,
-        LimitConflicts, LimitDecisions, PhaseLit, Propagate, PropagateResult, Solve,
-        SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
-        Terminate,
-    },
-    utils::Timer,
-};
-use thiserror::Error;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Cl;
+use rustsat::types::Clause;
+use rustsat::types::Lit;
+use rustsat::types::Var;
 
 mod ffi;
 
 #[cfg(cadical_version = "v2.0")]
 mod prooftracer;
 #[cfg(cadical_version = "v2.0")]
-pub use prooftracer::{
-    CaDiCaLAssignment, CaDiCaLClause, ClauseId, Conclusion, ProofTracerHandle,
-    ProofTracerNotConnected, TraceProof,
-};
+pub use prooftracer::*;
 
 macro_rules! handle_oom {
     ($val:expr) => {{
@@ -154,7 +142,7 @@ macro_rules! handle_oom {
 }
 
 /// Fatal error returned if the CaDiCaL API returns an invalid value
-#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(thiserror::Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("cadical c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
     api_call: &'static str,
@@ -171,17 +159,17 @@ enum InternalSolverState {
 }
 
 impl InternalSolverState {
-    fn to_external(&self) -> SolverState {
+    fn to_external(&self) -> rustsat::solvers::SolverState {
         match self {
-            InternalSolverState::Configuring => SolverState::Configuring,
-            InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::Sat => SolverState::Sat,
-            InternalSolverState::Unsat(_) => SolverState::Unsat,
+            InternalSolverState::Configuring => rustsat::solvers::SolverState::Configuring,
+            InternalSolverState::Input => rustsat::solvers::SolverState::Input,
+            InternalSolverState::Sat => rustsat::solvers::SolverState::Sat,
+            InternalSolverState::Unsat(_) => rustsat::solvers::SolverState::Unsat,
         }
     }
 }
 
-type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+type TermCallbackPtr<'a> = Box<dyn FnMut() -> rustsat::solvers::ControlSignal + 'a>;
 type LearnCallbackPtr<'a> = Box<dyn FnMut(Clause) + 'a>;
 /// Double boxing is necessary to get thin pointers for casting
 type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
@@ -194,11 +182,11 @@ pub struct CaDiCaL<'term, 'learn> {
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
     learner_cb: OptLearnCallbackStore<'learn>,
-    stats: SolverStats,
+    stats: rustsat::solvers::SolverStats,
 }
 
-impl fmt::Debug for CaDiCaL<'_, '_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for CaDiCaL<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CaDiCaL")
             .field("handle", &self.handle)
             .field("state", &self.state)
@@ -237,7 +225,7 @@ impl Default for CaDiCaL<'_, '_> {
             state: InternalSolverState::default(),
             terminate_cb: None,
             learner_cb: None,
-            stats: SolverStats::default(),
+            stats: rustsat::solvers::SolverStats::default(),
         };
         let quiet = c"quiet";
         unsafe { ffi::ccadical_set_option_ret(solver.handle, quiet.as_ptr(), 1) };
@@ -274,7 +262,7 @@ impl CaDiCaL<'_, '_> {
     /// Adds a clause that only exists for the next solver call. Only one such
     /// clause can exist, a new new clause replaces the old one.
     ///
-    /// _Note_: If this is used, in addition to [`SolveIncremental::core`],
+    /// _Note_: If this is used, in addition to [`rustsat::solvers::SolveIncremental::core`],
     /// [`CaDiCaL::tmp_clause_in_core`] needs to be checked to determine if the
     /// temporary clause is part of the core.
     ///
@@ -306,18 +294,18 @@ impl CaDiCaL<'_, '_> {
 
     /// Checks whether the temporary clause is part of the core if in
     /// unsatisfiable state. This needs to always be checked in addition to
-    /// [`SolveIncremental::core`] if a [`CaDiCaL::add_tmp_clause`] is used.
+    /// [`rustsat::solvers::SolveIncremental::core`] if a [`CaDiCaL::add_tmp_clause`] is used.
     ///
     /// # Errors
     ///
-    /// Returns [`StateError`] if the solver is not in [`SolverState::Unsat`].
+    /// Returns [`rustsat::solvers::StateError`] if the solver is not in [`rustsat::solvers::SolverState::Unsat`].
     pub fn tmp_clause_in_core(&mut self) -> anyhow::Result<bool> {
         match &self.state {
             InternalSolverState::Unsat(_) => unsafe {
                 Ok(ffi::ccadical_constraint_failed(self.handle) != 0)
             },
-            state => Err(StateError {
-                required_state: SolverState::Unsat,
+            state => Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Unsat,
                 actual_state: state.to_external(),
             }
             .into()),
@@ -328,7 +316,7 @@ impl CaDiCaL<'_, '_> {
     ///
     /// # Errors
     ///
-    /// - Returns [`StateError`] if the solver is not in [`SolverState::Configuring`]
+    /// - Returns [`rustsat::solvers::StateError`] if the solver is not in [`rustsat::solvers::SolverState::Configuring`]
     /// - Returns [`InvalidApiReturn`] if the C-API does not return `true`. This case can be
     ///   considered a bug in either the CaDiCaL library or this crate.
     pub fn set_configuration(&mut self, config: Config) -> anyhow::Result<()> {
@@ -345,8 +333,8 @@ impl CaDiCaL<'_, '_> {
                 .into())
             }
         } else {
-            Err(StateError {
-                required_state: SolverState::Configuring,
+            Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Configuring,
                 actual_state: self.state.to_external(),
             }
             .into())
@@ -354,7 +342,7 @@ impl CaDiCaL<'_, '_> {
     }
 
     /// Sets the value of a CaDiCaL option. For possible options, check CaDiCaL with `cadical --help`.
-    /// Requires state [`SolverState::Configuring`].
+    /// Requires state [`rustsat::solvers::SolverState::Configuring`].
     ///
     /// # CaDiCaL Documentation
     ///
@@ -368,7 +356,7 @@ impl CaDiCaL<'_, '_> {
     /// Returns [`InvalidApiReturn`] if the C-API does not return `true`. This is most likely due
     /// to a wrongly specified `name` or an invalid `value`.
     pub fn set_option(&mut self, name: &str, value: c_int) -> anyhow::Result<()> {
-        let c_name = CString::new(name)?;
+        let c_name = std::ffi::CString::new(name)?;
         if unsafe { ffi::ccadical_set_option_ret(self.handle, c_name.as_ptr(), value) } != 0 {
             Ok(())
         } else {
@@ -392,7 +380,7 @@ impl CaDiCaL<'_, '_> {
     /// Returns [`InvalidApiReturn`] if the C-API does not return `true`. This is most likely due
     /// to a wrongly specified `name`.
     pub fn get_option(&self, name: &str) -> anyhow::Result<c_int> {
-        let c_name = CString::new(name)?;
+        let c_name = std::ffi::CString::new(name)?;
         Ok(unsafe { ffi::ccadical_get_option(self.handle, c_name.as_ptr()) })
     }
 
@@ -451,12 +439,12 @@ impl CaDiCaL<'_, '_> {
 
     /// Gets the current literal value at the root level
     #[must_use]
-    pub fn current_lit_val(&self, lit: Lit) -> TernaryVal {
+    pub fn current_lit_val(&self, lit: Lit) -> rustsat::types::TernaryVal {
         let int_val = unsafe { ffi::ccadical_fixed(self.handle, lit.to_ipasir()) };
         match int_val.cmp(&0) {
-            Ordering::Greater => TernaryVal::True,
-            Ordering::Less => TernaryVal::False,
-            Ordering::Equal => TernaryVal::DontCare,
+            std::cmp::Ordering::Greater => rustsat::types::TernaryVal::True,
+            std::cmp::Ordering::Less => rustsat::types::TernaryVal::False,
+            std::cmp::Ordering::Equal => rustsat::types::TernaryVal::DontCare,
         }
     }
 
@@ -573,10 +561,10 @@ impl CaDiCaL<'_, '_> {
     /// # Errors
     ///
     /// - If opening the file fails
-    /// - [`NulError`] if the provided path contains a nul byte
+    /// - [`std::ffi::NulError`] if the provided path contains a nul byte
     #[cfg(feature = "tracing")]
-    pub fn trace_api_calls<P: AsRef<Path>>(&mut self, path: P) -> anyhow::Result<()> {
-        let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
+    pub fn trace_api_calls<P: AsRef<std::path::Path>>(&mut self, path: P) -> anyhow::Result<()> {
+        let path = std::ffi::CString::new(path.as_ref().to_string_lossy().as_bytes())?;
         if unsafe { ffi::ccadical_trace_api_calls(self.handle, path.as_ptr()) } > 0 {
             anyhow::bail!("failed to open file path for tracing");
         }
@@ -590,12 +578,12 @@ impl CaDiCaL<'_, '_> {
     /// If the provided path contains a nul byte
     // We know that the set options exist and that this should therefore never panic
     #[expect(clippy::missing_panics_doc)]
-    pub fn trace_proof<P: AsRef<Path>>(
+    pub fn trace_proof<P: AsRef<std::path::Path>>(
         &mut self,
         path: P,
         format: ProofFormat,
-    ) -> Result<(), NulError> {
-        let path = CString::new(path.as_ref().to_string_lossy().as_bytes())?;
+    ) -> Result<(), std::ffi::NulError> {
+        let path = std::ffi::CString::new(path.as_ref().to_string_lossy().as_bytes())?;
         let binary = match format {
             ProofFormat::Drat { binary } => binary,
             #[cfg(cadical_version = "v1.7")]
@@ -687,6 +675,8 @@ impl CaDiCaL<'_, '_> {
 
 impl Extend<Clause> for CaDiCaL<'_, '_> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter()
             .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
@@ -697,6 +687,8 @@ where
     C: AsRef<Cl> + ?Sized,
 {
     fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -704,7 +696,7 @@ where
     }
 }
 
-impl Solve for CaDiCaL<'_, '_> {
+impl rustsat::solvers::Solve for CaDiCaL<'_, '_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::ccadical_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -729,7 +721,7 @@ impl Solve for CaDiCaL<'_, '_> {
                 return Ok(SolverResult::Unsat);
             }
         }
-        let start = Timer::now();
+        let start = rustsat::utils::Timer::now();
         // Solve with CaDiCaL backend
         let res = handle_oom!(unsafe { ffi::ccadical_solve_mem(self.handle) });
         self.stats.cpu_solve_time += start.elapsed();
@@ -757,21 +749,21 @@ impl Solve for CaDiCaL<'_, '_> {
         }
     }
 
-    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<rustsat::types::TernaryVal> {
         if self.state != InternalSolverState::Sat {
-            return Err(StateError {
-                required_state: SolverState::Sat,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Sat,
                 actual_state: self.state.to_external(),
             }
             .into());
         }
         let lit = lit.to_ipasir();
         match unsafe { ffi::ccadical_val(self.handle, lit) } {
-            0 => Ok(TernaryVal::DontCare),
-            p if p == lit => Ok(TernaryVal::True),
-            n if n == -lit => Ok(TernaryVal::False),
+            0 => Ok(rustsat::types::TernaryVal::DontCare),
+            p if p == lit => Ok(rustsat::types::TernaryVal::True),
+            n if n == -lit => Ok(rustsat::types::TernaryVal::False),
             // CaDiCaL returns -1 if variable is higher than max var
-            -1 => Ok(TernaryVal::DontCare),
+            -1 => Ok(rustsat::types::TernaryVal::DontCare),
             value => Err(InvalidApiReturn {
                 api_call: "ccadical_val",
                 value,
@@ -798,9 +790,9 @@ impl Solve for CaDiCaL<'_, '_> {
     }
 }
 
-impl SolveIncremental for CaDiCaL<'_, '_> {
+impl rustsat::solvers::SolveIncremental for CaDiCaL<'_, '_> {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
-        let start = Timer::now();
+        let start = rustsat::utils::Timer::now();
         // Solve with CaDiCaL backend
         for a in assumps {
             handle_oom!(unsafe { ffi::ccadical_assume_mem(self.handle, a.to_ipasir()) });
@@ -834,8 +826,8 @@ impl SolveIncremental for CaDiCaL<'_, '_> {
     fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
         match &self.state {
             InternalSolverState::Unsat(core) => Ok(core.clone()),
-            other => Err(StateError {
-                required_state: SolverState::Unsat,
+            other => Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Unsat,
                 actual_state: other.to_external(),
             }
             .into()),
@@ -843,7 +835,7 @@ impl SolveIncremental for CaDiCaL<'_, '_> {
     }
 }
 
-impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
+impl<'term> rustsat::solvers::Terminate<'term> for CaDiCaL<'term, '_> {
     /// Sets a terminator callback that is regularly called during solving.
     ///
     /// # Examples
@@ -851,7 +843,10 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
     /// Terminate solver after 10 callback calls.
     ///
     /// ```
-    /// use rustsat::solvers::{ControlSignal, Solve, SolverResult, Terminate};
+    /// use rustsat::solvers::ControlSignal;
+    /// use rustsat::solvers::Solve;
+    /// use rustsat::solvers::SolverResult;
+    /// use rustsat::solvers::Terminate;
     /// use rustsat_cadical::CaDiCaL;
     ///
     /// let mut solver = CaDiCaL::default();
@@ -875,7 +870,7 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
     /// ```
     fn attach_terminator<CB>(&mut self, cb: CB)
     where
-        CB: FnMut() -> ControlSignal + 'term,
+        CB: FnMut() -> rustsat::solvers::ControlSignal + 'term,
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr =
@@ -895,7 +890,7 @@ impl<'term> Terminate<'term> for CaDiCaL<'term, '_> {
     }
 }
 
-impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
+impl<'learn> rustsat::solvers::Learn<'learn> for CaDiCaL<'_, 'learn> {
     /// Sets a learner callback that gets passed clauses up to a certain length learned by the solver.
     ///
     /// The callback goes out of scope with the solver, afterwards captured variables become accessible.
@@ -905,7 +900,9 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
     /// Count number of learned clauses up to length 10.
     ///
     /// ```
-    /// use rustsat::solvers::{Solve, SolverResult, Learn};
+    /// use rustsat::solvers::Learn;
+    /// use rustsat::solvers::Solve;
+    /// use rustsat::solvers::SolverResult;
     /// use rustsat_cadical::CaDiCaL;
     ///
     /// let mut cnt = 0;
@@ -944,7 +941,7 @@ impl<'learn> Learn<'learn> for CaDiCaL<'_, 'learn> {
     }
 }
 
-impl Interrupt for CaDiCaL<'_, '_> {
+impl rustsat::solvers::Interrupt for CaDiCaL<'_, '_> {
     type Interrupter = Interrupter;
     fn interrupter(&mut self) -> Self::Interrupter {
         Interrupter {
@@ -963,27 +960,25 @@ pub struct Interrupter {
 unsafe impl Send for Interrupter {}
 unsafe impl Sync for Interrupter {}
 
-impl InterruptSolver for Interrupter {
+impl rustsat::solvers::InterruptSolver for Interrupter {
     fn interrupt(&self) {
         unsafe { ffi::ccadical_terminate(self.handle) }
     }
 }
 
-impl PhaseLit for CaDiCaL<'_, '_> {
-    /// Forces the default decision phase of a variable to a certain value
+impl rustsat::solvers::PhaseLit for CaDiCaL<'_, '_> {
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_phase(self.handle, lit.to_ipasir()) };
         Ok(())
     }
 
-    /// Undoes the effect of a call to [`CaDiCaL::phase_lit`]
     fn unphase_var(&mut self, var: Var) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_unphase(self.handle, var.to_ipasir()) };
         Ok(())
     }
 }
 
-impl FreezeVar for CaDiCaL<'_, '_> {
+impl rustsat::solvers::FreezeVar for CaDiCaL<'_, '_> {
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
         unsafe { ffi::ccadical_freeze(self.handle, var.to_ipasir()) };
         Ok(())
@@ -1003,8 +998,8 @@ impl FreezeVar for CaDiCaL<'_, '_> {
 impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     fn flip_lit(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
-            return Err(StateError {
-                required_state: SolverState::Sat,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Sat,
                 actual_state: self.state.to_external(),
             }
             .into());
@@ -1014,8 +1009,8 @@ impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
 
     fn is_flippable(&mut self, lit: Lit) -> anyhow::Result<bool> {
         if self.state != InternalSolverState::Sat {
-            return Err(StateError {
-                required_state: SolverState::Sat,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Sat,
                 actual_state: self.state.to_external(),
             }
             .into());
@@ -1024,7 +1019,7 @@ impl rustsat::solvers::FlipLit for CaDiCaL<'_, '_> {
     }
 }
 
-impl LimitConflicts for CaDiCaL<'_, '_> {
+impl rustsat::solvers::LimitConflicts for CaDiCaL<'_, '_> {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
             limit.try_into()?
@@ -1034,7 +1029,7 @@ impl LimitConflicts for CaDiCaL<'_, '_> {
     }
 }
 
-impl LimitDecisions for CaDiCaL<'_, '_> {
+impl rustsat::solvers::LimitDecisions for CaDiCaL<'_, '_> {
     fn limit_decisions(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
         self.set_limit(Limit::Decisions(if let Some(limit) = limit {
             limit.try_into()?
@@ -1044,7 +1039,7 @@ impl LimitDecisions for CaDiCaL<'_, '_> {
     }
 }
 
-impl GetInternalStats for CaDiCaL<'_, '_> {
+impl rustsat::solvers::GetInternalStats for CaDiCaL<'_, '_> {
     fn propagations(&self) -> usize {
         #[cfg(cadical_version = "v2.2")]
         let res = usize::try_from(self.get_statistic(Statistic::Propagations))
@@ -1080,13 +1075,13 @@ impl GetInternalStats for CaDiCaL<'_, '_> {
 }
 
 #[cfg(cadical_version = "v2.1")]
-impl Propagate for CaDiCaL<'_, '_> {
+impl rustsat::solvers::Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
         assumps: &[Lit],
         _phase_saving: bool,
-    ) -> anyhow::Result<PropagateResult> {
-        let start = Timer::now();
+    ) -> anyhow::Result<rustsat::solvers::PropagateResult> {
+        let start = rustsat::utils::Timer::now();
         self.state = InternalSolverState::Input;
         // Propagate with cadical backend
         for a in assumps {
@@ -1127,7 +1122,7 @@ impl Propagate for CaDiCaL<'_, '_> {
             }
         }
         self.stats.cpu_solve_time += start.elapsed();
-        Ok(PropagateResult {
+        Ok(rustsat::solvers::PropagateResult {
             propagated: props,
             conflict: res == 20,
         })
@@ -1135,13 +1130,13 @@ impl Propagate for CaDiCaL<'_, '_> {
 }
 
 #[cfg(not(cadical_version = "v2.1"))]
-impl Propagate for CaDiCaL<'_, '_> {
+impl rustsat::solvers::Propagate for CaDiCaL<'_, '_> {
     fn propagate(
         &mut self,
         assumps: &[Lit],
         phase_saving: bool,
-    ) -> anyhow::Result<PropagateResult> {
-        let start = Timer::now();
+    ) -> anyhow::Result<rustsat::solvers::PropagateResult> {
+        let start = rustsat::utils::Timer::now();
         self.state = InternalSolverState::Input;
         // Propagate with cadical backend
         let assumps: Vec<_> = assumps.iter().map(|l| l.to_ipasir()).collect();
@@ -1160,11 +1155,11 @@ impl Propagate for CaDiCaL<'_, '_> {
         });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
-            10 => Ok(PropagateResult {
+            10 => Ok(rustsat::solvers::PropagateResult {
                 propagated: props,
                 conflict: false,
             }),
-            20 => Ok(PropagateResult {
+            20 => Ok(rustsat::solvers::PropagateResult {
                 propagated: props,
                 conflict: true,
             }),
@@ -1177,8 +1172,8 @@ impl Propagate for CaDiCaL<'_, '_> {
     }
 }
 
-impl SolveStats for CaDiCaL<'_, '_> {
-    fn stats(&self) -> SolverStats {
+impl rustsat::solvers::SolveStats for CaDiCaL<'_, '_> {
+    fn stats(&self) -> rustsat::solvers::SolverStats {
         let max_var_idx = unsafe { ffi::ccadical_vars(self.handle) };
         let max_var = if max_var_idx > 0 {
             Some(Var::new(
@@ -1244,8 +1239,8 @@ impl From<&Config> for &'static CStr {
     }
 }
 
-impl fmt::Display for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             Config::Default => "default",
             Config::Plain => "plain",
@@ -1259,7 +1254,7 @@ impl fmt::Display for Config {
 /// Possible CaDiCaL limits
 #[derive(Debug, Clone, Copy)]
 pub enum Limit {
-    /// The number of calls to [`InterruptSolver::interrupt()`] before CaDiCaL terminates
+    /// The number of calls to [`rustsat::solvers::InterruptSolver::interrupt`] before CaDiCaL terminates
     Terminate(c_int),
     /// A limit on the number of conflicts
     Conflicts(c_int),
@@ -1289,8 +1284,8 @@ impl From<Limit> for (&'static CStr, c_int) {
     }
 }
 
-impl fmt::Display for Limit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Limit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Limit::Terminate(val) => write!(f, "terminate ({val})"),
             Limit::Conflicts(val) => write!(f, "conflicts ({val})"),
@@ -1398,13 +1393,13 @@ impl From<Statistic> for &'static CStr {
 
 #[cfg(test)]
 mod test {
-    use rustsat::{
-        lit,
-        solvers::{Solve, SolverState, StateError},
-        types::TernaryVal,
-    };
+    use rustsat::lit;
+    use rustsat::solvers::Solve;
+    use rustsat::solvers::SolverState;
+    use rustsat::solvers::StateError;
+    use rustsat::types::TernaryVal;
 
-    use super::{CaDiCaL, Config, Limit, ProofFormat};
+    use super::*;
 
     rustsat_solvertests::basic_unittests!(CaDiCaL, "cadical-[major].[minor].[patch]");
     rustsat_solvertests::termination_unittests!(CaDiCaL);

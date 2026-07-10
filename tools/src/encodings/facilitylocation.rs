@@ -3,8 +3,6 @@
 //! - Data types
 //! - Input parser
 
-use std::io;
-
 /// An instance of the multi-objective assignment problem
 #[derive(Clone, PartialEq, Eq, Default)]
 pub struct FacilityLocation {
@@ -16,7 +14,7 @@ pub struct FacilityLocation {
 }
 
 impl FacilityLocation {
-    pub fn from_file(reader: impl io::BufRead) -> anyhow::Result<Self> {
+    pub fn from_file(reader: impl std::io::BufRead) -> anyhow::Result<Self> {
         parsing::parse_voptlib(reader)
     }
 
@@ -55,17 +53,16 @@ impl FacilityLocation {
 }
 
 mod parsing {
-    use std::io;
-
     use anyhow::Context;
     use rustsat::instances::fio::ParsingError;
-    use winnow::{
-        ascii::dec_uint,
-        error::{ContextError, StrContext, StrContextValue},
-        Parser,
-    };
+    use winnow::ascii::dec_uint;
+    use winnow::error::ContextError;
+    use winnow::error::StrContext;
+    use winnow::error::StrContextValue;
+    use winnow::Parser;
 
-    use crate::parsing::{single_value, SeparatedCallbackParser};
+    use crate::parsing::single_value;
+    use crate::parsing::SeparatedCallbackParser;
 
     macro_rules! next_line {
         ($reader:expr, $lineno:expr) => {{
@@ -79,7 +76,9 @@ mod parsing {
         }};
     }
 
-    pub fn parse_voptlib(mut reader: impl io::BufRead) -> anyhow::Result<super::FacilityLocation> {
+    pub fn parse_voptlib(
+        mut reader: impl std::io::BufRead,
+    ) -> anyhow::Result<super::FacilityLocation> {
         let mut line_num = 0;
         let line =
             next_line!(reader, line_num).context("file ended before number of users line")?;
@@ -148,13 +147,12 @@ mod parsing {
 
     #[cfg(test)]
     mod tests {
-        use std::{fs::File, io::BufReader};
-
         #[test]
         fn voptlib() {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-            let reader =
-                BufReader::new(File::open(format!("{manifest}/data/didactic1.txt")).unwrap());
+            let reader = std::io::BufReader::new(
+                std::fs::File::open(format!("{manifest}/data/didactic1.txt")).unwrap(),
+            );
             super::parse_voptlib(reader).unwrap();
         }
     }

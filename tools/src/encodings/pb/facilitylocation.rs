@@ -1,11 +1,8 @@
 //! # PB (Multi-Criteria) Uncapacitated Facility Location Problem Encoding
 
-use rustsat::{
-    encodings::atomics,
-    instances::fio::opb,
-    lit,
-    types::{constraints::CardConstraint, Lit},
-};
+use rustsat::instances::fio::opb;
+use rustsat::types::constraints::CardConstraint;
+use rustsat::types::Lit;
 
 use crate::encodings::facilitylocation::FacilityLocation;
 
@@ -44,10 +41,16 @@ impl Iterator for Encoding {
 
     fn next(&mut self) -> Option<Self::Item> {
         let selected = |customer: usize, facility: usize| {
-            lit![(customer * self.data.n_facilities() + facility) as u32]
+            Lit::new(
+                (customer * self.data.n_facilities() + facility) as u32,
+                false,
+            )
         };
         let opening = |facility: usize| {
-            lit![(self.data.n_facilities() * self.data.n_customers() + facility) as u32]
+            Lit::new(
+                (self.data.n_facilities() * self.data.n_customers() + facility) as u32,
+                false,
+            )
         };
         match self.next_line.take() {
             Some(line) => Some(match line {
@@ -101,7 +104,10 @@ impl Iterator for Encoding {
                     opb::FileLine::Card(constr)
                 }
                 Line::MustOpen(fac, customer) => {
-                    let constr = atomics::lit_impl_lit(selected(customer, fac), opening(fac));
+                    let constr = rustsat::encodings::atomics::lit_impl_lit(
+                        selected(customer, fac),
+                        opening(fac),
+                    );
                     self.next_line = if customer + 1 < self.data.n_customers() {
                         Some(Line::MustOpen(fac, customer + 1))
                     } else if fac + 1 < self.data.n_facilities() {

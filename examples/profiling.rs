@@ -1,11 +1,13 @@
 //! # Small Executable For Profiling Tasks
 
-use rustsat::{
-    encodings::pb::{BoundUpper, GeneralizedTotalizer},
-    instances::{BasicVarManager, Cnf, ManageVars},
-    lit,
-    types::{Lit, Var},
-};
+use rustsat::encodings::pb::BoundUpper;
+use rustsat::encodings::pb::GeneralizedTotalizer;
+use rustsat::instances::BasicVarManager;
+use rustsat::instances::Cnf;
+use rustsat::instances::ManageVars;
+use rustsat::lit;
+use rustsat::types::Lit;
+use rustsat::types::Var;
 
 macro_rules! lits {
     () => {

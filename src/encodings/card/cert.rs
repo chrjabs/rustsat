@@ -1,21 +1,14 @@
 //! # Certified CNF Encodings for Cardinality Constraints
 
-use std::ops::RangeBounds;
-
-use pigeons::AbsConstraintId;
-
-use crate::{
-    clause,
-    encodings::cert::{CollectClauses, ConstraintEncodingError, EncodingError},
-    instances::ManageVars,
-    types::{
-        constraints::{CardConstraint, CardEqConstr, CardLbConstr, CardUbConstr},
-        Lit,
-    },
-    utils::unreachable_err,
-};
-
-use super::Totalizer;
+use crate::encodings::cert::CollectClauses;
+use crate::encodings::cert::ConstraintEncodingError;
+use crate::encodings::cert::EncodingError;
+use crate::instances::ManageVars;
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::CardEqConstr;
+use crate::types::constraints::CardLbConstr;
+use crate::types::constraints::CardUbConstr;
+use crate::types::Lit;
 
 /// Trait for certified cardinality encodings that allow upper bounding of the form `sum of lits <=
 /// ub`
@@ -37,7 +30,7 @@ pub trait BoundUpper: super::Encode + super::BoundUpper {
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write;
 
     /// Encodes an upper bound cardinality constraint to CNF with proof logging
@@ -46,7 +39,7 @@ pub trait BoundUpper: super::Encode + super::BoundUpper {
     ///
     /// If the clause collector runs out of memory, or writing the proof fails
     fn encode_ub_constr_cert<Col, W>(
-        constr: (CardUbConstr, AbsConstraintId),
+        constr: (CardUbConstr, pigeons::AbsConstraintId),
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pigeons::Proof<W>,
@@ -77,7 +70,7 @@ pub trait BoundLower: super::Encode + super::BoundLower {
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write;
 
     /// Encodes a lower bound cardinality constraint to CNF with proof logging
@@ -87,7 +80,7 @@ pub trait BoundLower: super::Encode + super::BoundLower {
     /// If the clause collector runs out of memory, writing the proof fails, or the constraint is
     /// unsatisfiable
     fn encode_lb_constr_cert<Col, W>(
-        constr: (CardLbConstr, AbsConstraintId),
+        constr: (CardLbConstr, pigeons::AbsConstraintId),
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pigeons::Proof<W>,
@@ -117,7 +110,7 @@ pub trait BoundBoth: BoundUpper + BoundLower + super::BoundBoth {
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
         W: std::io::Write,
     {
         self.encode_ub_cert(range.clone(), collector, var_manager, proof)?;
@@ -132,7 +125,7 @@ pub trait BoundBoth: BoundUpper + BoundLower + super::BoundBoth {
     /// If the clause collector runs out of memory, writing the proof fails, or the constraint is
     /// unsatisfiable
     fn encode_eq_constr_cert<Col, W>(
-        constr: (CardEqConstr, AbsConstraintId),
+        constr: (CardEqConstr, pigeons::AbsConstraintId),
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pigeons::Proof<W>,
@@ -157,7 +150,7 @@ pub trait BoundBoth: BoundUpper + BoundLower + super::BoundBoth {
     /// If the clause collector runs out of memory, writing the proof fails, or the constraint is
     /// unsatisfiable
     fn encode_constr_cert<Col, W>(
-        constr: (CardConstraint, AbsConstraintId),
+        constr: (CardConstraint, pigeons::AbsConstraintId),
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pigeons::Proof<W>,
@@ -204,7 +197,7 @@ pub trait BoundUpperIncremental: BoundUpper + super::EncodeIncremental {
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write;
 }
 
@@ -229,7 +222,7 @@ pub trait BoundLowerIncremental: BoundLower + super::EncodeIncremental {
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write;
 }
 
@@ -252,7 +245,7 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
         W: std::io::Write,
     {
         self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
@@ -261,18 +254,18 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     }
 }
 
-/// The default upper bound encoding. For now this is a [`Totalizer`].
-pub type DefUpperBounding = Totalizer;
-/// The default lower bound encoding. For now this is a [`Totalizer`].
-pub type DefLowerBounding = Totalizer;
-/// The default encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefBothBounding = Totalizer;
-/// The default incremental upper bound encoding. For now this is a [`Totalizer`].
-pub type DefIncUpperBounding = Totalizer;
-/// The default incremental lower bound encoding. For now this is a [`Totalizer`].
-pub type DefIncLowerBounding = Totalizer;
-/// The default incremental encoding for both bounds. For now this is a [`Totalizer`].
-pub type DefIncBothBounding = Totalizer;
+/// The default upper bound encoding. For now this is a [`super::Totalizer`].
+pub type DefUpperBounding = super::Totalizer;
+/// The default lower bound encoding. For now this is a [`super::Totalizer`].
+pub type DefLowerBounding = super::Totalizer;
+/// The default encoding for both bounds. For now this is a [`super::Totalizer`].
+pub type DefBothBounding = super::Totalizer;
+/// The default incremental upper bound encoding. For now this is a [`super::Totalizer`].
+pub type DefIncUpperBounding = super::Totalizer;
+/// The default incremental lower bound encoding. For now this is a [`super::Totalizer`].
+pub type DefIncLowerBounding = super::Totalizer;
+/// The default incremental encoding for both bounds. For now this is a [`super::Totalizer`].
+pub type DefIncBothBounding = super::Totalizer;
 
 /// Constructs a default upper bounding cardinality encoding.
 #[must_use]
@@ -317,7 +310,7 @@ pub fn new_default_inc_both() -> impl BoundBoth {
 ///
 /// If the clause collector runs out of memory, or writing the proof fails
 pub fn default_encode_cardinality_constraint<Col: CollectClauses, W: std::io::Write>(
-    constr: (CardConstraint, AbsConstraintId),
+    constr: (CardConstraint, pigeons::AbsConstraintId),
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
     proof: &mut pigeons::Proof<W>,
@@ -335,7 +328,7 @@ pub fn encode_cardinality_constraint<
     Col: CollectClauses,
     W: std::io::Write,
 >(
-    constr: (CardConstraint, AbsConstraintId),
+    constr: (CardConstraint, pigeons::AbsConstraintId),
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
     proof: &mut pigeons::Proof<W>,
@@ -345,14 +338,14 @@ pub fn encode_cardinality_constraint<
         return Ok(());
     }
     if constr.is_unsat() {
-        let empty = clause![];
+        let empty = crate::clause![];
         let unsat_id = proof.reverse_unit_prop(&empty, [id.into()])?;
         collector.add_cert_clause(empty, unsat_id)?;
         return Ok(());
     }
     if constr.is_positive_assignment() {
         for lit in constr.into_lits() {
-            let unit = clause![lit];
+            let unit = crate::clause![lit];
             let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
             collector.add_cert_clause(unit, unit_id)?;
         }
@@ -363,14 +356,14 @@ pub fn encode_cardinality_constraint<
             id += 1;
         }
         for lit in constr.into_lits() {
-            let unit = clause![!lit];
+            let unit = crate::clause![!lit];
             let unit_id = proof.reverse_unit_prop(&unit, [id.into()])?;
             collector.add_cert_clause(unit, unit_id)?;
         }
         return Ok(());
     }
     if constr.is_clause() {
-        let clause = unreachable_err!(constr.into_clause());
+        let clause = crate::utils::unreachable_err!(constr.into_clause());
         let cl_id = proof.reverse_unit_prop(&clause, [id.into()])?;
         collector.add_cert_clause(clause, cl_id)?;
         return Ok(());

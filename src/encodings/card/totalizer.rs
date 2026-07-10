@@ -12,21 +12,20 @@
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
 //!   Cardinality Constraints for MaxSAT_, CP 2014.
 
-use std::{cmp, ops::RangeBounds};
+use crate::encodings::nodedb::NodeById;
+use crate::encodings::nodedb::NodeCon;
+use crate::encodings::nodedb::NodeId;
+use crate::encodings::nodedb::NodeLike;
+use crate::encodings::totdb;
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::encodings::NotEncoded;
+use crate::instances::ManageVars;
+use crate::types::Lit;
 
-use crate::{
-    encodings::{
-        nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        totdb, CollectClauses, EncodeStats, EnforceError, Monotone, NotEncoded,
-    },
-    instances::ManageVars,
-    types::Lit,
-};
-
-use super::{
-    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-    BoundUpperIncremental, Encode, EncodeIncremental,
-};
+use super::BoundLowerIncremental;
+use super::BoundUpperIncremental;
+use super::Encode;
 
 /// Implementation of the binary adder tree totalizer encoding \[1\].
 /// The implementation is incremental as extended in \[2\].
@@ -159,7 +158,7 @@ impl Totalizer {
     }
 }
 
-impl Encode for Totalizer {
+impl super::Encode for Totalizer {
     fn n_lits(&self) -> usize {
         self.lit_buffer.len()
             + self.n_add_input
@@ -170,7 +169,7 @@ impl Encode for Totalizer {
     }
 }
 
-impl EncodeIncremental for Totalizer {
+impl super::EncodeIncremental for Totalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.extend_tree();
         if let Some(root) = self.root {
@@ -179,7 +178,7 @@ impl EncodeIncremental for Totalizer {
     }
 }
 
-impl BoundUpper for Totalizer {
+impl super::BoundUpper for Totalizer {
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
@@ -188,7 +187,7 @@ impl BoundUpper for Totalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
@@ -225,7 +224,7 @@ impl BoundUpper for Totalizer {
     }
 }
 
-impl BoundUpperIncremental for Totalizer {
+impl super::BoundUpperIncremental for Totalizer {
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
@@ -234,10 +233,10 @@ impl BoundUpperIncremental for Totalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
-        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
+        let range = range.start..std::cmp::min(range.end, self.n_lits() - self.offset);
         if range.is_empty() {
             return Ok(());
         }
@@ -261,7 +260,7 @@ impl BoundUpperIncremental for Totalizer {
     }
 }
 
-impl BoundLower for Totalizer {
+impl super::BoundLower for Totalizer {
     fn encode_lb<Col, R>(
         &mut self,
         range: R,
@@ -270,7 +269,7 @@ impl BoundLower for Totalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.db.reset_encoded(totdb::Semantics::OnlyIf);
         self.encode_lb_change(range, collector, var_manager)
@@ -310,7 +309,7 @@ impl BoundLower for Totalizer {
     }
 }
 
-impl BoundLowerIncremental for Totalizer {
+impl super::BoundLowerIncremental for Totalizer {
     fn encode_lb_change<Col, R>(
         &mut self,
         range: R,
@@ -319,10 +318,10 @@ impl BoundLowerIncremental for Totalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         let range = super::prepare_lb_range(self, range);
-        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
+        let range = range.start..std::cmp::min(range.end, self.n_lits() - self.offset + 1);
         if range.is_empty() {
             return Ok(());
         }
@@ -346,7 +345,7 @@ impl BoundLowerIncremental for Totalizer {
     }
 }
 
-impl BoundBoth for Totalizer {
+impl super::BoundBoth for Totalizer {
     fn encode_both<Col, R>(
         &mut self,
         range: R,
@@ -355,7 +354,7 @@ impl BoundBoth for Totalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.encode_ub_change(range.clone(), collector, var_manager)?;
         self.encode_lb_change(range, collector, var_manager)?;
@@ -363,11 +362,11 @@ impl BoundBoth for Totalizer {
     }
 }
 
-impl BoundBothIncremental for Totalizer {}
+impl super::BoundBothIncremental for Totalizer {}
 
-impl Monotone for Totalizer {}
+impl crate::encodings::Monotone for Totalizer {}
 
-impl EncodeStats for Totalizer {
+impl crate::encodings::EncodeStats for Totalizer {
     fn n_clauses(&self) -> usize {
         self.n_clauses
     }
@@ -422,7 +421,7 @@ impl super::cert::BoundUpper for Totalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         use super::cert::BoundUpperIncremental;
@@ -444,7 +443,8 @@ impl super::cert::BoundUpper for Totalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::{OperationLike, OperationSequence};
+        use pigeons::OperationLike;
+        use pigeons::OperationSequence;
 
         use crate::types::Var;
 
@@ -483,11 +483,11 @@ impl super::cert::BoundUpperIncremental for Totalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         let range = super::prepare_ub_range(self, range);
-        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset);
+        let range = range.start..std::cmp::min(range.end, self.n_lits() - self.offset);
         if range.is_empty() {
             return Ok(());
         }
@@ -526,7 +526,7 @@ impl super::cert::BoundLower for Totalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         use super::cert::BoundLowerIncremental;
@@ -548,7 +548,8 @@ impl super::cert::BoundLower for Totalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::{OperationLike, OperationSequence};
+        use pigeons::OperationLike;
+        use pigeons::OperationSequence;
 
         use crate::types::Var;
 
@@ -587,11 +588,11 @@ impl super::cert::BoundLowerIncremental for Totalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         let range = super::prepare_lb_range(self, range);
-        let range = range.start..cmp::min(range.end, self.n_lits() - self.offset + 1);
+        let range = range.start..std::cmp::min(range.end, self.n_lits() - self.offset + 1);
         if range.is_empty() {
             return Ok(());
         }
@@ -630,10 +631,11 @@ impl super::cert::BoundBoth for Totalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
         W: std::io::Write,
     {
-        use super::cert::{BoundLowerIncremental, BoundUpperIncremental};
+        use super::cert::BoundLowerIncremental;
+        use super::cert::BoundUpperIncremental;
 
         self.encode_ub_change_cert(range.clone(), collector, var_manager, proof)?;
         self.encode_lb_change_cert(range, collector, var_manager, proof)?;
@@ -654,7 +656,8 @@ impl super::cert::BoundBoth for Totalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::{OperationLike, OperationSequence};
+        use pigeons::OperationLike;
+        use pigeons::OperationSequence;
 
         use crate::types::Var;
 
@@ -700,20 +703,18 @@ impl super::cert::BoundBothIncremental for Totalizer {}
 /// Totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "_internals")]
 pub mod referenced {
-    use std::cell::RefCell;
-
-    use crate::{
-        encodings::{
-            card::{
-                BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-                BoundUpperIncremental, Encode, EncodeIncremental,
-            },
-            nodedb::{NodeCon, NodeId, NodeLike},
-            totdb, CollectClauses, EnforceError, NotEncoded,
-        },
-        instances::ManageVars,
-        types::Lit,
-    };
+    use crate::encodings::card::BoundLowerIncremental;
+    use crate::encodings::card::BoundUpperIncremental;
+    use crate::encodings::card::Encode;
+    use crate::encodings::nodedb::NodeCon;
+    use crate::encodings::nodedb::NodeId;
+    use crate::encodings::nodedb::NodeLike;
+    use crate::encodings::totdb;
+    use crate::encodings::CollectClauses;
+    use crate::encodings::EnforceError;
+    use crate::encodings::NotEncoded;
+    use crate::instances::ManageVars;
+    use crate::types::Lit;
 
     /// Implementation of the binary adder tree totalizer encoding \[1\].
     /// The implementation is incremental as extended in \[2\].
@@ -733,7 +734,7 @@ pub mod referenced {
 
     /// Implementation of the binary adder tree totalizer encoding \[1\].
     /// The implementation is incremental as extended in \[2\].
-    /// This uses a [`RefCell`] to a totalizer database.
+    /// This uses a [`std::cell::RefCell`] to a totalizer database.
     ///
     /// # References
     ///
@@ -744,7 +745,7 @@ pub mod referenced {
         /// The root of the tree, if constructed
         root: NodeId,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut totdb::Db>,
+        db: &'totdb std::cell::RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> Tot<'totdb> {
@@ -762,7 +763,7 @@ pub mod referenced {
 
     impl<'totdb> TotCell<'totdb> {
         /// Constructs a new Totalizer encoding referencing a totalizer database
-        pub fn new(root: NodeId, db: &'totdb RefCell<&'totdb mut totdb::Db>) -> Self {
+        pub fn new(root: NodeId, db: &'totdb std::cell::RefCell<&'totdb mut totdb::Db>) -> Self {
             Self { root, db }
         }
 
@@ -773,25 +774,25 @@ pub mod referenced {
         }
     }
 
-    impl Encode for Tot<'_> {
+    impl crate::encodings::card::Encode for Tot<'_> {
         fn n_lits(&self) -> usize {
             self.db[self.root].len()
         }
     }
 
-    impl Encode for TotCell<'_> {
+    impl crate::encodings::card::Encode for TotCell<'_> {
         fn n_lits(&self) -> usize {
             self.db.borrow()[self.root].len()
         }
     }
 
-    impl EncodeIncremental for Tot<'_> {
+    impl crate::encodings::card::EncodeIncremental for Tot<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db.reserve_vars(NodeCon::full(self.root), var_manager);
         }
     }
 
-    impl EncodeIncremental for TotCell<'_> {
+    impl crate::encodings::card::EncodeIncremental for TotCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db
                 .borrow_mut()
@@ -799,7 +800,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpper for Tot<'_> {
+    impl crate::encodings::card::BoundUpper for Tot<'_> {
         fn encode_ub<Col, R>(
             &mut self,
             range: R,
@@ -840,7 +841,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpper for TotCell<'_> {
+    impl crate::encodings::card::BoundUpper for TotCell<'_> {
         fn encode_ub<Col, R>(
             &mut self,
             range: R,
@@ -881,7 +882,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundLower for Tot<'_> {
+    impl crate::encodings::card::BoundLower for Tot<'_> {
         fn encode_lb<Col, R>(
             &mut self,
             range: R,
@@ -922,7 +923,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundLower for TotCell<'_> {
+    impl crate::encodings::card::BoundLower for TotCell<'_> {
         fn encode_lb<Col, R>(
             &mut self,
             range: R,
@@ -963,7 +964,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpperIncremental for Tot<'_> {
+    impl crate::encodings::card::BoundUpperIncremental for Tot<'_> {
         fn encode_ub_change<Col, R>(
             &mut self,
             range: R,
@@ -991,7 +992,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpperIncremental for TotCell<'_> {
+    impl crate::encodings::card::BoundUpperIncremental for TotCell<'_> {
         fn encode_ub_change<Col, R>(
             &mut self,
             range: R,
@@ -1019,7 +1020,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundLowerIncremental for Tot<'_> {
+    impl crate::encodings::card::BoundLowerIncremental for Tot<'_> {
         fn encode_lb_change<Col, R>(
             &mut self,
             range: R,
@@ -1047,7 +1048,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundLowerIncremental for TotCell<'_> {
+    impl crate::encodings::card::BoundLowerIncremental for TotCell<'_> {
         fn encode_lb_change<Col, R>(
             &mut self,
             range: R,
@@ -1075,7 +1076,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundBoth for Tot<'_> {
+    impl crate::encodings::card::BoundBoth for Tot<'_> {
         fn encode_both<Col, R>(
             &mut self,
             range: R,
@@ -1092,7 +1093,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundBoth for TotCell<'_> {
+    impl crate::encodings::card::BoundBoth for TotCell<'_> {
         fn encode_both<Col, R>(
             &mut self,
             range: R,
@@ -1109,25 +1110,28 @@ pub mod referenced {
         }
     }
 
-    impl BoundBothIncremental for Tot<'_> {}
+    impl crate::encodings::card::BoundBothIncremental for Tot<'_> {}
 
-    impl BoundBothIncremental for TotCell<'_> {}
+    impl crate::encodings::card::BoundBothIncremental for TotCell<'_> {}
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::encodings::card::BoundLower;
+    use crate::encodings::card::BoundLowerIncremental;
+    use crate::encodings::card::BoundUpper;
+    use crate::encodings::card::BoundUpperIncremental;
+    use crate::encodings::card::EncodeIncremental;
+    use crate::encodings::EncodeStats;
+    use crate::encodings::EnforceError;
+    use crate::encodings::NotEncoded;
+    use crate::instances::BasicVarManager;
+    use crate::instances::Cnf;
+    use crate::instances::ManageVars;
+    use crate::lit;
+    use crate::var;
+
     use super::Totalizer;
-    use crate::{
-        encodings::{
-            card::{
-                BoundLower, BoundLowerIncremental, BoundUpper, BoundUpperIncremental,
-                EncodeIncremental,
-            },
-            EncodeStats, EnforceError, NotEncoded,
-        },
-        instances::{BasicVarManager, Cnf, ManageVars},
-        lit, var,
-    };
 
     #[test]
     fn functions() {
@@ -1229,31 +1233,32 @@ mod tests {
 
     #[cfg(feature = "proof-logging")]
     mod proofs {
-        use std::{
-            fs::File,
-            io::{BufRead, BufReader},
-            path::Path,
-            process::Command,
-        };
+        use std::io::BufRead;
 
-        use crate::{
-            encodings::card::cert::BoundBoth,
-            instances::{Cnf, SatInstance},
-            types::{constraints::CardConstraint, Var},
-        };
+        use crate::encodings::card::cert::BoundBoth;
+        use crate::instances::Cnf;
+        use crate::instances::SatInstance;
+        use crate::types::constraints::CardConstraint;
+        use crate::types::Var;
 
-        fn print_file<P: AsRef<Path>>(path: P) {
+        fn print_file<P: AsRef<std::path::Path>>(path: P) {
             println!();
-            for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+            for line in
+                std::io::BufReader::new(std::fs::File::open(path).expect("could not open file"))
+                    .lines()
+            {
                 println!("{}", line.unwrap());
             }
             println!();
         }
 
-        fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+        fn verify_proof<P1: AsRef<std::path::Path>, P2: AsRef<std::path::Path>>(
+            instance: P1,
+            proof: P2,
+        ) {
             if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
                 println!("start checking proof");
-                let out = Command::new(veripb)
+                let out = std::process::Command::new(veripb)
                     .arg(instance.as_ref())
                     .arg(proof.as_ref())
                     .output()

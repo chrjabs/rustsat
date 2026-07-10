@@ -4,14 +4,11 @@
 //! Note that these implementations do not form competitive MaxSAT solvers and are not optimized
 //! for maximum performance.
 
-use std::marker::PhantomData;
-
-use crate::{
-    encodings::{pb, Monotone},
-    instances::BasicVarManager,
-    solvers::{SolveIncremental, SolveStats, SolverResult},
-    types::{Assignment, Lit, TernaryVal},
-};
+use crate::solvers::SolveIncremental;
+use crate::solvers::SolveStats;
+use crate::solvers::SolverResult;
+use crate::types::Assignment;
+use crate::types::Lit;
 
 /// Trait for SAT-based MaxSAT solving algorithms
 pub trait Solve {
@@ -26,7 +23,7 @@ pub trait Solve {
 
 fn objective_value(obj: &[(Lit, usize)], sol: &Assignment) -> usize {
     obj.iter().fold(0, |sum, (l, w)| {
-        if sol.lit_value(*l) == TernaryVal::True {
+        if sol.lit_value(*l) == crate::types::TernaryVal::True {
             sum + w
         } else {
             sum
@@ -50,14 +47,16 @@ fn objective_value(obj: &[(Lit, usize)], sol: &Assignment) -> usize {
 /// - If the objective value overflows [`isize::MAX`]
 #[derive(Debug)]
 pub struct SolutionImprovingSearch<Solver, PbEnc> {
-    slv: PhantomData<Solver>,
-    enc: PhantomData<PbEnc>,
+    slv: std::marker::PhantomData<Solver>,
+    enc: std::marker::PhantomData<PbEnc>,
 }
 
 impl<Solver, PbEnc> Solve for SolutionImprovingSearch<Solver, PbEnc>
 where
     Solver: SolveIncremental + SolveStats,
-    PbEnc: FromIterator<(Lit, usize)> + pb::BoundUpperIncremental + Monotone,
+    PbEnc: FromIterator<(Lit, usize)>
+        + crate::encodings::pb::BoundUpperIncremental
+        + crate::encodings::Monotone,
 {
     type Solver = Solver;
 
@@ -65,7 +64,7 @@ where
         let Some(max_var) = solver.max_var() else {
             return Some((Assignment::default(), 0));
         };
-        let mut vm = BasicVarManager::from_next_free(max_var + 1);
+        let mut vm = crate::instances::BasicVarManager::from_next_free(max_var + 1);
         let mut enc: PbEnc = objective.iter().copied().collect();
 
         let mut sol = None;

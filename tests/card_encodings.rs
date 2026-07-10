@@ -1,18 +1,19 @@
-use rustsat::{
-    clause,
-    encodings::card::{
-        simulators::{Double, Inverted},
-        BoundBoth, BoundBothIncremental, BoundUpperIncremental, Totalizer,
-    },
-    instances::{BasicVarManager, ManageVars},
-    lit,
-    solvers::{
-        Solve, SolveIncremental,
-        SolverResult::{self, Sat, Unsat},
-    },
-    types::Lit,
-    var,
-};
+use rustsat::clause;
+use rustsat::encodings::card::simulators::Double;
+use rustsat::encodings::card::simulators::Inverted;
+use rustsat::encodings::card::BoundBoth;
+use rustsat::encodings::card::BoundBothIncremental;
+use rustsat::encodings::card::BoundUpperIncremental;
+use rustsat::encodings::card::Totalizer;
+use rustsat::instances::BasicVarManager;
+use rustsat::instances::ManageVars;
+use rustsat::lit;
+use rustsat::solvers::Solve;
+use rustsat::solvers::SolveIncremental;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Lit;
+use rustsat::var;
+use rustsat_tools::test_all;
 
 fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
     // Set up instance
@@ -274,8 +275,6 @@ fn double_invertet_tot() {
     test_inc_both_card::<Double<Inverted<Totalizer>, Inverted<Totalizer>>>()
 }
 
-use rustsat_tools::{test_all, test_assignment};
-
 fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let mut solver = rustsat_minisat::core::Minisat::default();
     let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
@@ -286,23 +285,24 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_ub(0).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Unsat,   // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Unsat,   // 0100
-        Unsat,   // 0011
-        Unsat,   // 0010
-        Unsat,   // 0001
-        Sat      // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Unsat, // 0010
+        SolverResult::Unsat, // 0001
+        SolverResult::Sat    // 0000
     );
 
     enc.encode_ub_change(1..2, &mut solver, &mut var_manager)
@@ -310,23 +310,24 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_ub(1).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Sat,     // 0100
-        Unsat,   // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 
     enc.encode_ub_change(2..3, &mut solver, &mut var_manager)
@@ -334,23 +335,24 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_ub(2).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Sat,     // 1100
-        Unsat,   // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Sat,   // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Sat,   // 1010
+        SolverResult::Sat,   // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Sat,   // 0110
+        SolverResult::Sat,   // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 
     enc.encode_ub_change(3..4, &mut solver, &mut var_manager)
@@ -358,23 +360,24 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_ub(3).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Sat,     // 1110
-        Sat,     // 1101
-        Sat,     // 1100
-        Sat,     // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Sat,     // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Sat,   // 1110
+        SolverResult::Sat,   // 1101
+        SolverResult::Sat,   // 1100
+        SolverResult::Sat,   // 1011
+        SolverResult::Sat,   // 1010
+        SolverResult::Sat,   // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Sat,   // 0111
+        SolverResult::Sat,   // 0110
+        SolverResult::Sat,   // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Sat    // 0000
     );
 
     enc.encode_ub_change(4..5, &mut solver, &mut var_manager)
@@ -382,23 +385,24 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_ub(4).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Sat,     // 1111
-        Sat,     // 1110
-        Sat,     // 1101
-        Sat,     // 1100
-        Sat,     // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Sat,     // 1000
-        Sat,     // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Sat,     // 0100
-        Sat,     // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Sat      // 0000
+        solver,
+        assumps,
+        SolverResult::Sat, // 1111
+        SolverResult::Sat, // 1110
+        SolverResult::Sat, // 1101
+        SolverResult::Sat, // 1100
+        SolverResult::Sat, // 1011
+        SolverResult::Sat, // 1010
+        SolverResult::Sat, // 1001
+        SolverResult::Sat, // 1000
+        SolverResult::Sat, // 0111
+        SolverResult::Sat, // 0110
+        SolverResult::Sat, // 0101
+        SolverResult::Sat, // 0100
+        SolverResult::Sat, // 0011
+        SolverResult::Sat, // 0010
+        SolverResult::Sat, // 0001
+        SolverResult::Sat  // 0000
     );
 }
 
@@ -413,23 +417,24 @@ fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_eq(0).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Unsat,   // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Unsat,   // 0100
-        Unsat,   // 0011
-        Unsat,   // 0010
-        Unsat,   // 0001
-        Sat      // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Unsat, // 0010
+        SolverResult::Unsat, // 0001
+        SolverResult::Sat    // 0000
     );
 
     enc.encode_both_change(1..2, &mut solver, &mut var_manager)
@@ -437,23 +442,24 @@ fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_eq(1).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Sat,     // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Sat,     // 0100
-        Unsat,   // 0011
-        Sat,     // 0010
-        Sat,     // 0001
-        Unsat    // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Sat,   // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Sat,   // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Sat,   // 0010
+        SolverResult::Sat,   // 0001
+        SolverResult::Unsat  // 0000
     );
 
     enc.encode_both_change(2..3, &mut solver, &mut var_manager)
@@ -461,23 +467,24 @@ fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_eq(2).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Sat,     // 1100
-        Unsat,   // 1011
-        Sat,     // 1010
-        Sat,     // 1001
-        Unsat,   // 1000
-        Unsat,   // 0111
-        Sat,     // 0110
-        Sat,     // 0101
-        Unsat,   // 0100
-        Sat,     // 0011
-        Unsat,   // 0010
-        Unsat,   // 0001
-        Unsat    // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Sat,   // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Sat,   // 1010
+        SolverResult::Sat,   // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Sat,   // 0110
+        SolverResult::Sat,   // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Sat,   // 0011
+        SolverResult::Unsat, // 0010
+        SolverResult::Unsat, // 0001
+        SolverResult::Unsat  // 0000
     );
 
     enc.encode_both_change(3..4, &mut solver, &mut var_manager)
@@ -485,23 +492,24 @@ fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_eq(3).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Unsat,   // 1111
-        Sat,     // 1110
-        Sat,     // 1101
-        Unsat,   // 1100
-        Sat,     // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Unsat,   // 1000
-        Sat,     // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Unsat,   // 0100
-        Unsat,   // 0011
-        Unsat,   // 0010
-        Unsat,   // 0001
-        Unsat    // 0000
+        solver,
+        assumps,
+        SolverResult::Unsat, // 1111
+        SolverResult::Sat,   // 1110
+        SolverResult::Sat,   // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Sat,   // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Sat,   // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Unsat, // 0010
+        SolverResult::Unsat, // 0001
+        SolverResult::Unsat  // 0000
     );
 
     enc.encode_both_change(4..5, &mut solver, &mut var_manager)
@@ -509,23 +517,24 @@ fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
     let assumps = enc.enforce_eq(4).unwrap();
 
     test_all!(
-        solver, assumps, //
-        Sat,     // 1111
-        Unsat,   // 1110
-        Unsat,   // 1101
-        Unsat,   // 1100
-        Unsat,   // 1011
-        Unsat,   // 1010
-        Unsat,   // 1001
-        Unsat,   // 1000
-        Unsat,   // 0111
-        Unsat,   // 0110
-        Unsat,   // 0101
-        Unsat,   // 0100
-        Unsat,   // 0011
-        Unsat,   // 0010
-        Unsat,   // 0001
-        Unsat    // 0000
+        solver,
+        assumps,
+        SolverResult::Sat,   // 1111
+        SolverResult::Unsat, // 1110
+        SolverResult::Unsat, // 1101
+        SolverResult::Unsat, // 1100
+        SolverResult::Unsat, // 1011
+        SolverResult::Unsat, // 1010
+        SolverResult::Unsat, // 1001
+        SolverResult::Unsat, // 1000
+        SolverResult::Unsat, // 0111
+        SolverResult::Unsat, // 0110
+        SolverResult::Unsat, // 0101
+        SolverResult::Unsat, // 0100
+        SolverResult::Unsat, // 0011
+        SolverResult::Unsat, // 0010
+        SolverResult::Unsat, // 0001
+        SolverResult::Unsat  // 0000
     );
 }
 
@@ -546,27 +555,22 @@ fn invtot_both_exhaustive() {
 
 #[cfg(feature = "proof-logging")]
 mod cert {
-    use std::{
-        fs::File,
-        io::{BufRead, BufReader},
-        path::Path,
-        process::Command,
-    };
+    use std::io::BufRead;
 
-    use rustsat::{
-        clause,
-        encodings::card::{cert::BoundBothIncremental, Totalizer},
-        instances::{BasicVarManager, Cnf, ManageVars},
-        lit,
-        solvers::{
-            Solve, SolveIncremental,
-            SolverResult::{self, Sat, Unsat},
-        },
-        types::{Lit, Var},
-        var,
-    };
-
-    use rustsat_tools::{test_all, test_assignment};
+    use rustsat::clause;
+    use rustsat::encodings::card::cert::BoundBothIncremental;
+    use rustsat::encodings::card::Totalizer;
+    use rustsat::instances::BasicVarManager;
+    use rustsat::instances::Cnf;
+    use rustsat::instances::ManageVars;
+    use rustsat::lit;
+    use rustsat::solvers::Solve;
+    use rustsat::solvers::SolveIncremental;
+    use rustsat::solvers::SolverResult;
+    use rustsat::types::Lit;
+    use rustsat::types::Var;
+    use rustsat::var;
+    use rustsat_tools::test_all;
 
     fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
         // Set up instance
@@ -680,23 +684,24 @@ mod cert {
         let assumps = enc.enforce_eq(0).unwrap();
 
         test_all!(
-            solver, assumps, //
-            Unsat,   // 1111
-            Unsat,   // 1110
-            Unsat,   // 1101
-            Unsat,   // 1100
-            Unsat,   // 1011
-            Unsat,   // 1010
-            Unsat,   // 1001
-            Unsat,   // 1000
-            Unsat,   // 0111
-            Unsat,   // 0110
-            Unsat,   // 0101
-            Unsat,   // 0100
-            Unsat,   // 0011
-            Unsat,   // 0010
-            Unsat,   // 0001
-            Sat      // 0000
+            solver,
+            assumps,
+            SolverResult::Unsat, // 1111
+            SolverResult::Unsat, // 1110
+            SolverResult::Unsat, // 1101
+            SolverResult::Unsat, // 1100
+            SolverResult::Unsat, // 1011
+            SolverResult::Unsat, // 1010
+            SolverResult::Unsat, // 1001
+            SolverResult::Unsat, // 1000
+            SolverResult::Unsat, // 0111
+            SolverResult::Unsat, // 0110
+            SolverResult::Unsat, // 0101
+            SolverResult::Unsat, // 0100
+            SolverResult::Unsat, // 0011
+            SolverResult::Unsat, // 0010
+            SolverResult::Unsat, // 0001
+            SolverResult::Sat    // 0000
         );
 
         enc.encode_both_change_cert(1..2, &mut cnf, &mut var_manager, &mut proof)
@@ -707,23 +712,24 @@ mod cert {
         let assumps = enc.enforce_eq(1).unwrap();
 
         test_all!(
-            solver, assumps, //
-            Unsat,   // 1111
-            Unsat,   // 1110
-            Unsat,   // 1101
-            Unsat,   // 1100
-            Unsat,   // 1011
-            Unsat,   // 1010
-            Unsat,   // 1001
-            Sat,     // 1000
-            Unsat,   // 0111
-            Unsat,   // 0110
-            Unsat,   // 0101
-            Sat,     // 0100
-            Unsat,   // 0011
-            Sat,     // 0010
-            Sat,     // 0001
-            Unsat    // 0000
+            solver,
+            assumps,
+            SolverResult::Unsat, // 1111
+            SolverResult::Unsat, // 1110
+            SolverResult::Unsat, // 1101
+            SolverResult::Unsat, // 1100
+            SolverResult::Unsat, // 1011
+            SolverResult::Unsat, // 1010
+            SolverResult::Unsat, // 1001
+            SolverResult::Sat,   // 1000
+            SolverResult::Unsat, // 0111
+            SolverResult::Unsat, // 0110
+            SolverResult::Unsat, // 0101
+            SolverResult::Sat,   // 0100
+            SolverResult::Unsat, // 0011
+            SolverResult::Sat,   // 0010
+            SolverResult::Sat,   // 0001
+            SolverResult::Unsat  // 0000
         );
 
         enc.encode_both_change_cert(2..3, &mut cnf, &mut var_manager, &mut proof)
@@ -734,23 +740,24 @@ mod cert {
         let assumps = enc.enforce_eq(2).unwrap();
 
         test_all!(
-            solver, assumps, //
-            Unsat,   // 1111
-            Unsat,   // 1110
-            Unsat,   // 1101
-            Sat,     // 1100
-            Unsat,   // 1011
-            Sat,     // 1010
-            Sat,     // 1001
-            Unsat,   // 1000
-            Unsat,   // 0111
-            Sat,     // 0110
-            Sat,     // 0101
-            Unsat,   // 0100
-            Sat,     // 0011
-            Unsat,   // 0010
-            Unsat,   // 0001
-            Unsat    // 0000
+            solver,
+            assumps,
+            SolverResult::Unsat, // 1111
+            SolverResult::Unsat, // 1110
+            SolverResult::Unsat, // 1101
+            SolverResult::Sat,   // 1100
+            SolverResult::Unsat, // 1011
+            SolverResult::Sat,   // 1010
+            SolverResult::Sat,   // 1001
+            SolverResult::Unsat, // 1000
+            SolverResult::Unsat, // 0111
+            SolverResult::Sat,   // 0110
+            SolverResult::Sat,   // 0101
+            SolverResult::Unsat, // 0100
+            SolverResult::Sat,   // 0011
+            SolverResult::Unsat, // 0010
+            SolverResult::Unsat, // 0001
+            SolverResult::Unsat  // 0000
         );
 
         enc.encode_both_change_cert(3..4, &mut cnf, &mut var_manager, &mut proof)
@@ -761,23 +768,24 @@ mod cert {
         let assumps = enc.enforce_eq(3).unwrap();
 
         test_all!(
-            solver, assumps, //
-            Unsat,   // 1111
-            Sat,     // 1110
-            Sat,     // 1101
-            Unsat,   // 1100
-            Sat,     // 1011
-            Unsat,   // 1010
-            Unsat,   // 1001
-            Unsat,   // 1000
-            Sat,     // 0111
-            Unsat,   // 0110
-            Unsat,   // 0101
-            Unsat,   // 0100
-            Unsat,   // 0011
-            Unsat,   // 0010
-            Unsat,   // 0001
-            Unsat    // 0000
+            solver,
+            assumps,
+            SolverResult::Unsat, // 1111
+            SolverResult::Sat,   // 1110
+            SolverResult::Sat,   // 1101
+            SolverResult::Unsat, // 1100
+            SolverResult::Sat,   // 1011
+            SolverResult::Unsat, // 1010
+            SolverResult::Unsat, // 1001
+            SolverResult::Unsat, // 1000
+            SolverResult::Sat,   // 0111
+            SolverResult::Unsat, // 0110
+            SolverResult::Unsat, // 0101
+            SolverResult::Unsat, // 0100
+            SolverResult::Unsat, // 0011
+            SolverResult::Unsat, // 0010
+            SolverResult::Unsat, // 0001
+            SolverResult::Unsat  // 0000
         );
 
         enc.encode_both_change_cert(4..5, &mut cnf, &mut var_manager, &mut proof)
@@ -788,38 +796,44 @@ mod cert {
         let assumps = enc.enforce_eq(4).unwrap();
 
         test_all!(
-            solver, assumps, //
-            Sat,     // 1111
-            Unsat,   // 1110
-            Unsat,   // 1101
-            Unsat,   // 1100
-            Unsat,   // 1011
-            Unsat,   // 1010
-            Unsat,   // 1001
-            Unsat,   // 1000
-            Unsat,   // 0111
-            Unsat,   // 0110
-            Unsat,   // 0101
-            Unsat,   // 0100
-            Unsat,   // 0011
-            Unsat,   // 0010
-            Unsat,   // 0001
-            Unsat    // 0000
+            solver,
+            assumps,
+            SolverResult::Sat,   // 1111
+            SolverResult::Unsat, // 1110
+            SolverResult::Unsat, // 1101
+            SolverResult::Unsat, // 1100
+            SolverResult::Unsat, // 1011
+            SolverResult::Unsat, // 1010
+            SolverResult::Unsat, // 1001
+            SolverResult::Unsat, // 1000
+            SolverResult::Unsat, // 0111
+            SolverResult::Unsat, // 0110
+            SolverResult::Unsat, // 0101
+            SolverResult::Unsat, // 0100
+            SolverResult::Unsat, // 0011
+            SolverResult::Unsat, // 0010
+            SolverResult::Unsat, // 0001
+            SolverResult::Unsat  // 0000
         );
     }
 
-    fn print_file<P: AsRef<Path>>(path: P) {
+    fn print_file<P: AsRef<std::path::Path>>(path: P) {
         println!();
-        for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+        for line in
+            std::io::BufReader::new(std::fs::File::open(path).expect("could not open file")).lines()
+        {
             println!("{}", line.unwrap());
         }
         println!();
     }
 
-    fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+    fn verify_proof<P1: AsRef<std::path::Path>, P2: AsRef<std::path::Path>>(
+        instance: P1,
+        proof: P2,
+    ) {
         if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
             println!("start checking proof");
-            let out = Command::new(veripb)
+            let out = std::process::Command::new(veripb)
                 .arg(instance.as_ref())
                 .arg(proof.as_ref())
                 .output()

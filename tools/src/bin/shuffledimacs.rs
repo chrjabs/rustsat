@@ -5,10 +5,10 @@
 //!
 //! Usage: `shuffledimacs [dimacs [m,w]cnf file] [output path]`
 
-use std::path::{Path, PathBuf};
-
 use anyhow::Context;
-use rustsat::instances::{self, BasicVarManager, RandReindVarManager};
+use rustsat::instances;
+use rustsat::instances::BasicVarManager;
+use rustsat::instances::RandReindVarManager;
 
 macro_rules! print_usage {
     () => {{
@@ -24,8 +24,10 @@ enum FileType {
 }
 
 fn main() -> anyhow::Result<()> {
-    let in_path = PathBuf::from(&std::env::args().nth(1).unwrap_or_else(|| print_usage!()));
-    let out_path = PathBuf::from(&std::env::args().nth(2).unwrap_or_else(|| print_usage!()));
+    let in_path =
+        std::path::PathBuf::from(&std::env::args().nth(1).unwrap_or_else(|| print_usage!()));
+    let out_path =
+        std::path::PathBuf::from(&std::env::args().nth(2).unwrap_or_else(|| print_usage!()));
 
     match determine_file_type(&in_path) {
         FileType::Cnf => {
@@ -68,7 +70,7 @@ macro_rules! is_one_of {
     }
 }
 
-fn determine_file_type(in_path: &Path) -> FileType {
+fn determine_file_type(in_path: &std::path::Path) -> FileType {
     if let Some(ext) = in_path.extension() {
         let path_without_compr = in_path.with_extension("");
         let ext = if is_one_of!(ext, "gz", "bz2") {

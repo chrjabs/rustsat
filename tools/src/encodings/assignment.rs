@@ -3,8 +3,6 @@
 //! - Data types
 //! - Input parser
 
-use std::io;
-
 /// An instance of the multi-objective assignment problem
 #[derive(Clone, PartialEq, Eq)]
 pub struct Assignment {
@@ -22,7 +20,7 @@ impl Assignment {
         }
     }
 
-    pub fn from_file(reader: impl io::BufRead) -> anyhow::Result<Self> {
+    pub fn from_file(reader: impl std::io::BufRead) -> anyhow::Result<Self> {
         parsing::parse_moolib(reader)
     }
 
@@ -44,18 +42,17 @@ impl Assignment {
 }
 
 mod parsing {
-    use std::io;
-
     use anyhow::Context;
     use rustsat::instances::fio::ParsingError;
-    use winnow::{
-        ascii::dec_uint,
-        error::{ContextError, StrContext, StrContextValue},
-        token::rest,
-        Parser,
-    };
+    use winnow::ascii::dec_uint;
+    use winnow::error::ContextError;
+    use winnow::error::StrContext;
+    use winnow::error::StrContextValue;
+    use winnow::token::rest;
+    use winnow::Parser;
 
-    use crate::parsing::{single_value, ListCallbackParser};
+    use crate::parsing::single_value;
+    use crate::parsing::ListCallbackParser;
 
     macro_rules! next_non_comment_line {
         ($reader:expr, $lineno:expr) => {
@@ -73,7 +70,7 @@ mod parsing {
         };
     }
 
-    pub fn parse_moolib(mut reader: impl io::BufRead) -> anyhow::Result<super::Assignment> {
+    pub fn parse_moolib(mut reader: impl std::io::BufRead) -> anyhow::Result<super::Assignment> {
         let mut line_num = 0;
         let line = next_non_comment_line!(reader, line_num)
             .context("file ended before number of objectives line")?;
@@ -174,13 +171,11 @@ mod parsing {
 
     #[cfg(test)]
     mod tests {
-        use std::{fs::File, io::BufReader};
-
         #[test]
         fn moolib() {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-            let reader = BufReader::new(
-                File::open(format!("{manifest}/data/AP_p-3_n-5_ins-1.dat")).unwrap(),
+            let reader = std::io::BufReader::new(
+                std::fs::File::open(format!("{manifest}/data/AP_p-3_n-5_ins-1.dat")).unwrap(),
             );
             super::parse_moolib(reader).unwrap();
         }

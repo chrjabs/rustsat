@@ -3,58 +3,50 @@
 //! A simple CLI wrapper around the CaDiCaL solver Rust interface. This is just an example, if you
 //! want to use CaDiCaL from the CLI, compile the binary from the C source directly.
 
-use std::{
-    io,
-    path::{Path, PathBuf},
-    thread,
-};
-
 use anyhow::Context;
-use clap::Parser;
-use rustsat::{
-    instances::{fio::opb, ManageVars, SatInstance},
-    solvers::{Interrupt, InterruptSolver, Solve, SolveStats, SolverResult},
-};
-use rustsat_kissat::Kissat;
+use rustsat::instances::SatInstance;
 
 enum FileType {
     Cnf,
     Opb,
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The DIMACS CNF input file. Reads from `stdin` if not given.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// Parse the input as an OPB file by default
     #[arg(short, long)]
     opb: bool,
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    let args = <Args as clap::Parser>::parse();
 
     let inst: SatInstance = if let Some(in_path) = args.in_path {
         match determine_file_type(&in_path, args.opb) {
             FileType::Cnf => SatInstance::from_dimacs_path(in_path)
                 .context("error parsing the input file as CNF")?,
-            FileType::Opb => SatInstance::from_opb_path(in_path, opb::Options::default())
-                .context("error parsing the input file as OPB")?,
+            FileType::Opb => SatInstance::from_opb_path(
+                in_path,
+                rustsat::instances::fio::opb::Options::default(),
+            )
+            .context("error parsing the input file as OPB")?,
         }
     } else if args.opb {
         SatInstance::from_opb(
-            &mut io::BufReader::new(io::stdin()),
-            opb::Options::default(),
+            &mut std::io::BufReader::new(std::io::stdin()),
+            rustsat::instances::fio::opb::Options::default(),
         )
         .context("error parsing input as OPB")?
     } else {
-        SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+        SatInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))
             .context("error parsing input as CNF")?
     };
 
     rustsat_kissat::call_instead_of_abort(Some(kissat_abort));
-    solve::<Kissat>(inst)
+    solve::<rustsat_kissat::Kissat>(inst)
 }
 
 extern "C" fn kissat_abort() {
@@ -62,7 +54,13 @@ extern "C" fn kissat_abort() {
     panic!("kissat called abort");
 }
 
-fn solve<S: Solve + SolveStats + Interrupt + Default>(inst: SatInstance) -> anyhow::Result<()> {
+fn solve<S>(inst: SatInstance) -> anyhow::Result<()>
+where
+    S: rustsat::solvers::Solve
+        + rustsat::solvers::SolveStats
+        + rustsat::solvers::Interrupt
+        + Default,
+{
     let mut solver = S::default();
 
     #[cfg(not(target_family = "windows"))]
@@ -76,15 +74,15 @@ fn solve<S: Solve + SolveStats + Interrupt + Default>(inst: SatInstance) -> anyh
             signal_hook::consts::SIGABRT,
         ])?;
         // Thread for catching incoming signals
-        thread::spawn(move || {
+        std::thread::spawn(move || {
             for _ in signals.forever() {
-                interrupter.interrupt();
+                rustsat::solvers::InterruptSolver::interrupt(&interrupter);
             }
         });
     }
 
     let (cnf, vm) = inst.into_cnf();
-    if let Some(max_var) = vm.max_var() {
+    if let Some(max_var) = rustsat::instances::ManageVars::max_var(&vm) {
         solver.reserve(max_var)?;
     }
     solver.add_cnf(cnf)?;
@@ -94,12 +92,12 @@ fn solve<S: Solve + SolveStats + Interrupt + Default>(inst: SatInstance) -> anyh
             return Err(err);
         }
         Ok(res) => match res {
-            SolverResult::Sat => {
+            rustsat::solvers::SolverResult::Sat => {
                 println!("s SATISFIABLE");
                 println!("v {}", solver.full_solution()?);
             }
-            SolverResult::Unsat => println!("s UNSATISFIABLE"),
-            SolverResult::Interrupted => println!("s UNKNOWN"),
+            rustsat::solvers::SolverResult::Unsat => println!("s UNSATISFIABLE"),
+            rustsat::solvers::SolverResult::Interrupted => println!("s UNKNOWN"),
         },
     };
     Ok(())
@@ -111,7 +109,7 @@ macro_rules! is_one_of {
     }
 }
 
-fn determine_file_type(in_path: &Path, opb_default: bool) -> FileType {
+fn determine_file_type(in_path: &std::path::Path, opb_default: bool) -> FileType {
     if let Some(ext) = in_path.extension() {
         let path_without_compr = in_path.with_extension("");
         let ext = if is_one_of!(ext, "gz", "bz2") {

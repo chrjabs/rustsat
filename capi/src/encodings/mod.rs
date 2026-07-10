@@ -1,12 +1,12 @@
 //! # C-API For Encodings
 
-use std::ffi::{c_int, c_void};
+use core::ffi::c_int;
+use core::ffi::c_void;
 
-use rustsat::{
-    encodings::{self, CollectClauses},
-    instances::ManageVars,
-    types::{Clause, Var},
-};
+use rustsat::encodings::CollectClauses;
+use rustsat::instances::ManageVars;
+use rustsat::types::Clause;
+use rustsat::types::Var;
 
 #[repr(C)]
 pub enum MaybeError {
@@ -26,28 +26,30 @@ pub enum MaybeError {
     PrecisionDecreased,
 }
 
-impl From<encodings::NotEncoded> for MaybeError {
-    fn from(_: encodings::NotEncoded) -> Self {
+impl From<rustsat::encodings::NotEncoded> for MaybeError {
+    fn from(_: rustsat::encodings::NotEncoded) -> Self {
         MaybeError::NotEncoded
     }
 }
 
-impl From<encodings::EnforceError> for MaybeError {
-    fn from(value: encodings::EnforceError) -> Self {
+impl From<rustsat::encodings::EnforceError> for MaybeError {
+    fn from(value: rustsat::encodings::EnforceError) -> Self {
         match value {
-            encodings::EnforceError::NotEncoded => MaybeError::NotEncoded,
-            encodings::EnforceError::Unsat => MaybeError::Unsat,
+            rustsat::encodings::EnforceError::NotEncoded => MaybeError::NotEncoded,
+            rustsat::encodings::EnforceError::Unsat => MaybeError::Unsat,
         }
     }
 }
 
-impl From<Result<(), encodings::pb::dpw::PrecisionError>> for MaybeError {
-    fn from(value: Result<(), encodings::pb::dpw::PrecisionError>) -> Self {
+impl From<Result<(), rustsat::encodings::pb::dpw::PrecisionError>> for MaybeError {
+    fn from(value: Result<(), rustsat::encodings::pb::dpw::PrecisionError>) -> Self {
         match value {
             Ok(()) => MaybeError::Ok,
             Err(err) => match err {
-                encodings::pb::dpw::PrecisionError::NotPow2 => MaybeError::PrecisionNotPow2,
-                encodings::pb::dpw::PrecisionError::PrecisionDecreased => {
+                rustsat::encodings::pb::dpw::PrecisionError::NotPow2 => {
+                    MaybeError::PrecisionNotPow2
+                }
+                rustsat::encodings::pb::dpw::PrecisionError::PrecisionDecreased => {
                     MaybeError::PrecisionDecreased
                 }
             },

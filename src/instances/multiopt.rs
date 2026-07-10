@@ -1,17 +1,20 @@
 //! # Multi-Objective Optimization Instance Representations
 
-use std::{collections::BTreeSet, io, path::Path};
+use crate::types::Assignment;
+use crate::types::Lit;
+use crate::types::TernaryVal;
+use crate::types::Var;
+use crate::RequiresSoftLits;
 
-use crate::{
-    types::{Assignment, Lit, TernaryVal, Var, WClsIter, WLitIter},
-    RequiresSoftLits,
-};
-
-use super::{
-    fio::{self, dimacs::McnfLine},
-    BasicVarManager, Cnf, ManageVars, Objective, ReindexVars, SatInstance, WriteDimacsError,
-    WriteOpbError,
-};
+use super::fio;
+use super::BasicVarManager;
+use super::Cnf;
+use super::ManageVars;
+use super::Objective;
+use super::ReindexVars;
+use super::SatInstance;
+use super::WriteDimacsError;
+use super::WriteOpbError;
 
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.
@@ -133,7 +136,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Panic
     ///
     /// This might panic if the conversion to [`Cnf`] runs out of memory.
-    pub fn into_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl WClsIter, isize)>, VM) {
+    pub fn into_hard_cls_soft_cls(self) -> (Cnf, Vec<(impl crate::types::WClsIter, isize)>, VM) {
         let (cnf, mut vm) = self.constrs.into_cnf();
         let omv = self.objs.iter().fold(Var::new(0), |v, o| {
             if let Some(mv) = o.max_var() {
@@ -155,7 +158,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Panic
     ///
     /// This might panic if the conversion to [`Cnf`] runs out of memory.
-    pub fn into_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl WLitIter, isize)>, VM) {
+    pub fn into_hard_cls_soft_lits(self) -> (Cnf, Vec<(impl crate::types::WLitIter, isize)>, VM) {
         let (mut cnf, mut vm) = self.constrs.into_cnf();
         let omv = self.objs.iter().fold(Var::new(0), |v, o| {
             if let Some(mv) = o.max_var() {
@@ -203,7 +206,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
         MultiOptInstance { constrs, objs }
     }
 
-    fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+    fn extend_var_set(&self, varset: &mut std::collections::BTreeSet<Var>) {
         self.constrs.extend_var_set(varset);
         for o in &self.objs {
             o.var_set(varset);
@@ -211,8 +214,8 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     }
 
     /// Gets the set of variables in the instance
-    pub fn var_set(&self) -> BTreeSet<Var> {
-        let mut varset = BTreeSet::new();
+    pub fn var_set(&self) -> std::collections::BTreeSet<Var> {
+        let mut varset = std::collections::BTreeSet::new();
         self.extend_var_set(&mut varset);
         varset
     }
@@ -223,7 +226,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// the variable _order_ being preserved with gaps in the variable space being closed
     #[must_use]
     pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> MultiOptInstance<R> {
-        let mut varset = BTreeSet::new();
+        let mut varset = std::collections::BTreeSet::new();
         self.extend_var_set(&mut varset);
         // reindex variables in order to ensure ordered re-indexing
         for var in varset {
@@ -250,7 +253,10 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteDimacsError> {
+    pub fn write_dimacs_path<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<(), WriteDimacsError> {
         let mut writer = fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer)
     }
@@ -268,7 +274,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs<W: io::Write>(&self, writer: W) -> Result<(), WriteDimacsError> {
+    pub fn write_dimacs<W: std::io::Write>(&self, writer: W) -> Result<(), WriteDimacsError> {
         if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
             return Err(WriteDimacsError::RequiresClausal);
         }
@@ -293,7 +299,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// If the objective contains soft clauses or writing fails
-    pub fn write_opb_path<P: AsRef<Path>>(
+    pub fn write_opb_path<P: AsRef<std::path::Path>>(
         &self,
         path: P,
         opts: fio::opb::Options,
@@ -314,7 +320,7 @@ impl<VM: ManageVars> MultiOptInstance<VM> {
     /// # Errors
     ///
     /// If the objective contains soft clauses or writing fails
-    pub fn write_opb<W: io::Write>(
+    pub fn write_opb<W: std::io::Write>(
         &self,
         writer: W,
         opts: fio::opb::Options,
@@ -386,8 +392,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs<R: io::BufRead>(reader: R) -> Result<Self, fio::Error> {
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: std::io::BufRead>(reader: R) -> Result<Self, fio::Error> {
         let mut constrs = SatInstance::<VM>::default();
         let mut objs = vec![];
         for data in fio::dimacs::Parser::<fio::dimacs::Mcnf, _>::new(reader) {
@@ -414,8 +420,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self, fio::Error> {
         let mut reader = fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(&mut reader)
     }
@@ -431,8 +437,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb<R: io::BufRead>(
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_opb<R: std::io::BufRead>(
         reader: R,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::Error> {
@@ -445,8 +451,8 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb_path<P: AsRef<Path>>(
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_opb_path<P: AsRef<std::path::Path>>(
         path: P,
         opts: fio::opb::Options,
     ) -> Result<Self, fio::Error> {
@@ -455,14 +461,14 @@ impl<VM: ManageVars + Default> MultiOptInstance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<McnfLine> for MultiOptInstance<VM> {
-    fn from_iter<T: IntoIterator<Item = McnfLine>>(iter: T) -> Self {
+impl<VM: ManageVars + Default> FromIterator<fio::dimacs::McnfLine> for MultiOptInstance<VM> {
+    fn from_iter<T: IntoIterator<Item = fio::dimacs::McnfLine>>(iter: T) -> Self {
         let mut inst = Self::default();
         for line in iter {
             match line {
-                McnfLine::Comment(_) => (),
-                McnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
-                McnfLine::Soft(cl, w, oidx) => {
+                fio::dimacs::McnfLine::Comment(_) => (),
+                fio::dimacs::McnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
+                fio::dimacs::McnfLine::Soft(cl, w, oidx) => {
                     if oidx >= inst.objs.len() {
                         inst.objs.resize(oidx + 1, Objective::default());
                     }

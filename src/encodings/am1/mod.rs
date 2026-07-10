@@ -6,11 +6,13 @@
 //! ## Example Usage
 //!
 //! ```
-//! # use rustsat::{
-//! #     encodings::am1::{Def, Encode},
-//! #     instances::{BasicVarManager, Cnf, ManageVars},
-//! #     lit, var,
-//! # };
+//! # use rustsat::encodings::am1::Def;
+//! # use rustsat::encodings::am1::Encode;
+//! # use rustsat::instances::BasicVarManager;
+//! # use rustsat::instances::Cnf;
+//! # use rustsat::instances::ManageVars;
+//! # use rustsat::lit;
+//! # use rustsat::var;
 //! #
 //! let mut var_manager = BasicVarManager::default();
 //! var_manager.increase_next_free(var![3]);
@@ -19,9 +21,6 @@
 //! let mut encoding = Cnf::new();
 //! enc.encode(&mut encoding, &mut var_manager).unwrap();
 //! ```
-
-use super::CollectClauses;
-use crate::instances::ManageVars;
 
 mod pairwise;
 pub use pairwise::Pairwise;
@@ -53,10 +52,10 @@ pub trait Encode {
     fn encode<Col>(
         &mut self,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
-        Col: CollectClauses;
+        Col: super::CollectClauses;
 }
 
 /// The default at-most-1 encoding. For now this is a [`Pairwise`] encoding.

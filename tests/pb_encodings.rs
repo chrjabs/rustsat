@@ -1,22 +1,25 @@
-use rustsat::{
-    clause,
-    encodings::{
-        card::Totalizer,
-        pb::{
-            simulators::Card, BinaryAdder, BoundBothIncremental, BoundLower, BoundUpper,
-            BoundUpperIncremental, DoubleGeneralizedTotalizer, DynamicPolyWatchdog,
-            GeneralizedTotalizer, InvertedGeneralizedTotalizer,
-        },
-    },
-    instances::{BasicVarManager, ManageVars},
-    lit,
-    solvers::{
-        Solve, SolveIncremental,
-        SolverResult::{self, Sat, Unsat},
-    },
-    types::{Lit, RsHashMap},
-    var,
-};
+use rustsat::clause;
+use rustsat::encodings::card::Totalizer;
+use rustsat::encodings::pb::simulators::Card;
+use rustsat::encodings::pb::BinaryAdder;
+use rustsat::encodings::pb::BoundBothIncremental;
+use rustsat::encodings::pb::BoundLower;
+use rustsat::encodings::pb::BoundUpper;
+use rustsat::encodings::pb::BoundUpperIncremental;
+use rustsat::encodings::pb::DoubleGeneralizedTotalizer;
+use rustsat::encodings::pb::DynamicPolyWatchdog;
+use rustsat::encodings::pb::GeneralizedTotalizer;
+use rustsat::encodings::pb::InvertedGeneralizedTotalizer;
+use rustsat::instances::BasicVarManager;
+use rustsat::instances::ManageVars;
+use rustsat::lit;
+use rustsat::solvers::Solve;
+use rustsat::solvers::SolveIncremental;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Lit;
+use rustsat::types::RsHashMap;
+use rustsat::var;
+use rustsat_tools::test_all;
 
 fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>() {
     // Set up instance
@@ -291,8 +294,6 @@ fn adder_min_enc() {
     test_pb_ub_min_enc::<BinaryAdder>()
 }
 
-use rustsat_tools::{test_all, test_assignment};
-
 fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
     weights: [usize; 4],
     decreasing: bool,
@@ -311,9 +312,9 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
     let expected = |assign: usize, bound: usize| {
         let sum = (0..4).fold(0, |sum, idx| sum + ((assign >> idx) & 1) * weights[3 - idx]);
         if sum <= bound {
-            Sat
+            SolverResult::Sat
         } else {
-            Unsat
+            SolverResult::Unsat
         }
     };
 
@@ -329,7 +330,7 @@ fn test_ub_exhaustive<PBE: BoundUpperIncremental + From<RsHashMap<Lit, usize>>>(
 
         test_all!(
             solver,
-            assumps, //
+            assumps,
             expected(0b1111, bound),
             expected(0b1110, bound),
             expected(0b1101, bound),
@@ -438,18 +439,20 @@ generate_exhaustive!(
 generate_exhaustive!(adder, BinaryAdder);
 
 mod dpw_inc_prec {
-    use rustsat::{
-        encodings::pb::{dpw::DynamicPolyWatchdog, BoundUpper, BoundUpperIncremental},
-        instances::{BasicVarManager, Cnf, ManageVars, OptInstance},
-        lit,
-        solvers::{
-            Solve, SolveIncremental,
-            SolverResult::{self, Sat, Unsat},
-        },
-        types::RsHashMap,
-        var,
-    };
-    use rustsat_tools::{test_all, test_assignment};
+    use rustsat::encodings::pb::dpw::DynamicPolyWatchdog;
+    use rustsat::encodings::pb::BoundUpper;
+    use rustsat::encodings::pb::BoundUpperIncremental;
+    use rustsat::instances::BasicVarManager;
+    use rustsat::instances::Cnf;
+    use rustsat::instances::ManageVars;
+    use rustsat::instances::OptInstance;
+    use rustsat::lit;
+    use rustsat::solvers::Solve;
+    use rustsat::solvers::SolveIncremental;
+    use rustsat::solvers::SolverResult;
+    use rustsat::types::RsHashMap;
+    use rustsat::var;
+    use rustsat_tools::test_all;
 
     #[test]
     fn incremental_precision() {
@@ -477,9 +480,9 @@ mod dpw_inc_prec {
                         sum + ((assign >> idx) & 1) * (weights[3 - idx] / prec_div)
                     });
                     if sum <= bound {
-                        Sat
+                        SolverResult::Sat
                     } else {
-                        Unsat
+                        SolverResult::Unsat
                     }
                 };
 
@@ -497,7 +500,7 @@ mod dpw_inc_prec {
 
                     test_all!(
                         solver,
-                        assumps, //
+                        assumps,
                         expected(0b1111, bound),
                         expected(0b1110, bound),
                         expected(0b1101, bound),
@@ -660,27 +663,23 @@ fn dpw_fuzzing_bug() {
 
 #[cfg(feature = "proof-logging")]
 mod cert {
-    use std::{
-        fs::File,
-        io::{BufRead, BufReader},
-        path::Path,
-        process::Command,
-    };
+    use std::io::BufRead;
 
-    use rustsat::{
-        clause,
-        encodings::pb::{cert::BoundUpperIncremental, GeneralizedTotalizer},
-        instances::{BasicVarManager, Cnf, ManageVars},
-        lit,
-        solvers::{
-            Solve, SolveIncremental,
-            SolverResult::{self, Sat, Unsat},
-        },
-        types::{Lit, RsHashMap, Var},
-        var,
-    };
-
-    use rustsat_tools::{test_all, test_assignment};
+    use rustsat::clause;
+    use rustsat::encodings::pb::cert::BoundUpperIncremental;
+    use rustsat::encodings::pb::GeneralizedTotalizer;
+    use rustsat::instances::BasicVarManager;
+    use rustsat::instances::Cnf;
+    use rustsat::instances::ManageVars;
+    use rustsat::lit;
+    use rustsat::solvers::Solve;
+    use rustsat::solvers::SolveIncremental;
+    use rustsat::solvers::SolverResult;
+    use rustsat::types::Lit;
+    use rustsat::types::RsHashMap;
+    use rustsat::types::Var;
+    use rustsat::var;
+    use rustsat_tools::test_all;
 
     fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>() {
         // Set up instance
@@ -819,9 +818,9 @@ mod cert {
         let expected = |assign: usize, bound: usize| {
             let sum = (0..4).fold(0, |sum, idx| sum + ((assign >> idx) & 1) * weights[3 - idx]);
             if sum <= bound {
-                Sat
+                SolverResult::Sat
             } else {
-                Unsat
+                SolverResult::Unsat
             }
         };
 
@@ -840,7 +839,7 @@ mod cert {
 
             test_all!(
                 solver,
-                assumps, //
+                assumps,
                 expected(0b1111, bound),
                 expected(0b1110, bound),
                 expected(0b1101, bound),
@@ -867,18 +866,23 @@ mod cert {
         verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
     }
 
-    fn print_file<P: AsRef<Path>>(path: P) {
+    fn print_file<P: AsRef<std::path::Path>>(path: P) {
         println!();
-        for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+        for line in
+            std::io::BufReader::new(std::fs::File::open(path).expect("could not open file")).lines()
+        {
             println!("{}", line.unwrap());
         }
         println!();
     }
 
-    fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+    fn verify_proof<P1: AsRef<std::path::Path>, P2: AsRef<std::path::Path>>(
+        instance: P1,
+        proof: P2,
+    ) {
         if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
             println!("start checking proof");
-            let out = Command::new(veripb)
+            let out = std::process::Command::new(veripb)
                 .arg(instance.as_ref())
                 .arg(proof.as_ref())
                 .output()

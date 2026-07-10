@@ -4,25 +4,24 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 
-use core::ffi::{c_int, c_void};
+use core::ffi::c_int;
+use core::ffi::c_void;
 
-use rustsat::{solvers::ControlSignal, types::Lit, utils::from_raw_parts_maybe_null};
-
-use super::{LearnCallbackPtr, TermCallbackPtr};
+use rustsat::types::Lit;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 // Raw callbacks forwarding to user callbacks
 pub unsafe extern "C" fn rustsat_ccadical_terminate_cb(ptr: *mut c_void) -> c_int {
-    let cb = &mut *ptr.cast::<TermCallbackPtr<'_>>();
+    let cb = &mut *ptr.cast::<crate::TermCallbackPtr<'_>>();
     match cb() {
-        ControlSignal::Continue => 0,
-        ControlSignal::Terminate => 1,
+        rustsat::solvers::ControlSignal::Continue => 0,
+        rustsat::solvers::ControlSignal::Terminate => 1,
     }
 }
 
 pub unsafe extern "C" fn rustsat_ccadical_learn_cb(ptr: *mut c_void, clause: *mut c_int) {
-    let cb = &mut *ptr.cast::<LearnCallbackPtr<'_>>();
+    let cb = &mut *ptr.cast::<crate::LearnCallbackPtr<'_>>();
 
     let mut cnt: usize = 0;
     while *clause.offset(isize::try_from(cnt).expect("learned clauses is longer than `isize::MAX`"))
@@ -30,7 +29,7 @@ pub unsafe extern "C" fn rustsat_ccadical_learn_cb(ptr: *mut c_void, clause: *mu
     {
         cnt += 1;
     }
-    let int_slice = from_raw_parts_maybe_null(clause, cnt);
+    let int_slice = rustsat::utils::from_raw_parts_maybe_null(clause, cnt);
     let clause = int_slice
         .iter()
         .map(|il| Lit::from_ipasir(*il).expect("Invalid literal in learned clause from CaDiCaL"))
@@ -46,13 +45,13 @@ pub unsafe extern "C" fn rustsat_cadical_collect_lits(vec: *mut c_void, lit: c_i
 
 #[cfg(cadical_version = "v2.0")]
 pub mod prooftracer {
-    use std::os::raw::{c_int, c_void};
+    use core::ffi::c_int;
+    use core::ffi::c_void;
 
-    use rustsat::{types::Lit, utils::from_raw_parts_maybe_null};
+    use rustsat::types::Lit;
 
-    use crate::CaDiCaLAssignment;
-
-    use super::super::{CaDiCaLClause, ClauseId, Conclusion, TraceProof};
+    use crate::ClauseId;
+    use crate::TraceProof;
 
     pub const DISPATCH_CALLBACKS: super::CCaDiCaLTraceCallbacks = super::CCaDiCaLTraceCallbacks {
         add_original_clause: Some(rustsat_ccadical_add_original_clause),
@@ -83,7 +82,7 @@ pub mod prooftracer {
         restored: bool,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
         tracer.add_original_clause(ClauseId(id), redundant, &clause, restored);
     }
 
@@ -97,8 +96,10 @@ pub mod prooftracer {
         an_data: *const i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
-        let antecedents = unsafe { from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len) };
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
+        let antecedents = unsafe {
+            rustsat::utils::from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len)
+        };
         tracer.add_derived_clause(ClauseId(id), redundant, &clause, antecedents);
     }
 
@@ -110,7 +111,7 @@ pub mod prooftracer {
         cl_data: *const c_int,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
         tracer.delete_clause(ClauseId(id), redundant, &clause);
     }
 
@@ -121,7 +122,7 @@ pub mod prooftracer {
         cl_data: *const c_int,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
         tracer.weaken_minus(ClauseId(id), &clause);
     }
 
@@ -154,7 +155,7 @@ pub mod prooftracer {
         cl_data: *const c_int,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
         tracer.finalize_clause(ClauseId(id), &clause);
     }
 
@@ -181,7 +182,7 @@ pub mod prooftracer {
         cl_data: *const c_int,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
         tracer.add_constraint(&clause);
     }
 
@@ -199,8 +200,10 @@ pub mod prooftracer {
         an_data: *const i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let clause = CaDiCaLClause::new(cl_len, cl_data);
-        let antecedents = unsafe { from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len) };
+        let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
+        let antecedents = unsafe {
+            rustsat::utils::from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len)
+        };
         tracer.add_assumption_clause(ClauseId(id), &clause, antecedents);
     }
 
@@ -211,11 +214,12 @@ pub mod prooftracer {
         fail_data: *const i64,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let failing = from_raw_parts_maybe_null(fail_data.cast::<ClauseId>(), fail_len);
+        let failing =
+            rustsat::utils::from_raw_parts_maybe_null(fail_data.cast::<ClauseId>(), fail_len);
         let concl = match concl {
-            super::CCaDiCaLConclusionType_CONFLICT => Conclusion::Conflict,
-            super::CCaDiCaLConclusionType_ASSUMPTIONS => Conclusion::Assumptions,
-            super::CCaDiCaLConclusionType_CONSTRAINT => Conclusion::Constraint,
+            super::CCaDiCaLConclusionType_CONFLICT => crate::Conclusion::Conflict,
+            super::CCaDiCaLConclusionType_ASSUMPTIONS => crate::Conclusion::Assumptions,
+            super::CCaDiCaLConclusionType_CONSTRAINT => crate::Conclusion::Constraint,
             _ => panic!("proof tracer (`conclude_unsat`) received unexpected conclusion type from CaDiCaL: {concl}")
         };
         tracer.conclude_unsat(concl, failing);
@@ -227,7 +231,7 @@ pub mod prooftracer {
         sol_data: *const c_int,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let assignment = CaDiCaLAssignment::new(sol_len, sol_data);
+        let assignment = crate::CaDiCaLAssignment::new(sol_len, sol_data);
         tracer.conclude_sat(&assignment);
     }
 
@@ -237,7 +241,7 @@ pub mod prooftracer {
         trail_data: *const c_int,
     ) {
         let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-        let assignment = CaDiCaLAssignment::new(trail_len, trail_data);
+        let assignment = crate::CaDiCaLAssignment::new(trail_len, trail_data);
         tracer.conclude_unknown(&assignment);
     }
 

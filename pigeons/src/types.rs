@@ -1,17 +1,13 @@
 //! # Most Types of the Library
 
-use std::{
-    fmt, io,
-    marker::PhantomData,
-    num::NonZeroUsize,
-    ops::{self, Range},
-};
+use std::num::NonZeroUsize;
 
 use itertools::Itertools;
 
-use crate::{OperationSequence, VarLike};
-
-use super::{unreachable_err, ConstraintLike, ObjectiveLike};
+use crate::ConstraintLike;
+use crate::ObjectiveLike;
+use crate::OperationSequence;
+use crate::VarLike;
 
 /// The proof problem type
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -81,17 +77,19 @@ impl ConstraintId {
     #[must_use]
     pub(crate) fn increment(self, next_free: AbsConstraintId) -> Self {
         match self.0 {
-            ConstrIdInternal::Abs(id) => ConstrIdInternal::Abs(AbsConstraintId(unreachable_err!(
-                (usize::from(id.0) + 1).try_into()
-            )))
+            ConstrIdInternal::Abs(id) => ConstrIdInternal::Abs(AbsConstraintId(
+                crate::unreachable_err!((usize::from(id.0) + 1).try_into()),
+            ))
             .into(),
             ConstrIdInternal::Rel(id) => {
                 let rel = usize::from(id.0);
                 if rel == 1 {
                     return ConstrIdInternal::Abs(next_free).into();
                 }
-                ConstrIdInternal::Rel(RelConstraintId(unreachable_err!((rel - 1).try_into())))
-                    .into()
+                ConstrIdInternal::Rel(RelConstraintId(crate::unreachable_err!(
+                    (rel - 1).try_into()
+                )))
+                .into()
             }
         }
     }
@@ -110,8 +108,8 @@ impl ConstraintId {
     }
 }
 
-impl fmt::Display for ConstraintId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ConstraintId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             ConstrIdInternal::Abs(id) => write!(f, "{id}"),
             ConstrIdInternal::Rel(id) => write!(f, "{id}"),
@@ -151,29 +149,30 @@ impl AbsConstraintId {
 
 impl Default for AbsConstraintId {
     fn default() -> Self {
-        Self(unreachable_err!(1.try_into()))
+        Self(crate::unreachable_err!(1.try_into()))
     }
 }
 
-impl fmt::Display for AbsConstraintId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for AbsConstraintId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl ops::Add<usize> for AbsConstraintId {
+impl std::ops::Add<usize> for AbsConstraintId {
     type Output = AbsConstraintId;
 
     fn add(self, rhs: usize) -> Self::Output {
-        AbsConstraintId(unreachable_err!(NonZeroUsize::try_from(
+        AbsConstraintId(crate::unreachable_err!(std::num::NonZeroUsize::try_from(
             usize::from(self.0) + rhs
         )))
     }
 }
 
-impl ops::AddAssign<usize> for AbsConstraintId {
+impl std::ops::AddAssign<usize> for AbsConstraintId {
     fn add_assign(&mut self, rhs: usize) {
-        self.0 = unreachable_err!(NonZeroUsize::try_from(usize::from(self.0) + rhs));
+        self.0 =
+            crate::unreachable_err!(std::num::NonZeroUsize::try_from(usize::from(self.0) + rhs));
     }
 }
 
@@ -198,8 +197,8 @@ impl RelConstraintId {
     }
 }
 
-impl fmt::Display for RelConstraintId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for RelConstraintId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "-{}", self.0)
     }
 }
@@ -211,8 +210,8 @@ impl fmt::Display for RelConstraintId {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ProofOnlyVar(pub(crate) u32);
 
-impl fmt::Display for ProofOnlyVar {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ProofOnlyVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "pv{}", self.0)
     }
 }
@@ -221,7 +220,7 @@ impl VarLike for ProofOnlyVar {
     type Formatter = Self;
 }
 
-impl ops::Add<u32> for ProofOnlyVar {
+impl std::ops::Add<u32> for ProofOnlyVar {
     type Output = ProofOnlyVar;
 
     fn add(self, rhs: u32) -> Self::Output {
@@ -229,7 +228,7 @@ impl ops::Add<u32> for ProofOnlyVar {
     }
 }
 
-impl ops::AddAssign<u32> for ProofOnlyVar {
+impl std::ops::AddAssign<u32> for ProofOnlyVar {
     fn add_assign(&mut self, rhs: u32) {
         self.0 += rhs;
     }
@@ -257,8 +256,8 @@ impl<V: VarLike> Axiom<V> {
     }
 }
 
-impl<V: VarLike> fmt::Display for Axiom<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for Axiom<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}{}",
@@ -278,7 +277,7 @@ impl<V: VarLike> ConstraintLike<V> for Axiom<V> {
     }
 }
 
-impl<V: VarLike> ops::Not for Axiom<V> {
+impl<V: VarLike> std::ops::Not for Axiom<V> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -319,8 +318,8 @@ impl<V: VarLike> Substitution<V> {
     }
 }
 
-impl<V: VarLike> fmt::Display for Substitution<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for Substitution<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} -> {}", V::Formatter::from(self.var), self.sub)
     }
 }
@@ -347,8 +346,8 @@ impl<V: VarLike> From<bool> for SubstituteWith<V> {
     }
 }
 
-impl<V: VarLike> fmt::Display for SubstituteWith<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for SubstituteWith<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SubstituteWith::True => write!(f, "1"),
             SubstituteWith::False => write!(f, "0"),
@@ -384,8 +383,8 @@ impl<V: VarLike> VarLike for OrderVar<V> {
     type Formatter = Self;
 }
 
-impl<V: VarLike> fmt::Display for OrderVar<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for OrderVar<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(*v)),
             OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
@@ -457,8 +456,8 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> fmt::Display for Order<V, C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> std::fmt::Display for Order<V, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "def_order {}", self.name)?;
         // Variables
         writeln!(f, "  vars")?;
@@ -535,12 +534,12 @@ where
     }
 }
 
-impl<V, C> fmt::Display for Derivation<V, C>
+impl<V, C> std::fmt::Display for Derivation<V, C>
 where
     V: VarLike,
     C: ConstraintLike<V>,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rup = if cfg!(feature = "short-keywords") {
             "u"
         } else {
@@ -636,7 +635,11 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     /// # Errors
     ///
     /// If writing fails, returns an error
-    pub fn write_indented<W: io::Write>(&self, writer: &mut W, indent: usize) -> io::Result<()> {
+    pub fn write_indented<W: std::io::Write>(
+        &self,
+        writer: &mut W,
+        indent: usize,
+    ) -> std::io::Result<()> {
         writeln!(
             writer,
             "{:indent$}proofgoal {}",
@@ -655,7 +658,11 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     /// # Errors
     ///
     /// If formatting fails, returns an error
-    pub fn format_indented<W: fmt::Write>(&self, writer: &mut W, indent: usize) -> fmt::Result {
+    pub fn format_indented<W: std::fmt::Write>(
+        &self,
+        writer: &mut W,
+        indent: usize,
+    ) -> std::fmt::Result {
         writeln!(
             writer,
             "{:indent$}proofgoal {}",
@@ -670,8 +677,8 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ProofGoal<V, C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ProofGoal<V, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.format_indented(f, 0)
     }
 }
@@ -704,8 +711,8 @@ impl From<ConstraintId> for ProofGoalId {
     }
 }
 
-impl fmt::Display for ProofGoalId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ProofGoalId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProofGoalId::Constraint(id) => write!(f, "{id}"),
             ProofGoalId::Specific(id) => write!(f, "#{id}"),
@@ -718,9 +725,9 @@ impl fmt::Display for ProofGoalId {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>, C> {
     /// `new`
-    New(O, Vec<ProofGoal<V, C>>, PhantomData<V>),
+    New(O, Vec<ProofGoal<V, C>>, std::marker::PhantomData<V>),
     /// `diff`
-    Diff(O, PhantomData<V>),
+    Diff(O, std::marker::PhantomData<V>),
 }
 
 impl<V, O, C> ObjectiveUpdate<V, O, C>
@@ -731,22 +738,26 @@ where
 {
     /// Creates an explicit objective update by specifying the entire new objective
     pub fn new<I: IntoIterator<Item = ProofGoal<V, C>>>(objective: O, subproof: I) -> Self {
-        ObjectiveUpdate::New(objective, subproof.into_iter().collect(), PhantomData)
+        ObjectiveUpdate::New(
+            objective,
+            subproof.into_iter().collect(),
+            std::marker::PhantomData,
+        )
     }
 
     /// Creates an objective update by specifying the difference to the old objective
     pub fn diff(diff: O) -> Self {
-        ObjectiveUpdate::Diff(diff, PhantomData)
+        ObjectiveUpdate::Diff(diff, std::marker::PhantomData)
     }
 }
 
-impl<V, O, C> fmt::Display for ObjectiveUpdate<V, O, C>
+impl<V, O, C> std::fmt::Display for ObjectiveUpdate<V, O, C>
 where
     V: VarLike,
     O: ObjectiveLike<V>,
     C: ConstraintLike<V>,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectiveUpdate::New(obj, subproof, _) => {
                 write!(f, "new {} ;", ObjFormatter::from(obj))?;
@@ -781,8 +792,8 @@ pub enum OutputGuarantee {
     Equioptimal(OutputType),
 }
 
-impl fmt::Display for OutputGuarantee {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for OutputGuarantee {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OutputGuarantee::None => write!(f, "NONE"),
             OutputGuarantee::Derivable(t) => write!(f, "DERIVABLE {t}"),
@@ -802,8 +813,8 @@ pub enum OutputType {
     File,
 }
 
-impl fmt::Display for OutputType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for OutputType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OutputType::Implicit => write!(f, "IMPLICIT"),
             OutputType::File => write!(f, "FILE"),
@@ -824,7 +835,7 @@ pub enum Conclusion<V: VarLike> {
     /// Bounds
     Bounds {
         /// The range of the bounds on the objective
-        range: Range<isize>,
+        range: std::ops::Range<isize>,
         /// Optional [`ConstraintId`] of the lower bound
         lb_id: Option<ConstraintId>,
         /// Optional solution witnessing the upper bound
@@ -832,8 +843,8 @@ pub enum Conclusion<V: VarLike> {
     },
 }
 
-impl<V: VarLike> fmt::Display for Conclusion<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for Conclusion<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Conclusion::None => write!(f, "NONE"),
             Conclusion::Sat(sol) => {
@@ -871,20 +882,20 @@ impl<V: VarLike> fmt::Display for Conclusion<V> {
 
 pub struct ObjFormatter<'o, V: VarLike, O: ObjectiveLike<V>> {
     obj: &'o O,
-    var: PhantomData<V>,
+    var: std::marker::PhantomData<V>,
 }
 
 impl<'o, V: VarLike, O: ObjectiveLike<V>> From<&'o O> for ObjFormatter<'o, V, O> {
     fn from(value: &'o O) -> Self {
         Self {
             obj: value,
-            var: PhantomData,
+            var: std::marker::PhantomData,
         }
     }
 }
 
-impl<V: VarLike, O: ObjectiveLike<V>> fmt::Display for ObjFormatter<'_, V, O> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike, O: ObjectiveLike<V>> std::fmt::Display for ObjFormatter<'_, V, O> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
@@ -897,20 +908,20 @@ impl<V: VarLike, O: ObjectiveLike<V>> fmt::Display for ObjFormatter<'_, V, O> {
 
 pub struct ConstrFormatter<'c, V: VarLike, C: ConstraintLike<V>> {
     constr: &'c C,
-    var: PhantomData<V>,
+    var: std::marker::PhantomData<V>,
 }
 
 impl<'c, V: VarLike, C: ConstraintLike<V>> From<&'c C> for ConstrFormatter<'c, V, C> {
     fn from(value: &'c C) -> Self {
         Self {
             constr: value,
-            var: PhantomData,
+            var: std::marker::PhantomData,
         }
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> fmt::Display for ConstrFormatter<'_, V, C> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ConstrFormatter<'_, V, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{} >= {}",

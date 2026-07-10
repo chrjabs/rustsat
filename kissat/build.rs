@@ -1,19 +1,11 @@
 #![warn(clippy::pedantic)]
 
-use glob::glob;
-use std::{
-    env,
-    fs::{self, File},
-    io::Write,
-    path::{Path, PathBuf},
-    process::Command,
-    str,
-};
+use std::io::Write;
 
 macro_rules! check_env_var {
     ($var:expr) => {
-        match env::var($var) {
-            Err(env::VarError::NotPresent) => None,
+        match std::env::var($var) {
+            Err(std::env::VarError::NotPresent) => None,
             Ok(val) => Some(val),
             Err(err) => panic!("`{}` variable error: {err}", $var),
         }
@@ -106,7 +98,7 @@ impl Version {
 }
 
 fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let out_dir = std::env::var("OUT_DIR").unwrap();
 
     let version = Version::determine();
 
@@ -126,23 +118,23 @@ fn main() {
     generate_bindings(&kissat_src_dir, &out_dir);
 }
 
-fn get_kissat_src(version: Version) -> PathBuf {
+fn get_kissat_src(version: Version) -> std::path::PathBuf {
     if let Some(src_dir) = check_env_var!("KISSAT_SRC_DIR") {
         if version_set_manually!() {
             println!("cargo:warning=Both version feature and KISSAT_SRC_DIR. Will ignore version feature");
         }
-        return PathBuf::from(src_dir);
+        return std::path::PathBuf::from(src_dir);
     }
 
     if version == Version::default() {
         // the sources for the default version are included with the crate and do not need to be
         // cloned
-        return PathBuf::from("vendor/");
+        return std::path::PathBuf::from("vendor/");
     }
 
     #[cfg(feature = "git")]
     {
-        let mut kissat_src_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        let mut kissat_src_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
         kissat_src_dir.push("kissat");
         update_repo(
             &kissat_src_dir,
@@ -157,7 +149,7 @@ fn get_kissat_src(version: Version) -> PathBuf {
 }
 
 /// Generates Rust FFI bindings
-fn generate_bindings(kissat_src_dir: &Path, out_dir: &str) {
+fn generate_bindings(kissat_src_dir: &std::path::Path, out_dir: &str) {
     let bindings = bindgen::Builder::default()
         .rust_target("1.87.0".parse().unwrap()) // Set MSRV
         .header(
@@ -180,16 +172,16 @@ fn generate_bindings(kissat_src_dir: &Path, out_dir: &str) {
         .generate()
         .expect("Unable to generate ffi bindings");
     bindings
-        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .write_to_file(std::path::PathBuf::from(out_dir).join("bindings.rs"))
         .expect("Could not write ffi bindings");
 }
 
-fn build(version: Version) -> PathBuf {
+fn build(version: Version) -> std::path::PathBuf {
     let kissat_src_dir = get_kissat_src(version);
     let kissat_dir_str = kissat_src_dir.to_str().unwrap();
 
     // We specify the build manually here instead of calling make for better portability
-    let src_files = glob(&format!("{kissat_dir_str}/src/*.c"))
+    let src_files = glob::glob(&format!("{kissat_dir_str}/src/*.c"))
         .unwrap()
         .filter_map(|res| {
             if let Ok(p) = res {
@@ -210,7 +202,7 @@ fn build(version: Version) -> PathBuf {
         });
     // Setup build configuration
     let mut kissat_build = cc::Build::new();
-    if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
+    if cfg!(feature = "debug") && std::env::var("PROFILE").unwrap() == "debug" {
         kissat_build
             .opt_level(0)
             // Silence warnings with newer GCC
@@ -230,11 +222,11 @@ fn build(version: Version) -> PathBuf {
     kissat_build.define("QUIET", None); // --quiet
 
     // Generate build header
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let mut build_header =
-        File::create(out_dir.join("build.h")).expect("Could not create kissat build header");
-    let mut kissat_version =
-        fs::read_to_string(kissat_src_dir.join("VERSION")).expect("Cannot read kissat version");
+    let out_dir = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let mut build_header = std::fs::File::create(out_dir.join("build.h"))
+        .expect("Could not create kissat build header");
+    let mut kissat_version = std::fs::read_to_string(kissat_src_dir.join("VERSION"))
+        .expect("Cannot read kissat version");
     kissat_version.retain(|c| c != '\n');
     let (compiler_desc, compiler_flags) = get_compiler_description(&kissat_build.get_compiler());
     write!(
@@ -255,7 +247,7 @@ fn build(version: Version) -> PathBuf {
 
 /// Returns true if there were changes, false if not
 #[cfg(feature = "git")]
-fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
+fn update_repo(path: &std::path::Path, url: &str, branch: &str, reference: &str) -> bool {
     let mut changed = false;
     let repo = if let Ok(repo) = git2::Repository::open(path) {
         if repo.find_reference(reference).is_err() {
@@ -272,7 +264,7 @@ fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
         repo
     } else {
         if path.exists() {
-            fs::remove_dir_all(path).unwrap_or_else(|e| {
+            std::fs::remove_dir_all(path).unwrap_or_else(|e| {
                 panic!(
                     "Could not delete directory {}: {}",
                     path.to_str().unwrap(),
@@ -303,7 +295,7 @@ fn update_repo(path: &Path, url: &str, branch: &str, reference: &str) -> bool {
 fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;
-    let compiler_version = match Command::new(compiler_command.get_program())
+    let compiler_version = match std::process::Command::new(compiler_command.get_program())
         .arg("--version")
         .output()
     {

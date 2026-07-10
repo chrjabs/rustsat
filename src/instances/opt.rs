@@ -1,25 +1,12 @@
 //! # Optimization Instance Representations
 
-use std::{
-    cmp,
-    collections::{hash_map, BTreeSet},
-    io,
-    path::Path,
-    slice,
-};
-
-use crate::{
-    algs::maxsat,
-    clause,
-    solvers::Solve,
-    types::{
-        Assignment, Clause, ClsIter, Lit, LitIter, RsHashMap, TernaryVal, Var, WClsIter, WLitIter,
-    },
-    utils::unreachable_none,
-    RequiresSoftLits,
-};
-
-use super::{WriteDimacsError, WriteOpbError};
+use crate::types::Assignment;
+use crate::types::Clause;
+use crate::types::ClsIter;
+use crate::types::Lit;
+use crate::types::RsHashMap;
+use crate::types::TernaryVal;
+use crate::types::Var;
 
 /// Internal objective type for not exposing variants
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,11 +27,6 @@ enum IntObj {
         soft_clauses: Vec<Clause>,
     },
 }
-
-use super::{
-    fio::{self, dimacs::WcnfLine},
-    BasicVarManager, Cnf, ManageVars, ReindexVars, SatInstance,
-};
 
 /// Type representing an optimization objective.
 /// This type currently supports soft clauses and soft literals.
@@ -200,7 +182,7 @@ impl Objective {
     /// Gets the maximum weight of any soft
     #[must_use]
     pub fn max_weight(&self) -> usize {
-        cmp::max(self.max_lit_weight(), self.max_clause_weight())
+        std::cmp::max(self.max_lit_weight(), self.max_clause_weight())
     }
 
     /// Gets the minimum weight of a soft literal
@@ -230,7 +212,7 @@ impl Objective {
     /// Gets the minimum weight of any soft
     #[must_use]
     pub fn min_weight(&self) -> usize {
-        cmp::min(self.min_lit_weight(), self.min_clause_weight())
+        std::cmp::min(self.min_lit_weight(), self.min_clause_weight())
     }
 
     /// Evaluates the objective under an assignment. Only clauses _falsified_
@@ -420,7 +402,7 @@ impl Objective {
                 if w == 0 {
                     if let Some(idx) = soft_lits.iter().position(|l2| l2 == &l) {
                         soft_lits.swap_remove(idx);
-                        return Some(unreachable_none!(*unit_weight));
+                        return Some(crate::utils::unreachable_none!(*unit_weight));
                     }
                     None
                 } else if let Some(unit_weight) = unit_weight {
@@ -520,7 +502,7 @@ impl Objective {
                 if w == 0 {
                     if let Some(idx) = soft_clauses.iter().position(|cl2| cl2 == &cl) {
                         soft_clauses.swap_remove(idx);
-                        return Some(unreachable_none!(*unit_weight));
+                        return Some(crate::utils::unreachable_none!(*unit_weight));
                     }
                     None
                 } else if let Some(unit_weight) = unit_weight {
@@ -589,7 +571,7 @@ impl Objective {
                 ..
             } => {
                 if soft_lits.iter().any(|l2| l2 == &l) {
-                    Some(unreachable_none!(*unit_weight))
+                    Some(crate::utils::unreachable_none!(*unit_weight))
                 } else {
                     None
                 }
@@ -608,7 +590,7 @@ impl Objective {
                 ..
             } => {
                 if soft_clauses.iter().any(|cl2| cl2 == cl) {
-                    Some(unreachable_none!(*unit_weight))
+                    Some(crate::utils::unreachable_none!(*unit_weight))
                 } else {
                     None
                 }
@@ -618,7 +600,7 @@ impl Objective {
 
     /// Converts the objective to a set of soft clauses and an offset
     #[must_use]
-    pub fn into_soft_cls(self) -> (impl WClsIter, isize) {
+    pub fn into_soft_cls(self) -> (impl crate::types::WClsIter, isize) {
         match self.0 {
             IntObj::Unweighted {
                 mut soft_clauses,
@@ -628,11 +610,11 @@ impl Objective {
             } => {
                 soft_clauses.reserve(soft_lits.len());
                 for l in soft_lits {
-                    soft_clauses.push(clause![!l]);
+                    soft_clauses.push(crate::clause![!l]);
                 }
                 let soft_clauses: Vec<(Clause, usize)> = soft_clauses
                     .into_iter()
-                    .map(|cl| (cl, unreachable_none!(unit_weight)))
+                    .map(|cl| (cl, crate::utils::unreachable_none!(unit_weight)))
                     .collect();
                 (soft_clauses, offset)
             }
@@ -643,7 +625,7 @@ impl Objective {
             } => {
                 soft_clauses.reserve(soft_lits.len());
                 for (l, w) in soft_lits {
-                    soft_clauses.insert(clause![!l], w);
+                    soft_clauses.insert(crate::clause![!l], w);
                 }
                 let soft_clauses: Vec<(Clause, usize)> = Vec::from_iter(soft_clauses);
                 (soft_clauses, offset)
@@ -668,7 +650,7 @@ impl Objective {
                 if let Some(unit_weight) = unit_weight {
                     soft_clauses.reserve(soft_lits.len());
                     for l in soft_lits {
-                        soft_clauses.push(clause![!l]);
+                        soft_clauses.push(crate::clause![!l]);
                     }
                     (soft_clauses, unit_weight, offset)
                 } else {
@@ -682,11 +664,11 @@ impl Objective {
     /// the conversion.
     ///
     /// See [`Self::into_soft_lits`] if you do not need to convert in place.
-    pub fn convert_to_soft_lits<VM>(&mut self, var_manager: &mut VM) -> Cnf
+    pub fn convert_to_soft_lits<VM>(&mut self, var_manager: &mut VM) -> super::Cnf
     where
-        VM: ManageVars,
+        VM: super::ManageVars,
     {
-        let mut cnf = Cnf::new();
+        let mut cnf = super::Cnf::new();
         match &mut self.0 {
             IntObj::Weighted {
                 soft_lits,
@@ -723,9 +705,12 @@ impl Objective {
     /// Converts the objective to a set of hard clauses, soft literals and an offset
     ///
     /// See [`Self::convert_to_soft_lits`] for converting in place
-    pub fn into_soft_lits<VM>(mut self, var_manager: &mut VM) -> (Cnf, (impl WLitIter, isize))
+    pub fn into_soft_lits<VM>(
+        mut self,
+        var_manager: &mut VM,
+    ) -> (super::Cnf, (impl crate::types::WLitIter, isize))
     where
-        VM: ManageVars,
+        VM: super::ManageVars,
     {
         let cnf = self.convert_to_soft_lits(var_manager);
         self.unweighted_2_weighted();
@@ -748,9 +733,9 @@ impl Objective {
     pub fn into_unweighted_soft_lits<VM>(
         mut self,
         var_manager: &mut VM,
-    ) -> (Cnf, impl LitIter, usize, isize)
+    ) -> (super::Cnf, impl crate::types::LitIter, usize, isize)
     where
-        VM: ManageVars,
+        VM: super::ManageVars,
     {
         let cnf = self.convert_to_soft_lits(var_manager);
         match self.0 {
@@ -776,7 +761,7 @@ impl Objective {
                 if let Some(unit_weight) = unit_weight {
                     (cnf, soft_lits, unit_weight, offset)
                 } else {
-                    (Cnf::new(), vec![], 1, offset)
+                    (super::Cnf::new(), vec![], 1, offset)
                 }
             }
         }
@@ -824,7 +809,7 @@ impl Objective {
 
     /// Re-indexes all variables in the instance with a re-indexing variable manager
     #[must_use]
-    pub fn reindex<R: ReindexVars>(self, reindexer: &mut R) -> Objective {
+    pub fn reindex<R: super::ReindexVars>(self, reindexer: &mut R) -> Objective {
         match self.0 {
             IntObj::Weighted {
                 soft_lits,
@@ -876,7 +861,7 @@ impl Objective {
         }
     }
 
-    pub(crate) fn var_set(&self, varset: &mut BTreeSet<Var>) {
+    pub(crate) fn var_set(&self, varset: &mut std::collections::BTreeSet<Var>) {
         match &self.0 {
             IntObj::Weighted {
                 soft_lits,
@@ -928,28 +913,28 @@ impl Objective {
                     debug_assert!(!clause.is_empty());
                     if clause.len() == 1 {
                         match soft_lits.entry(clause[0]) {
-                            hash_map::Entry::Occupied(mut neg_lit) => {
+                            std::collections::hash_map::Entry::Occupied(mut neg_lit) => {
                                 match neg_lit.get().cmp(&weight) {
-                                    cmp::Ordering::Less => {
+                                    std::cmp::Ordering::Less => {
                                         let neg_weight = neg_lit.remove();
                                         *offset += isize::try_from(neg_weight)
                                             .expect("only support weights up to `isize::MAX`");
                                         *soft_lits.entry(!clause[0]).or_default() +=
                                             weight - neg_weight;
                                     }
-                                    cmp::Ordering::Equal => {
+                                    std::cmp::Ordering::Equal => {
                                         *offset += isize::try_from(weight)
                                             .expect("only support weights up to `isize::MAX`");
                                         neg_lit.remove();
                                     }
-                                    cmp::Ordering::Greater => {
+                                    std::cmp::Ordering::Greater => {
                                         *offset += isize::try_from(weight)
                                             .expect("only support weights up to `isize::MAX`");
                                         *neg_lit.get_mut() -= weight;
                                     }
                                 }
                             }
-                            hash_map::Entry::Vacant(_) => {
+                            std::collections::hash_map::Entry::Vacant(_) => {
                                 *soft_lits.entry(!clause[0]).or_default() += weight;
                             }
                         }
@@ -1079,10 +1064,12 @@ impl Objective {
     /// # Errors
     ///
     /// If the objective contains soft clauses that this iterator would miss, returns
-    /// [`RequiresSoftLits`]
-    pub fn iter_soft_lits(&self) -> Result<impl WLitIter + '_, RequiresSoftLits> {
+    /// [`crate::RequiresSoftLits`]
+    pub fn iter_soft_lits(
+        &self,
+    ) -> Result<impl crate::types::WLitIter + '_, crate::RequiresSoftLits> {
         if self.n_clauses() > 0 {
-            return Err(RequiresSoftLits);
+            return Err(crate::RequiresSoftLits);
         }
         Ok(match &self.0 {
             IntObj::Weighted { soft_lits, .. } => ObjSoftLitIter::Weighted(soft_lits.iter()),
@@ -1096,7 +1083,7 @@ impl Objective {
 
     /// Gets an iterator over the entire objective as soft clauses
     #[must_use]
-    pub fn iter_soft_cls(&self) -> impl WClsIter + '_ {
+    pub fn iter_soft_cls(&self) -> impl crate::types::WClsIter + '_ {
         match &self.0 {
             IntObj::Weighted {
                 soft_lits,
@@ -1138,8 +1125,8 @@ impl pigeons::ObjectiveLike<crate::types::Var> for Objective {
 
 /// A wrapper type for iterators over soft literals in an objective
 enum ObjSoftLitIter<'a> {
-    Weighted(hash_map::Iter<'a, Lit, usize>),
-    Unweighted(slice::Iter<'a, Lit>, usize),
+    Weighted(std::collections::hash_map::Iter<'a, Lit, usize>),
+    Unweighted(std::slice::Iter<'a, Lit>, usize),
 }
 
 impl Iterator for ObjSoftLitIter<'_> {
@@ -1156,10 +1143,14 @@ impl Iterator for ObjSoftLitIter<'_> {
 /// A wrapper type for iterators over soft clauses in an objective
 enum ObjSoftClauseIter<'a> {
     Weighted(
-        hash_map::Iter<'a, Lit, usize>,
-        hash_map::Iter<'a, Clause, usize>,
+        std::collections::hash_map::Iter<'a, Lit, usize>,
+        std::collections::hash_map::Iter<'a, Clause, usize>,
     ),
-    Unweighted(slice::Iter<'a, Lit>, slice::Iter<'a, Clause>, usize),
+    Unweighted(
+        std::slice::Iter<'a, Lit>,
+        std::slice::Iter<'a, Clause>,
+        usize,
+    ),
 }
 
 impl Iterator for ObjSoftClauseIter<'_> {
@@ -1169,13 +1160,13 @@ impl Iterator for ObjSoftClauseIter<'_> {
         match self {
             ObjSoftClauseIter::Weighted(lit_iter, cl_iter) => {
                 if let Some((&l, &w)) = lit_iter.next() {
-                    return Some((clause![!l], w));
+                    return Some((crate::clause![!l], w));
                 }
                 cl_iter.next().map(|(cl, &w)| (cl.clone(), w))
             }
             ObjSoftClauseIter::Unweighted(lit_iter, cl_iter, w) => {
                 if let Some(&l) = lit_iter.next() {
-                    return Some((clause![!l], *w));
+                    return Some((crate::clause![!l], *w));
                 }
                 cl_iter.next().map(|cl| (cl.clone(), *w))
             }
@@ -1214,28 +1205,28 @@ impl FromIterator<(Clause, usize)> for Objective {
 }
 
 /// Type representing an optimization instance.
-/// The constraints are represented as a [`SatInstance`] struct.
+/// The constraints are represented as a [`super::SatInstance`] struct.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(
     any(feature = "serde", test),
     derive(serde::Serialize, serde::Deserialize)
 )]
-pub struct Instance<VM: ManageVars = BasicVarManager> {
-    pub(super) constrs: SatInstance<VM>,
+pub struct Instance<VM: super::ManageVars = super::BasicVarManager> {
+    pub(super) constrs: super::SatInstance<VM>,
     pub(super) obj: Objective,
 }
 
-impl<VM: ManageVars> Instance<VM> {
+impl<VM: super::ManageVars> Instance<VM> {
     /// Creates a new optimization instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
         Instance {
-            constrs: SatInstance::new_with_manager(var_manager),
+            constrs: super::SatInstance::new_with_manager(var_manager),
             obj: Objective::new(),
         }
     }
 
     /// Creates a new optimization instance from constraints and an objective
-    pub fn compose(mut constraints: SatInstance<VM>, objective: Objective) -> Self {
+    pub fn compose(mut constraints: super::SatInstance<VM>, objective: Objective) -> Self {
         if let Some(mv) = objective.max_var() {
             constraints.var_manager_mut().increase_next_free(mv + 1);
         }
@@ -1245,8 +1236,8 @@ impl<VM: ManageVars> Instance<VM> {
         }
     }
 
-    /// Decomposes the optimization instance to a [`SatInstance`] and an [`Objective`]
-    pub fn decompose(mut self) -> (SatInstance<VM>, Objective) {
+    /// Decomposes the optimization instance to a [`super::SatInstance`] and an [`Objective`]
+    pub fn decompose(mut self) -> (super::SatInstance<VM>, Objective) {
         if let Some(mv) = self.obj.max_var() {
             self.constrs.var_manager_mut().increase_next_free(mv + 1);
         }
@@ -1254,12 +1245,12 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Gets a mutable reference to the hard constraints for modifying them
-    pub fn constraints_mut(&mut self) -> &mut SatInstance<VM> {
+    pub fn constraints_mut(&mut self) -> &mut super::SatInstance<VM> {
         &mut self.constrs
     }
 
     /// Gets a reference to the hard constraints
-    pub fn constraints_ref(&self) -> &SatInstance<VM> {
+    pub fn constraints_ref(&self) -> &super::SatInstance<VM> {
         &self.constrs
     }
 
@@ -1296,8 +1287,8 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Panic
     ///
-    /// This might panic if the conversion to [`Cnf`] runs out of memory.
-    pub fn into_hard_cls_soft_cls(self) -> (Cnf, (impl WClsIter, isize), VM) {
+    /// This might panic if the conversion to [`super::Cnf`] runs out of memory.
+    pub fn into_hard_cls_soft_cls(self) -> (super::Cnf, (impl crate::types::WClsIter, isize), VM) {
         let (cnf, mut vm) = self.constrs.into_cnf();
         if let Some(mv) = self.obj.max_var() {
             vm.increase_next_free(mv + 1);
@@ -1310,8 +1301,8 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Panic
     ///
-    /// This might panic if the conversion to [`Cnf`] runs out of memory.
-    pub fn into_hard_cls_soft_lits(self) -> (Cnf, (impl WLitIter, isize), VM) {
+    /// This might panic if the conversion to [`super::Cnf`] runs out of memory.
+    pub fn into_hard_cls_soft_lits(self) -> (super::Cnf, (impl crate::types::WLitIter, isize), VM) {
         let (mut cnf, mut vm) = self.constrs.into_cnf();
         if let Some(mv) = self.obj.max_var() {
             vm.increase_next_free(mv + 1);
@@ -1324,7 +1315,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// Converts the included variable manager to a different type
     pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (Instance<VM2>, VM)
     where
-        VM2: ManageVars,
+        VM2: super::ManageVars,
         VMC: Fn(&VM) -> VM2,
     {
         let (constrs, vm) = self.constrs.change_var_manager(vm_converter);
@@ -1339,20 +1330,20 @@ impl<VM: ManageVars> Instance<VM> {
 
     /// Re-indexes all variables in the instance with a re-indexing variable manager
     #[must_use]
-    pub fn reindex<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
+    pub fn reindex<R: super::ReindexVars>(self, mut reindexer: R) -> Instance<R> {
         let obj = self.obj.reindex(&mut reindexer);
         let constrs = self.constrs.reindex(reindexer);
         Instance { constrs, obj }
     }
 
-    fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+    fn extend_var_set(&self, varset: &mut std::collections::BTreeSet<Var>) {
         self.constrs.extend_var_set(varset);
         self.obj.var_set(varset);
     }
 
     /// Gets the set of variables in the instance
-    pub fn var_set(&self) -> BTreeSet<Var> {
-        let mut varset = BTreeSet::new();
+    pub fn var_set(&self) -> std::collections::BTreeSet<Var> {
+        let mut varset = std::collections::BTreeSet::new();
         self.extend_var_set(&mut varset);
         varset
     }
@@ -1362,8 +1353,8 @@ impl<VM: ManageVars> Instance<VM> {
     /// If the re-indexing variable manager produces new free variables in order, this results in
     /// the variable _order_ being preserved with gaps in the variable space being closed
     #[must_use]
-    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
-        let mut varset = BTreeSet::new();
+    pub fn reindex_ordered<R: super::ReindexVars>(self, mut reindexer: R) -> Instance<R> {
+        let mut varset = std::collections::BTreeSet::new();
         self.extend_var_set(&mut varset);
         // reindex variables in order to ensure ordered reindexing
         for var in varset {
@@ -1385,13 +1376,16 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// This requires that the instance is clausal, i.e., does not contain any non-converted
     /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
-    /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
+    /// [`super::SatInstance::convert_to_cnf`] or [`super::SatInstance::convert_to_cnf_with_encoders`] first.
     ///
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteDimacsError> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+    pub fn write_dimacs_path<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<(), super::WriteDimacsError> {
+        let mut writer = super::fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer)
     }
 
@@ -1399,7 +1393,7 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// This requires that the instance is clausal, i.e., does not contain any non-converted
     /// cardinality of pseudo-boolean constraints. If necessary, the instance can be converted by
-    /// [`SatInstance::convert_to_cnf`] or [`SatInstance::convert_to_cnf_with_encoders`] first.
+    /// [`super::SatInstance::convert_to_cnf`] or [`super::SatInstance::convert_to_cnf_with_encoders`] first.
     ///
     /// # Performance
     ///
@@ -1408,14 +1402,17 @@ impl<VM: ManageVars> Instance<VM> {
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs<W: io::Write>(&self, writer: W) -> Result<(), WriteDimacsError> {
+    pub fn write_dimacs<W: std::io::Write>(
+        &self,
+        writer: W,
+    ) -> Result<(), super::WriteDimacsError> {
         if self.constrs.n_cards() > 0 || self.constrs.n_pbs() > 0 {
-            return Err(WriteDimacsError::RequiresClausal);
+            return Err(super::WriteDimacsError::RequiresClausal);
         }
         let n_vars = self.constrs.n_vars();
         let offset = self.obj.offset();
         let soft_cls = self.obj.iter_soft_cls();
-        Ok(fio::dimacs::write_wcnf_annotated(
+        Ok(super::fio::dimacs::write_wcnf_annotated(
             writer,
             &self.constrs.cnf,
             (soft_cls, offset),
@@ -1431,12 +1428,12 @@ impl<VM: ManageVars> Instance<VM> {
     /// # Errors
     ///
     /// If the objective contains soft clauses or writing fails
-    pub fn write_opb_path<P: AsRef<Path>>(
+    pub fn write_opb_path<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-        opts: fio::opb::Options,
-    ) -> Result<(), WriteOpbError> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        opts: super::fio::opb::Options,
+    ) -> Result<(), super::WriteOpbError> {
+        let mut writer = super::fio::open_compressed_uncompressed_write(path)?;
         self.write_opb(&mut writer, opts)
     }
 
@@ -1452,14 +1449,14 @@ impl<VM: ManageVars> Instance<VM> {
     /// # Errors
     ///
     /// If the objective contains soft clauses or writing fails
-    pub fn write_opb<W: io::Write>(
+    pub fn write_opb<W: std::io::Write>(
         &self,
         writer: W,
-        opts: fio::opb::Options,
-    ) -> Result<(), WriteOpbError> {
+        opts: super::fio::opb::Options,
+    ) -> Result<(), super::WriteOpbError> {
         let offset = self.obj.offset();
         let iter = self.obj.iter_soft_lits()?;
-        Ok(fio::opb::write_opt::<W, VM, _>(
+        Ok(super::fio::opb::write_opt::<W, VM, _>(
             writer,
             &self.constrs,
             (iter, offset),
@@ -1477,12 +1474,12 @@ impl<VM: ManageVars> Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> Instance<VM> {
+impl<VM: super::ManageVars + Default> Instance<VM> {
     /// Creates a new optimization instance
     #[must_use]
     pub fn new() -> Self {
         Instance {
-            constrs: SatInstance::new(),
+            constrs: super::SatInstance::new(),
             obj: Objective::new(),
         }
     }
@@ -1502,14 +1499,15 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs<R: io::BufRead>(reader: R) -> Result<Self, fio::Error> {
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: std::io::BufRead>(reader: R) -> Result<Self, super::fio::Error> {
         let header_data =
-            fio::dimacs::Parser::<fio::dimacs::WcnfHeader, _>::new(reader).forward_to_body()?;
-        let mut constrs = SatInstance::<VM>::default();
+            super::fio::dimacs::Parser::<super::fio::dimacs::WcnfHeader, _>::new(reader)
+                .forward_to_body()?;
+        let mut constrs = super::SatInstance::<VM>::default();
         let mut obj = Objective::default();
         match header_data {
-            fio::dimacs::WcnfHeaderData::Pre22 {
+            super::fio::dimacs::WcnfHeaderData::Pre22 {
                 n_vars,
                 body_parser,
                 ..
@@ -1519,26 +1517,30 @@ impl<VM: ManageVars + Default> Instance<VM> {
                     .increase_next_free(Var::new(n_vars));
                 for data in body_parser {
                     match data? {
-                        fio::dimacs::WcnfData::HardClause(clause) => constrs.add_clause(clause),
-                        fio::dimacs::WcnfData::SoftClause { weight, clause } => {
+                        super::fio::dimacs::WcnfData::HardClause(clause) => {
+                            constrs.add_clause(clause);
+                        }
+                        super::fio::dimacs::WcnfData::SoftClause { weight, clause } => {
                             obj.increase_soft_clause(weight, clause);
                         }
-                        fio::dimacs::WcnfData::Comment(_) => (),
+                        super::fio::dimacs::WcnfData::Comment(_) => (),
                     }
                 }
             }
-            fio::dimacs::WcnfHeaderData::Post22(parser) => {
+            super::fio::dimacs::WcnfHeaderData::Post22(parser) => {
                 for data in parser {
                     match data? {
-                        fio::dimacs::WcnfData::HardClause(clause) => constrs.add_clause(clause),
-                        fio::dimacs::WcnfData::SoftClause { weight, clause } => {
+                        super::fio::dimacs::WcnfData::HardClause(clause) => {
+                            constrs.add_clause(clause);
+                        }
+                        super::fio::dimacs::WcnfData::SoftClause { weight, clause } => {
                             obj.increase_soft_clause(weight, clause);
                         }
-                        fio::dimacs::WcnfData::Comment(_) => (),
+                        super::fio::dimacs::WcnfData::Comment(_) => (),
                     }
                 }
             }
-            fio::dimacs::WcnfHeaderData::Empty(_) => (),
+            super::fio::dimacs::WcnfHeaderData::Empty(_) => (),
         }
         Ok(Self::compose(constrs, obj))
     }
@@ -1549,9 +1551,9 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
-        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self, super::fio::Error> {
+        let mut reader = super::fio::open_compressed_uncompressed_read(path)?;
         Self::from_dimacs(&mut reader)
     }
 
@@ -1565,46 +1567,46 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb<R: io::BufRead>(
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_opb<R: std::io::BufRead>(
         reader: R,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::Error> {
-        let parser = fio::opb::Parser::new(reader, opts);
-        let mut sat_inst = SatInstance::<VM>::new();
+        opts: super::fio::opb::Options,
+    ) -> Result<Self, super::fio::Error> {
+        let parser = super::fio::opb::Parser::new(reader, opts);
+        let mut sat_inst = super::SatInstance::<VM>::new();
         let mut obj = None;
         for data in parser {
             match data? {
-                fio::opb::Data::Cmt(_) => {}
-                fio::opb::Data::Constr(constr) => sat_inst.add_pb_constr(constr),
-                fio::opb::Data::Obj(objective) => {
+                super::fio::opb::Data::Cmt(_) => {}
+                super::fio::opb::Data::Constr(constr) => sat_inst.add_pb_constr(constr),
+                super::fio::opb::Data::Obj(objective) => {
                     if obj.is_some() {
-                        return Err(fio::Error::MultipleObjectives);
+                        return Err(super::fio::Error::MultipleObjectives);
                     }
                     obj = Some(objective);
                 }
             }
         }
-        let Some(fio::opb::Objective {
+        let Some(super::fio::opb::Objective {
             sense,
             terms,
             offset,
         }) = obj
         else {
-            return Err(fio::Error::NoObjective);
+            return Err(super::fio::Error::NoObjective);
         };
         let obj = match sense {
-            fio::opb::ObjectiveSense::Minimize => {
+            super::fio::opb::ObjectiveSense::Minimize => {
                 let mut obj: crate::instances::Objective =
                     terms.into_iter().map(|(coeff, lit)| (lit, coeff)).collect();
                 obj.increase_offset(offset);
                 obj
             }
-            fio::opb::ObjectiveSense::Maximize => {
+            super::fio::opb::ObjectiveSense::Maximize => {
                 let Ok(coeff_sum) =
                     isize::try_from(terms.iter().map(|(coeff, _)| *coeff).sum::<usize>())
                 else {
-                    return Err(fio::Error::ObjectiveConversionOverflow);
+                    return Err(super::fio::Error::ObjectiveConversionOverflow);
                 };
                 let mut obj: crate::instances::Objective = terms
                     .into_iter()
@@ -1623,16 +1625,16 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb_path<P: AsRef<Path>>(
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_opb_path<P: AsRef<std::path::Path>>(
         path: P,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::Error> {
-        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        opts: super::fio::opb::Options,
+    ) -> Result<Self, super::fio::Error> {
+        let mut reader = super::fio::open_compressed_uncompressed_read(path)?;
         Self::from_opb(&mut reader, opts)
     }
 
-    /// Solves the instance with a [`maxsat::Solve`] algorithm
+    /// Solves the instance with a [`crate::algs::maxsat::Solve`] algorithm
     ///
     /// # Panics
     ///
@@ -1640,15 +1642,18 @@ impl<VM: ManageVars + Default> Instance<VM> {
     /// - If the objective value overflows [`isize::MAX`]
     pub fn solve_maxsat<Alg>(self) -> Option<(Assignment, isize)>
     where
-        Alg: maxsat::Solve,
+        Alg: crate::algs::maxsat::Solve,
         Alg::Solver: Default,
     {
+        use super::ManageVars;
+        use crate::solvers::Solve;
+
         let mut solver = Alg::Solver::default();
         let (cnf, vm) = self.constrs.into_cnf();
-        let mut vm = if let Some(max_var) = cmp::max(vm.max_var(), self.obj.max_var()) {
-            BasicVarManager::from_next_free(max_var + 1)
+        let mut vm = if let Some(max_var) = std::cmp::max(vm.max_var(), self.obj.max_var()) {
+            super::BasicVarManager::from_next_free(max_var + 1)
         } else {
-            BasicVarManager::default()
+            super::BasicVarManager::default()
         };
         solver
             .add_cnf(cnf)
@@ -1676,14 +1681,14 @@ impl<VM: ManageVars + Default> Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<WcnfLine> for Instance<VM> {
-    fn from_iter<T: IntoIterator<Item = WcnfLine>>(iter: T) -> Self {
+impl<VM: super::ManageVars + Default> FromIterator<super::fio::dimacs::WcnfLine> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = super::fio::dimacs::WcnfLine>>(iter: T) -> Self {
         let mut inst = Self::default();
         for line in iter {
             match line {
-                WcnfLine::Comment(_) => (),
-                WcnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
-                WcnfLine::Soft(cl, w) => {
+                super::fio::dimacs::WcnfLine::Comment(_) => (),
+                super::fio::dimacs::WcnfLine::Hard(cl) => inst.constraints_mut().add_clause(cl),
+                super::fio::dimacs::WcnfLine::Soft(cl, w) => {
                     inst.objective_mut().add_soft_clause(w, cl);
                 }
             }
@@ -1694,7 +1699,8 @@ impl<VM: ManageVars + Default> FromIterator<WcnfLine> for Instance<VM> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{clause, lit};
+    use crate::clause;
+    use crate::lit;
 
     #[cfg(feature = "proof-logging")]
     #[test]

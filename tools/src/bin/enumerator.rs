@@ -2,21 +2,16 @@
 //!
 //! A small tool that enumerates all solutions of a DIMACS CNF file.
 
-use std::{fmt, io, path::PathBuf};
-
 use anyhow::Context;
-use clap::{Parser, ValueEnum};
-use rustsat::{
-    instances::{fio, ManageVars, MultiOptInstance, OptInstance, SatInstance},
-    solvers::{self, Solve, SolveIncremental},
-    types::{Assignment, Var},
-};
+use rustsat::instances::MultiOptInstance;
+use rustsat::instances::OptInstance;
+use rustsat::instances::SatInstance;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The path to the input file. If no path is given, will read from `stdin`.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// The file format of the input
     #[arg(long, default_value_t = InputFormat::default())]
     input_format: InputFormat,
@@ -33,7 +28,7 @@ struct Args {
     color: concolor_clap::Color,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum, Default)]
 enum InputFormat {
     /// Infer the input file format from the file extension according to the following rules:
     /// - `.cnf`: DIMACS CNF file
@@ -54,8 +49,8 @@ enum InputFormat {
     Mcnf,
 }
 
-impl fmt::Display for InputFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for InputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InputFormat::Infer => write!(f, "infer"),
             InputFormat::Cnf => write!(f, "cnf"),
@@ -73,9 +68,9 @@ macro_rules! is_one_of {
 }
 
 fn parse_instance(
-    path: &Option<PathBuf>,
+    path: &Option<std::path::PathBuf>,
     file_format: InputFormat,
-    opb_opts: fio::opb::Options,
+    opb_opts: rustsat::instances::fio::opb::Options,
 ) -> anyhow::Result<MultiOptInstance> {
     Ok(match file_format {
         InputFormat::Infer => {
@@ -115,7 +110,7 @@ fn parse_instance(
                 MultiOptInstance::compose(SatInstance::from_dimacs_path(path)?, vec![])
             } else {
                 MultiOptInstance::compose(
-                    SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?,
+                    SatInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))?,
                     vec![],
                 )
             }
@@ -126,7 +121,8 @@ fn parse_instance(
                 MultiOptInstance::compose(constr, vec![obj])
             } else {
                 let (constr, obj) =
-                    OptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?.decompose();
+                    OptInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))?
+                        .decompose();
                 MultiOptInstance::compose(constr, vec![obj])
             }
         }
@@ -134,30 +130,33 @@ fn parse_instance(
             if let Some(path) = path {
                 MultiOptInstance::from_dimacs_path(path)?
             } else {
-                MultiOptInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?
+                MultiOptInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))?
             }
         }
         InputFormat::Opb => {
             if let Some(path) = path {
                 MultiOptInstance::from_opb_path(path, opb_opts)?
             } else {
-                MultiOptInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)?
+                MultiOptInstance::from_opb(
+                    &mut std::io::BufReader::new(std::io::stdin()),
+                    opb_opts,
+                )?
             }
         }
     })
 }
 
-struct Enumerator<S: SolveIncremental> {
+struct Enumerator<S: rustsat::solvers::SolveIncremental> {
     solver: S,
-    max_var: Var,
+    max_var: rustsat::types::Var,
 }
 
-impl<S: SolveIncremental> Iterator for Enumerator<S> {
-    type Item = Assignment;
+impl<S: rustsat::solvers::SolveIncremental> Iterator for Enumerator<S> {
+    type Item = rustsat::types::Assignment;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.solver.solve().expect("error while solving") {
-            solvers::SolverResult::Sat => {
+            rustsat::solvers::SolverResult::Sat => {
                 let sol = self
                     .solver
                     .solution(self.max_var)
@@ -169,17 +168,22 @@ impl<S: SolveIncremental> Iterator for Enumerator<S> {
                     .expect("error adding blocking clause to solver");
                 Some(sol)
             }
-            solvers::SolverResult::Unsat => None,
-            solvers::SolverResult::Interrupted => panic!("solver interrupted without limits"),
+            rustsat::solvers::SolverResult::Unsat => None,
+            rustsat::solvers::SolverResult::Interrupted => {
+                panic!("solver interrupted without limits")
+            }
         }
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    let opb_opts = fio::opb::Options {
+    use rustsat::instances::ManageVars;
+    use rustsat::solvers::Solve;
+
+    let args = <Args as clap::Parser>::parse();
+    let opb_opts = rustsat::instances::fio::opb::Options {
         first_var_idx: args.opb_first_var_idx,
-        ..fio::opb::Options::default()
+        ..rustsat::instances::fio::opb::Options::default()
     };
 
     let (constr, objs) = parse_instance(&args.in_path, args.input_format, opb_opts)?.decompose();

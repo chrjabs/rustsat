@@ -3,29 +3,25 @@
 //! A simple CLI wrapper around the Minisat solver Rust interface. This is just an example, if you
 //! want to use Minisat from the CLI, compile the binary from the Cpp source directly.
 
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
-
 use anyhow::Context;
-use clap::Parser;
-use rustsat::{
-    instances::{fio::opb, ManageVars, SatInstance},
-    solvers::{Interrupt, Solve, SolveStats, SolverResult},
-};
-use rustsat_minisat::{core, simp};
+use rustsat::instances::fio::opb;
+use rustsat::instances::ManageVars;
+use rustsat::instances::SatInstance;
+use rustsat::solvers::Interrupt;
+use rustsat::solvers::Solve;
+use rustsat::solvers::SolveStats;
+use rustsat::solvers::SolverResult;
 
 enum FileType {
     Cnf,
     Opb,
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The DIMACS CNF input file. Reads from `stdin` if not given.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// Use the version of Minisat with preprocessing
     #[arg(short, long)]
     simp: bool,
@@ -35,7 +31,7 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    let args = <Args as clap::Parser>::parse();
 
     let inst: SatInstance = if let Some(in_path) = args.in_path {
         match determine_file_type(&in_path, args.opb) {
@@ -46,19 +42,19 @@ fn main() -> anyhow::Result<()> {
         }
     } else if args.opb {
         SatInstance::from_opb(
-            &mut io::BufReader::new(io::stdin()),
+            &mut std::io::BufReader::new(std::io::stdin()),
             opb::Options::default(),
         )
         .context("error parsing input as OPB")?
     } else {
-        SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))
+        SatInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))
             .context("error parsing input as CNF")?
     };
 
     if args.simp {
-        solve::<simp::Minisat>(inst)
+        solve::<rustsat_minisat::simp::Minisat>(inst)
     } else {
-        solve::<core::Minisat>(inst)
+        solve::<rustsat_minisat::core::Minisat>(inst)
     }
 }
 
@@ -113,7 +109,7 @@ macro_rules! is_one_of {
     }
 }
 
-fn determine_file_type(in_path: &Path, opb_default: bool) -> FileType {
+fn determine_file_type(in_path: &std::path::Path, opb_default: bool) -> FileType {
     if let Some(ext) = in_path.extension() {
         let path_without_compr = in_path.with_extension("");
         let ext = if is_one_of!(ext, "gz", "bz2") {

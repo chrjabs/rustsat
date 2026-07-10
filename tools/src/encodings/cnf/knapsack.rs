@@ -1,11 +1,10 @@
 //! # CNF (Multi-Criteria) Knapsack Encoding
 
-use rustsat::{
-    clause,
-    encodings::pb,
-    instances::{fio::dimacs, BasicVarManager, Cnf, ManageVars},
-    types::{constraints::PbConstraint, Lit},
-};
+use rustsat::instances::fio::dimacs;
+use rustsat::instances::BasicVarManager;
+use rustsat::instances::Cnf;
+use rustsat::instances::ManageVars;
+use rustsat::types::Lit;
 
 use crate::encodings::knapsack::Knapsack;
 
@@ -24,16 +23,16 @@ pub struct Encoding {
 impl Encoding {
     pub fn new<PBE>(data: Knapsack) -> Self
     where
-        PBE: pb::BoundUpper + FromIterator<(Lit, usize)>,
+        PBE: rustsat::encodings::pb::BoundUpper + FromIterator<(Lit, usize)>,
     {
         let mut vm = BasicVarManager::default();
-        let cap_constr = match PbConstraint::new_ub(
+        let cap_constr = match rustsat::types::constraints::PbConstraint::new_ub(
             data.items
                 .iter()
                 .map(|item| (vm.new_var().pos_lit(), item.weight as isize)),
             data.capacity as isize,
         ) {
-            PbConstraint::Ub(constr) => constr,
+            rustsat::types::constraints::PbConstraint::Ub(constr) => constr,
             _ => unreachable!(),
         };
         let mut cap_cnf = Cnf::new();
@@ -70,7 +69,7 @@ impl Iterator for Encoding {
                     }
                     self.next_clause = Clause::Soft(iidx, oidx + 1);
                     return Some(dimacs::McnfLine::Soft(
-                        clause![Lit::positive(iidx as u32)],
+                        rustsat::clause![Lit::positive(iidx as u32)],
                         self.data.items[iidx].values[oidx],
                         oidx,
                     ));

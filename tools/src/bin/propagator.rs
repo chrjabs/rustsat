@@ -2,21 +2,16 @@
 //!
 //! (Unit-)propagate assumptions in constraint files
 
-use std::{fmt, io, path::PathBuf};
-
 use anyhow::Context;
-use clap::{Parser, ValueEnum};
-use rustsat::{
-    instances::{fio, ManageVars, SatInstance},
-    solvers::{Propagate, Solve},
-    types::Lit,
-};
+use rustsat::instances::fio;
+use rustsat::instances::SatInstance;
+use rustsat::types::Lit;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The path to the input file. If no path is given, will read from `stdin`.
-    in_path: Option<PathBuf>,
+    in_path: Option<std::path::PathBuf>,
     /// The assumptions to propagate
     assumptions: Vec<String>,
     /// The file format of the input
@@ -29,7 +24,7 @@ struct Args {
     color: concolor_clap::Color,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum, Default)]
 enum InputFormat {
     /// Infer the input file format from the file extension according to the following rules:
     /// - `.cnf`: DIMACS CNF file
@@ -44,8 +39,8 @@ enum InputFormat {
     Opb,
 }
 
-impl fmt::Display for InputFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for InputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InputFormat::Infer => write!(f, "infer"),
             InputFormat::Cnf => write!(f, "cnf"),
@@ -61,7 +56,7 @@ macro_rules! is_one_of {
 }
 
 fn parse_instance(
-    path: &Option<PathBuf>,
+    path: &Option<std::path::PathBuf>,
     file_format: InputFormat,
     opb_opts: fio::opb::Options,
 ) -> anyhow::Result<SatInstance> {
@@ -97,14 +92,14 @@ fn parse_instance(
             if let Some(path) = path {
                 SatInstance::from_dimacs_path(path)?
             } else {
-                SatInstance::from_dimacs(&mut io::BufReader::new(io::stdin()))?
+                SatInstance::from_dimacs(&mut std::io::BufReader::new(std::io::stdin()))?
             }
         }
         InputFormat::Opb => {
             if let Some(path) = path {
                 SatInstance::from_opb_path(path, opb_opts)?
             } else {
-                SatInstance::from_opb(&mut io::BufReader::new(io::stdin()), opb_opts)?
+                SatInstance::from_opb(&mut std::io::BufReader::new(std::io::stdin()), opb_opts)?
             }
         }
     })
@@ -125,7 +120,11 @@ fn parse_assumps(strings: &[String], opb_opts: fio::opb::Options) -> anyhow::Res
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
+    use rustsat::instances::ManageVars;
+    use rustsat::solvers::Propagate;
+    use rustsat::solvers::Solve;
+
+    let args = <Args as clap::Parser>::parse();
     let opb_opts = fio::opb::Options {
         first_var_idx: args.opb_first_var_idx,
         ..fio::opb::Options::default()

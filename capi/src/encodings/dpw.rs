@@ -2,12 +2,13 @@
 
 use std::ffi::c_void;
 
-use rustsat::encodings::pb::{BoundUpper, DynamicPolyWatchdog};
-
-use super::{CClauseCollector, ClauseCollector, MaybeError};
+use rustsat::encodings::pb::BoundUpper;
+use rustsat::encodings::pb::DynamicPolyWatchdog;
 
 #[cfg(doc)]
-use super::pb::{dpw_drop, dpw_new};
+use super::pb::dpw_drop;
+#[cfg(doc)]
+use super::pb::dpw_new;
 
 /// Gets the next smaller upper bound value that can be encoded without setting tares. This is used
 /// for coarse convergence.
@@ -28,9 +29,9 @@ pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize)
 ///
 /// # Errors
 ///
-/// - If `divisor` is not a power of 2, [`MaybeError::PrecisionNotPow2`] is returned
+/// - If `divisor` is not a power of 2, [`super::MaybeError::PrecisionNotPow2`] is returned
 /// - If `divisor` is larger than the last divisor, i.e., precision is attempted to be decreased,
-///   [`MaybeError::PrecisionDecreased`] is returned
+///   [`super::MaybeError::PrecisionDecreased`] is returned
 ///
 /// # Safety
 ///
@@ -39,7 +40,7 @@ pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize)
 pub unsafe extern "C" fn dpw_set_precision(
     dpw: *mut DynamicPolyWatchdog,
     divisor: usize,
-) -> MaybeError {
+) -> super::MaybeError {
     (*dpw).set_precision(divisor).into()
 }
 
@@ -98,11 +99,11 @@ pub unsafe extern "C" fn dpw_limit_range(
     dpw: *mut DynamicPolyWatchdog,
     min_value: usize,
     max_value: usize,
-    collector: CClauseCollector,
+    collector: super::CClauseCollector,
     collector_data: *mut c_void,
 ) {
     assert!(min_value <= max_value);
-    let mut collector = ClauseCollector::new(collector, collector_data);
+    let mut collector = super::ClauseCollector::new(collector, collector_data);
     (*dpw)
         .limit_range(min_value..=max_value, &mut collector)
         .expect("CClauseCollector cannot report out of memory");

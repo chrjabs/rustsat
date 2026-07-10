@@ -4,12 +4,13 @@
 //!
 //! - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+
 use super::Encode;
-use crate::{
-    encodings::{CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    types::Lit,
-};
 
 /// Implementations of the pairwise at-most-1 encoding.
 ///
@@ -93,11 +94,12 @@ impl Extend<Lit> for Pairwise {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        encodings::am1::Encode,
-        instances::{BasicVarManager, Cnf, ManageVars},
-        lit, var,
-    };
+    use crate::encodings::am1::Encode;
+    use crate::instances::BasicVarManager;
+    use crate::instances::Cnf;
+    use crate::instances::ManageVars;
+    use crate::lit;
+    use crate::var;
 
     #[test]
     fn basic() {

@@ -1,11 +1,15 @@
 //! # Shared Parsing Functionality
 
-use winnow::{
-    ascii::{line_ending, space0, space1, till_line_ending},
-    combinator::opt,
-    error::{ContextError, ParserError, StrContext, StrContextValue},
-    seq, Parser,
-};
+use winnow::ascii::line_ending;
+use winnow::ascii::space0;
+use winnow::ascii::space1;
+use winnow::ascii::till_line_ending;
+use winnow::combinator::opt;
+use winnow::error::ContextError;
+use winnow::error::ParserError;
+use winnow::error::StrContext;
+use winnow::error::StrContextValue;
+use winnow::Parser;
 
 pub fn single_value<'i, P, O, E>(
     mut parser: P,
@@ -15,7 +19,7 @@ where
     P: Parser<&'i str, O, E>,
     E: ParserError<&'i str>,
 {
-    seq! {
+    winnow::seq! {
         _: space0,
         parser,
         _: space0,
@@ -28,7 +32,7 @@ pub fn comment_or_end<'i, E>(comment_tag: &'static str) -> impl Parser<&'i str, 
 where
     E: ParserError<&'i str>,
 {
-    seq! {
+    winnow::seq! {
         space0,
         opt((comment_tag, till_line_ending)),
         line_ending,

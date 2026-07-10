@@ -5,17 +5,24 @@
 //! bounding with an encoding that only natively support upper bounding by
 //! negating the input literals.
 
-use std::ops::{Not, Range, RangeBounds};
+use std::ops::Not;
 
-use super::{
-    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-    BoundUpperIncremental, Encode, EncodeIncremental,
-};
-use crate::{
-    encodings::{CollectClauses, EncodeStats, EnforceError, IterInputs, NotEncoded},
-    instances::ManageVars,
-    types::Lit,
-};
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::EnforceError;
+use crate::encodings::IterInputs;
+use crate::encodings::NotEncoded;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+
+use super::BoundBoth;
+use super::BoundBothIncremental;
+use super::BoundLower;
+use super::BoundLowerIncremental;
+use super::BoundUpper;
+use super::BoundUpperIncremental;
+use super::Encode;
+use super::EncodeIncremental;
 
 /// Simulator type that builds a cardinality encoding of type `CE` over the
 /// negated input literals in order to simulate the other bound type
@@ -45,7 +52,7 @@ impl<CE> Inverted<CE>
 where
     CE: Encode + 'static,
 {
-    fn convert_encoding_range(&self, range: Range<usize>) -> Range<usize> {
+    fn convert_encoding_range(&self, range: std::ops::Range<usize>) -> std::ops::Range<usize> {
         let min = self.n_lits() - (range.end - 1);
         let max = if self.n_lits() >= range.start {
             self.n_lits() - range.start + 1
@@ -132,7 +139,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.card_enc.encode_lb(
             self.convert_encoding_range(super::prepare_ub_range(self, range)),
@@ -169,7 +176,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.card_enc.encode_lb_cert(
@@ -218,7 +225,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.card_enc.encode_ub(
             self.convert_encoding_range(super::prepare_lb_range(self, range)),
@@ -251,7 +258,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.card_enc.encode_ub_cert(
@@ -294,7 +301,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.card_enc.encode_both(
             self.convert_encoding_range(super::prepare_both_range(self, range)),
@@ -327,7 +334,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
         W: std::io::Write,
     {
         self.card_enc.encode_both_cert(
@@ -351,7 +358,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.card_enc.encode_lb_change(
             self.convert_encoding_range(super::prepare_ub_range(self, range)),
@@ -375,7 +382,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.card_enc.encode_lb_change_cert(
@@ -399,7 +406,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.card_enc.encode_ub_change(
             self.convert_encoding_range(super::prepare_lb_range(self, range)),
@@ -423,7 +430,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.card_enc.encode_ub_change_cert(
@@ -447,7 +454,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.card_enc.encode_both_change(
             self.convert_encoding_range(super::prepare_both_range(self, range)),
@@ -471,7 +478,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
         W: std::io::Write,
     {
         self.card_enc.encode_both_change_cert(
@@ -607,7 +614,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.ub_enc.encode_ub(range, collector, var_manager)
     }
@@ -632,7 +639,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.ub_enc
@@ -670,7 +677,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.lb_enc.encode_lb(range, collector, var_manager)
     }
@@ -695,7 +702,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.lb_enc
@@ -748,7 +755,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.ub_enc.encode_ub_change(range, collector, var_manager)
     }
@@ -769,7 +776,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.ub_enc
@@ -790,7 +797,7 @@ where
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.lb_enc.encode_lb_change(range, collector, var_manager)
     }
@@ -811,7 +818,7 @@ where
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         self.lb_enc

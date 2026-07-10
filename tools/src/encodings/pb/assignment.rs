@@ -1,10 +1,8 @@
 //! # PB (Multi-Criteria) Assignment Problem Encoding
 
-use rustsat::{
-    instances::fio::opb,
-    lit,
-    types::{constraints::CardConstraint, Lit},
-};
+use rustsat::instances::fio::opb;
+use rustsat::types::constraints::CardConstraint;
+use rustsat::types::Lit;
 
 use crate::encodings::assignment::Assignment;
 
@@ -41,7 +39,8 @@ impl Iterator for Encoding {
     type Item = opb::FileLine<<Vec<(Lit, usize)> as IntoIterator>::IntoIter>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let selector = |task: usize, agent: usize| lit![(self.data.n_tasks * task + agent) as u32];
+        let selector =
+            |task: usize, agent: usize| Lit::new((self.data.n_tasks * task + agent) as u32, false);
         match self.next_line.take() {
             Some(line) => Some(match line {
                 Line::Hint => {

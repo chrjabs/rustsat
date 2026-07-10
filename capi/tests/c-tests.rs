@@ -1,9 +1,7 @@
-use std::path::Path;
-
-use libtest_mimic::{Arguments, Failed, Trial};
+use libtest_mimic::Trial;
 
 fn main() {
-    let args = Arguments::from_args();
+    let args = libtest_mimic::Arguments::from_args();
     let tests = collect_tests();
     libtest_mimic::run(&args, tests).exit();
 }
@@ -31,7 +29,7 @@ fn collect_tests() -> Vec<Trial> {
     tests
 }
 
-fn run_test(path: &Path) -> Result<(), Failed> {
+fn run_test(path: &std::path::Path) -> Result<(), libtest_mimic::Failed> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let out_dir = env!("CARGO_TARGET_TMPDIR");
     let name = path.file_stem().unwrap().to_str().unwrap();

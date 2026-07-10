@@ -10,25 +10,30 @@
 //! - [DIMACS WCNF pre-22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post-22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
-use std::io::{self, Write};
+use winnow::ascii::dec_int;
+use winnow::ascii::dec_uint;
+use winnow::ascii::line_ending;
+use winnow::ascii::space0;
+use winnow::ascii::space1;
+use winnow::ascii::till_line_ending;
+use winnow::combinator::alt;
+use winnow::combinator::cut_err;
+use winnow::combinator::eof;
+use winnow::combinator::opt;
+use winnow::combinator::separated;
+use winnow::combinator::seq;
+use winnow::combinator::terminated;
+use winnow::error::StrContext;
+use winnow::ModalResult;
+use winnow::Parser as _;
 
-use winnow::{
-    ascii::{dec_int, dec_uint, line_ending, space0, space1, till_line_ending},
-    combinator::{alt, cut_err, eof, opt, separated, seq, terminated},
-    error::StrContext,
-    ModalResult, Parser as _,
-};
-
-use crate::{
-    instances::Cnf,
-    types::{Cl, Clause, Lit},
-    utils,
-};
+use crate::instances::Cnf;
+use crate::types::Cl;
+use crate::types::Clause;
+use crate::types::Lit;
+use crate::utils;
 
 use super::ParsingError;
-
-#[cfg(feature = "optimization")]
-use crate::types::WClsIter;
 
 /// The main OPB parser iterator
 ///
@@ -50,7 +55,7 @@ impl<Variant, R> Parser<Variant, R> {
     pub fn new(reader: R) -> Self
     where
         Variant: Default,
-        R: io::BufRead,
+        R: std::io::BufRead,
     {
         Self {
             variant: Variant::default(),
@@ -66,9 +71,9 @@ impl<Variant, R> Parser<Variant, R> {
     }
 
     /// Loads the next non-empty line into the buffer
-    fn read_line(&mut self) -> io::Result<bool>
+    fn read_line(&mut self) -> std::io::Result<bool>
     where
-        R: io::BufRead,
+        R: std::io::BufRead,
     {
         debug_assert!(self.buffer.is_empty());
         loop {
@@ -109,7 +114,7 @@ pub struct CnfHeader {
 
 impl<R> Parser<CnfHeader, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     /// Transitions the parser to the CNF body
     ///
@@ -188,7 +193,7 @@ enum CnfHeaderLine {
 
 impl<R> Iterator for Parser<CnfHeader, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<String, super::Error>;
 
@@ -251,7 +256,7 @@ pub struct CnfBody();
 
 impl<R> Iterator for Parser<CnfBody, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<CnfData, super::Error>;
 
@@ -343,7 +348,7 @@ pub struct WcnfHeader {
 #[cfg(feature = "optimization")]
 impl<R> Parser<WcnfHeader, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     /// Transitions the parser to the CNF body
     ///
@@ -450,7 +455,7 @@ enum WcnfHeaderLine {
 #[cfg(feature = "optimization")]
 impl<R> Iterator for Parser<WcnfHeader, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<String, super::Error>;
 
@@ -552,7 +557,7 @@ pub struct WcnfPre22Body {
 #[cfg(feature = "optimization")]
 impl<R> Iterator for Parser<WcnfPre22Body, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<WcnfData, super::Error>;
 
@@ -602,7 +607,7 @@ pub struct WcnfPost22(Option<WcnfData>);
 #[cfg(feature = "optimization")]
 impl<R> Iterator for Parser<WcnfPost22, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<WcnfData, super::Error>;
 
@@ -673,7 +678,7 @@ pub struct Mcnf();
 #[cfg(feature = "multiopt")]
 impl<R> Iterator for Parser<Mcnf, R>
 where
-    R: io::BufRead,
+    R: std::io::BufRead,
 {
     type Item = Result<McnfData, super::Error>;
 
@@ -776,7 +781,8 @@ fn weight(input: &mut &str) -> ModalResult<usize> {
 
 #[cfg(feature = "multiopt")]
 fn obj_idx(input: &mut &str) -> ModalResult<usize> {
-    use winnow::{ascii::digit0, token::one_of};
+    use winnow::ascii::digit0;
+    use winnow::token::one_of;
 
     (one_of('1'..='9'), digit0)
         .take()
@@ -825,12 +831,12 @@ fn clause_ending<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-pub fn write_cnf_annotated<W: Write>(
+/// If writing fails, returns [`std::io::Error`].
+pub fn write_cnf_annotated<W: std::io::Write>(
     mut writer: W,
     cnf: &Cnf,
     n_vars: u32,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     writeln!(writer, "c CNF file written by RustSAT")?;
     writeln!(writer, "p cnf {n_vars} {}", cnf.len())?;
     cnf.iter()
@@ -864,11 +870,11 @@ impl CnfLine {
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
+/// If writing fails, returns [`std::io::Error`].
+pub fn write_cnf<W: std::io::Write, Iter: Iterator<Item = CnfLine>>(
     mut writer: W,
     mut data: Iter,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     data.try_for_each(|dat| match dat {
         CnfLine::Header(n_vars, n_clauses) => writeln!(writer, "p {n_vars} {n_clauses}"),
         CnfLine::Comment(c) => write!(writer, "c {c}"),
@@ -881,13 +887,13 @@ pub fn write_cnf<W: Write, Iter: Iterator<Item = CnfLine>>(
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-pub fn write_wcnf_annotated<W: Write, CI: WClsIter>(
+/// If writing fails, returns [`std::io::Error`].
+pub fn write_wcnf_annotated<W: std::io::Write, CI: crate::types::WClsIter>(
     mut writer: W,
     cnf: &Cnf,
     softs: (CI, isize),
     n_vars: Option<u32>,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     let (soft_cls, offset) = softs;
     let soft_cls: Vec<(Clause, usize)> = soft_cls.into_iter().collect();
     writeln!(writer, "c WCNF file written by RustSAT")?;
@@ -925,11 +931,11 @@ pub enum WcnfLine {
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
+/// If writing fails, returns [`std::io::Error`].
+pub fn write_wcnf<W: std::io::Write, Iter: Iterator<Item = WcnfLine>>(
     mut writer: W,
     mut data: Iter,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     data.try_for_each(|dat| match dat {
         WcnfLine::Comment(c) => write!(writer, "c {c}"),
         WcnfLine::Hard(cl) => {
@@ -948,13 +954,17 @@ pub fn write_wcnf<W: Write, Iter: Iterator<Item = WcnfLine>>(
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-pub fn write_mcnf_annotated<W: Write, Iter: Iterator<Item = (CI, isize)>, CI: WClsIter>(
+/// If writing fails, returns [`std::io::Error`].
+pub fn write_mcnf_annotated<
+    W: std::io::Write,
+    Iter: Iterator<Item = (CI, isize)>,
+    CI: crate::types::WClsIter,
+>(
     mut writer: W,
     cnf: &Cnf,
     softs: Iter,
     n_vars: Option<u32>,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     let (soft_cls, offsets) = softs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>();
     let soft_cls: Vec<Vec<(Clause, usize)>> = soft_cls
         .into_iter()
@@ -1009,11 +1019,11 @@ pub enum McnfLine {
 ///
 /// # Errors
 ///
-/// If writing fails, returns [`io::Error`].
-pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
+/// If writing fails, returns [`std::io::Error`].
+pub fn write_mcnf<W: std::io::Write, Iter: Iterator<Item = McnfLine>>(
     mut writer: W,
     mut data: Iter,
-) -> Result<(), io::Error> {
+) -> Result<(), std::io::Error> {
     data.try_for_each(|dat| match dat {
         McnfLine::Comment(c) => writeln!(writer, "c {c}"),
         McnfLine::Hard(cl) => {
@@ -1027,9 +1037,9 @@ pub fn write_mcnf<W: Write, Iter: Iterator<Item = McnfLine>>(
     })
 }
 
-fn write_clause<W, C>(writer: &mut W, clause: &C) -> Result<(), io::Error>
+fn write_clause<W, C>(writer: &mut W, clause: &C) -> Result<(), std::io::Error>
 where
-    W: Write,
+    W: std::io::Write,
     C: AsRef<Cl> + ?Sized,
 {
     clause
@@ -1041,19 +1051,23 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Cursor, Seek};
+    use std::io::Seek;
 
     use winnow::Parser as _;
 
-    use crate::{
-        instances::{Cnf, SatInstance},
-        ipasir_lit,
-    };
+    use crate::instances::Cnf;
+    use crate::instances::SatInstance;
+    use crate::ipasir_lit;
 
-    use super::{
-        clause_ending, cnf_p_line, lit, write_cnf_annotated, CnfBody, CnfData, CnfHeader,
-        CnfHeaderData, Parser,
-    };
+    use super::clause_ending;
+    use super::cnf_p_line;
+    use super::lit;
+    use super::write_cnf_annotated;
+    use super::CnfBody;
+    use super::CnfData;
+    use super::CnfHeader;
+    use super::CnfHeaderData;
+    use super::Parser;
 
     #[test]
     fn parse_lit_pass() {
@@ -1102,16 +1116,18 @@ mod tests {
 
     #[test]
     fn parse_cnf_line_pass() {
-        assert!(Parser::<CnfBody, _>::new(Cursor::new("c test"))
+        assert!(Parser::<CnfBody, _>::new(std::io::Cursor::new("c test"))
             .next()
             .is_some_and(
                 |res| res.is_ok_and(|parsed| parsed == CnfData::Comment(String::from("c test")))
             ));
-        assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 -16 0"))
-            .next()
-            .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]))));
-        assert!(Parser::<CnfBody, _>::new(Cursor::new(" 42 34"))
+        assert!(
+            Parser::<CnfBody, _>::new(std::io::Cursor::new("42 34 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16])))
+        );
+        assert!(Parser::<CnfBody, _>::new(std::io::Cursor::new(" 42 34"))
             .next()
             .is_some_and(|res| res
                 .is_ok_and(|parsed| parsed == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34]))));
@@ -1119,18 +1135,23 @@ mod tests {
 
     #[test]
     fn parse_cnf_line_fail() {
-        assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 0 -16 0"))
-            .next()
-            .is_some_and(|res| res.is_err()));
-        assert!(Parser::<CnfBody, _>::new(Cursor::new("42 34 a -16 0"))
-            .next()
-            .is_some_and(|res| res.is_err()));
+        assert!(
+            Parser::<CnfBody, _>::new(std::io::Cursor::new("42 34 0 -16 0"))
+                .next()
+                .is_some_and(|res| res.is_err())
+        );
+        assert!(
+            Parser::<CnfBody, _>::new(std::io::Cursor::new("42 34 a -16 0"))
+                .next()
+                .is_some_and(|res| res.is_err())
+        );
     }
 
     #[test]
     fn parse_cnf_preamble() {
         assert!(matches!(
-            Parser::<CnfHeader, _>::new(Cursor::new("c test\np cnf 5 2\n1 2 0")).forward_to_body(),
+            Parser::<CnfHeader, _>::new(std::io::Cursor::new("c test\np cnf 5 2\n1 2 0"))
+                .forward_to_body(),
             Ok(CnfHeaderData {
                 n_vars: 5,
                 n_clauses: 2,
@@ -1143,7 +1164,7 @@ mod tests {
     fn parse_cnf_body_pass() {
         let input = "1 2 0\n-3 4 5 0\n";
 
-        let parser = Parser::<CnfBody, _>::new(Cursor::new(input));
+        let parser = Parser::<CnfBody, _>::new(std::io::Cursor::new(input));
         let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
         insta::assert_yaml_snapshot!("cnf_body_pass", data, input);
@@ -1153,7 +1174,7 @@ mod tests {
     fn parse_cnf_body_fail() {
         let input = "1 2 0\n-3 four 5 0\n";
 
-        let parser = Parser::<CnfBody, _>::new(Cursor::new(input));
+        let parser = Parser::<CnfBody, _>::new(std::io::Cursor::new(input));
         let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
 
         insta::assert_snapshot!("parse_cnf_body_fail", format!("{err}"), input);
@@ -1163,9 +1184,10 @@ mod tests {
     fn parse_cnf() {
         let input = "p cnf 5 2\n1 2 0\n\n-3 4 5 0\n";
 
-        let data =
-            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-                .unwrap();
+        let data = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(
+            std::io::Cursor::new(input),
+        )
+        .unwrap();
 
         insta::assert_yaml_snapshot!("parse_cnf", data, input);
     }
@@ -1174,9 +1196,10 @@ mod tests {
     fn cnf_empty() {
         let input = "c test\n";
 
-        let err =
-            SatInstance::<crate::instances::BasicVarManager>::from_dimacs(&mut Cursor::new(input))
-                .unwrap_err();
+        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(
+            &mut std::io::Cursor::new(input),
+        )
+        .unwrap_err();
 
         insta::assert_snapshot!("cnf_empty", err, input);
     }
@@ -1185,8 +1208,10 @@ mod tests {
     fn cnf_no_header() {
         let input = "c p cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-            .unwrap_err();
+        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(
+            std::io::Cursor::new(input),
+        )
+        .unwrap_err();
 
         insta::assert_snapshot!("cnf_no_header", format!("{err}"), input);
     }
@@ -1195,8 +1220,10 @@ mod tests {
     fn cnf_invalid_header() {
         let input = "p cnf five 2\n1 2 0\n-3 4 5 0\n";
 
-        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-            .unwrap_err();
+        let err = SatInstance::<crate::instances::BasicVarManager>::from_dimacs(
+            std::io::Cursor::new(input),
+        )
+        .unwrap_err();
 
         insta::assert_snapshot!("cnf_invalid_header", format!("{err}"), input);
     }
@@ -1205,7 +1232,7 @@ mod tests {
     fn cnf_comments_before_header() {
         let input = "c test\np cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let mut parser = Parser::<CnfHeader, _>::new(Cursor::new(input));
+        let mut parser = Parser::<CnfHeader, _>::new(std::io::Cursor::new(input));
         let comments = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap();
 
         assert_eq!(comments, vec!["c test"]);
@@ -1224,7 +1251,7 @@ mod tests {
     fn cnf_invalid_before_header() {
         let input = "c test\nthis is an invalid line\np cnf 5 2\n1 2 0\n-3 4 5 0\n";
 
-        let mut parser = Parser::<CnfHeader, _>::new(Cursor::new(input));
+        let mut parser = Parser::<CnfHeader, _>::new(std::io::Cursor::new(input));
         let err = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap_err();
 
         insta::assert_snapshot!("cnf_invalid_before_header", format!("{err}"), input);
@@ -1236,7 +1263,7 @@ mod tests {
         true_cnf.add_clause(ipasir_lit![1] | ipasir_lit![2]);
         true_cnf.add_clause(ipasir_lit![2] | ipasir_lit![1]);
 
-        let mut cursor = Cursor::new(vec![]);
+        let mut cursor = std::io::Cursor::new(vec![]);
 
         write_cnf_annotated(&mut cursor, &true_cnf, 2).unwrap();
 
@@ -1251,19 +1278,25 @@ mod tests {
 
     #[cfg(feature = "optimization")]
     mod opt {
-        use std::io::{Cursor, Seek};
+        use std::io::Seek;
 
         use winnow::Parser as _;
 
-        use crate::{
-            instances::{Objective, OptInstance, SatInstance},
-            ipasir_lit,
-        };
+        use crate::instances::Objective;
+        use crate::instances::OptInstance;
+        use crate::instances::SatInstance;
+        use crate::ipasir_lit;
 
-        use super::super::{
-            obj_idx, wcnf_p_line, weight, write_wcnf_annotated, Parser, WcnfData, WcnfHeader,
-            WcnfHeaderData, WcnfPost22, WcnfPre22Body,
-        };
+        use super::super::obj_idx;
+        use super::super::wcnf_p_line;
+        use super::super::weight;
+        use super::super::write_wcnf_annotated;
+        use super::super::Parser;
+        use super::super::WcnfData;
+        use super::super::WcnfHeader;
+        use super::super::WcnfHeaderData;
+        use super::super::WcnfPost22;
+        use super::super::WcnfPre22Body;
 
         #[test]
         fn parse_obj_idx_pass() {
@@ -1314,7 +1347,7 @@ mod tests {
         fn parse_wcnf_pre22_line_pass() {
             assert!((Parser {
                 variant: WcnfPre22Body { top: 100 },
-                reader: Cursor::new("c test"),
+                reader: std::io::Cursor::new("c test"),
                 buffer: String::new(),
                 line_num: 0,
             })
@@ -1324,7 +1357,7 @@ mod tests {
             ));
             assert!((Parser {
                 variant: WcnfPre22Body { top: 100 },
-                reader: Cursor::new("42 34 -16 0"),
+                reader: std::io::Cursor::new("42 34 -16 0"),
                 buffer: String::new(),
                 line_num: 0,
             })
@@ -1336,7 +1369,7 @@ mod tests {
                 })));
             assert!((Parser {
                 variant: WcnfPre22Body { top: 100 },
-                reader: Cursor::new("100 34 -16 0"),
+                reader: std::io::Cursor::new("100 34 -16 0"),
                 buffer: String::new(),
                 line_num: 0,
             })
@@ -1348,29 +1381,33 @@ mod tests {
 
         #[test]
         fn parse_wcnf_post22_line_pass() {
-            assert!(Parser::<WcnfPost22, _>::new(Cursor::new("c test"))
+            assert!(Parser::<WcnfPost22, _>::new(std::io::Cursor::new("c test"))
                 .next()
                 .is_some_and(|res| res
                     .is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test")))));
-            assert!(Parser::<WcnfPost22, _>::new(Cursor::new("42 34 -16 0"))
-                .next()
-                .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == WcnfData::SoftClause {
-                        weight: 42,
-                        clause: ipasir_lit![34] | ipasir_lit![-16]
-                    })));
-            assert!(Parser::<WcnfPost22, _>::new(Cursor::new("h 42 34 -16 0"))
-                .next()
-                .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == WcnfData::HardClause(
-                        ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]
-                    ))));
+            assert!(
+                Parser::<WcnfPost22, _>::new(std::io::Cursor::new("42 34 -16 0"))
+                    .next()
+                    .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                        == WcnfData::SoftClause {
+                            weight: 42,
+                            clause: ipasir_lit![34] | ipasir_lit![-16]
+                        }))
+            );
+            assert!(
+                Parser::<WcnfPost22, _>::new(std::io::Cursor::new("h 42 34 -16 0"))
+                    .next()
+                    .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                        == WcnfData::HardClause(
+                            ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]
+                        )))
+            );
         }
 
         #[test]
         fn parse_wcnf_pre22_preamble() {
             assert!(matches!(
-                Parser::<WcnfHeader, _>::new(Cursor::new("c test\np wcnf 5 2 10\n1 2 0"))
+                Parser::<WcnfHeader, _>::new(std::io::Cursor::new("c test\np wcnf 5 2 10\n1 2 0"))
                     .forward_to_body(),
                 Ok(WcnfHeaderData::Pre22 {
                     n_vars: 5,
@@ -1384,17 +1421,17 @@ mod tests {
         #[test]
         fn parse_wcnf_post22_preamble() {
             assert!(matches!(
-                Parser::<WcnfHeader, _>::new(Cursor::new("c test\nh 5 2 0\n1 2 0"))
+                Parser::<WcnfHeader, _>::new(std::io::Cursor::new("c test\nh 5 2 0\n1 2 0"))
                     .forward_to_body(),
                 Ok(WcnfHeaderData::Post22(_))
             ));
             assert!(matches!(
-                Parser::<WcnfHeader, _>::new(Cursor::new("c test\n1 2 0\nh 5 2 0"))
+                Parser::<WcnfHeader, _>::new(std::io::Cursor::new("c test\n1 2 0\nh 5 2 0"))
                     .forward_to_body(),
                 Ok(WcnfHeaderData::Post22(_))
             ));
             assert!(matches!(
-                Parser::<WcnfHeader, _>::new(Cursor::new("c test")).forward_to_body(),
+                Parser::<WcnfHeader, _>::new(std::io::Cursor::new("c test")).forward_to_body(),
                 Ok(WcnfHeaderData::Empty(_))
             ));
         }
@@ -1405,7 +1442,7 @@ mod tests {
 
             let parser = Parser {
                 variant: WcnfPre22Body { top: 42 },
-                reader: Cursor::new(data),
+                reader: std::io::Cursor::new(data),
                 buffer: String::new(),
                 line_num: 0,
             };
@@ -1429,7 +1466,7 @@ mod tests {
 
             let parser = Parser {
                 variant: WcnfPre22Body { top: 42 },
-                reader: Cursor::new(input),
+                reader: std::io::Cursor::new(input),
                 buffer: String::new(),
                 line_num: 0,
             };
@@ -1442,7 +1479,7 @@ mod tests {
         fn parse_wcnf_post22_body_pass() {
             let data = "h 1 2 0\n10 -3 4 5 0\n";
 
-            let parser = Parser::<WcnfPost22, _>::new(Cursor::new(data));
+            let parser = Parser::<WcnfPost22, _>::new(std::io::Cursor::new(data));
             let clauses = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
             assert_eq!(
@@ -1461,7 +1498,7 @@ mod tests {
         fn parse_wcnf_post22_body_fail() {
             let input = "h 1 2 0\n10 -3 four 5 0\n";
 
-            let parser = Parser::<WcnfPost22, _>::new(Cursor::new(input));
+            let parser = Parser::<WcnfPost22, _>::new(std::io::Cursor::new(input));
             let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
 
             insta::assert_snapshot!("parse_wcnf_post22_body_fail", format!("{err}"), input);
@@ -1471,9 +1508,10 @@ mod tests {
         fn parse_wcnf_pre22() {
             let input = "p wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
-            let data =
-                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-                    .unwrap();
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                std::io::Cursor::new(input),
+            )
+            .unwrap();
 
             insta::assert_yaml_snapshot!("parse_wcnf_pre22", data, input);
         }
@@ -1482,9 +1520,10 @@ mod tests {
         fn parse_wcnf_pre22_duplication() {
             let input = "p wcnf 3 5 42\n1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\n42 -3 0\n";
 
-            let data =
-                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-                    .unwrap();
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                std::io::Cursor::new(input),
+            )
+            .unwrap();
 
             insta::assert_yaml_snapshot!("parse_wcnf_pre22_duplication", data, input);
         }
@@ -1493,9 +1532,10 @@ mod tests {
         fn parse_wcnf_post22() {
             let input = "h 1 2 0\n10 -3 4 5 0\n";
 
-            let data =
-                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-                    .unwrap();
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                std::io::Cursor::new(input),
+            )
+            .unwrap();
 
             insta::assert_yaml_snapshot!("parse_wcnf_post22", data, input);
         }
@@ -1503,9 +1543,10 @@ mod tests {
         fn parse_wcnf_post22_duplication() {
             let input = "1 1 2 0\n1 1 2 0\n2 -3 0\n8 -3 0\nh -3 0\n";
 
-            let data =
-                OptInstance::<crate::instances::BasicVarManager>::from_dimacs(Cursor::new(input))
-                    .unwrap();
+            let data = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
+                std::io::Cursor::new(input),
+            )
+            .unwrap();
 
             insta::assert_yaml_snapshot!("parse_wcnf_post22_duplication", data, input);
         }
@@ -1514,7 +1555,7 @@ mod tests {
         fn wcnf_pre22_invalid_header() {
             let input = "p wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
-            let parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let parser = Parser::<WcnfHeader, _>::new(std::io::Cursor::new(input));
             let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
 
             insta::assert_snapshot!("wcnf_pre22_invalid_header", format!("{err}"), input);
@@ -1525,7 +1566,7 @@ mod tests {
             let input = "p wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
             let err = OptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                &mut Cursor::new(input),
+                &mut std::io::Cursor::new(input),
             )
             .unwrap_err();
 
@@ -1536,7 +1577,7 @@ mod tests {
         fn wcnf_pre22_comments_before_header() {
             let input = "c test\np wcnf 5 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
-            let mut parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let mut parser = Parser::<WcnfHeader, _>::new(std::io::Cursor::new(input));
             let comments = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap();
 
             assert_eq!(comments, vec!["c test"]);
@@ -1556,7 +1597,7 @@ mod tests {
         fn wcnf_post22_comments_before_header() {
             let input = "c test\nh 1 2 0\n10 -3 4 5 0\n";
 
-            let mut parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let mut parser = Parser::<WcnfHeader, _>::new(std::io::Cursor::new(input));
             let comments = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap();
 
             assert_eq!(comments, vec!["c test"]);
@@ -1572,7 +1613,7 @@ mod tests {
             let input =
                 "c test\nthis is an invalid line\np wcnf five 2 42\n42 1 2 0\n10 -3 4 5 0\n";
 
-            let mut parser = Parser::<WcnfHeader, _>::new(Cursor::new(input));
+            let mut parser = Parser::<WcnfHeader, _>::new(std::io::Cursor::new(input));
             let err = (&mut parser).collect::<Result<Vec<_>, _>>().unwrap_err();
 
             insta::assert_snapshot!("wcnf_invalid_before_header", format!("{err}"), input);
@@ -1586,7 +1627,7 @@ mod tests {
             true_obj.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
             let offset = true_obj.offset();
 
-            let mut cursor = Cursor::new(vec![]);
+            let mut cursor = std::io::Cursor::new(vec![]);
 
             write_wcnf_annotated(
                 &mut cursor,
@@ -1607,32 +1648,37 @@ mod tests {
 
     #[cfg(feature = "multiopt")]
     mod multiopt {
-        use std::io::{Cursor, Seek};
+        use std::io::Seek;
 
-        use crate::{
-            clause,
-            instances::{MultiOptInstance, Objective, SatInstance},
-            ipasir_lit,
-        };
+        use crate::clause;
+        use crate::instances::MultiOptInstance;
+        use crate::instances::Objective;
+        use crate::instances::SatInstance;
+        use crate::ipasir_lit;
 
-        use super::super::{write_mcnf_annotated, Mcnf, McnfData, Parser};
+        use super::super::write_mcnf_annotated;
+        use super::super::Mcnf;
+        use super::super::McnfData;
+        use super::super::Parser;
 
         #[test]
         fn parse_mcnf_line_pass() {
-            assert!(Parser::<Mcnf, _>::new(Cursor::new("c test"))
+            assert!(Parser::<Mcnf, _>::new(std::io::Cursor::new("c test"))
                 .next()
                 .is_some_and(|res| res
                     .is_ok_and(|parsed| parsed == McnfData::Comment(String::from("c test")))));
-            assert!(Parser::<Mcnf, _>::new(Cursor::new("o 42 34 -16 0"))
-                .next()
-                .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == McnfData::SoftClause {
-                        obj_idx: 42,
-                        weight: 34,
-                        clause: clause![ipasir_lit![-16]]
-                    })));
+            assert!(
+                Parser::<Mcnf, _>::new(std::io::Cursor::new("o 42 34 -16 0"))
+                    .next()
+                    .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                        == McnfData::SoftClause {
+                            obj_idx: 42,
+                            weight: 34,
+                            clause: clause![ipasir_lit![-16]]
+                        }))
+            );
             // old format for backwards compatibility
-            assert!(Parser::<Mcnf, _>::new(Cursor::new("o42 34 -16 0"))
+            assert!(Parser::<Mcnf, _>::new(std::io::Cursor::new("o42 34 -16 0"))
                 .next()
                 .is_some_and(|res| res.is_ok_and(|parsed| parsed
                     == McnfData::SoftClause {
@@ -1640,19 +1686,21 @@ mod tests {
                         weight: 34,
                         clause: clause![ipasir_lit![-16]]
                     })));
-            assert!(Parser::<Mcnf, _>::new(Cursor::new("h 42 34 -16 0"))
-                .next()
-                .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == McnfData::HardClause(
-                        ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]
-                    ))));
+            assert!(
+                Parser::<Mcnf, _>::new(std::io::Cursor::new("h 42 34 -16 0"))
+                    .next()
+                    .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                        == McnfData::HardClause(
+                            ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16]
+                        )))
+            );
         }
 
         #[test]
         fn parse_mcnf_body_pass() {
             let input = "h 1 2 0\no 2 10 -3 4 5 0\n";
 
-            let parser = Parser::<Mcnf, _>::new(Cursor::new(input));
+            let parser = Parser::<Mcnf, _>::new(std::io::Cursor::new(input));
             let data = parser.collect::<Result<Vec<_>, _>>().unwrap();
 
             insta::assert_yaml_snapshot!("mcnf_body_pass", data, input);
@@ -1662,7 +1710,7 @@ mod tests {
         fn parse_mcnf_body_fail() {
             let input = "h 1 2 0\no2 10 -3 four 5 0\n";
 
-            let parser = Parser::<Mcnf, _>::new(Cursor::new(input));
+            let parser = Parser::<Mcnf, _>::new(std::io::Cursor::new(input));
             let err = parser.collect::<Result<Vec<_>, _>>().unwrap_err();
 
             insta::assert_snapshot!("parse_mcnf_body_fail", format!("{err}"), input);
@@ -1673,7 +1721,7 @@ mod tests {
             let input = "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 1 3 -1 0\n";
 
             let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                Cursor::new(input),
+                std::io::Cursor::new(input),
             )
             .unwrap();
 
@@ -1685,7 +1733,7 @@ mod tests {
             let input = "c test\nh 1 2 0\no 2 10 -3 4 5 0\no 2 10 -3 4 5 0\no 1 3 -1 0\no 1 3 -1 0";
 
             let data = MultiOptInstance::<crate::instances::BasicVarManager>::from_dimacs(
-                Cursor::new(input),
+                std::io::Cursor::new(input),
             )
             .unwrap();
 
@@ -1703,7 +1751,7 @@ mod tests {
             true_obj1.add_soft_clause(10, ipasir_lit![-3] | ipasir_lit![4] | ipasir_lit![5]);
             let offset1 = true_obj1.offset();
 
-            let mut cursor = Cursor::new(vec![]);
+            let mut cursor = std::io::Cursor::new(vec![]);
 
             write_mcnf_annotated(
                 &mut cursor,

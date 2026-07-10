@@ -2,26 +2,14 @@
 
 use pyo3::prelude::*;
 
-use rustsat::{
-    encodings::{
-        pb::{
-            BinaryAdder as RsAdder, BoundBoth, BoundBothIncremental, BoundLower,
-            BoundLowerIncremental, BoundUpper, BoundUpperIncremental, DynamicPolyWatchdog as RsDpw,
-            Encode as PbEncode, GeneralizedTotalizer as RsGte,
-        },
-        EncodeStats,
-    },
-    instances::{BasicVarManager, Cnf as RsCnf},
-    types::Lit as RsLit,
-};
-
-use crate::{
-    handle_oom,
-    instances::{Cnf, VarManager},
-    types::Lit,
-};
-
-use super::convert_enforce_error;
+use rustsat::encodings::pb::BoundBoth;
+use rustsat::encodings::pb::BoundBothIncremental;
+use rustsat::encodings::pb::BoundLower;
+use rustsat::encodings::pb::BoundLowerIncremental;
+use rustsat::encodings::pb::BoundUpper;
+use rustsat::encodings::pb::BoundUpperIncremental;
+use rustsat::encodings::pb::Encode;
+use rustsat::encodings::EncodeStats;
 
 macro_rules! shared_pyapi {
     (derive_from, $type:ty, $rstype:ty) => {
@@ -41,8 +29,8 @@ macro_rules! shared_pyapi {
         #[pymethods]
         impl $type {
             /// Adds additional input literals to the encoding
-            fn extend(&mut self, lits: Vec<(Lit, usize)>) {
-                let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
+            fn extend(&mut self, lits: Vec<(crate::types::Lit, usize)>) {
+                let lits: Vec<(rustsat::types::Lit, usize)> = unsafe { std::mem::transmute(lits) };
                 self.0.extend(lits);
             }
         }
@@ -52,8 +40,8 @@ macro_rules! shared_pyapi {
         impl $type {
             #[new]
             #[pyo3(text_signature = "(lits = [])")]
-            fn new(lits: Vec<(Lit, usize)>) -> Self {
-                let lits: Vec<(RsLit, usize)> = unsafe { std::mem::transmute(lits) };
+            fn new(lits: Vec<(crate::types::Lit, usize)>) -> Self {
+                let lits: Vec<(rustsat::types::Lit, usize)> = unsafe { std::mem::transmute(lits) };
                 <$rstype>::from_iter(lits).into()
             }
 
@@ -82,11 +70,11 @@ macro_rules! shared_pyapi {
                 &mut self,
                 min_ub: usize,
                 max_ub: usize,
-                var_manager: &mut VarManager,
-            ) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self
                     .0
                     .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
                 Ok(cnf.into())
@@ -94,9 +82,13 @@ macro_rules! shared_pyapi {
 
             /// Gets assumptions to enforce the given upper bound. Make sure that the required
             /// encoding is built first.
-            fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> = unsafe {
-                    std::mem::transmute(self.0.enforce_ub(ub).map_err(convert_enforce_error)?)
+            fn enforce_ub(&self, ub: usize) -> PyResult<Vec<crate::types::Lit>> {
+                let assumps: Vec<crate::types::Lit> = unsafe {
+                    std::mem::transmute(
+                        self.0
+                            .enforce_ub(ub)
+                            .map_err(super::convert_enforce_error)?,
+                    )
                 };
                 Ok(assumps)
             }
@@ -111,11 +103,11 @@ macro_rules! shared_pyapi {
                 &mut self,
                 min_lb: usize,
                 max_lb: usize,
-                var_manager: &mut VarManager,
-            ) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self
                     .0
                     .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager));
                 Ok(cnf.into())
@@ -123,9 +115,13 @@ macro_rules! shared_pyapi {
 
             /// Gets assumptions to enforce the given lower bound. Make sure that the required encoding
             /// is built first.
-            fn enforce_lb(&self, lb: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> = unsafe {
-                    std::mem::transmute(self.0.enforce_lb(lb).map_err(convert_enforce_error)?)
+            fn enforce_lb(&self, lb: usize) -> PyResult<Vec<crate::types::Lit>> {
+                let assumps: Vec<crate::types::Lit> = unsafe {
+                    std::mem::transmute(
+                        self.0
+                            .enforce_lb(lb)
+                            .map_err(super::convert_enforce_error)?,
+                    )
                 };
                 Ok(assumps)
             }
@@ -141,11 +137,11 @@ macro_rules! shared_pyapi {
                 &mut self,
                 min_bound: usize,
                 max_bound: usize,
-                var_manager: &mut VarManager,
-            ) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self.0.encode_both_change(
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self.0.encode_both_change(
                     min_bound..=max_bound,
                     &mut cnf,
                     var_manager
@@ -155,9 +151,13 @@ macro_rules! shared_pyapi {
 
             /// Gets assumptions to enforce the given equality bound. Make sure that the required
             /// encoding is built first.
-            fn enforce_eq(&self, val: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> = unsafe {
-                    std::mem::transmute(self.0.enforce_eq(val).map_err(convert_enforce_error)?)
+            fn enforce_eq(&self, val: usize) -> PyResult<Vec<crate::types::Lit>> {
+                let assumps: Vec<crate::types::Lit> = unsafe {
+                    std::mem::transmute(
+                        self.0
+                            .enforce_eq(val)
+                            .map_err(super::convert_enforce_error)?,
+                    )
                 };
                 Ok(assumps)
             }
@@ -200,9 +200,13 @@ macro_rules! implement_pyapi {
 ///   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 #[pyclass]
 #[repr(transparent)]
-pub struct GeneralizedTotalizer(RsGte);
+pub struct GeneralizedTotalizer(rustsat::encodings::pb::GeneralizedTotalizer);
 
-implement_pyapi!(ub, GeneralizedTotalizer, RsGte);
+implement_pyapi!(
+    ub,
+    GeneralizedTotalizer,
+    rustsat::encodings::pb::GeneralizedTotalizer
+);
 
 /// Implementation of the dynamic polynomial watchdog (DPW) encoding \[1\].
 ///
@@ -218,9 +222,13 @@ implement_pyapi!(ub, GeneralizedTotalizer, RsGte);
 ///   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 #[pyclass]
 #[repr(transparent)]
-pub struct DynamicPolyWatchdog(RsDpw);
+pub struct DynamicPolyWatchdog(rustsat::encodings::pb::DynamicPolyWatchdog);
 
-implement_pyapi!(ub_noextend, DynamicPolyWatchdog, RsDpw);
+implement_pyapi!(
+    ub_noextend,
+    DynamicPolyWatchdog,
+    rustsat::encodings::pb::DynamicPolyWatchdog
+);
 
 /// Implementation of the binary adder encoding first described in \[1\].
 /// The implementation follows the description in \[2\].
@@ -233,6 +241,6 @@ implement_pyapi!(ub_noextend, DynamicPolyWatchdog, RsDpw);
 ///     JSAT 2006.
 #[pyclass]
 #[repr(transparent)]
-pub struct BinaryAdder(RsAdder);
+pub struct BinaryAdder(rustsat::encodings::pb::BinaryAdder);
 
-implement_pyapi!(both, BinaryAdder, RsAdder);
+implement_pyapi!(both, BinaryAdder, rustsat::encodings::pb::BinaryAdder);
