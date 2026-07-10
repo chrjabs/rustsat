@@ -17,7 +17,7 @@ use super::{
 };
 
 #[cfg(feature = "proof-logging")]
-#[path = "totdb/cert.rs"]
+#[path = "cert.rs"]
 pub mod cert;
 
 #[inline]

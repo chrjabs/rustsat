@@ -80,7 +80,7 @@ pub trait EncodeStats {
     fn n_vars(&self) -> u32;
 }
 
-#[path = "encodings/nodedb.rs"]
+#[path = "nodedb.rs"]
 mod nodedbimpl;
 
 // Module defined inline to be able to dynamically change visibility
@@ -100,7 +100,7 @@ mod nodedb {
     pub use super::nodedbimpl::{NodeById, NodeCon, NodeId, NodeLike};
 }
 
-#[path = "encodings/totdb.rs"]
+#[path = "totdb/mod.rs"]
 mod totdbimpl;
 
 // Module defined inline to be able to dynamically change visibility
