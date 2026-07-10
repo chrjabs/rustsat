@@ -1,28 +1,14 @@
 //! # Satisfiability Instance Representations
 
-use std::{
-    cmp,
-    collections::{BTreeSet, TryReserveError},
-    io,
-    ops::Index,
-    path::Path,
-};
-
-use crate::{
-    clause,
-    encodings::{atomics, card, pb, CollectClauses},
-    lit,
-    types::{
-        constraints::{CardConstraint, ConstraintRef, PbConstraint},
-        Assignment, Clause, Lit, TernaryVal, Var,
-    },
-    utils::{unreachable_err, LimitedIter},
-};
-
-use super::{
-    fio::{self, dimacs::CnfLine},
-    BasicVarManager, ManageVars, ReindexVars, WriteDimacsError,
-};
+use crate::encodings::CollectClauses;
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::ConstraintRef;
+use crate::types::constraints::PbConstraint;
+use crate::types::Assignment;
+use crate::types::Clause;
+use crate::types::Lit;
+use crate::types::TernaryVal;
+use crate::types::Var;
 
 /// Simple type representing a CNF formula. Other than [`Instance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.
@@ -70,7 +56,10 @@ impl Cnf {
     ///
     /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
     #[inline]
-    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+    pub fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), std::collections::TryReserveError> {
         self.clauses.try_reserve(additional)
     }
 
@@ -114,49 +103,49 @@ impl Cnf {
         *self &= Clause::from(lits);
     }
 
-    /// See [`atomics::lit_impl_lit`]
+    /// See [`crate::encodings::atomics::lit_impl_lit`]
     pub fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
-        *self &= atomics::lit_impl_lit(a, b);
+        *self &= crate::encodings::atomics::lit_impl_lit(a, b);
     }
 
-    /// See [`atomics::lit_impl_clause`]
+    /// See [`crate::encodings::atomics::lit_impl_clause`]
     pub fn add_lit_impl_clause(&mut self, a: Lit, b: &[Lit]) {
-        *self &= atomics::lit_impl_clause(a, b);
+        *self &= crate::encodings::atomics::lit_impl_clause(a, b);
     }
 
-    /// See [`atomics::lit_impl_cube`]
+    /// See [`crate::encodings::atomics::lit_impl_cube`]
     pub fn add_lit_impl_cube(&mut self, a: Lit, b: &[Lit]) {
-        self.extend(atomics::lit_impl_cube(a, b));
+        self.extend(crate::encodings::atomics::lit_impl_cube(a, b));
     }
 
-    /// See [`atomics::cube_impl_lit`]
+    /// See [`crate::encodings::atomics::cube_impl_lit`]
     pub fn add_cube_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        *self &= atomics::cube_impl_lit(a, b);
+        *self &= crate::encodings::atomics::cube_impl_lit(a, b);
     }
 
-    /// See [`atomics::clause_impl_lit`]
+    /// See [`crate::encodings::atomics::clause_impl_lit`]
     pub fn add_clause_impl_lit(&mut self, a: &[Lit], b: Lit) {
-        self.extend(atomics::clause_impl_lit(a, b));
+        self.extend(crate::encodings::atomics::clause_impl_lit(a, b));
     }
 
-    /// See [`atomics::cube_impl_clause`]
+    /// See [`crate::encodings::atomics::cube_impl_clause`]
     pub fn add_cube_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        *self &= atomics::cube_impl_clause(a, b);
+        *self &= crate::encodings::atomics::cube_impl_clause(a, b);
     }
 
-    /// See [`atomics::clause_impl_clause`]
+    /// See [`crate::encodings::atomics::clause_impl_clause`]
     pub fn add_clause_impl_clause(&mut self, a: &[Lit], b: &[Lit]) {
-        self.extend(atomics::clause_impl_clause(a, b));
+        self.extend(crate::encodings::atomics::clause_impl_clause(a, b));
     }
 
-    /// See [`atomics::clause_impl_cube`]
+    /// See [`crate::encodings::atomics::clause_impl_cube`]
     pub fn add_clause_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        self.extend(atomics::clause_impl_cube(a, b));
+        self.extend(crate::encodings::atomics::clause_impl_cube(a, b));
     }
 
-    /// See [`atomics::cube_impl_cube`]
+    /// See [`crate::encodings::atomics::cube_impl_cube`]
     pub fn add_cube_impl_cube(&mut self, a: &[Lit], b: &[Lit]) {
-        self.extend(atomics::cube_impl_cube(a, b));
+        self.extend(crate::encodings::atomics::cube_impl_cube(a, b));
     }
 
     /// Joins the current CNF with another one. Like [`Cnf::extend`] but
@@ -244,9 +233,13 @@ impl Cnf {
     ///
     /// # Errors
     ///
-    /// If the file could not be written to, returns [`io::Error`].
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P, n_vars: u32) -> Result<(), io::Error> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+    /// If the file could not be written to, returns [`std::io::Error`].
+    pub fn write_dimacs_path<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+        n_vars: u32,
+    ) -> Result<(), std::io::Error> {
+        let mut writer = super::fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer, n_vars)
     }
 
@@ -254,13 +247,17 @@ impl Cnf {
     ///
     /// # Performance
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    /// For performance, consider using a [`std::std::io::BufWriter`] instance.
     ///
     /// # Errors
     ///
-    /// If writing fails, returns [`io::Error`].
-    pub fn write_dimacs<W: io::Write>(&self, writer: W, n_vars: u32) -> Result<(), io::Error> {
-        fio::dimacs::write_cnf_annotated(writer, self, n_vars)
+    /// If writing fails, returns [`std::io::Error`].
+    pub fn write_dimacs<W: std::io::Write>(
+        &self,
+        writer: W,
+        n_vars: u32,
+    ) -> Result<(), std::io::Error> {
+        super::fio::dimacs::write_cnf_annotated(writer, self, n_vars)
     }
 
     /// Checks the value of the CNF under a given assignment
@@ -315,11 +312,11 @@ impl CollectClauses for Cnf {
             // Extend by reserving in exponential chunks
             let mut cl_iter = cl_iter.peekable();
             while cl_iter.peek().is_some() {
-                let additional = (self.len() + cmp::max(cl_iter.size_hint().0, 1))
+                let additional = (self.len() + std::cmp::max(cl_iter.size_hint().0, 1))
                     .next_power_of_two()
                     - self.len();
                 self.try_reserve(additional)?;
-                self.extend(LimitedIter::new(&mut cl_iter, additional));
+                self.extend(crate::utils::LimitedIter::new(&mut cl_iter, additional));
             }
         }
         Ok(())
@@ -347,9 +344,11 @@ impl FromIterator<Clause> for Cnf {
     }
 }
 
-impl FromIterator<CnfLine> for Cnf {
-    fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        iter.into_iter().filter_map(CnfLine::clause).collect()
+impl FromIterator<super::fio::dimacs::CnfLine> for Cnf {
+    fn from_iter<T: IntoIterator<Item = super::fio::dimacs::CnfLine>>(iter: T) -> Self {
+        iter.into_iter()
+            .filter_map(super::fio::dimacs::CnfLine::clause)
+            .collect()
     }
 }
 
@@ -359,7 +358,7 @@ impl Extend<Clause> for Cnf {
     }
 }
 
-impl Index<usize> for Cnf {
+impl std::ops::Index<usize> for Cnf {
     type Output = Clause;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -374,14 +373,14 @@ impl Index<usize> for Cnf {
     any(feature = "serde", test),
     derive(serde::Serialize, serde::Deserialize)
 )]
-pub struct Instance<VM: ManageVars = BasicVarManager> {
+pub struct Instance<VM: super::ManageVars = super::BasicVarManager> {
     pub(super) cnf: Cnf,
     pub(super) cards: Vec<CardConstraint>,
     pub(super) pbs: Vec<PbConstraint>,
     pub(super) var_manager: VM,
 }
 
-impl<VM: ManageVars> Instance<VM> {
+impl<VM: super::ManageVars> Instance<VM> {
     /// Creates a new satisfiability instance with a specific var manager
     pub fn new_with_manager(var_manager: VM) -> Self {
         Instance {
@@ -597,7 +596,7 @@ impl<VM: ManageVars> Instance<VM> {
     /// Converts the included variable manager to a different type
     pub fn change_var_manager<VM2, VMC>(self, vm_converter: VMC) -> (Instance<VM2>, VM)
     where
-        VM2: ManageVars,
+        VM2: super::ManageVars,
         VMC: Fn(&VM) -> VM2,
     {
         (
@@ -622,11 +621,11 @@ impl<VM: ManageVars> Instance<VM> {
     pub fn into_cnf(self) -> (Cnf, VM) {
         self.into_cnf_with_encoders(
             |constr, cnf, vm| {
-                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                crate::encodings::card::default_encode_cardinality_constraint(constr, cnf, vm)
                     .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
-                pb::default_encode_pb_constraint(constr, cnf, vm)
+                crate::encodings::pb::default_encode_pb_constraint(constr, cnf, vm)
                     .expect("pb encoding ran out of memory");
             },
         )
@@ -643,11 +642,11 @@ impl<VM: ManageVars> Instance<VM> {
     pub fn convert_to_cnf(&mut self) {
         self.convert_to_cnf_with_encoders(
             |constr, cnf, vm| {
-                card::default_encode_cardinality_constraint(constr, cnf, vm)
+                crate::encodings::card::default_encode_cardinality_constraint(constr, cnf, vm)
                     .expect("cardinality encoding ran out of memory");
             },
             |constr, cnf, vm| {
-                pb::default_encode_pb_constraint(constr, cnf, vm)
+                crate::encodings::pb::default_encode_pb_constraint(constr, cnf, vm)
                     .expect("pb encoding ran out of memory");
             },
         );
@@ -667,8 +666,8 @@ impl<VM: ManageVars> Instance<VM> {
         pb_encoder: PBEnc,
     ) -> (Cnf, VM)
     where
-        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn super::ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn super::ManageVars),
     {
         self.convert_to_cnf_with_encoders(card_encoder, pb_encoder);
         (self.cnf, self.var_manager)
@@ -687,8 +686,8 @@ impl<VM: ManageVars> Instance<VM> {
         mut card_encoder: CardEnc,
         mut pb_encoder: PBEnc,
     ) where
-        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn ManageVars),
-        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn ManageVars),
+        CardEnc: FnMut(CardConstraint, &mut Cnf, &mut dyn super::ManageVars),
+        PBEnc: FnMut(PbConstraint, &mut Cnf, &mut dyn super::ManageVars),
     {
         self.cards
             .drain(..)
@@ -715,7 +714,7 @@ impl<VM: ManageVars> Instance<VM> {
 
     /// Re-indexes all variables in the instance with a re-indexing variable manager
     #[must_use]
-    pub fn reindex<R: ReindexVars>(mut self, mut reindexer: R) -> Instance<R> {
+    pub fn reindex<R: super::ReindexVars>(mut self, mut reindexer: R) -> Instance<R> {
         self.cnf
             .iter_mut()
             .for_each(|cl| cl.iter_mut().for_each(|l| *l = reindexer.reindex_lit(*l)));
@@ -734,7 +733,7 @@ impl<VM: ManageVars> Instance<VM> {
         }
     }
 
-    pub(crate) fn extend_var_set(&self, varset: &mut BTreeSet<Var>) {
+    pub(crate) fn extend_var_set(&self, varset: &mut std::collections::BTreeSet<Var>) {
         varset.extend(self.cnf.iter().flat_map(|cl| cl.iter().map(|l| l.var())));
         varset.extend(
             self.cards
@@ -749,8 +748,8 @@ impl<VM: ManageVars> Instance<VM> {
     }
 
     /// Gets the set of variables in the instance
-    pub fn var_set(&self) -> BTreeSet<Var> {
-        let mut varset = BTreeSet::new();
+    pub fn var_set(&self) -> std::collections::BTreeSet<Var> {
+        let mut varset = std::collections::BTreeSet::new();
         self.extend_var_set(&mut varset);
         varset
     }
@@ -760,8 +759,8 @@ impl<VM: ManageVars> Instance<VM> {
     /// If the re-indexing variable manager produces new free variables in order, this results in
     /// the variable _order_ being preserved with gaps in the variable space being closed
     #[must_use]
-    pub fn reindex_ordered<R: ReindexVars>(self, mut reindexer: R) -> Instance<R> {
-        let mut varset = BTreeSet::new();
+    pub fn reindex_ordered<R: super::ReindexVars>(self, mut reindexer: R) -> Instance<R> {
+        let mut varset = std::collections::BTreeSet::new();
         self.extend_var_set(&mut varset);
         // reindex variables in order to ensure ordered reindexing
         for var in varset {
@@ -791,8 +790,11 @@ impl<VM: ManageVars> Instance<VM> {
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs_path<P: AsRef<Path>>(&self, path: P) -> Result<(), WriteDimacsError> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+    pub fn write_dimacs_path<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<(), super::WriteDimacsError> {
+        let mut writer = super::fio::open_compressed_uncompressed_write(path)?;
         self.write_dimacs(&mut writer)
     }
 
@@ -804,30 +806,35 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Performance
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    /// For performance, consider using a [`std::std::io::BufWriter`] instance.
     ///
     /// # Errors
     ///
     /// If the instance is not clausal or writing fails
-    pub fn write_dimacs<W: io::Write>(&self, writer: W) -> Result<(), WriteDimacsError> {
+    pub fn write_dimacs<W: std::io::Write>(
+        &self,
+        writer: W,
+    ) -> Result<(), super::WriteDimacsError> {
         if self.n_cards() > 0 || self.n_pbs() > 0 {
-            return Err(WriteDimacsError::RequiresClausal);
+            return Err(super::WriteDimacsError::RequiresClausal);
         }
         let n_vars = self.n_vars();
-        Ok(fio::dimacs::write_cnf_annotated(writer, &self.cnf, n_vars)?)
+        Ok(super::fio::dimacs::write_cnf_annotated(
+            writer, &self.cnf, n_vars,
+        )?)
     }
 
     /// Writes the instance to an OPB file at a path
     ///
     /// # Errors
     ///
-    /// If writing to file fails, returns [`io::Error`].
-    pub fn write_opb_path<P: AsRef<Path>>(
+    /// If writing to file fails, returns [`std::io::Error`].
+    pub fn write_opb_path<P: AsRef<std::path::Path>>(
         &self,
         path: P,
-        opts: fio::opb::Options,
-    ) -> Result<(), io::Error> {
-        let mut writer = fio::open_compressed_uncompressed_write(path)?;
+        opts: super::fio::opb::Options,
+    ) -> Result<(), std::io::Error> {
+        let mut writer = super::fio::open_compressed_uncompressed_write(path)?;
         self.write_opb(&mut writer, opts)
     }
 
@@ -835,17 +842,17 @@ impl<VM: ManageVars> Instance<VM> {
     ///
     /// # Performance
     ///
-    /// For performance, consider using a [`std::io::BufWriter`] instance.
+    /// For performance, consider using a [`std::std::io::BufWriter`] instance.
     ///
     /// # Errors
     ///
-    /// If writing fails, returns [`io::Error`].
-    pub fn write_opb<W: io::Write>(
+    /// If writing fails, returns [`std::io::Error`].
+    pub fn write_opb<W: std::io::Write>(
         &self,
         writer: W,
-        opts: fio::opb::Options,
-    ) -> Result<(), io::Error> {
-        fio::opb::write_sat(writer, self, opts)
+        opts: super::fio::opb::Options,
+    ) -> Result<(), std::io::Error> {
+        super::fio::opb::write_sat(writer, self, opts)
     }
 
     /// Sanitizes the constraints, i.e., for example a cardinality
@@ -882,11 +889,11 @@ impl<VM: ManageVars> Instance<VM> {
                     return None;
                 }
                 if pb.is_clause() {
-                    cnf.add_clause(unreachable_err!(pb.into_clause()));
+                    cnf.add_clause(crate::utils::unreachable_err!(pb.into_clause()));
                     return None;
                 }
                 if pb.is_card() {
-                    cards.push(unreachable_err!(pb.into_card_constr()));
+                    cards.push(crate::utils::unreachable_err!(pb.into_card_constr()));
                     return None;
                 }
                 Some(pb)
@@ -913,7 +920,7 @@ impl<VM: ManageVars> Instance<VM> {
                     return None;
                 }
                 if card.is_clause() {
-                    cnf.add_clause(unreachable_err!(card.into_clause()));
+                    cnf.add_clause(crate::utils::unreachable_err!(card.into_clause()));
                     return None;
                 }
                 Some(card)
@@ -921,7 +928,10 @@ impl<VM: ManageVars> Instance<VM> {
             .collect();
         if unsat {
             return Self {
-                cnf: Cnf::from_iter(vec![clause![lit![0]], clause![!lit![0]]]),
+                cnf: Cnf::from_iter(vec![
+                    crate::clause![Lit::new(0, false)],
+                    crate::clause![Lit::new(0, true)],
+                ]),
                 cards: vec![],
                 pbs: vec![],
                 var_manager: self.var_manager,
@@ -982,7 +992,7 @@ impl<VM: ManageVars> Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> Instance<VM> {
+impl<VM: super::ManageVars + Default> Instance<VM> {
     /// Creates a new satisfiability instance
     #[must_use]
     pub fn new() -> Instance<VM> {
@@ -1002,17 +1012,18 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs<R: io::BufRead>(reader: R) -> Result<Self, fio::Error> {
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_dimacs<R: std::io::BufRead>(reader: R) -> Result<Self, super::fio::Error> {
         let header_data =
-            fio::dimacs::Parser::<fio::dimacs::CnfHeader, _>::new(reader).forward_to_body()?;
+            super::fio::dimacs::Parser::<super::fio::dimacs::CnfHeader, _>::new(reader)
+                .forward_to_body()?;
         let mut inst = Self::default();
         inst.var_manager_mut()
             .increase_next_free(Var::new(header_data.n_vars));
         for data in header_data.body_parser {
             match data? {
-                fio::dimacs::CnfData::Clause(clause) => inst.add_clause(clause),
-                fio::dimacs::CnfData::Comment(_) => (),
+                super::fio::dimacs::CnfData::Clause(clause) => inst.add_clause(clause),
+                super::fio::dimacs::CnfData::Comment(_) => (),
             }
         }
         Ok(inst)
@@ -1024,9 +1035,9 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_dimacs_path<P: AsRef<Path>>(path: P) -> Result<Self, fio::Error> {
-        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_dimacs_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self, super::fio::Error> {
+        let mut reader = super::fio::open_compressed_uncompressed_read(path)?;
         Instance::from_dimacs(&mut reader)
     }
 
@@ -1040,20 +1051,20 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb<R: io::BufRead>(
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_opb<R: std::io::BufRead>(
         reader: R,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::Error> {
-        let parser = fio::opb::Parser::new(reader, opts);
+        opts: super::fio::opb::Options,
+    ) -> Result<Self, super::fio::Error> {
+        let parser = super::fio::opb::Parser::new(reader, opts);
         let mut inst = Self::new();
         for data in parser {
             match data? {
-                fio::opb::Data::Cmt(_) => {}
-                fio::opb::Data::Constr(constr) => inst.add_pb_constr(constr),
+                super::fio::opb::Data::Cmt(_) => {}
+                super::fio::opb::Data::Constr(constr) => inst.add_pb_constr(constr),
                 #[cfg(feature = "optimization")]
-                fio::opb::Data::Obj(_) => {
-                    return Err(fio::Error::ObjInSat);
+                super::fio::opb::Data::Obj(_) => {
+                    return Err(super::fio::Error::ObjInSat);
                 }
             }
         }
@@ -1066,17 +1077,17 @@ impl<VM: ManageVars + Default> Instance<VM> {
     ///
     /// # Errors
     ///
-    /// [`io::Error`] or if parsing fails.
-    pub fn from_opb_path<P: AsRef<Path>>(
+    /// [`std::io::Error`] or if parsing fails.
+    pub fn from_opb_path<P: AsRef<std::path::Path>>(
         path: P,
-        opts: fio::opb::Options,
-    ) -> Result<Self, fio::Error> {
-        let mut reader = fio::open_compressed_uncompressed_read(path)?;
+        opts: super::fio::opb::Options,
+    ) -> Result<Self, super::fio::Error> {
+        let mut reader = super::fio::open_compressed_uncompressed_read(path)?;
         Instance::from_opb(&mut reader, opts)
     }
 }
 
-impl<VM: ManageVars + Default> Default for Instance<VM> {
+impl<VM: super::ManageVars + Default> Default for Instance<VM> {
     fn default() -> Self {
         Self {
             cnf: Cnf::default(),
@@ -1087,7 +1098,7 @@ impl<VM: ManageVars + Default> Default for Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<Clause> for Instance<VM> {
+impl<VM: super::ManageVars + Default> FromIterator<Clause> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = Clause>>(iter: T) -> Self {
         let mut inst = Self::default();
         iter.into_iter().for_each(|cl| inst.add_clause(cl));
@@ -1095,13 +1106,15 @@ impl<VM: ManageVars + Default> FromIterator<Clause> for Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<CnfLine> for Instance<VM> {
-    fn from_iter<T: IntoIterator<Item = CnfLine>>(iter: T) -> Self {
-        iter.into_iter().filter_map(CnfLine::clause).collect()
+impl<VM: super::ManageVars + Default> FromIterator<super::fio::dimacs::CnfLine> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = super::fio::dimacs::CnfLine>>(iter: T) -> Self {
+        iter.into_iter()
+            .filter_map(super::fio::dimacs::CnfLine::clause)
+            .collect()
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<PbConstraint> for Instance<VM> {
+impl<VM: super::ManageVars + Default> FromIterator<PbConstraint> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = PbConstraint>>(iter: T) -> Self {
         let mut inst = Self::default();
         iter.into_iter()
@@ -1110,7 +1123,7 @@ impl<VM: ManageVars + Default> FromIterator<PbConstraint> for Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<CardConstraint> for Instance<VM> {
+impl<VM: super::ManageVars + Default> FromIterator<CardConstraint> for Instance<VM> {
     fn from_iter<T: IntoIterator<Item = CardConstraint>>(iter: T) -> Self {
         let mut inst = Self::default();
         iter.into_iter()
@@ -1119,15 +1132,15 @@ impl<VM: ManageVars + Default> FromIterator<CardConstraint> for Instance<VM> {
     }
 }
 
-impl<VM: ManageVars + Default> FromIterator<fio::opb::Data> for Instance<VM> {
-    fn from_iter<T: IntoIterator<Item = fio::opb::Data>>(iter: T) -> Self {
+impl<VM: super::ManageVars + Default> FromIterator<super::fio::opb::Data> for Instance<VM> {
+    fn from_iter<T: IntoIterator<Item = super::fio::opb::Data>>(iter: T) -> Self {
         iter.into_iter()
-            .filter_map(fio::opb::Data::constraint)
+            .filter_map(super::fio::opb::Data::constraint)
             .collect()
     }
 }
 
-impl<VM: ManageVars + Default> From<Cnf> for Instance<VM> {
+impl<VM: super::ManageVars + Default> From<Cnf> for Instance<VM> {
     fn from(value: Cnf) -> Self {
         let mut inst = Self {
             cnf: value,
@@ -1142,7 +1155,7 @@ impl<VM: ManageVars + Default> From<Cnf> for Instance<VM> {
     }
 }
 
-impl<VM: ManageVars> Extend<Clause> for Instance<VM> {
+impl<VM: super::ManageVars> Extend<Clause> for Instance<VM> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
         self.cnf.extend(iter);
     }

@@ -2,23 +2,14 @@
 
 use pyo3::prelude::*;
 
-use rustsat::{
-    encodings::{
-        card::{
-            BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-            BoundUpperIncremental, Encode as CardEncode, Totalizer as RsTotalizer,
-        },
-        EncodeStats,
-    },
-    instances::{BasicVarManager, Cnf as RsCnf},
-    types::Lit as RsLit,
-};
-
-use crate::{
-    handle_oom,
-    instances::{Cnf, VarManager},
-    types::Lit,
-};
+use rustsat::encodings::card::BoundBoth;
+use rustsat::encodings::card::BoundBothIncremental;
+use rustsat::encodings::card::BoundLower;
+use rustsat::encodings::card::BoundLowerIncremental;
+use rustsat::encodings::card::BoundUpper;
+use rustsat::encodings::card::BoundUpperIncremental;
+use rustsat::encodings::card::Encode;
+use rustsat::encodings::EncodeStats;
 
 macro_rules! implement_pyapi {
     ($type:ty, $rstype:ty) => {
@@ -38,14 +29,14 @@ macro_rules! implement_pyapi {
         impl $type {
             #[new]
             #[pyo3(text_signature = "(lits = [])")]
-            fn new(lits: Vec<Lit>) -> Self {
-                let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
+            fn new(lits: Vec<crate::types::Lit>) -> Self {
+                let lits: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(lits) };
                 <$rstype>::from_iter(lits).into()
             }
 
             /// Adds additional input literals to the encoding
-            fn extend(&mut self, lits: Vec<Lit>) {
-                let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
+            fn extend(&mut self, lits: Vec<crate::types::Lit>) {
+                let lits: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(lits) };
                 self.0.extend(lits);
             }
 
@@ -70,11 +61,11 @@ macro_rules! implement_pyapi {
                 &mut self,
                 min_ub: usize,
                 max_ub: usize,
-                var_manager: &mut VarManager,
-            ) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self
                     .0
                     .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
                 Ok(cnf.into())
@@ -82,8 +73,8 @@ macro_rules! implement_pyapi {
 
             /// Gets assumptions to enforce the given upper bound. Make sure that the required
             /// encoding is built first.
-            fn enforce_ub(&self, ub: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> = unsafe {
+            fn enforce_ub(&self, ub: usize) -> PyResult<Vec<crate::types::Lit>> {
+                let assumps: Vec<crate::types::Lit> = unsafe {
                     std::mem::transmute(self.0.enforce_ub(ub).map_err(|_| {
                         pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
                     })?)
@@ -97,11 +88,11 @@ macro_rules! implement_pyapi {
                 &mut self,
                 min_lb: usize,
                 max_lb: usize,
-                var_manager: &mut VarManager,
-            ) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self
                     .0
                     .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager));
                 Ok(cnf.into())
@@ -109,8 +100,8 @@ macro_rules! implement_pyapi {
 
             /// Gets assumptions to enforce the given upper bound. Make sure that the required
             /// encoding is built first.
-            fn enforce_lb(&self, lb: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> = unsafe {
+            fn enforce_lb(&self, lb: usize) -> PyResult<Vec<crate::types::Lit>> {
+                let assumps: Vec<crate::types::Lit> = unsafe {
                     std::mem::transmute(
                         self.0
                             .enforce_lb(lb)
@@ -127,11 +118,11 @@ macro_rules! implement_pyapi {
                 &mut self,
                 min_bound: usize,
                 max_bound: usize,
-                var_manager: &mut VarManager,
-            ) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self.0.encode_both_change(
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self.0.encode_both_change(
                     min_bound..=max_bound,
                     &mut cnf,
                     var_manager
@@ -141,8 +132,8 @@ macro_rules! implement_pyapi {
 
             /// Gets assumptions to enforce the given equality bound. Make sure that the required
             /// encoding is built first.
-            fn enforce_eq(&self, val: usize) -> PyResult<Vec<Lit>> {
-                let assumps: Vec<Lit> = unsafe {
+            fn enforce_eq(&self, val: usize) -> PyResult<Vec<crate::types::Lit>> {
+                let assumps: Vec<crate::types::Lit> = unsafe {
                     std::mem::transmute(
                         self.0
                             .enforce_eq(val)
@@ -166,6 +157,6 @@ macro_rules! implement_pyapi {
 /// - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental Cardinality Constraints for MaxSAT_, CP 2014.
 #[pyclass]
 #[repr(transparent)]
-pub struct Totalizer(RsTotalizer);
+pub struct Totalizer(rustsat::encodings::card::Totalizer);
 
-implement_pyapi!(Totalizer, RsTotalizer);
+implement_pyapi!(Totalizer, rustsat::encodings::card::Totalizer);

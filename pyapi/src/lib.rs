@@ -22,16 +22,6 @@ mod encodings;
 mod instances;
 mod types;
 
-use crate::{
-    encodings::{
-        am1::{Bimander, Bitwise, Commander, Ladder, Pairwise},
-        card::Totalizer,
-        pb::{BinaryAdder, DynamicPolyWatchdog, GeneralizedTotalizer},
-    },
-    instances::{Cnf, VarManager},
-    types::{Clause, Lit},
-};
-
 #[derive(IntoPyObject)]
 pub(crate) enum SingleOrList<T> {
     Single(T),
@@ -41,24 +31,24 @@ pub(crate) enum SingleOrList<T> {
 /// Python bindings for the RustSAT library
 #[pymodule]
 fn rustsat(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Lit>()?;
-    m.add_class::<Clause>()?;
-    m.add_class::<Cnf>()?;
-    m.add_class::<VarManager>()?;
+    m.add_class::<types::Lit>()?;
+    m.add_class::<types::Clause>()?;
+    m.add_class::<instances::Cnf>()?;
+    m.add_class::<instances::VarManager>()?;
 
     let encodings = PyModule::new(py, "rustsat.encodings")?;
     let card = PyModule::new(py, "rustsat.encodings.card")?;
-    card.add_class::<Totalizer>()?;
+    card.add_class::<encodings::card::Totalizer>()?;
     let pb = PyModule::new(py, "rustsat.encodings.pb")?;
-    pb.add_class::<GeneralizedTotalizer>()?;
-    pb.add_class::<DynamicPolyWatchdog>()?;
-    pb.add_class::<BinaryAdder>()?;
+    pb.add_class::<encodings::pb::GeneralizedTotalizer>()?;
+    pb.add_class::<encodings::pb::DynamicPolyWatchdog>()?;
+    pb.add_class::<encodings::pb::BinaryAdder>()?;
     let am1 = PyModule::new(py, "rustsat.encodings.am1")?;
-    am1.add_class::<Bimander>()?;
-    am1.add_class::<Bitwise>()?;
-    am1.add_class::<Commander>()?;
-    am1.add_class::<Ladder>()?;
-    am1.add_class::<Pairwise>()?;
+    am1.add_class::<encodings::am1::Bimander>()?;
+    am1.add_class::<encodings::am1::Bitwise>()?;
+    am1.add_class::<encodings::am1::Commander>()?;
+    am1.add_class::<encodings::am1::Ladder>()?;
+    am1.add_class::<encodings::am1::Pairwise>()?;
     encodings.add("card", &card)?;
     encodings.add("pb", &pb)?;
     encodings.add("am1", &am1)?;

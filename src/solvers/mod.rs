@@ -104,16 +104,14 @@
 //! solvers. IPASIR bindings for RustSAT are provided in the
 //! [`rustsat-ipasir`](https://crates.io/crates/rustsat-ipasir) crate.
 
-use crate::{
-    clause,
-    encodings::CollectClauses,
-    instances::Cnf,
-    lit,
-    types::{Assignment, Cl, Clause, Lit, TernaryVal, Var},
-};
-use core::time::Duration;
-use std::fmt;
-use thiserror::Error;
+use crate::encodings::CollectClauses;
+use crate::instances::Cnf;
+use crate::types::Assignment;
+use crate::types::Cl;
+use crate::types::Clause;
+use crate::types::Lit;
+use crate::types::TernaryVal;
+use crate::types::Var;
 
 pub mod external;
 pub use external::Solver as ExternalSolver;
@@ -187,7 +185,7 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
             self.solution(high_var)
         } else {
             // throw error if in incorrect state
-            self.lit_val(lit![0])?;
+            self.lit_val(Lit::new(0, false))?;
             Ok(Assignment::default())
         }
     }
@@ -251,7 +249,7 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// See [`Solve::add_clause`]
     fn add_unit(&mut self, lit: Lit) -> anyhow::Result<()> {
-        self.add_clause(clause![lit])
+        self.add_clause(crate::clause![lit])
     }
     /// Like [`Solve::add_clause`] but for clauses with two literals.
     ///
@@ -259,7 +257,7 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// See [`Solve::add_clause`]
     fn add_binary(&mut self, lit1: Lit, lit2: Lit) -> anyhow::Result<()> {
-        self.add_clause(clause![lit1, lit2])
+        self.add_clause(crate::clause![lit1, lit2])
     }
     /// Like [`Solve::add_clause`] but for clauses with three literals.
     ///
@@ -267,7 +265,7 @@ pub trait Solve: Extend<Clause> + for<'a> Extend<&'a Clause> {
     ///
     /// See [`Solve::add_clause`]
     fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) -> anyhow::Result<()> {
-        self.add_clause(clause![lit1, lit2, lit3])
+        self.add_clause(crate::clause![lit1, lit2, lit3])
     }
     /// Adds all clauses from a [`Cnf`] instance.
     ///
@@ -501,7 +499,7 @@ pub struct SolverStats {
     /// The average length of the clauses added to the solver
     pub avg_clause_len: f32,
     /// The total CPU time spent solving
-    pub cpu_solve_time: Duration,
+    pub cpu_solve_time: std::time::Duration,
 }
 
 /// Trait for solvers that track certain statistics.
@@ -558,7 +556,7 @@ pub trait SolveStats {
     }
     /// Gets the total CPU time spent solving.
     #[must_use]
-    fn cpu_solve_time(&self) -> Duration {
+    fn cpu_solve_time(&self) -> std::time::Duration {
         self.stats().cpu_solve_time
     }
 }
@@ -578,8 +576,8 @@ pub enum SolverState {
     Unknown,
 }
 
-impl fmt::Display for SolverState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for SolverState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SolverState::Configuring => write!(f, "CONFIGURING"),
             SolverState::Input => write!(f, "INPUT"),
@@ -601,8 +599,8 @@ pub enum SolverResult {
     Interrupted,
 }
 
-impl fmt::Display for SolverResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for SolverResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SolverResult::Sat => write!(f, "SAT"),
             SolverResult::Unsat => write!(f, "UNSAT"),
@@ -621,7 +619,7 @@ pub enum ControlSignal {
 }
 
 /// A solver state error
-#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 pub struct StateError {
     /// The state required for the operation
     pub required_state: SolverState,
@@ -629,8 +627,8 @@ pub struct StateError {
     pub actual_state: SolverState,
 }
 
-impl fmt::Display for StateError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for StateError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "action requires {} state, but solver is in state {}",

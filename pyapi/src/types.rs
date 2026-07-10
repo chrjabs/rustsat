@@ -1,15 +1,8 @@
 //! # Python API for Basic RustSAT Types
 
-use core::{ffi::c_int, fmt};
+use core::ffi::c_int;
 
-use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError, PyValueError},
-    prelude::*,
-};
-
-use rustsat::types::{Clause as RsClause, Lit as RsLit};
-
-use crate::SingleOrList;
+use pyo3::prelude::*;
 
 /// Type representing literals, possibly negated boolean variables.
 ///
@@ -22,22 +15,22 @@ use crate::SingleOrList;
 #[pyclass(frozen, eq, ord, hash, from_py_object)]
 #[repr(transparent)]
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Debug)]
-pub struct Lit(RsLit);
+pub struct Lit(rustsat::types::Lit);
 
-impl From<RsLit> for Lit {
-    fn from(value: RsLit) -> Self {
+impl From<rustsat::types::Lit> for Lit {
+    fn from(value: rustsat::types::Lit) -> Self {
         Lit(value)
     }
 }
 
-impl From<Lit> for RsLit {
+impl From<Lit> for rustsat::types::Lit {
     fn from(value: Lit) -> Self {
         value.0
     }
 }
 
-impl fmt::Display for Lit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Lit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -46,8 +39,8 @@ impl fmt::Display for Lit {
 impl Lit {
     #[new]
     fn new(ipasir: c_int) -> PyResult<Self> {
-        Ok(RsLit::from_ipasir(ipasir)
-            .map_err(|_| PyValueError::new_err("invalid ipasir lit"))?
+        Ok(rustsat::types::Lit::from_ipasir(ipasir)
+            .map_err(|_| pyo3::exceptions::PyValueError::new_err("invalid ipasir lit"))?
             .into())
     }
 
@@ -84,18 +77,18 @@ impl Lit {
 #[pyclass(sequence, from_py_object)]
 #[derive(Eq, PartialOrd, Ord, Default, Clone)]
 pub struct Clause {
-    cl: RsClause,
+    cl: rustsat::types::Clause,
     modified: bool,
 }
 
 impl Clause {
-    pub(crate) fn inner(&self) -> &RsClause {
+    pub(crate) fn inner(&self) -> &rustsat::types::Clause {
         &self.cl
     }
 }
 
-impl From<RsClause> for Clause {
-    fn from(value: RsClause) -> Self {
+impl From<rustsat::types::Clause> for Clause {
+    fn from(value: rustsat::types::Clause) -> Self {
         Self {
             cl: value,
             modified: false,
@@ -103,7 +96,7 @@ impl From<RsClause> for Clause {
     }
 }
 
-impl From<Clause> for RsClause {
+impl From<Clause> for rustsat::types::Clause {
     fn from(value: Clause) -> Self {
         value.cl
     }
@@ -149,8 +142,8 @@ impl Clause {
 
     #[new]
     fn new(lits: Vec<Lit>) -> Self {
-        let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
-        RsClause::from_iter(lits).into()
+        let lits: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(lits) };
+        rustsat::types::Clause::from_iter(lits).into()
     }
 
     fn __str__(&self) -> String {
@@ -167,23 +160,23 @@ impl Clause {
 
     #[expect(clippy::cast_sign_loss)]
     #[expect(clippy::needless_pass_by_value)]
-    fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<SingleOrList<Lit>> {
+    fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<crate::SingleOrList<Lit>> {
         if let Ok(idx) = idx.extract::<i32>() {
             let idx: usize = idx.try_into().expect("got unexpected negative index");
-            Ok(SingleOrList::Single(Lit(self.cl[idx])))
+            Ok(crate::SingleOrList::Single(Lit(self.cl[idx])))
         } else if let Ok(slice) = idx.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.__len__().try_into().unwrap())?;
             debug_assert!(indices.start >= 0);
             debug_assert!(indices.stop >= 0);
             debug_assert!(indices.step >= 0);
-            Ok(SingleOrList::List(
+            Ok(crate::SingleOrList::List(
                 (indices.start as usize..indices.stop as usize)
                     .step_by(indices.step as usize)
                     .map(|idx| Lit(self.cl[idx]))
                     .collect(),
             ))
         } else {
-            Err(PyTypeError::new_err("Unsupported type"))
+            Err(pyo3::exceptions::PyTypeError::new_err("Unsupported type"))
         }
     }
 
@@ -196,7 +189,7 @@ impl Clause {
     }
 
     fn extend(&mut self, lits: Vec<Lit>) {
-        let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
+        let lits: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(lits) };
         self.cl.extend(lits);
     }
 
@@ -223,7 +216,9 @@ impl ClauseIter {
 
     fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Lit>> {
         if slf.clause.borrow(slf.py()).modified {
-            return Err(PyRuntimeError::new_err("clause modified during iteration"));
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "clause modified during iteration",
+            ));
         }
         if slf.index < slf.clause.borrow(slf.py()).__len__() {
             slf.index += 1;

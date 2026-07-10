@@ -1,16 +1,18 @@
 //! # Integration Tests Copied from VeriPB
 
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-    path::Path,
-    process::Command,
-};
+use std::io::BufRead;
 
-use pigeons::{
-    Conclusion, ConstraintId as Id, ConstraintLike, OperationLike, OperationSequence,
-    OutputGuarantee, Proof, ProofGoal, ProofGoalId, SubproofElement, VarLike,
-};
+use pigeons::Conclusion;
+use pigeons::ConstraintId as Id;
+use pigeons::ConstraintLike;
+use pigeons::OperationLike;
+use pigeons::OperationSequence;
+use pigeons::OutputGuarantee;
+use pigeons::Proof;
+use pigeons::ProofGoal;
+use pigeons::ProofGoalId;
+use pigeons::SubproofElement;
+use pigeons::VarLike;
 
 type OpsSeq = OperationSequence<&'static str>;
 
@@ -56,16 +58,18 @@ impl<'slf> ConstraintLike<&'slf str> for Constr<'slf> {
     }
 }
 
-fn print_file<P: AsRef<Path>>(path: P) {
-    for line in BufReader::new(File::open(path).expect("could not open file")).lines() {
+fn print_file<P: AsRef<std::path::Path>>(path: P) {
+    for line in
+        std::io::BufReader::new(std::fs::File::open(path).expect("could not open file")).lines()
+    {
         println!("{}", line.unwrap());
     }
 }
 
-fn verify_proof<P1: AsRef<Path>, P2: AsRef<Path>>(instance: P1, proof: P2) {
+fn verify_proof<P1: AsRef<std::path::Path>, P2: AsRef<std::path::Path>>(instance: P1, proof: P2) {
     if let Ok(veripb) = std::env::var("VERIPB_CHECKER") {
         println!("start checking proof");
-        let out = Command::new(veripb)
+        let out = std::process::Command::new(veripb)
             .arg(instance.as_ref())
             .arg(proof.as_ref())
             .output()

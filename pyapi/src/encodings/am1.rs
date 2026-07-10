@@ -1,24 +1,8 @@
 //! # Python API for RustSAT At-Most-One Encodings
 
 use pyo3::prelude::*;
-
-use rustsat::{
-    encodings::{
-        am1::{
-            Bimander as RsBimander, Bitwise as RsBitwise, Commander as RsCommander, Encode,
-            Ladder as RsLadder, Pairwise as RsPairwise,
-        },
-        EncodeStats,
-    },
-    instances::{BasicVarManager, Cnf as RsCnf},
-    types::Lit as RsLit,
-};
-
-use crate::{
-    handle_oom,
-    instances::{Cnf, VarManager},
-    types::Lit,
-};
+use rustsat::encodings::am1::Encode;
+use rustsat::encodings::EncodeStats;
 
 macro_rules! implement_pyapi {
     ($type:ty, $rstype:ty) => {
@@ -38,8 +22,8 @@ macro_rules! implement_pyapi {
         impl $type {
             #[new]
             #[pyo3(text_signature = "(lits = [])")]
-            fn new(lits: Vec<Lit>) -> Self {
-                let lits: Vec<RsLit> = unsafe { std::mem::transmute(lits) };
+            fn new(lits: Vec<crate::types::Lit>) -> Self {
+                let lits: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(lits) };
                 <$rstype>::from_iter(lits).into()
             }
 
@@ -59,10 +43,13 @@ macro_rules! implement_pyapi {
             }
 
             /// Builds the encoding. New variables will be taken from `var_manager`.
-            fn encode(&mut self, var_manager: &mut VarManager) -> PyResult<Cnf> {
-                let mut cnf = RsCnf::new();
-                let var_manager: &mut BasicVarManager = var_manager.into();
-                handle_oom!(self.0.encode(&mut cnf, var_manager));
+            fn encode(
+                &mut self,
+                var_manager: &mut crate::instances::VarManager,
+            ) -> PyResult<crate::instances::Cnf> {
+                let mut cnf = rustsat::instances::Cnf::new();
+                let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
+                crate::handle_oom!(self.0.encode(&mut cnf, var_manager));
                 Ok(cnf.into())
             }
         }
@@ -79,9 +66,9 @@ macro_rules! implement_pyapi {
 ///   SOICT 2015.
 #[pyclass]
 #[repr(transparent)]
-pub struct Bimander(RsBimander);
+pub struct Bimander(rustsat::encodings::am1::Bimander);
 
-implement_pyapi!(Bimander, RsBimander);
+implement_pyapi!(Bimander, rustsat::encodings::am1::Bimander);
 
 /// Implementations of the bitwise at-most-1 encoding.
 ///
@@ -91,9 +78,9 @@ implement_pyapi!(Bimander, RsBimander);
 ///   Trends in Constraint Programming 2007.
 #[pyclass]
 #[repr(transparent)]
-pub struct Bitwise(RsBitwise);
+pub struct Bitwise(rustsat::encodings::am1::Bitwise);
 
-implement_pyapi!(Bitwise, RsBitwise);
+implement_pyapi!(Bitwise, rustsat::encodings::am1::Bitwise);
 
 /// Implementations of the commander at-most-1 encoding.
 ///
@@ -105,9 +92,9 @@ implement_pyapi!(Bitwise, RsBitwise);
 ///   2007.
 #[pyclass]
 #[repr(transparent)]
-pub struct Commander(RsCommander);
+pub struct Commander(rustsat::encodings::am1::Commander);
 
-implement_pyapi!(Commander, RsCommander);
+implement_pyapi!(Commander, rustsat::encodings::am1::Commander);
 
 /// Implementations of the ladder at-most-1 encoding.
 ///
@@ -116,9 +103,9 @@ implement_pyapi!(Commander, RsCommander);
 /// - Ian P. Gent and Peter Nightingale: _A new Encoding of AllDifferent into SAT_, CP 2004.
 #[pyclass]
 #[repr(transparent)]
-pub struct Ladder(RsLadder);
+pub struct Ladder(rustsat::encodings::am1::Ladder);
 
-implement_pyapi!(Ladder, RsLadder);
+implement_pyapi!(Ladder, rustsat::encodings::am1::Ladder);
 
 /// Implementations of the pairwise at-most-1 encoding.
 ///
@@ -127,6 +114,6 @@ implement_pyapi!(Ladder, RsLadder);
 /// - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 #[pyclass]
 #[repr(transparent)]
-pub struct Pairwise(RsPairwise);
+pub struct Pairwise(rustsat::encodings::am1::Pairwise);
 
-implement_pyapi!(Pairwise, RsPairwise);
+implement_pyapi!(Pairwise, rustsat::encodings::am1::Pairwise);

@@ -32,11 +32,6 @@
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodePB`.
 
-use std::{
-    cmp,
-    ops::{Bound, Range, RangeBounds},
-};
-
 use super::{card, CollectClauses, ConstraintEncodingError, EnforceError};
 use crate::{
     clause,
@@ -102,7 +97,7 @@ pub trait BoundUpper: Encode {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
     /// Returns assumptions/units for enforcing an upper bound (`weighted sum of
     /// lits <= ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards.
@@ -168,7 +163,7 @@ pub trait BoundLower: Encode {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
     /// adequately and nothing has been added afterwards.
@@ -236,7 +231,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.encode_ub(range.clone(), collector, var_manager)?;
         self.encode_lb(range, collector, var_manager)?;
@@ -335,7 +330,7 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow lower bounding of the
@@ -357,7 +352,7 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
 }
 
 /// Trait for incremental pseudo-boolean encodings that allow upper and lower bounding
@@ -378,7 +373,7 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.encode_ub_change(range.clone(), collector, var_manager)?;
         self.encode_lb_change(range, collector, var_manager)?;
@@ -442,11 +437,14 @@ pub fn new_default_inc_both() -> impl BoundBoth + Extend<(Lit, usize)> {
 /// # Errors
 ///
 /// If the clause collector runs out of memory.
-pub fn default_encode_pb_constraint<Col: CollectClauses>(
+pub fn default_encode_pb_constraint<Col>(
     constr: PbConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<(), crate::OutOfMemory> {
+) -> Result<(), crate::OutOfMemory>
+where
+    Col: CollectClauses,
+{
     encode_pb_constraint::<DefBothBounding, Col>(constr, collector, var_manager)
 }
 
@@ -455,11 +453,15 @@ pub fn default_encode_pb_constraint<Col: CollectClauses>(
 /// # Errors
 ///
 /// If the clause collector runs out of memory.
-pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: CollectClauses>(
+pub fn encode_pb_constraint<PBE, Col>(
     constr: PbConstraint,
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<(), crate::OutOfMemory> {
+) -> Result<(), crate::OutOfMemory>
+where
+    PBE: BoundBoth + FromIterator<(Lit, usize)>,
+    Col: CollectClauses,
+{
     if constr.is_tautology() {
         return Ok(());
     }
@@ -488,38 +490,50 @@ pub fn encode_pb_constraint<PBE: BoundBoth + FromIterator<(Lit, usize)>, Col: Co
     }
 }
 
-fn prepare_ub_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+fn prepare_ub_range<Enc, R>(enc: &Enc, range: R) -> std::ops::Range<usize>
+where
+    Enc: Encode,
+    R: std::ops::RangeBounds<usize>,
+{
     (match range.start_bound() {
-        Bound::Included(b) => *b,
-        Bound::Excluded(b) => b + 1,
-        Bound::Unbounded => 0,
+        std::ops::Bound::Included(b) => *b,
+        std::ops::Bound::Excluded(b) => b + 1,
+        std::ops::Bound::Unbounded => 0,
     })..match range.end_bound() {
-        Bound::Included(b) => cmp::min(b + 1, enc.weight_sum()),
-        Bound::Excluded(b) => cmp::min(*b, enc.weight_sum()),
-        Bound::Unbounded => enc.weight_sum(),
+        std::ops::Bound::Included(b) => std::cmp::min(b + 1, enc.weight_sum()),
+        std::ops::Bound::Excluded(b) => std::cmp::min(*b, enc.weight_sum()),
+        std::ops::Bound::Unbounded => enc.weight_sum(),
     }
 }
 
-fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+fn prepare_lb_range<Enc, R>(enc: &Enc, range: R) -> std::ops::Range<usize>
+where
+    Enc: Encode,
+    R: std::ops::RangeBounds<usize>,
+{
     (match range.start_bound() {
-        Bound::Included(b) => cmp::max(*b, 1),
-        Bound::Excluded(b) => cmp::max(b + 1, 1),
-        Bound::Unbounded => 1,
+        std::ops::Bound::Included(b) => std::cmp::max(*b, 1),
+        std::ops::Bound::Excluded(b) => std::cmp::max(b + 1, 1),
+        std::ops::Bound::Unbounded => 1,
     })..match range.end_bound() {
-        Bound::Included(b) => cmp::min(b + 1, enc.weight_sum() + 1),
-        Bound::Excluded(b) => cmp::min(*b, enc.weight_sum() + 1),
-        Bound::Unbounded => enc.weight_sum() + 1,
+        std::ops::Bound::Included(b) => std::cmp::min(b + 1, enc.weight_sum() + 1),
+        std::ops::Bound::Excluded(b) => std::cmp::min(*b, enc.weight_sum() + 1),
+        std::ops::Bound::Unbounded => enc.weight_sum() + 1,
     }
 }
 
-fn prepare_both_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+fn prepare_both_range<Enc, R>(enc: &Enc, range: R) -> std::ops::Range<usize>
+where
+    Enc: Encode,
+    R: std::ops::RangeBounds<usize>,
+{
     (match range.start_bound() {
-        Bound::Included(b) => *b,
-        Bound::Excluded(b) => b + 1,
-        Bound::Unbounded => 1,
+        std::ops::Bound::Included(b) => *b,
+        std::ops::Bound::Excluded(b) => b + 1,
+        std::ops::Bound::Unbounded => 1,
     })..match range.end_bound() {
-        Bound::Included(b) => cmp::min(b + 1, enc.weight_sum() + 1),
-        Bound::Excluded(b) => cmp::min(*b, enc.weight_sum() + 1),
-        Bound::Unbounded => enc.weight_sum() + 1,
+        std::ops::Bound::Included(b) => std::cmp::min(b + 1, enc.weight_sum() + 1),
+        std::ops::Bound::Excluded(b) => std::cmp::min(*b, enc.weight_sum() + 1),
+        std::ops::Bound::Unbounded => enc.weight_sum() + 1,
     }
 }

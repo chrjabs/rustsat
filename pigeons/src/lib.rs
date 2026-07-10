@@ -46,22 +46,31 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use std::{
-    fmt, io,
-    ops::{Bound, RangeBounds},
-};
-
 use itertools::Itertools;
 
 mod types;
-pub use types::{
-    AbsConstraintId, Axiom, Conclusion, ConstraintId, Derivation, ObjectiveUpdate, Order, OrderVar,
-    OutputGuarantee, OutputType, ProblemType, ProofGoal, ProofGoalId, ProofOnlyVar,
-    SubproofElement, Substitution,
-};
+
+pub use types::AbsConstraintId;
+pub use types::Axiom;
+pub use types::Conclusion;
+pub use types::ConstraintId;
+pub use types::Derivation;
+pub use types::ObjectiveUpdate;
+pub use types::Order;
+pub use types::OrderVar;
+pub use types::OutputGuarantee;
+pub use types::OutputType;
+pub use types::ProblemType;
+pub use types::ProofGoal;
+pub use types::ProofGoalId;
+pub use types::ProofOnlyVar;
+pub use types::SubproofElement;
+pub use types::Substitution;
 
 mod ops;
-pub use ops::{OperationLike, OperationSequence};
+
+pub use ops::OperationLike;
+pub use ops::OperationSequence;
 
 macro_rules! unreachable_err {
     ($res:expr) => {{
@@ -83,7 +92,7 @@ use crate::types::{ConstrFormatter, ObjFormatter};
 /// output guarantee [`OutputGuarantee::None`] and [`Conclusion::None`], or whatever was set in
 /// [`Proof::new_with_conclusion`]
 #[derive(Debug)]
-pub struct Proof<Writer: io::Write> {
+pub struct Proof<Writer: std::io::Write> {
     /// Where the proof is written to
     writer: Writer,
     // NOTE: if anything is added here, make sure to manually drop it in [`Self::end`]
@@ -99,7 +108,7 @@ pub struct Proof<Writer: io::Write> {
     default_conclusion: (OutputGuarantee, String),
 }
 
-impl<Writer: io::Write> Drop for Proof<Writer> {
+impl<Writer: std::io::Write> Drop for Proof<Writer> {
     fn drop(&mut self) {
         writeln!(self.writer, "output {}", self.default_conclusion.0)
             .expect("could not finish writing proof");
@@ -111,7 +120,7 @@ impl<Writer: io::Write> Drop for Proof<Writer> {
 
 impl<Writer> Proof<Writer>
 where
-    Writer: io::Write,
+    Writer: std::io::Write,
 {
     /// Initializes a proof with a given writer
     ///
@@ -126,7 +135,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn new(mut writer: Writer, num_constraints: usize, optimization: bool) -> io::Result<Self> {
+    pub fn new(
+        mut writer: Writer,
+        num_constraints: usize,
+        optimization: bool,
+    ) -> std::io::Result<Self> {
         writeln!(writer, "pseudo-Boolean proof version 2.0")?;
         let next_id = AbsConstraintId(unreachable_err!((num_constraints + 1).try_into()));
         let mut this = Self {
@@ -169,7 +182,7 @@ where
         optimization: bool,
         output_guarantee: OutputGuarantee,
         conclusion: &Conclusion<V>,
-    ) -> io::Result<Self> {
+    ) -> std::io::Result<Self> {
         writeln!(writer, "pseudo-Boolean proof version 2.0")?;
         let next_id = AbsConstraintId(unreachable_err!((num_constraints + 1).try_into()));
         let mut this = Self {
@@ -205,7 +218,7 @@ where
     }
 
     /// Writes a sub-proof, if the iterator is not empty
-    fn write_subproof<V, C, PI>(&mut self, proof: PI) -> io::Result<()>
+    fn write_subproof<V, C, PI>(&mut self, proof: PI) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -267,7 +280,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn verify_num_constraints(&mut self, num_constraints: usize) -> io::Result<()> {
+    pub fn verify_num_constraints(&mut self, num_constraints: usize) -> std::io::Result<()> {
         writeln!(self.writer, "f {num_constraints}")
     }
 
@@ -283,7 +296,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn comment<C: fmt::Display>(&mut self, comment: &C) -> io::Result<()> {
+    pub fn comment<C: std::fmt::Display>(&mut self, comment: &C) -> std::io::Result<()> {
         writeln!(self.writer, "* {comment}")?;
         Ok(())
     }
@@ -297,7 +310,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn multiline_comment(&mut self, comment: &str) -> io::Result<()> {
+    pub fn multiline_comment(&mut self, comment: &str) -> std::io::Result<()> {
         for line in comment.lines() {
             writeln!(self.writer, "* {line}")?;
         }
@@ -317,7 +330,7 @@ where
     pub fn operations<V: VarLike>(
         &mut self,
         operations: &OperationSequence<V>,
-    ) -> io::Result<AbsConstraintId> {
+    ) -> std::io::Result<AbsConstraintId> {
         let keyword = if cfg!(feature = "short-keywords") {
             "p"
         } else {
@@ -340,7 +353,7 @@ where
         &mut self,
         constr: &C,
         hints: I,
-    ) -> io::Result<AbsConstraintId>
+    ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -376,7 +389,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_ids<V, C, II, PI>(&mut self, ids: II, proof: PI) -> io::Result<()>
+    pub fn delete_ids<V, C, II, PI>(&mut self, ids: II, proof: PI) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -396,7 +409,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_constr<V, C>(&mut self, constr: &C) -> io::Result<()>
+    pub fn delete_constr<V, C>(&mut self, constr: &C) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -417,16 +430,19 @@ where
     /// # Panics
     ///
     /// If `range` is empty.
-    pub fn delete_id_range<R: RangeBounds<ConstraintId>>(&mut self, range: R) -> io::Result<()> {
+    pub fn delete_id_range<R: std::ops::RangeBounds<ConstraintId>>(
+        &mut self,
+        range: R,
+    ) -> std::io::Result<()> {
         let range_start = match range.start_bound() {
-            Bound::Included(b) => *b,
-            Bound::Excluded(b) => b.increment(self.next_id),
-            Bound::Unbounded => AbsConstraintId::default().into(),
+            std::ops::Bound::Included(b) => *b,
+            std::ops::Bound::Excluded(b) => b.increment(self.next_id),
+            std::ops::Bound::Unbounded => AbsConstraintId::default().into(),
         };
         let range_end = match range.end_bound() {
-            Bound::Included(b) => b.increment(self.next_id),
-            Bound::Excluded(b) => *b,
-            Bound::Unbounded => self.next_id.into(),
+            std::ops::Bound::Included(b) => b.increment(self.next_id),
+            std::ops::Bound::Excluded(b) => *b,
+            std::ops::Bound::Unbounded => self.next_id.into(),
         };
         assert!(range_start.less(range_end, self.next_id));
         writeln!(self.writer, "del range {range_start} {range_end}")
@@ -443,7 +459,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_core_ids<I>(&mut self, ids: I) -> io::Result<()>
+    pub fn delete_core_ids<I>(&mut self, ids: I) -> std::io::Result<()>
     where
         I: IntoIterator<Item = ConstraintId>,
     {
@@ -461,7 +477,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_derived_ids<I>(&mut self, ids: I) -> io::Result<()>
+    pub fn delete_derived_ids<I>(&mut self, ids: I) -> std::io::Result<()>
     where
         I: IntoIterator<Item = ConstraintId>,
     {
@@ -481,7 +497,10 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn update_objective<V, O, C>(&mut self, update: &ObjectiveUpdate<V, O, C>) -> io::Result<()>
+    pub fn update_objective<V, O, C>(
+        &mut self,
+        update: &ObjectiveUpdate<V, O, C>,
+    ) -> std::io::Result<()>
     where
         V: VarLike,
         O: ObjectiveLike<V>,
@@ -500,7 +519,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails
-    pub fn substitute<V, I>(&mut self, subs: I) -> io::Result<()>
+    pub fn substitute<V, I>(&mut self, subs: I) -> std::io::Result<()>
     where
         V: VarLike,
         I: IntoIterator<Item = Substitution<V>>,
@@ -522,7 +541,7 @@ where
         constr: &C,
         subs: SI,
         proof: PI,
-    ) -> io::Result<AbsConstraintId>
+    ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -553,7 +572,7 @@ where
         constr: &C,
         subs: SI,
         proof: PI,
-    ) -> io::Result<AbsConstraintId>
+    ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -581,7 +600,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn move_ids_to_core<I>(&mut self, ids: I) -> io::Result<()>
+    pub fn move_ids_to_core<I>(&mut self, ids: I) -> std::io::Result<()>
     where
         I: IntoIterator<Item = ConstraintId>,
     {
@@ -601,16 +620,19 @@ where
     /// # Panics
     ///
     /// If `range` is empty.
-    pub fn move_range_to_core<R: RangeBounds<ConstraintId>>(&mut self, range: R) -> io::Result<()> {
+    pub fn move_range_to_core<R: std::ops::RangeBounds<ConstraintId>>(
+        &mut self,
+        range: R,
+    ) -> std::io::Result<()> {
         let range_start = match range.start_bound() {
-            Bound::Included(b) => *b,
-            Bound::Excluded(b) => b.increment(self.next_id),
-            Bound::Unbounded => AbsConstraintId::default().into(),
+            std::ops::Bound::Included(b) => *b,
+            std::ops::Bound::Excluded(b) => b.increment(self.next_id),
+            std::ops::Bound::Unbounded => AbsConstraintId::default().into(),
         };
         let range_end = match range.end_bound() {
-            Bound::Included(b) => b.increment(self.next_id),
-            Bound::Excluded(b) => *b,
-            Bound::Unbounded => self.next_id.into(),
+            std::ops::Bound::Included(b) => b.increment(self.next_id),
+            std::ops::Bound::Excluded(b) => *b,
+            std::ops::Bound::Unbounded => self.next_id.into(),
         };
         assert!(range_start.less(range_end, self.next_id));
         writeln!(self.writer, "core range {range_start} {range_end}")
@@ -625,7 +647,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn solution<V, I>(&mut self, solution: I) -> io::Result<()>
+    pub fn solution<V, I>(&mut self, solution: I) -> std::io::Result<()>
     where
         V: VarLike,
         I: IntoIterator<Item = Axiom<V>>,
@@ -642,7 +664,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn exclude_solution<V, I>(&mut self, solution: I) -> io::Result<AbsConstraintId>
+    pub fn exclude_solution<V, I>(&mut self, solution: I) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         I: IntoIterator<Item = Axiom<V>>,
@@ -660,7 +682,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn improve_solution<V, I>(&mut self, solution: I) -> io::Result<AbsConstraintId>
+    pub fn improve_solution<V, I>(&mut self, solution: I) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         I: IntoIterator<Item = Axiom<V>>,
@@ -678,7 +700,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn output(&mut self, guarantee: OutputGuarantee) -> io::Result<()> {
+    pub fn output(&mut self, guarantee: OutputGuarantee) -> std::io::Result<()> {
         writeln!(self.writer, "output {guarantee}")
     }
 
@@ -691,7 +713,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    fn conclusion<V: VarLike>(&mut self, conclusion: &Conclusion<V>) -> io::Result<()> {
+    fn conclusion<V: VarLike>(&mut self, conclusion: &Conclusion<V>) -> std::io::Result<()> {
         writeln!(self.writer, "conclusion {conclusion}")
     }
 
@@ -704,7 +726,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    fn end(mut self) -> io::Result<Writer> {
+    fn end(mut self) -> std::io::Result<Writer> {
         writeln!(self.writer, "end pseudo-Boolean proof")?;
         // wrap self in ManuallyDrop to avoid calling Drop on it
         let mut nodrop = std::mem::ManuallyDrop::new(self);
@@ -735,7 +757,7 @@ where
         mut self,
         guarantee: OutputGuarantee,
         conclusion: &Conclusion<V>,
-    ) -> io::Result<Writer> {
+    ) -> std::io::Result<Writer> {
         self.output(guarantee)?;
         self.conclusion(conclusion)?;
         self.end()
@@ -750,7 +772,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn equals<V, C>(&mut self, constraint: &C, equals: Option<ConstraintId>) -> io::Result<()>
+    pub fn equals<V, C>(
+        &mut self,
+        constraint: &C,
+        equals: Option<ConstraintId>,
+    ) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -780,7 +806,7 @@ where
         &mut self,
         constraint: &C,
         equals: Option<ConstraintId>,
-    ) -> io::Result<AbsConstraintId>
+    ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -810,7 +836,7 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn obj_equals<V, O>(&mut self, objective: &O) -> io::Result<()>
+    pub fn obj_equals<V, O>(&mut self, objective: &O) -> std::io::Result<()>
     where
         V: VarLike,
         O: ObjectiveLike<V>,
@@ -832,7 +858,7 @@ where
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
-    ) -> io::Result<()>
+    ) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -861,7 +887,7 @@ where
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
-    ) -> io::Result<AbsConstraintId>
+    ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
         C: ConstraintLike<V>,
@@ -887,7 +913,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn set_level(&mut self, level: usize) -> io::Result<()> {
+    pub fn set_level(&mut self, level: usize) -> std::io::Result<()> {
         writeln!(self.writer, "# {level}")
     }
 
@@ -900,7 +926,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn wipe_level(&mut self, level: usize) -> io::Result<()> {
+    pub fn wipe_level(&mut self, level: usize) -> std::io::Result<()> {
         writeln!(self.writer, "w {level}")
     }
 
@@ -913,7 +939,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> io::Result<()>
+    pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> std::io::Result<()>
     where
         V: VarLike,
         C: ConstraintLike<OrderVar<V>>,
@@ -930,7 +956,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn load_order<V, I>(&mut self, name: &str, vars: I) -> io::Result<()>
+    pub fn load_order<V, I>(&mut self, name: &str, vars: I) -> std::io::Result<()>
     where
         V: VarLike,
         I: IntoIterator<Item = V>,
@@ -952,7 +978,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn strengthening_to_core(&mut self, value: bool) -> io::Result<()> {
+    pub fn strengthening_to_core(&mut self, value: bool) -> std::io::Result<()> {
         writeln!(
             self.writer,
             "strengthening_to_core {}",
@@ -963,10 +989,10 @@ where
 
 /// Trait that needs to be implemented for types used as variables
 ///
-/// A call to [`fmt::Display`] on this type must produce a valid VeriPB variable
+/// A call to [`std::fmt::Display`] on this type must produce a valid VeriPB variable
 pub trait VarLike: Copy + Eq + std::hash::Hash + std::fmt::Debug {
     /// Formatter type that if constructed from a variable must display a valid VeriPB variable
-    type Formatter: fmt::Display + From<Self>;
+    type Formatter: std::fmt::Display + From<Self>;
 
     /// Gets a positive axiom of the variable for an operation sequence
     fn pos_axiom(self) -> Axiom<Self> {

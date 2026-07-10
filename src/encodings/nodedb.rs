@@ -7,13 +7,11 @@
 //! (Note that the DPW encoding is not technically tree-like since it might
 //! share substructures, but close enough.)
 
-use std::{
-    cmp, fmt,
-    num::{NonZeroU8, NonZeroUsize},
-    ops::{self, Add, AddAssign, IndexMut, RangeBounds, Sub, SubAssign},
-};
+use std::num::NonZeroU8;
+use std::num::NonZeroUsize;
 
-use crate::{types::Lit, utils::unreachable_none};
+use crate::types::Lit;
+use crate::utils::unreachable_none;
 
 /// An ID of a [`NodeLike`] in a database. The [`usize`] is typically the index in a
 /// vector of nodes.
@@ -22,13 +20,13 @@ use crate::{types::Lit, utils::unreachable_none};
 #[repr(transparent)]
 pub struct NodeId(pub usize);
 
-impl fmt::Display for NodeId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for NodeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "#{}", self.0)
     }
 }
 
-impl Add<usize> for NodeId {
+impl std::ops::Add<usize> for NodeId {
     type Output = NodeId;
 
     fn add(self, rhs: usize) -> Self::Output {
@@ -36,7 +34,7 @@ impl Add<usize> for NodeId {
     }
 }
 
-impl Add for &NodeId {
+impl std::ops::Add for &NodeId {
     type Output = NodeId;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -44,7 +42,7 @@ impl Add for &NodeId {
     }
 }
 
-impl Add<usize> for &NodeId {
+impl std::ops::Add<usize> for &NodeId {
     type Output = NodeId;
 
     fn add(self, rhs: usize) -> Self::Output {
@@ -52,19 +50,19 @@ impl Add<usize> for &NodeId {
     }
 }
 
-impl AddAssign for NodeId {
+impl std::ops::AddAssign for NodeId {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0;
     }
 }
 
-impl AddAssign<usize> for NodeId {
+impl std::ops::AddAssign<usize> for NodeId {
     fn add_assign(&mut self, rhs: usize) {
         self.0 += rhs;
     }
 }
 
-impl Sub for NodeId {
+impl std::ops::Sub for NodeId {
     type Output = usize;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -72,7 +70,7 @@ impl Sub for NodeId {
     }
 }
 
-impl Sub<usize> for NodeId {
+impl std::ops::Sub<usize> for NodeId {
     type Output = NodeId;
 
     fn sub(self, rhs: usize) -> Self::Output {
@@ -80,7 +78,7 @@ impl Sub<usize> for NodeId {
     }
 }
 
-impl Sub for &NodeId {
+impl std::ops::Sub for &NodeId {
     type Output = NodeId;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -88,7 +86,7 @@ impl Sub for &NodeId {
     }
 }
 
-impl Sub<usize> for &NodeId {
+impl std::ops::Sub<usize> for &NodeId {
     type Output = NodeId;
 
     fn sub(self, rhs: usize) -> Self::Output {
@@ -96,13 +94,13 @@ impl Sub<usize> for &NodeId {
     }
 }
 
-impl SubAssign for NodeId {
+impl std::ops::SubAssign for NodeId {
     fn sub_assign(&mut self, rhs: Self) {
         self.0 -= rhs.0;
     }
 }
 
-impl SubAssign<usize> for NodeId {
+impl std::ops::SubAssign<usize> for NodeId {
     fn sub_assign(&mut self, rhs: usize) {
         self.0 -= rhs;
     }
@@ -110,7 +108,7 @@ impl SubAssign<usize> for NodeId {
 
 /// Trait for nodes in the tree
 #[expect(clippy::len_without_is_empty)]
-pub trait NodeLike: ops::Index<usize, Output = Lit> {
+pub trait NodeLike: std::ops::Index<usize, Output = Lit> {
     /// The type of iterator over the node's values
     type ValIter: DoubleEndedIterator<Item = usize>;
 
@@ -128,7 +126,7 @@ pub trait NodeLike: ops::Index<usize, Output = Lit> {
     /// Gets the output values of the node in a given range
     fn vals<R>(&self, range: R) -> Self::ValIter
     where
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
 
     /// Gets the connection to the right child
     fn right(&self) -> Option<NodeCon>;
@@ -299,7 +297,7 @@ impl NodeCon {
             0
         } else if let Some(limit) = self.len_limit {
             // TODO: this might be incorrect for weighted nodes
-            cmp::min((val - self.offset()) / self.divisor(), limit.into()) * self.multiplier()
+            std::cmp::min((val - self.offset()) / self.divisor(), limit.into()) * self.multiplier()
         } else {
             (val - self.offset()) / self.divisor() * self.multiplier()
         }
@@ -311,7 +309,7 @@ impl NodeCon {
     pub fn rev_map(&self, val: usize) -> usize {
         if let Some(limit) = self.len_limit {
             // TODO: this might be incorrect for weighted nodes
-            match cmp::min(val / self.multiplier(), limit.into()) * self.divisor() {
+            match std::cmp::min(val / self.multiplier(), limit.into()) * self.divisor() {
                 0 => 0,
                 x => x + self.offset(),
             }
@@ -367,7 +365,7 @@ pub struct DrainError {
 
 /// Trait for a database managing [`NodeLike`]s by their [`NodeId`]s
 #[cfg_attr(not(feature = "_internals"), expect(dead_code))]
-pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
+pub trait NodeById: std::ops::IndexMut<NodeId, Output = Self::Node> {
     /// The type of node in the database
     type Node: NodeLike;
 
@@ -395,7 +393,7 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     fn con_len(&self, con: NodeCon) -> usize {
         let len = (self[con.id].len() - con.offset()) / con.divisor();
         if let Some(limit) = con.len_limit {
-            cmp::min(len, limit.into())
+            std::cmp::min(len, limit.into())
         } else {
             len
         }
@@ -415,7 +413,10 @@ pub trait NodeById: IndexMut<NodeId, Output = Self::Node> {
     /// # Errors
     ///
     /// If a node from after the range references a node in the range.
-    fn drain<R: RangeBounds<NodeId>>(&mut self, range: R) -> Result<Self::Drain<'_>, DrainError>;
+    fn drain<R: std::ops::RangeBounds<NodeId>>(
+        &mut self,
+        range: R,
+    ) -> Result<Self::Drain<'_>, DrainError>;
 
     /// Builds a balanced tree of nodes over literals and returns the
     /// ID of the root

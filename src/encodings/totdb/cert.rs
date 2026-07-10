@@ -1,22 +1,24 @@
 //! # Certified Totalizer Database
 
-use std::{io, num::NonZeroUsize, ops};
+use std::num::NonZeroUsize;
 
-use crate::{
-    encodings::{
-        atomics,
-        cert::{CollectClauses, EncodingError},
-        nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-    },
-    instances::ManageVars,
-    lit,
-    types::{constraints::PbConstraint, Lit, Var},
-    utils::unreachable_none,
-};
+use pigeons::OperationLike;
+use pigeons::VarLike;
 
-use pigeons::{AbsConstraintId, Axiom, OperationLike, OperationSequence, VarLike};
+use crate::encodings::cert::CollectClauses;
+use crate::encodings::cert::EncodingError;
+use crate::encodings::nodedb::NodeById;
+use crate::encodings::nodedb::NodeCon;
+use crate::encodings::nodedb::NodeId;
+use crate::encodings::nodedb::NodeLike;
+use crate::instances::ManageVars;
+use crate::types::constraints::PbConstraint;
+use crate::types::Lit;
+use crate::types::Var;
 
-use super::{con_idx, LitData, Node, PrecondOutcome, Semantics, UnitNode, UnweightedPrecondResult};
+use super::Node;
+use super::Semantics;
+use super::UnitNode;
 
 /// Helper to get the output literal with a given index
 macro_rules! get_olit {
@@ -26,7 +28,7 @@ macro_rules! get_olit {
                 debug_assert_eq!($idx, 0);
                 *lit
             }
-            Node::Unit(UnitNode { lits, .. }) => *unreachable_none!(lits[$idx].lit()),
+            Node::Unit(UnitNode { lits, .. }) => *crate::utils::unreachable_none!(lits[$idx].lit()),
             Node::General(_) | Node::Dummy => unreachable!(),
         }
     };
@@ -43,9 +45,9 @@ impl super::Db {
         r#type: SemDefType,
         leaves: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pigeons::Proof<W>,
-    ) -> io::Result<SemDefinition>
+    ) -> std::io::Result<SemDefinition>
     where
-        W: io::Write,
+        W: std::io::Write,
     {
         debug_assert!(value <= self[id].max_val() + 1);
         debug_assert!(offset <= self[id].max_val());
@@ -107,9 +109,9 @@ impl super::Db {
         value: usize,
         leaves: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pigeons::Proof<W>,
-    ) -> io::Result<SemDefs>
+    ) -> std::io::Result<SemDefs>
     where
-        W: io::Write,
+        W: std::io::Write,
     {
         let def_id = SemDefId {
             id,
@@ -138,12 +140,12 @@ impl super::Db {
             let olit = self[id][value];
             SemDefs::new(
                 Some(proof.redundant(
-                    &atomics::pb_impl_lit(&sum, olit),
+                    &crate::encodings::atomics::pb_impl_lit(&sum, olit),
                     [olit.var().substitute_fixed(true)],
                     None,
                 )?),
                 Some(proof.redundant(
-                    &atomics::lit_impl_pb(olit, &sum),
+                    &crate::encodings::atomics::lit_impl_pb(olit, &sum),
                     [olit.var().substitute_fixed(false)],
                     None,
                 )?),
@@ -163,9 +165,9 @@ impl super::Db {
         value: usize,
         leaves: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pigeons::Proof<W>,
-    ) -> io::Result<SemDefs>
+    ) -> std::io::Result<SemDefs>
     where
-        W: io::Write,
+        W: std::io::Write,
     {
         debug_assert!(offset > 0 || len_limit.is_some());
 
@@ -240,8 +242,8 @@ impl super::Db {
                 .get_semantics(id, 0, main_val)
                 .expect("should have been defined above");
             // the actual rewrite happens here
-            let mut if_def = OperationSequence::<Var>::empty();
-            let mut only_if_def = OperationSequence::<Var>::empty();
+            let mut if_def = pigeons::OperationSequence::<Var>::empty();
+            let mut only_if_def = pigeons::OperationSequence::<Var>::empty();
             let mut last_val = offset;
             for sub_val in self[id]
                 .vals(offset + 1..)
@@ -252,24 +254,27 @@ impl super::Db {
                     .expect("should have added the definitions earlier");
                 match sub_val.cmp(&main_val) {
                     std::cmp::Ordering::Less => {
-                        if_def += Axiom::from(!self[id][sub_val]) * (sub_val - last_val);
-                        only_if_def +=
-                            (((OperationSequence::<Var>::from(this_defs.only_if_def.unwrap())
-                                + defs.if_def.unwrap())
-                                / (main_val - sub_val + 1))
-                                .saturate())
-                                * (sub_val - last_val);
+                        if_def += pigeons::Axiom::from(!self[id][sub_val]) * (sub_val - last_val);
+                        only_if_def += (((pigeons::OperationSequence::<Var>::from(
+                            this_defs.only_if_def.unwrap(),
+                        ) + defs.if_def.unwrap())
+                            / (main_val - sub_val + 1))
+                            .saturate())
+                            * (sub_val - last_val);
                     }
                     std::cmp::Ordering::Greater => {
-                        if_def += (((OperationSequence::<Var>::from(this_defs.if_def.unwrap())
-                            + defs.only_if_def.unwrap())
+                        if_def += (((pigeons::OperationSequence::<Var>::from(
+                            this_defs.if_def.unwrap(),
+                        ) + defs.only_if_def.unwrap())
                             / (sub_val - main_val + 1))
                             .saturate())
                             * (sub_val - last_val);
-                        only_if_def += Axiom::from(self[id][sub_val]) * (sub_val - last_val);
+                        only_if_def +=
+                            pigeons::Axiom::from(self[id][sub_val]) * (sub_val - last_val);
                     }
                     std::cmp::Ordering::Equal => {
-                        if_def += Axiom::from(!self[id][sub_val]) * (sub_val - last_val - 1);
+                        if_def +=
+                            pigeons::Axiom::from(!self[id][sub_val]) * (sub_val - last_val - 1);
                     }
                 }
                 last_val = sub_val;
@@ -284,8 +289,14 @@ impl super::Db {
                         .expect("cannot handle values larger than `isize::MAX`"),
                 );
                 let olit = self[id][main_val];
-                proof.equals(&atomics::pb_impl_lit(&sum, olit), Some(if_def.into()))?;
-                proof.equals(&atomics::lit_impl_pb(olit, &sum), Some(only_if_def.into()))?;
+                proof.equals(
+                    &crate::encodings::atomics::pb_impl_lit(&sum, olit),
+                    Some(if_def.into()),
+                )?;
+                proof.equals(
+                    &crate::encodings::atomics::lit_impl_pb(olit, &sum),
+                    Some(only_if_def.into()),
+                )?;
             }
             let defs = SemDefs::new(Some(if_def), Some(only_if_def));
 
@@ -343,7 +354,7 @@ impl super::Db {
     ///
     /// # Errors
     ///
-    /// If writing the proof fails, returns [`std::io::Error`]
+    /// If writing the proof fails, returns [`std::std::io::Error`]
     #[cfg(feature = "_internals")]
     pub fn ensure_semantics<W>(
         &mut self,
@@ -352,9 +363,9 @@ impl super::Db {
         value: usize,
         leaves: impl Iterator<Item = (Lit, usize)> + Clone,
         proof: &mut pigeons::Proof<W>,
-    ) -> io::Result<SemDefs>
+    ) -> std::io::Result<SemDefs>
     where
-        W: io::Write,
+        W: std::io::Write,
     {
         debug_assert!(value <= self[id].max_val());
         debug_assert!(value > offset);
@@ -369,17 +380,20 @@ impl super::Db {
         }
         // NOTE: doesn't matter which type we specify here, since both will be introduced anyway
         self.define_semantics(id, offset, None, value, SemDefType::If, leaves, proof)?;
-        Ok(unreachable_none!(self.semantic_defs.get(&def_id).copied()))
+        Ok(crate::utils::unreachable_none!(self
+            .semantic_defs
+            .get(&def_id)
+            .copied()))
     }
 
     /// Deletes all semantic definitions from the proof
     ///
     /// # Errors
     ///
-    /// If writing the proof fails, returns [`std::io::Error`]
-    pub fn delete_semantics<W>(&mut self, proof: &mut pigeons::Proof<W>) -> io::Result<()>
+    /// If writing the proof fails, returns [`std::std::io::Error`]
+    pub fn delete_semantics<W>(&mut self, proof: &mut pigeons::Proof<W>) -> std::io::Result<()>
     where
-        W: io::Write,
+        W: std::io::Write,
     {
         let iter = self
             .semantic_defs
@@ -399,7 +413,7 @@ impl super::Db {
     /// # Errors
     ///
     /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`].
-    /// - If writing the proof fails, returns [`std::io::Error`].
+    /// - If writing the proof fails, returns [`std::std::io::Error`].
     #[expect(clippy::too_many_lines)]
     pub fn define_weighted_cert<Col, W>(
         &mut self,
@@ -412,7 +426,7 @@ impl super::Db {
     ) -> Result<Option<(Lit, bool)>, EncodingError>
     where
         Col: CollectClauses,
-        W: io::Write,
+        W: std::io::Write,
     {
         debug_assert!(val <= self[id].max_val());
         debug_assert!(val > 0);
@@ -455,7 +469,7 @@ impl super::Db {
             Node::General(node) => {
                 // Check if already encoded
                 if let Some(lit_data) = node.lit_data(val) {
-                    if let LitData::Lit {
+                    if let super::LitData::Lit {
                         lit,
                         semantics: Some(semantics),
                     } = lit_data
@@ -482,8 +496,8 @@ impl super::Db {
                     olit
                 } else {
                     let olit = var_manager.new_var().pos_lit();
-                    *unreachable_none!(self[id].mut_general().lit_data_mut(val)) =
-                        LitData::new_lit(olit);
+                    *crate::utils::unreachable_none!(self[id].mut_general().lit_data_mut(val)) =
+                        super::LitData::new_lit(olit);
                     olit
                 };
 
@@ -542,7 +556,7 @@ impl super::Db {
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
-                                let llit = unreachable_none!(self
+                                let llit = crate::utils::unreachable_none!(self
                                     .define_weighted_treat_pseudo_leaves(
                                         lcon,
                                         lval,
@@ -592,7 +606,8 @@ impl super::Db {
                                         + (right_def * rcon.multiplier()))
                                     .saturate(),
                                 )?;
-                                let clause = atomics::cube_impl_lit(&[llit, rlit], olit);
+                                let clause =
+                                    crate::encodings::atomics::cube_impl_lit(&[llit, rlit], olit);
                                 #[cfg(feature = "verbose-proofs")]
                                 proof.equals(&clause, Some(id.into()))?;
                                 collector.add_cert_clause(clause, id)?;
@@ -658,7 +673,7 @@ impl super::Db {
                                 + (right_def * rcon.multiplier()))
                             .saturate(),
                         )?;
-                        let clause = atomics::lit_impl_lit(llit, olit);
+                        let clause = crate::encodings::atomics::lit_impl_lit(llit, olit);
                         #[cfg(feature = "verbose-proofs")]
                         proof.equals(&clause, Some(id.into()))?;
                         collector.add_cert_clause(clause, id)?;
@@ -720,7 +735,7 @@ impl super::Db {
                                 + (right_def * rcon.multiplier()))
                             .saturate(),
                         )?;
-                        let clause = atomics::lit_impl_lit(rlit, olit);
+                        let clause = crate::encodings::atomics::lit_impl_lit(rlit, olit);
                         #[cfg(feature = "verbose-proofs")]
                         proof.equals(&clause, Some(id.into()))?;
                         collector.add_cert_clause(clause, id)?;
@@ -740,7 +755,7 @@ impl super::Db {
                 }
 
                 // Mark "if" semantics as encoded
-                unreachable_none!(self[id].mut_general().lit_data_mut(val))
+                crate::utils::unreachable_none!(self[id].mut_general().lit_data_mut(val))
                     .add_semantics(Semantics::If);
 
                 debug_assert!(!leaves_needed || left_leaves_populated && right_leaves_populated);
@@ -764,7 +779,7 @@ impl super::Db {
     ) -> Result<Option<Lit>, EncodingError>
     where
         Col: CollectClauses,
-        W: io::Write,
+        W: std::io::Write,
     {
         if con.offset() == 0 && con.len_limit.is_none() {
             // normal recursion case
@@ -783,7 +798,7 @@ impl super::Db {
             // for this, recurse without keeping track of leaves, if not required for encoding
             // NOTE: this could be in efficient if we encode many outputs with a new empty leaf
             // vector each time
-            let mut true_leaves = vec![(lit![0], 0); self[con.id].n_leaves()];
+            let mut true_leaves = vec![(Lit::new(0, false), 0); self[con.id].n_leaves()];
             let ret = self.define_weighted_cert(
                 con.id,
                 val,
@@ -820,7 +835,7 @@ impl super::Db {
     /// Recursion for unweighted totalizer encoding with certificate
     fn recurse_unweighted_cert<Col, W>(
         &mut self,
-        pre: &UnweightedPrecondResult,
+        pre: &super::UnweightedPrecondResult,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
         proof: &mut pigeons::Proof<W>,
@@ -828,7 +843,7 @@ impl super::Db {
     ) -> Result<bool, EncodingError>
     where
         Col: CollectClauses,
-        W: io::Write,
+        W: std::io::Write,
     {
         let n_left_leaves = pre.lcon.len_limit.map_or(
             if pre.lcon.offset() == 0 {
@@ -888,7 +903,7 @@ impl super::Db {
     fn recurse_unweighted_single_node<Col, W>(
         &mut self,
         con: NodeCon,
-        range: ops::RangeInclusive<usize>,
+        range: std::ops::RangeInclusive<usize>,
         semantics: Semantics,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
@@ -897,7 +912,7 @@ impl super::Db {
     ) -> Result<bool, EncodingError>
     where
         Col: CollectClauses,
-        W: io::Write,
+        W: std::io::Write,
     {
         if con.offset() == 0 && con.len_limit.is_none() {
             // normal recursion case
@@ -916,7 +931,7 @@ impl super::Db {
                 };
                 self.define_unweighted_cert(
                     con.id,
-                    con_idx(idx, con),
+                    super::con_idx(idx, con),
                     semantics,
                     collector,
                     var_manager,
@@ -928,7 +943,7 @@ impl super::Db {
         } else {
             // with length limit or offset, treat intermediate output nodes as leaves
             // for this, recurse without keeping track of leaves, if not required for encoding
-            let mut true_leaves = vec![lit![0]; self[con.id].n_leaves()];
+            let mut true_leaves = vec![Lit::new(0, false); self[con.id].n_leaves()];
             let mut true_leaves_init = false;
             for val in range {
                 if matches!(semantics, Semantics::If) && val == 0
@@ -945,7 +960,7 @@ impl super::Db {
                 };
                 (_, true_leaves_init) = self.define_unweighted_cert(
                     con.id,
-                    con_idx(oidx, con),
+                    super::con_idx(oidx, con),
                     semantics,
                     collector,
                     var_manager,
@@ -976,14 +991,14 @@ impl super::Db {
         idx: usize,
         olit: Lit,
         req_semantics: Semantics,
-        pre: &UnweightedPrecondResult,
+        pre: &super::UnweightedPrecondResult,
         collector: &mut Col,
         proof: &mut pigeons::Proof<W>,
         leaves: &mut [Lit],
     ) -> Result<(), EncodingError>
     where
         Col: CollectClauses,
-        W: io::Write,
+        W: std::io::Write,
     {
         // Store what part of the encoding we need to build
         let new_semantics = self[id].unit().lits[idx]
@@ -1015,14 +1030,14 @@ impl super::Db {
             let rval = idx + 1 - lval;
             debug_assert!(pre.right_if.contains(&rval));
             debug_assert!(new_semantics.has_if());
-            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut lhs = [Lit::new(0, false), Lit::new(0, false)]; // avoids allocation
             let mut nlits = 0;
             if lval > 0 {
-                lhs[nlits] = get_olit!(self, pre.lcon.id, con_idx(lval - 1, pre.lcon));
+                lhs[nlits] = get_olit!(self, pre.lcon.id, super::con_idx(lval - 1, pre.lcon));
                 nlits += 1;
             }
             if rval > 0 {
-                lhs[nlits] = get_olit!(self, pre.rcon.id, con_idx(rval - 1, pre.rcon));
+                lhs[nlits] = get_olit!(self, pre.rcon.id, super::con_idx(rval - 1, pre.rcon));
                 nlits += 1;
             }
             let left_def = self.define_semantics(
@@ -1053,7 +1068,7 @@ impl super::Db {
                 proof,
             )?;
             let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
-            let clause = atomics::cube_impl_lit(&lhs[..nlits], olit);
+            let clause = crate::encodings::atomics::cube_impl_lit(&lhs[..nlits], olit);
             #[cfg(feature = "verbose-proofs")]
             proof.equals(&clause, Some(id.into()))?;
             collector.add_cert_clause(clause, id)?;
@@ -1063,14 +1078,14 @@ impl super::Db {
             let rval = idx - lval;
             debug_assert!(pre.right_only_if.contains(&rval));
             debug_assert!(new_semantics.has_only_if());
-            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut lhs = [Lit::new(0, false), Lit::new(0, false)]; // avoids allocation
             let mut nlits = 0;
             if lval < self.con_len(pre.lcon) {
-                lhs[nlits] = !get_olit!(self, pre.lcon.id, con_idx(lval, pre.lcon));
+                lhs[nlits] = !get_olit!(self, pre.lcon.id, super::con_idx(lval, pre.lcon));
                 nlits += 1;
             }
             if rval < self.con_len(pre.rcon) {
-                lhs[nlits] = !get_olit!(self, pre.rcon.id, con_idx(rval, pre.rcon));
+                lhs[nlits] = !get_olit!(self, pre.rcon.id, super::con_idx(rval, pre.rcon));
                 nlits += 1;
             }
             let left_def = self.define_semantics(
@@ -1101,7 +1116,7 @@ impl super::Db {
                 proof,
             )?;
             let id = proof.operations(&(this_def + left_def + right_def).saturate())?;
-            let clause = atomics::cube_impl_lit(&lhs[..nlits], !olit);
+            let clause = crate::encodings::atomics::cube_impl_lit(&lhs[..nlits], !olit);
             #[cfg(feature = "verbose-proofs")]
             proof.equals(&clause, Some(id.into()))?;
             collector.add_cert_clause(clause, id)?;
@@ -1123,7 +1138,7 @@ impl super::Db {
     /// # Errors
     ///
     /// - If the clause collector runs out of memory, returns [`crate::OutOfMemory`]
-    /// - If writing the proof fails, returns [`std::io::Error`]
+    /// - If writing the proof fails, returns [`std::std::io::Error`]
     #[expect(clippy::too_many_arguments)]
     pub fn define_unweighted_cert<Col, W>(
         &mut self,
@@ -1137,12 +1152,12 @@ impl super::Db {
     ) -> Result<(Lit, bool), EncodingError>
     where
         Col: CollectClauses,
-        W: io::Write,
+        W: std::io::Write,
     {
         debug_assert_eq!(leaves.len(), self[id].n_leaves());
 
         let pre = match self.precond_unweighted(id, idx, semantics) {
-            PrecondOutcome::Return(lit) => {
+            super::PrecondOutcome::Return(lit) => {
                 if leaves_needed && !leaves_init {
                     let mut new_leaves = collect_leaves_unweighted(self, id);
                     leaves.swap_with_slice(&mut new_leaves);
@@ -1150,14 +1165,14 @@ impl super::Db {
                 }
                 return Ok((lit, leaves_init));
             }
-            PrecondOutcome::Passthrough(_) => {
+            super::PrecondOutcome::Passthrough(_) => {
                 // TODO: Decide what to do here
                 // It probably doesn't make much sense to support this case with proof logging,
                 // since the semantics of the output literals change when the dummy is replaced.
                 // If the dummy is never replaced, then it should be avoided in the first place.
                 todo!()
             }
-            PrecondOutcome::Continue(pre) => pre,
+            super::PrecondOutcome::Continue(pre) => pre,
         };
 
         // Encode children (recurse)
@@ -1189,27 +1204,30 @@ fn collect_leaves_unweighted(db: &super::Db, id: NodeId) -> Vec<Lit> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SemDefs {
     /// The if implication direction, i.e., `sum >= k -> olit`
-    pub if_def: Option<AbsConstraintId>,
+    pub if_def: Option<pigeons::AbsConstraintId>,
     /// The only if implication direction, i.e., `olit -> sum >= k`
-    pub only_if_def: Option<AbsConstraintId>,
+    pub only_if_def: Option<pigeons::AbsConstraintId>,
 }
 
 impl SemDefs {
-    fn new(if_def: Option<AbsConstraintId>, only_if_def: Option<AbsConstraintId>) -> Self {
+    fn new(
+        if_def: Option<pigeons::AbsConstraintId>,
+        only_if_def: Option<pigeons::AbsConstraintId>,
+    ) -> Self {
         Self {
             if_def,
             only_if_def,
         }
     }
 
-    fn get(&self, r#type: SemDefType) -> AbsConstraintId {
+    fn get(&self, r#type: SemDefType) -> pigeons::AbsConstraintId {
         match r#type {
             SemDefType::If => self.if_def.unwrap(),
             SemDefType::OnlyIf => self.only_if_def.unwrap(),
         }
     }
 
-    fn iter(&self) -> impl Iterator<Item = AbsConstraintId> {
+    fn iter(&self) -> impl Iterator<Item = pigeons::AbsConstraintId> {
         self.if_def.into_iter().chain(self.only_if_def)
     }
 }
@@ -1231,12 +1249,12 @@ pub struct SemDefId {
 #[derive(Hash, Clone, Copy, PartialEq, Eq, Debug)]
 enum SemDefinition {
     None,
-    Id(AbsConstraintId),
+    Id(pigeons::AbsConstraintId),
     Axiom(Lit),
 }
 
-impl From<AbsConstraintId> for SemDefinition {
-    fn from(value: AbsConstraintId) -> Self {
+impl From<pigeons::AbsConstraintId> for SemDefinition {
+    fn from(value: pigeons::AbsConstraintId) -> Self {
         Self::Id(value)
     }
 }
@@ -1247,7 +1265,7 @@ impl From<Lit> for SemDefinition {
     }
 }
 
-impl ops::Add<SemDefinition> for SemDefinition {
+impl std::ops::Add<SemDefinition> for SemDefinition {
     type Output = pigeons::OperationSequence<Var>;
 
     fn add(self, rhs: SemDefinition) -> Self::Output {
@@ -1271,7 +1289,7 @@ impl ops::Add<SemDefinition> for SemDefinition {
     }
 }
 
-impl ops::Add<SemDefinition> for pigeons::OperationSequence<Var> {
+impl std::ops::Add<SemDefinition> for pigeons::OperationSequence<Var> {
     type Output = pigeons::OperationSequence<Var>;
 
     fn add(self, rhs: SemDefinition) -> Self::Output {
@@ -1283,7 +1301,7 @@ impl ops::Add<SemDefinition> for pigeons::OperationSequence<Var> {
     }
 }
 
-impl ops::Add<pigeons::OperationSequence<Var>> for SemDefinition {
+impl std::ops::Add<pigeons::OperationSequence<Var>> for SemDefinition {
     type Output = pigeons::OperationSequence<Var>;
 
     fn add(self, rhs: pigeons::OperationSequence<Var>) -> Self::Output {
@@ -1295,7 +1313,7 @@ impl ops::Add<pigeons::OperationSequence<Var>> for SemDefinition {
     }
 }
 
-impl ops::Mul<usize> for SemDefinition {
+impl std::ops::Mul<usize> for SemDefinition {
     type Output = pigeons::OperationSequence<Var>;
 
     fn mul(self, rhs: usize) -> Self::Output {

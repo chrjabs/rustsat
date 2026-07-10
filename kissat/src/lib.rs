@@ -55,21 +55,21 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use core::ffi::{c_int, c_uint, c_void, CStr};
-use std::{ffi::CString, fmt};
+use core::ffi::c_int;
+use core::ffi::c_uint;
+use core::ffi::c_void;
+use core::ffi::CStr;
 
-use rustsat::{
-    solvers::{
-        ControlSignal, Interrupt, InterruptSolver, Solve, SolveStats, SolverResult, SolverState,
-        SolverStats, StateError, Terminate,
-    },
-    types::{Cl, Clause, Lit, TernaryVal, Var},
-    utils::Timer,
-};
-use thiserror::Error;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Cl;
+use rustsat::types::Clause;
+use rustsat::types::Lit;
+use rustsat::types::Var;
+
+mod ffi;
 
 /// Fatal error returned if the Kissat API returns an invalid value
-#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(thiserror::Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("kissat c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
     api_call: &'static str,
@@ -86,17 +86,17 @@ enum InternalSolverState {
 }
 
 impl InternalSolverState {
-    fn to_external(&self) -> SolverState {
+    fn to_external(&self) -> rustsat::solvers::SolverState {
         match self {
-            InternalSolverState::Configuring => SolverState::Configuring,
-            InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::Sat => SolverState::Sat,
-            InternalSolverState::Unsat(_) => SolverState::Unsat,
+            InternalSolverState::Configuring => rustsat::solvers::SolverState::Configuring,
+            InternalSolverState::Input => rustsat::solvers::SolverState::Input,
+            InternalSolverState::Sat => rustsat::solvers::SolverState::Sat,
+            InternalSolverState::Unsat(_) => rustsat::solvers::SolverState::Unsat,
         }
     }
 }
 
-type TermCallbackPtr<'a> = Box<dyn FnMut() -> ControlSignal + 'a>;
+type TermCallbackPtr<'a> = Box<dyn FnMut() -> rustsat::solvers::ControlSignal + 'a>;
 /// Double boxing is necessary to get thin pointers for casting
 type OptTermCallbackStore<'a> = Option<Box<TermCallbackPtr<'a>>>;
 
@@ -105,11 +105,11 @@ pub struct Kissat<'term> {
     handle: *mut ffi::kissat,
     state: InternalSolverState,
     terminate_cb: OptTermCallbackStore<'term>,
-    stats: SolverStats,
+    stats: rustsat::solvers::SolverStats,
 }
 
-impl fmt::Debug for Kissat<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for Kissat<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Kissat")
             .field("handle", &self.handle)
             .field("state", &self.state)
@@ -134,9 +134,9 @@ impl Default for Kissat<'_> {
             handle: unsafe { ffi::kissat_init() },
             state: InternalSolverState::default(),
             terminate_cb: None,
-            stats: SolverStats::default(),
+            stats: rustsat::solvers::SolverStats::default(),
         };
-        let quiet = CString::new("quiet").unwrap();
+        let quiet = std::ffi::CString::new("quiet").unwrap();
         unsafe { ffi::kissat_set_option(solver.handle, quiet.as_ptr(), 1) };
         solver
     }
@@ -200,8 +200,8 @@ impl Kissat<'_> {
     ///   considered a bug in either the Kissat library or this crate.
     pub fn set_configuration(&mut self, config: Config) -> anyhow::Result<()> {
         if self.state != InternalSolverState::Configuring {
-            return Err(StateError {
-                required_state: SolverState::Configuring,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Configuring,
                 actual_state: self.state.to_external(),
             }
             .into());
@@ -227,7 +227,7 @@ impl Kissat<'_> {
     /// Returns [`InvalidApiReturn`] if the C-API does not return `true`. This is most likely due
     /// to a wrongly specified `name` or an invalid `value`.
     pub fn set_option(&mut self, name: &str, value: c_int) -> anyhow::Result<()> {
-        let c_name = CString::new(name)?;
+        let c_name = std::ffi::CString::new(name)?;
         if unsafe { ffi::kissat_set_option(self.handle, c_name.as_ptr(), value) } != 0 {
             Ok(())
         } else {
@@ -246,7 +246,7 @@ impl Kissat<'_> {
     /// Returns [`InvalidApiReturn`] if the C-API does not return `true`. This is most likely due
     /// to a wrongly specified `name`.
     pub fn get_option(&self, name: &str) -> anyhow::Result<c_int> {
-        let c_name = CString::new(name)?;
+        let c_name = std::ffi::CString::new(name)?;
         Ok(unsafe { ffi::kissat_get_option(self.handle, c_name.as_ptr()) })
     }
 
@@ -266,6 +266,8 @@ impl Kissat<'_> {
 
 impl Extend<Clause> for Kissat<'_> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter()
             .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
@@ -276,6 +278,8 @@ where
     C: AsRef<Cl> + ?Sized,
 {
     fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -283,7 +287,7 @@ where
     }
 }
 
-impl Solve for Kissat<'_> {
+impl rustsat::solvers::Solve for Kissat<'_> {
     fn signature(&self) -> &'static str {
         let c_chars = unsafe { ffi::kissat_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
@@ -306,7 +310,7 @@ impl Solve for Kissat<'_> {
         if let InternalSolverState::Unsat(_) = self.state {
             return Ok(SolverResult::Unsat);
         }
-        let start = Timer::now();
+        let start = rustsat::utils::Timer::now();
         // Solve with Kissat backend
         let res = unsafe { ffi::kissat_solve(self.handle) };
         self.stats.cpu_solve_time += start.elapsed();
@@ -334,19 +338,19 @@ impl Solve for Kissat<'_> {
         }
     }
 
-    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<rustsat::types::TernaryVal> {
         if self.state != InternalSolverState::Sat {
-            return Err(StateError {
-                required_state: SolverState::Sat,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Sat,
                 actual_state: self.state.to_external(),
             }
             .into());
         }
         let lit = lit.to_ipasir();
         match unsafe { ffi::kissat_value(self.handle, lit) } {
-            0 => Ok(TernaryVal::DontCare),
-            p if p == lit => Ok(TernaryVal::True),
-            n if n == -lit => Ok(TernaryVal::False),
+            0 => Ok(rustsat::types::TernaryVal::DontCare),
+            p if p == lit => Ok(rustsat::types::TernaryVal::True),
+            n if n == -lit => Ok(rustsat::types::TernaryVal::False),
             value => Err(InvalidApiReturn {
                 api_call: "kissat_value",
                 value,
@@ -364,8 +368,8 @@ impl Solve for Kissat<'_> {
             self.state,
             InternalSolverState::Input | InternalSolverState::Configuring
         ) {
-            return Err(StateError {
-                required_state: SolverState::Input,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Input,
                 actual_state: self.state.to_external(),
             }
             .into());
@@ -392,7 +396,7 @@ impl Solve for Kissat<'_> {
     }
 }
 
-impl<'term> Terminate<'term> for Kissat<'term> {
+impl<'term> rustsat::solvers::Terminate<'term> for Kissat<'term> {
     /// Sets a terminator callback that is regularly called during solving.
     ///
     /// # Examples
@@ -424,7 +428,7 @@ impl<'term> Terminate<'term> for Kissat<'term> {
     /// ```
     fn attach_terminator<CB>(&mut self, cb: CB)
     where
-        CB: FnMut() -> ControlSignal + 'term,
+        CB: FnMut() -> rustsat::solvers::ControlSignal + 'term,
     {
         self.terminate_cb = Some(Box::new(Box::new(cb)));
         let cb_ptr =
@@ -438,7 +442,7 @@ impl<'term> Terminate<'term> for Kissat<'term> {
     }
 }
 
-impl Interrupt for Kissat<'_> {
+impl rustsat::solvers::Interrupt for Kissat<'_> {
     type Interrupter = Interrupter;
 
     fn interrupter(&mut self) -> Self::Interrupter {
@@ -458,14 +462,14 @@ pub struct Interrupter {
 unsafe impl Send for Interrupter {}
 unsafe impl Sync for Interrupter {}
 
-impl InterruptSolver for Interrupter {
+impl rustsat::solvers::InterruptSolver for Interrupter {
     fn interrupt(&self) {
         unsafe { ffi::kissat_terminate(self.handle) }
     }
 }
 
-impl SolveStats for Kissat<'_> {
-    fn stats(&self) -> SolverStats {
+impl rustsat::solvers::SolveStats for Kissat<'_> {
+    fn stats(&self) -> rustsat::solvers::SolverStats {
         self.stats.clone()
     }
 }
@@ -509,8 +513,8 @@ impl From<Config> for &'static CStr {
     }
 }
 
-impl fmt::Display for Config {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Config::Default => write!(f, "default"),
             Config::Basic => write!(f, "basic"),
@@ -530,8 +534,8 @@ pub enum Limit {
     Decisions(c_uint),
 }
 
-impl fmt::Display for Limit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Limit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Limit::Conflicts(val) => write!(f, "conflicts ({val})"),
             Limit::Decisions(val) => write!(f, "decisions ({val})"),
@@ -598,24 +602,5 @@ mod test {
     fn limit() {
         let mut solver = Kissat::default();
         solver.set_limit(Limit::Conflicts(100));
-    }
-}
-
-mod ffi {
-    use core::ffi::{c_int, c_void};
-
-    use rustsat::solvers::ControlSignal;
-
-    use super::TermCallbackPtr;
-
-    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
-    // Raw callbacks forwarding to user callbacks
-    pub extern "C" fn kissat_terminate_cb(ptr: *mut c_void) -> c_int {
-        let cb = unsafe { &mut *ptr.cast::<TermCallbackPtr>() };
-        match cb() {
-            ControlSignal::Continue => 0,
-            ControlSignal::Terminate => 1,
-        }
     }
 }

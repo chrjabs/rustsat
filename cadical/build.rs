@@ -1,19 +1,11 @@
 #![warn(clippy::pedantic)]
 
-use glob::glob;
-use std::{
-    env,
-    fs::{self, File},
-    io::Write,
-    path::{Path, PathBuf},
-    process::Command,
-    str,
-};
+use std::io::Write;
 
 macro_rules! check_env_var {
     ($var:expr) => {
-        match env::var($var) {
-            Err(env::VarError::NotPresent) => None,
+        match std::env::var($var) {
+            Err(std::env::VarError::NotPresent) => None,
             Ok(val) => Some(val),
             Err(err) => panic!("`{}` variable error: {err}", $var),
         }
@@ -182,7 +174,7 @@ impl Version {
 }
 
 fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let out_dir = std::env::var("OUT_DIR").unwrap();
 
     let version = Version::determine();
 
@@ -265,7 +257,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
     let bindings = bindings.blocklist_function("ccadical_trace_api_calls");
     let bindings = version.set_bindings_defines(bindings);
     let bindings = if cfg!(feature = "tracing")
-        || cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug"
+        || cfg!(feature = "debug") && std::env::var("PROFILE").unwrap() == "debug"
     {
         bindings
     } else {
@@ -275,7 +267,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
         .generate()
         .expect("Unable to generate ffi bindings");
     bindings
-        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .write_to_file(std::path::PathBuf::from(out_dir).join("bindings.rs"))
         .expect("Could not write ffi bindings");
 }
 
@@ -295,15 +287,15 @@ fn get_cadical_dir(version: Version, _remote: Option<(&str, &str)>) -> String {
 
     #[cfg(feature = "git")]
     {
-        let mut src_dir = env::var("OUT_DIR").unwrap();
+        let mut src_dir = std::env::var("OUT_DIR").unwrap();
         src_dir.push_str("/cadical");
         if let Some((repo, branch)) = _remote {
             update_repo(
-                Path::new(&src_dir),
+                std::path::Path::new(&src_dir),
                 repo,
                 branch,
                 version.reference(),
-                Path::new("patches").join(version.patch()),
+                std::path::Path::new("patches").join(version.patch()),
             );
         }
         src_dir
@@ -314,9 +306,9 @@ fn get_cadical_dir(version: Version, _remote: Option<(&str, &str)>) -> String {
 
 fn build(repo: &str, branch: &str, version: Version) {
     let cadical_dir_str = get_cadical_dir(version, Some((repo, branch)));
-    let cadical_dir = Path::new(&cadical_dir_str);
+    let cadical_dir = std::path::Path::new(&cadical_dir_str);
     // We specify the build manually here instead of calling make for better portability
-    let src_files = glob(&format!("{cadical_dir_str}/src/*.cpp"))
+    let src_files = glob::glob(&format!("{cadical_dir_str}/src/*.cpp"))
         .unwrap()
         .filter_map(|res| {
             if let Ok(p) = res {
@@ -332,7 +324,7 @@ fn build(repo: &str, branch: &str, version: Version) {
         });
     // Setup build configuration
     let mut cadical_build = default_build();
-    if cfg!(feature = "debug") && env::var("PROFILE").unwrap() == "debug" {
+    if cfg!(feature = "debug") && std::env::var("PROFILE").unwrap() == "debug" {
         cadical_build
             .opt_level(0)
             .define("DEBUG", None)
@@ -354,13 +346,13 @@ fn build(repo: &str, branch: &str, version: Version) {
     version.set_defines(&mut cadical_build);
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    let out_dir = Path::new(&out_dir);
+    let out_dir = std::path::Path::new(&out_dir);
 
     // Generate build header
     let mut build_header =
-        File::create(out_dir.join("build.hpp")).expect("Could not create CaDiCaL header");
+        std::fs::File::create(out_dir.join("build.hpp")).expect("Could not create CaDiCaL header");
     let mut cadical_version =
-        fs::read_to_string(cadical_dir.join("VERSION")).expect("Cannot read CaDiCaL version");
+        std::fs::read_to_string(cadical_dir.join("VERSION")).expect("Cannot read CaDiCaL version");
     cadical_version.retain(|c| c != '\n');
     let (compiler_desc, compiler_flags) = get_compiler_description(&cadical_build.get_compiler());
     write!(
@@ -388,7 +380,13 @@ fn build(repo: &str, branch: &str, version: Version) {
 }
 
 #[cfg(feature = "git")]
-fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch: PathBuf) {
+fn update_repo(
+    repo_path: &std::path::Path,
+    url: &str,
+    branch: &str,
+    reference: &str,
+    patch: std::path::PathBuf,
+) {
     let repo = if let Ok(repo) = git2::Repository::open(repo_path) {
         if repo.find_reference(reference).is_err() {
             // Fetch repo
@@ -403,7 +401,7 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
         repo
     } else {
         if repo_path.exists() {
-            fs::remove_dir_all(repo_path).unwrap_or_else(|e| {
+            std::fs::remove_dir_all(repo_path).unwrap_or_else(|e| {
                 panic!(
                     "Could not delete directory {}: {}",
                     repo_path.to_str().unwrap(),
@@ -439,10 +437,10 @@ fn update_repo(repo_path: &Path, url: &str, branch: &str, reference: &str, patch
 
 /// Applies a patch to the repository
 #[cfg(feature = "git")]
-fn apply_patch<P: AsRef<Path>>(repo: &git2::Repository, patch: P) {
+fn apply_patch<P: AsRef<std::path::Path>>(repo: &git2::Repository, patch: P) {
     use std::io::Read;
 
-    let mut f = File::open(patch).unwrap();
+    let mut f = std::fs::File::open(patch).unwrap();
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer).unwrap();
     let patch = git2::Diff::from_buffer(&buffer).unwrap();
@@ -454,7 +452,7 @@ fn apply_patch<P: AsRef<Path>>(repo: &git2::Repository, patch: P) {
 fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
     let compiler_command = compiler.to_command();
     let mut first_line = true;
-    let compiler_version = match Command::new(compiler_command.get_program())
+    let compiler_version = match std::process::Command::new(compiler_command.get_program())
         .arg("--version")
         .output()
     {
@@ -571,13 +569,13 @@ fn has_cpp_feature(feature: CppFeature, run: bool) -> bool {
         }
     }
 
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let out_dir = std::env::var("OUT_DIR").unwrap();
     let (name, content) = feature.name_content();
 
     // write test to file
     let test_file = format!("{out_dir}/{name}.cpp");
     {
-        let mut test_file = fs::File::create(&test_file).expect("cannot open test file");
+        let mut test_file = std::fs::File::create(&test_file).expect("cannot open test file");
         write!(test_file, "{content}").expect("failed to write test file");
     }
 
@@ -593,7 +591,7 @@ fn has_cpp_feature(feature: CppFeature, run: bool) -> bool {
         return false;
     }
     if run {
-        let output = Command::new(out_file)
+        let output = std::process::Command::new(out_file)
             .output()
             .expect("failed to execute compiled test");
         output.status.success()

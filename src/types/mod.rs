@@ -3,22 +3,14 @@
 //! Common types used throughout the library to guarantee type safety.
 
 use core::ffi::c_int;
-use std::{
-    fmt, io,
-    ops::{self, Index, IndexMut},
-    path::Path,
-};
 
-use thiserror::Error;
-
-pub mod constraints;
-pub use constraints::{Cl, Clause};
 use winnow::Parser;
 
-use crate::{
-    instances::fio::{self, ParsingError, SolverOutput},
-    utils,
-};
+use crate::instances::fio;
+
+pub mod constraints;
+pub use constraints::Cl;
+pub use constraints::Clause;
 
 mod operators;
 
@@ -70,7 +62,7 @@ impl<const U: u32> TryFrom<u32> for LimitedU32<U> {
 struct LimitedU32Error<const U: u32>(());
 
 impl<const U: u32> std::fmt::Display for LimitedU32Error<U> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "value must at most be {U}")
     }
 }
@@ -258,7 +250,7 @@ impl Var {
 }
 
 /// Incrementing variables
-impl ops::Add<u32> for Var {
+impl std::ops::Add<u32> for Var {
     type Output = Var;
 
     fn add(self, rhs: u32) -> Self::Output {
@@ -270,7 +262,7 @@ impl ops::Add<u32> for Var {
     }
 }
 
-impl ops::AddAssign<u32> for Var {
+impl std::ops::AddAssign<u32> for Var {
     fn add_assign(&mut self, rhs: u32) {
         debug_assert!(self.idx.0 + rhs <= Var::MAX_IDX, "variable index overflow");
         self.idx.0 += rhs;
@@ -278,7 +270,7 @@ impl ops::AddAssign<u32> for Var {
 }
 
 /// Decrementing variables
-impl ops::Sub<u32> for Var {
+impl std::ops::Sub<u32> for Var {
     type Output = Var;
 
     fn sub(self, rhs: u32) -> Self::Output {
@@ -288,15 +280,15 @@ impl ops::Sub<u32> for Var {
     }
 }
 
-impl ops::SubAssign<u32> for Var {
+impl std::ops::SubAssign<u32> for Var {
     fn sub_assign(&mut self, rhs: u32) {
         self.idx.0 -= rhs;
     }
 }
 
-/// Variables can be printed with the [`Display`](std::fmt::Display) trait
-impl fmt::Display for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Variables can be printed with the [`Display`](std::std::fmt::Display) trait
+impl std::fmt::Display for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if cfg!(feature = "ipasir-display") {
             write!(f, "x{}", self.to_ipasir())
         } else {
@@ -305,9 +297,9 @@ impl fmt::Display for Var {
     }
 }
 
-/// Variables can be printed with the [`Debug`](std::fmt::Debug) trait
-impl fmt::Debug for Var {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Variables can be printed with the [`Debug`](std::std::fmt::Debug) trait
+impl std::fmt::Debug for Var {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "x{}", self.idx.0)
     }
 }
@@ -597,7 +589,7 @@ impl Lit {
 }
 
 /// Incrementing literals. This preserves the sign of the literal.
-impl ops::Add<u32> for Lit {
+impl std::ops::Add<u32> for Lit {
     type Output = Lit;
 
     fn add(self, rhs: u32) -> Self::Output {
@@ -607,14 +599,14 @@ impl ops::Add<u32> for Lit {
     }
 }
 
-impl ops::AddAssign<u32> for Lit {
+impl std::ops::AddAssign<u32> for Lit {
     fn add_assign(&mut self, rhs: u32) {
         self.lidx += 2 * rhs;
     }
 }
 
 /// Decrementing literals. This preserves the sign of the literal.
-impl ops::Sub<u32> for Lit {
+impl std::ops::Sub<u32> for Lit {
     type Output = Lit;
 
     fn sub(self, rhs: u32) -> Self::Output {
@@ -624,22 +616,22 @@ impl ops::Sub<u32> for Lit {
     }
 }
 
-impl ops::SubAssign<u32> for Lit {
+impl std::ops::SubAssign<u32> for Lit {
     fn sub_assign(&mut self, rhs: u32) {
         self.lidx -= 2 * rhs;
     }
 }
 
-/// Literals can be printed with the [`Display`](std::fmt::Display) trait
-impl fmt::Display for Lit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Literals can be printed with the [`Display`](std::std::fmt::Display) trait
+impl std::fmt::Display for Lit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}", if self.is_neg() { "~" } else { "" }, self.var())
     }
 }
 
-/// Literals can be printed with the [`Debug`](std::fmt::Debug) trait
-impl fmt::Debug for Lit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Literals can be printed with the [`Debug`](std::std::fmt::Debug) trait
+impl std::fmt::Debug for Lit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_neg() {
             write!(f, "~x{}", self.vidx())
         } else {
@@ -716,9 +708,9 @@ impl TernaryVal {
     }
 }
 
-/// Ternary values can be printed with the [`Display`](std::fmt::Display) trait
-impl fmt::Display for TernaryVal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Ternary values can be printed with the [`Display`](std::std::fmt::Display) trait
+impl std::fmt::Display for TernaryVal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TernaryVal::True => write!(f, "1"),
             TernaryVal::False => write!(f, "0"),
@@ -727,9 +719,9 @@ impl fmt::Display for TernaryVal {
     }
 }
 
-/// Ternary values can be printed with the [`Debug`](std::fmt::Debug) trait
-impl fmt::Debug for TernaryVal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+/// Ternary values can be printed with the [`Debug`](std::std::fmt::Debug) trait
+impl std::fmt::Debug for TernaryVal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TernaryVal::True => write!(f, "1"),
             TernaryVal::False => write!(f, "0"),
@@ -747,7 +739,7 @@ impl From<bool> for TernaryVal {
     }
 }
 
-impl ops::Not for TernaryVal {
+impl std::ops::Not for TernaryVal {
     type Output = TernaryVal;
 
     fn not(self) -> Self::Output {
@@ -759,7 +751,7 @@ impl ops::Not for TernaryVal {
     }
 }
 
-impl ops::Neg for TernaryVal {
+impl std::ops::Neg for TernaryVal {
     type Output = TernaryVal;
 
     fn neg(self) -> Self::Output {
@@ -786,7 +778,7 @@ impl kani::Arbitrary for TernaryVal {
 }
 
 /// Possible errors in parsing a SAT solver value (`v`) line
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum InvalidVLine {
     /// The given `v` line starts with an invalid character
     #[error("The value line does not start with 'v ' but with {0}")]
@@ -808,11 +800,11 @@ pub enum InvalidVLine {
     InvalidLit(#[from] TypeError),
     /// Error in parsing
     #[error("Parsing error: {0}")]
-    Parsing(#[from] ParsingError),
+    Parsing(#[from] fio::ParsingError),
 }
 
 /// V-line parsing or IO error
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum AssignmentFromSolverOutputError {
     /// Failed to parse solver output
     #[error("Invalid solver output: {0}")]
@@ -822,8 +814,8 @@ pub enum AssignmentFromSolverOutputError {
     NotSat,
 }
 
-impl From<io::Error> for AssignmentFromSolverOutputError {
-    fn from(value: io::Error) -> Self {
+impl From<std::io::Error> for AssignmentFromSolverOutputError {
+    fn from(value: std::io::Error) -> Self {
         Self::InvalidOutput(fio::SatSolverOutputError::from(value))
     }
 }
@@ -946,20 +938,20 @@ impl Assignment {
 
     /// Reads a solution from SAT solver output given the path
     ///
-    /// If it is unclear whether the SAT solver indicated satisfiability, use [`fio::parse_sat_solver_output`] instead.
+    /// If it is unclear whether the SAT solver indicated satisfiability, use [`crate::instances::fio::parse_sat_solver_output`] instead.
     ///
     /// # Errors
     ///
-    /// - IO error: [`std::io::Error`]
-    /// - Invalid solver output: [`fio::SatSolverOutputError`]
+    /// - IO error: [`std::std::io::Error`]
+    /// - Invalid solver output: [`crate::instances::fio::SatSolverOutputError`]
     /// - Invalid v line: [`InvalidVLine`]
-    pub fn from_solver_output_path<P: AsRef<Path>>(
+    pub fn from_solver_output_path<P: AsRef<std::path::Path>>(
         path: P,
     ) -> Result<Self, AssignmentFromSolverOutputError> {
         let mut reader = std::io::BufReader::new(fio::open_compressed_uncompressed_read(path)?);
         let output = fio::parse_sat_solver_output(&mut reader)?;
         match output {
-            SolverOutput::Sat(solution) => Ok(solution),
+            crate::instances::fio::SolverOutput::Sat(solution) => Ok(solution),
             _ => Err(AssignmentFromSolverOutputError::NotSat),
         }
     }
@@ -1074,10 +1066,10 @@ impl Assignment {
             let lit = fio::opb::literal(fio::opb::Options::default())
                 .parse(number)
                 .map_err(|e| {
-                    ParsingError::from_parse(
+                    fio::ParsingError::from_parse(
                         &e,
                         line,
-                        utils::substr_offset(line, number).unwrap(),
+                        crate::utils::substr_offset(line, number).unwrap(),
                         1,
                     )
                 })?;
@@ -1113,14 +1105,14 @@ impl Assignment {
     }
 }
 
-impl fmt::Debug for Assignment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for Assignment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.assignment.iter().try_for_each(|tv| write!(f, "{tv}"))
     }
 }
 
-impl fmt::Display for Assignment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Assignment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.assignment.iter().try_for_each(|tv| write!(f, "{tv}"))
     }
 }
@@ -1193,7 +1185,7 @@ impl From<Vec<TernaryVal>> for Assignment {
     }
 }
 
-impl Index<Var> for Assignment {
+impl std::ops::Index<Var> for Assignment {
     type Output = TernaryVal;
 
     fn index(&self, index: Var) -> &Self::Output {
@@ -1201,14 +1193,14 @@ impl Index<Var> for Assignment {
     }
 }
 
-impl IndexMut<Var> for Assignment {
+impl std::ops::IndexMut<Var> for Assignment {
     fn index_mut(&mut self, index: Var) -> &mut Self::Output {
         &mut self.assignment[index.idx()]
     }
 }
 
 /// Errors related to types
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum TypeError {
     /// The requested index is too high.
     /// Contains the requested and the maximum index.
@@ -1238,8 +1230,6 @@ impl<I: IntoIterator<Item = (Lit, isize)>> IWLitIter for I {}
 
 #[cfg(feature = "proof-logging")]
 mod pigeons {
-    use std::fmt;
-
     /// A formatter for [`super::Var`] for use with the [`pigeons`] library to ensure same
     /// variable formatting as in VeriPB
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1252,8 +1242,8 @@ mod pigeons {
         }
     }
 
-    impl fmt::Display for PigeonVarFormatter {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    impl std::fmt::Display for PigeonVarFormatter {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "x{}", self.0.idx() + 1)
         }
     }

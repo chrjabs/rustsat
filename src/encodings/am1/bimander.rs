@@ -5,15 +5,13 @@
 //! - Van-Hau Nguyen and Son Thay Mai: _A New Method to Encode the At-Most-One Constraint into SAT,
 //!   SOICT 2015.
 
-use std::marker::PhantomData;
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
 
 use super::Encode;
-use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    types::Lit,
-    utils,
-};
 
 /// Implementation of the bimander at-most-1 encoding.
 ///
@@ -35,7 +33,7 @@ pub struct Bimander<const N: usize = 4, Sub = super::Pairwise> {
     n_clauses: usize,
     /// The number of new variables in the encoding
     n_vars: u32,
-    _phantom: PhantomData<Sub>,
+    _phantom: std::marker::PhantomData<Sub>,
 }
 
 impl<const N: usize, Sub> Encode for Bimander<N, Sub>
@@ -61,7 +59,7 @@ where
         let prev_vars = var_manager.n_used();
 
         let n_splits = self.in_lits.len().div_ceil(N);
-        let p = utils::digits(n_splits - 1, 2);
+        let p = crate::utils::digits(n_splits - 1, 2);
 
         let aux_vars: Vec<_> = (0..p).map(|_| var_manager.new_var()).collect();
 
@@ -69,7 +67,7 @@ where
             let lits = &self.in_lits[split * N..std::cmp::min(self.in_lits.len(), (split + 1) * N)];
             for (k, aux) in aux_vars.iter().enumerate().take(p as usize) {
                 let aux = aux.lit(split & (1 << k) == 0);
-                collector.extend_clauses(atomics::clause_impl_lit(lits, aux))?;
+                collector.extend_clauses(crate::encodings::atomics::clause_impl_lit(lits, aux))?;
             }
             let mut sub = lits.iter().copied().collect::<Sub>();
             sub.encode(collector, var_manager)?;
@@ -108,7 +106,7 @@ impl<const N: usize, Sub> From<Vec<Lit>> for Bimander<N, Sub> {
             in_lits: lits,
             n_clauses: 0,
             n_vars: 0,
-            _phantom: PhantomData,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
@@ -119,7 +117,7 @@ impl<const N: usize, Sub> FromIterator<Lit> for Bimander<N, Sub> {
             in_lits: Vec::from_iter(iter),
             n_clauses: 0,
             n_vars: 0,
-            _phantom: PhantomData,
+            _phantom: std::marker::PhantomData,
         }
     }
 }

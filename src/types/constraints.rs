@@ -4,19 +4,12 @@
 //! Rust SAT supports more complex constraints like [`PbConstraint`] or
 //! [`CardConstraint`].
 
-use core::slice;
-use std::{
-    collections::TryReserveError,
-    fmt,
-    ops::{self, Not, RangeBounds},
-};
+use std::ops::Not;
 
 use itertools::Itertools;
-use thiserror::Error;
 
-use super::{Assignment, IWLitIter, Lit, LitIter, RsHashSet, TernaryVal, WLitIter};
-
-use crate::RequiresClausal;
+use super::Lit;
+use super::TernaryVal;
 
 /// A reference to any type of constraint throughout RustSAT
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,8 +22,8 @@ pub enum ConstraintRef<'constr> {
     Pb(&'constr PbConstraint),
 }
 
-impl fmt::Display for ConstraintRef<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ConstraintRef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConstraintRef::Clause(cl) => write!(f, "{cl}"),
             ConstraintRef::Card(card) => write!(f, "{card}"),
@@ -101,7 +94,10 @@ impl Clause {
     /// # Errors
     ///
     /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
-    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+    pub fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), std::collections::TryReserveError> {
         self.lits.try_reserve(additional)
     }
 
@@ -112,12 +108,15 @@ impl Clause {
     /// # Errors
     ///
     /// If the capacity overflows, or the allocator reports a failure, then an error is returned.
-    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
+    pub fn try_reserve_exact(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), std::collections::TryReserveError> {
         self.lits.try_reserve_exact(additional)
     }
 
     /// Like [`Vec::drain`]
-    pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<'_, Lit> {
+    pub fn drain<R: std::ops::RangeBounds<usize>>(&mut self, range: R) -> std::vec::Drain<'_, Lit> {
         self.lits.drain(range)
     }
 
@@ -173,7 +172,7 @@ impl Clause {
         if self.len() <= 1 {
             return Some(self);
         }
-        let mut lset = RsHashSet::default();
+        let mut lset = super::RsHashSet::default();
         let mut idx = 0;
         while idx < self.len() {
             let l = self[idx];
@@ -225,7 +224,7 @@ impl Clause {
     }
 }
 
-impl ops::Deref for Clause {
+impl std::ops::Deref for Clause {
     type Target = Cl;
 
     fn deref(&self) -> &Self::Target {
@@ -338,14 +337,14 @@ impl<'a> IntoIterator for &'a mut Clause {
     }
 }
 
-impl fmt::Display for Clause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Clause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({})", self.iter().format("|"))
     }
 }
 
-impl fmt::Debug for Clause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for Clause {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({})", self.iter().format("|"))
     }
 }
@@ -468,7 +467,7 @@ impl Cl {
 
     /// Evaluates a clause under a given assignment
     #[must_use]
-    pub fn evaluate(&self, assignment: &Assignment) -> TernaryVal {
+    pub fn evaluate(&self, assignment: &super::Assignment) -> TernaryVal {
         self.iter()
             .fold(TernaryVal::False, |val, l| match assignment.lit_value(*l) {
                 TernaryVal::True => TernaryVal::True,
@@ -531,11 +530,11 @@ impl AsMut<[Lit]> for Cl {
     }
 }
 
-impl<I> ops::Index<I> for Cl
+impl<I> std::ops::Index<I> for Cl
 where
-    I: slice::SliceIndex<[Lit]>,
+    I: std::slice::SliceIndex<[Lit]>,
 {
-    type Output = <I as slice::SliceIndex<[Lit]>>::Output;
+    type Output = <I as std::slice::SliceIndex<[Lit]>>::Output;
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
@@ -543,9 +542,9 @@ where
     }
 }
 
-impl<I> ops::IndexMut<I> for Cl
+impl<I> std::ops::IndexMut<I> for Cl
 where
-    I: slice::SliceIndex<[Lit]>,
+    I: std::slice::SliceIndex<[Lit]>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
@@ -575,14 +574,14 @@ impl<'a> IntoIterator for &'a mut Cl {
     }
 }
 
-impl fmt::Display for Cl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Cl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({})", self.iter().format("|"))
     }
 }
 
-impl fmt::Debug for Cl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Debug for Cl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({})", self.iter().format("|"))
     }
 }
@@ -650,8 +649,8 @@ pub enum CardConstraint {
     Eq(CardEqConstr),
 }
 
-impl fmt::Display for CardConstraint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for CardConstraint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CardConstraint::Ub(c) => write!(f, "{c}"),
             CardConstraint::Lb(c) => write!(f, "{c}"),
@@ -683,7 +682,7 @@ impl CardConstraint {
     }
 
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
-    pub fn new_ub<LI: LitIter>(lits: LI, b: usize) -> Self {
+    pub fn new_ub<LI: super::LitIter>(lits: LI, b: usize) -> Self {
         CardConstraint::Ub(CardUbConstr {
             lits: lits.into_iter().collect(),
             b,
@@ -691,7 +690,7 @@ impl CardConstraint {
     }
 
     /// Constructs a new lower bound cardinality constraint (`sum of lits >= b`)
-    pub fn new_lb<LI: LitIter>(lits: LI, b: usize) -> Self {
+    pub fn new_lb<LI: super::LitIter>(lits: LI, b: usize) -> Self {
         CardConstraint::Lb(CardLbConstr {
             lits: lits.into_iter().collect(),
             b,
@@ -699,7 +698,7 @@ impl CardConstraint {
     }
 
     /// Constructs a new equality cardinality constraint (`sum of lits = b`)
-    pub fn new_eq<LI: LitIter>(lits: LI, b: usize) -> Self {
+    pub fn new_eq<LI: super::LitIter>(lits: LI, b: usize) -> Self {
         CardConstraint::Eq(CardEqConstr {
             lits: lits.into_iter().collect(),
             b,
@@ -707,7 +706,7 @@ impl CardConstraint {
     }
 
     /// Adds literals to the cardinality constraint
-    pub fn add<LI: LitIter>(&mut self, lits: LI) {
+    pub fn add<LI: super::LitIter>(&mut self, lits: LI) {
         match self {
             CardConstraint::Ub(constr) => constr.lits.extend(lits),
             CardConstraint::Lb(constr) => constr.lits.extend(lits),
@@ -847,10 +846,10 @@ impl CardConstraint {
     ///
     /// # Errors
     ///
-    /// If the constraint is not a clause, returns [`RequiresClausal`].
-    pub fn into_clause(self) -> Result<Clause, RequiresClausal> {
+    /// If the constraint is not a clause, returns [`crate::RequiresClausal`].
+    pub fn into_clause(self) -> Result<Clause, crate::RequiresClausal> {
         if !self.is_clause() {
-            return Err(RequiresClausal);
+            return Err(crate::RequiresClausal);
         }
         match self {
             CardConstraint::Ub(constr) => Ok(constr.lits.into_iter().map(Lit::not).collect()),
@@ -881,7 +880,7 @@ impl CardConstraint {
 
     /// Checks whether the cardinality constraint is satisfied by the given assignment
     #[must_use]
-    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
         let range = self
             .iter()
             .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
@@ -994,8 +993,8 @@ pub struct CardUbConstr {
     b: usize,
 }
 
-impl fmt::Display for CardUbConstr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for CardUbConstr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write_lit_sum!(f, self.lits);
         write!(f, " <= {}", self.b)
     }
@@ -1056,8 +1055,8 @@ pub struct CardLbConstr {
     b: usize,
 }
 
-impl fmt::Display for CardLbConstr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for CardLbConstr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write_lit_sum!(f, self.lits);
         write!(f, " >= {}", self.b)
     }
@@ -1124,8 +1123,8 @@ pub struct CardEqConstr {
     b: usize,
 }
 
-impl fmt::Display for CardEqConstr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for CardEqConstr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write_lit_sum!(f, self.lits);
         write!(f, " = {}", self.b)
     }
@@ -1178,7 +1177,7 @@ impl CardEqConstr {
 }
 
 /// Errors when converting pseudo-boolean to cardinality constraints
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum PbToCardError {
     /// the pseudo-boolean constraint is not a cardinality constraint
     #[error("the PB constraint is not a cardinality constraint")]
@@ -1208,8 +1207,8 @@ pub enum PbConstraint {
     Eq(PbEqConstr),
 }
 
-impl fmt::Display for PbConstraint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for PbConstraint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PbConstraint::Ub(c) => write!(f, "{c}"),
             PbConstraint::Lb(c) => write!(f, "{c}"),
@@ -1242,7 +1241,7 @@ impl PbConstraint {
     }
 
     /// Converts input literals to non-negative weights, also returns the weight sum and the sum to add to the bound
-    fn convert_input_lits<LI: IWLitIter>(lits: LI) -> (impl WLitIter, usize, isize) {
+    fn convert_input_lits<LI: super::IWLitIter>(lits: LI) -> (impl super::WLitIter, usize, isize) {
         let mut b_add = 0;
         let mut weight_sum = 0;
         let lits: Vec<(Lit, usize)> = lits
@@ -1262,7 +1261,7 @@ impl PbConstraint {
     }
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
-    pub fn new_ub<LI: IWLitIter>(lits: LI, b: isize) -> Self {
+    pub fn new_ub<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
         PbConstraint::Ub(PbUbConstr {
             lits: lits.into_iter().collect(),
@@ -1272,7 +1271,7 @@ impl PbConstraint {
     }
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
-    pub fn new_ub_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+    pub fn new_ub_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
         let lits: Vec<_> = lits.into_iter().collect();
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
         PbConstraint::Ub(PbUbConstr {
@@ -1283,7 +1282,7 @@ impl PbConstraint {
     }
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
-    pub fn new_lb<LI: IWLitIter>(lits: LI, b: isize) -> Self {
+    pub fn new_lb<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
         PbConstraint::Lb(PbLbConstr {
             lits: lits.into_iter().collect(),
@@ -1293,7 +1292,7 @@ impl PbConstraint {
     }
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
-    pub fn new_lb_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+    pub fn new_lb_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
         let lits: Vec<_> = lits.into_iter().collect();
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
         PbConstraint::Lb(PbLbConstr {
@@ -1304,7 +1303,7 @@ impl PbConstraint {
     }
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
-    pub fn new_eq<LI: IWLitIter>(lits: LI, b: isize) -> Self {
+    pub fn new_eq<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
         let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
         PbConstraint::Eq(PbEqConstr {
             lits: lits.into_iter().collect(),
@@ -1314,7 +1313,7 @@ impl PbConstraint {
     }
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
-    pub fn new_eq_unsigned<LI: WLitIter>(lits: LI, b: isize) -> Self {
+    pub fn new_eq_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
         let lits: Vec<_> = lits.into_iter().collect();
         let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
         PbConstraint::Eq(PbEqConstr {
@@ -1353,7 +1352,7 @@ impl PbConstraint {
     }
 
     /// Adds literals to the cardinality constraint
-    pub fn add<LI: IWLitIter>(&mut self, lits: LI) {
+    pub fn add<LI: super::IWLitIter>(&mut self, lits: LI) {
         let (lits, add_weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
         let (data_lits, weight_sum, b) = self.get_data();
         data_lits.extend(lits);
@@ -1572,10 +1571,10 @@ impl PbConstraint {
     ///
     /// # Errors
     ///
-    /// If the constraint is not a clause, returns [`RequiresClausal`]
-    pub fn into_clause(self) -> Result<Clause, RequiresClausal> {
+    /// If the constraint is not a clause, returns [`crate::RequiresClausal`]
+    pub fn into_clause(self) -> Result<Clause, crate::RequiresClausal> {
         if !self.is_clause() {
-            return Err(RequiresClausal);
+            return Err(crate::RequiresClausal);
         }
         match self {
             PbConstraint::Ub(constr) => Ok(constr.lits.into_iter().map(|(lit, _)| !lit).collect()),
@@ -1586,7 +1585,7 @@ impl PbConstraint {
 
     /// Gets the (positively) weighted literals that are in the constraint
     #[must_use]
-    pub fn into_lits(self) -> impl WLitIter {
+    pub fn into_lits(self) -> impl super::WLitIter {
         match self {
             PbConstraint::Ub(constr) => constr.lits,
             PbConstraint::Lb(constr) => constr.lits,
@@ -1616,7 +1615,7 @@ impl PbConstraint {
 
     /// Checks whether the PB constraint is satisfied by the given assignment
     #[must_use]
-    pub fn evaluate(&self, assign: &Assignment) -> TernaryVal {
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
         let range = self
             .iter()
             .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
@@ -1766,8 +1765,8 @@ pub struct PbUbConstr {
     b: isize,
 }
 
-impl fmt::Display for PbUbConstr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for PbUbConstr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write_wlit_sum!(f, self.lits);
         write!(f, " <= {}", self.b)
     }
@@ -1898,8 +1897,8 @@ pub struct PbLbConstr {
     b: isize,
 }
 
-impl fmt::Display for PbLbConstr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for PbLbConstr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write_wlit_sum!(f, self.lits);
         write!(f, " >= {}", self.b)
     }
@@ -2029,8 +2028,8 @@ pub struct PbEqConstr {
     b: isize,
 }
 
-impl fmt::Display for PbEqConstr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for PbEqConstr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write_wlit_sum!(f, self.lits);
         write!(f, " = {}", self.b)
     }

@@ -1,19 +1,13 @@
 //! # Solver Interface for External Executables
 
-use std::{
-    fs,
-    io::{self, BufRead},
-    path::{Path, PathBuf},
-    process::{self, Command},
-};
+use std::io::BufRead;
 
-use crate::{
-    instances::{
-        fio::{self, SolverOutput},
-        Cnf,
-    },
-    types::{Assignment, Cl, Clause},
-};
+use crate::instances::fio;
+use crate::instances::fio::SolverOutput;
+use crate::instances::Cnf;
+use crate::types::Assignment;
+use crate::types::Cl;
+use crate::types::Clause;
 
 use super::Solve;
 
@@ -38,7 +32,7 @@ enum InputViaInt {
     /// Passes the instance by writing it to a file at the specified path
     ///
     /// The file will _not_ be removed afterwards
-    File(PathBuf, InstanceArg),
+    File(std::path::PathBuf, InstanceArg),
     /// Passes the instance by writing it to a temporary file that will automatically be removed
     TempFile(InstanceArg),
     /// Passes the instance through a pipe to `stdin`
@@ -50,7 +44,7 @@ enum InputViaInt {
 impl InputVia {
     /// Pass the input via a persistent file at `path`, passed to the solver as the last argument
     #[must_use]
-    pub fn file_last<P: AsRef<Path>>(path: P) -> Self {
+    pub fn file_last<P: AsRef<std::path::Path>>(path: P) -> Self {
         InputVia(InputViaInt::File(
             path.as_ref().to_path_buf(),
             InstanceArg::Last,
@@ -59,7 +53,7 @@ impl InputVia {
 
     /// Pass the input via a persistent file at `path`, passed to the solver as the first argument
     #[must_use]
-    pub fn file_first<P: AsRef<Path>>(path: P) -> Self {
+    pub fn file_first<P: AsRef<std::path::Path>>(path: P) -> Self {
         InputVia(InputViaInt::File(
             path.as_ref().to_path_buf(),
             InstanceArg::First,
@@ -98,7 +92,7 @@ pub struct OutputVia(OutputViaInt);
 #[derive(Debug, Clone, Default)]
 enum OutputViaInt {
     /// The solver output is written to a file at the given path that is not automatically deleted
-    File(PathBuf),
+    File(std::path::PathBuf),
     /// The solver output is read directly through a pipe
     ///
     /// # Hint
@@ -114,7 +108,7 @@ enum OutputViaInt {
 impl OutputVia {
     /// Process the solver output via a persistent file at `path`
     #[must_use]
-    pub fn file<P: AsRef<Path>>(path: P) -> Self {
+    pub fn file<P: AsRef<std::path::Path>>(path: P) -> Self {
         OutputVia(OutputViaInt::File(path.as_ref().to_path_buf()))
     }
 
@@ -134,7 +128,7 @@ impl OutputVia {
 
 /// A solver called via an external executable
 ///
-/// This solver will perform a call to the solver executable via [`Command`] and parse the solver
+/// This solver will perform a call to the solver executable via [`std::process::Command`] and parse the solver
 /// output via [`fio::parse_sat_solver_output`]
 #[derive(Debug)]
 pub struct Solver {
@@ -151,7 +145,7 @@ enum SolverState {
 /// State before calling the external solver
 #[derive(Debug)]
 struct SolverPre {
-    cmd: Command,
+    cmd: std::process::Command,
     input: InputVia,
     output: OutputVia,
     cnf: Cnf,
@@ -159,24 +153,24 @@ struct SolverPre {
 }
 
 impl Solver {
-    /// Initializes a solver with a [`Command`] that is fully set up, except for the input instance
+    /// Initializes a solver with a [`std::process::Command`] that is fully set up, except for the input instance
     ///
     /// # Notes
     ///
     /// - If input is passed via a file with a path that ends in a compression extension, RustSAT
     ///   will write a compressed file
     /// - If the solver output is processed via a file, compression is _not_ supported
-    /// - If [`Command::env_clear`] was called on the command and the input is passed via a
+    /// - If [`std::process::Command::env_clear`] was called on the command and the input is passed via a
     ///   file as the first argument, the fact that the environment has been cleared might be
     ///   forgotten
     ///
     /// # Example
     ///
     /// ```
-    /// use std::process::Command;
+    /// use std::process::std::process::Command;
     /// use rustsat::solvers::{ExternalSolver, external};
     /// let solver = ExternalSolver::new(
-    ///     Command::new("<path to solver binary>"),
+    ///     std::process::Command::new("<path to solver binary>"),
     ///     external::InputVia::tempfile_last(),
     ///     external::OutputVia::pipe(),
     ///     "solver-signature",
@@ -191,7 +185,12 @@ impl Solver {
     /// to make the solver output as little information as possible (via a `--quiet` flag or
     /// similar) to reduce the amount of text RustSAT has to process.
     #[must_use]
-    pub fn new(cmd: Command, input: InputVia, output: OutputVia, signature: &'static str) -> Self {
+    pub fn new(
+        cmd: std::process::Command,
+        input: InputVia,
+        output: OutputVia,
+        signature: &'static str,
+    ) -> Self {
         Solver {
             signature,
             state: SolverState::Pre(Box::new(SolverPre {
@@ -212,10 +211,10 @@ impl Solver {
     /// # Example
     ///
     /// ```
-    /// use std::process::Command;
+    /// use std::process::std::process::Command;
     /// use rustsat::solvers::{ExternalSolver, external};
     /// let solver = ExternalSolver::new_default(
-    ///     Command::new("<path to solver binary>"),
+    ///     std::process::Command::new("<path to solver binary>"),
     ///     "solver-signature",
     /// );
     /// ```
@@ -228,7 +227,7 @@ impl Solver {
     /// information as possible (via a `--quiet` flag or similar) to reduce the amount of text
     /// RustSAT has to process.
     #[must_use]
-    pub fn new_default(cmd: Command, signature: &'static str) -> Self {
+    pub fn new_default(cmd: std::process::Command, signature: &'static str) -> Self {
         Solver::new(cmd, InputVia::default(), OutputVia::default(), signature)
     }
 }
@@ -355,7 +354,7 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
             construct_command_path(config.cmd, in_path, argpos)
         }
         InputViaInt::TempFile(argpos) => {
-            let mut writer = io::BufWriter::new(tempfile::NamedTempFile::new()?);
+            let mut writer = std::io::BufWriter::new(tempfile::NamedTempFile::new()?);
             // write input to file
             fio::dimacs::write_cnf_annotated(&mut writer, &config.cnf, config.n_vars)?;
             let path = writer.into_inner()?.into_temp_path();
@@ -365,29 +364,29 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
         }
         InputViaInt::Pipe => {
             let mut cmd = config.cmd;
-            cmd.stdin(process::Stdio::piped());
+            cmd.stdin(std::process::Stdio::piped());
             match config.output.0 {
                 OutputViaInt::File(path) => {
                     // pipe output into file and spawn
                     // NOTE: this currently does not support compression
-                    let mut child = cmd.stdout(fs::File::create(&path)?).spawn()?;
+                    let mut child = cmd.stdout(std::fs::File::create(&path)?).spawn()?;
                     // write input to stdin
-                    let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+                    let mut stdin = std::io::BufWriter::new(child.stdin.take().unwrap());
                     fio::dimacs::write_cnf_annotated(&mut stdin, &config.cnf, config.n_vars)?;
                     drop(stdin);
                     let exit = child.wait()?;
                     // parse output from file
-                    let output = fio::parse_sat_solver_output(&mut io::BufReader::new(
-                        fs::File::open(&path)?,
+                    let output = fio::parse_sat_solver_output(&mut std::io::BufReader::new(
+                        std::fs::File::open(&path)?,
                     ))?;
                     check_exit_code!(exit);
                     return Ok(output);
                 }
                 OutputViaInt::Pipe => {
-                    let mut child = cmd.stdout(process::Stdio::piped()).spawn()?;
-                    let mut stdin = io::BufWriter::new(child.stdin.take().unwrap());
+                    let mut child = cmd.stdout(std::process::Stdio::piped()).spawn()?;
+                    let mut stdin = std::io::BufWriter::new(child.stdin.take().unwrap());
                     // second thread for processing stdout to avoid blocking
-                    let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
+                    let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
                     let output_handle =
                         std::thread::spawn(move || -> anyhow::Result<fio::SolverOutput> {
                             let output = fio::parse_sat_solver_output(&mut stdout)?;
@@ -416,16 +415,17 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
         OutputViaInt::File(path) => {
             // pipe output into file
             // NOTE: this currently does not support compression
-            cmd.stdout(fs::File::create(&path)?);
+            cmd.stdout(std::fs::File::create(&path)?);
             let exit = cmd.status()?;
-            let output =
-                fio::parse_sat_solver_output(&mut io::BufReader::new(fs::File::open(&path)?))?;
+            let output = fio::parse_sat_solver_output(&mut std::io::BufReader::new(
+                std::fs::File::open(&path)?,
+            ))?;
             check_exit_code!(exit);
             output
         }
         OutputViaInt::Pipe => {
-            let mut child = cmd.stdout(process::Stdio::piped()).spawn()?;
-            let mut stdout = io::BufReader::new(child.stdout.take().unwrap());
+            let mut child = cmd.stdout(std::process::Stdio::piped()).spawn()?;
+            let mut stdout = std::io::BufReader::new(child.stdout.take().unwrap());
             let output = fio::parse_sat_solver_output(&mut stdout)?;
             // the above function returns early on detecting UNSAT
             // this processes the remaining output so that the pipe buffer does not
@@ -441,11 +441,15 @@ fn call_external(config: SolverPre) -> anyhow::Result<SolverOutput> {
     Ok(output)
 }
 
-fn construct_command_path(mut cmd: Command, path: PathBuf, argpos: InstanceArg) -> Command {
+fn construct_command_path(
+    mut cmd: std::process::Command,
+    path: std::path::PathBuf,
+    argpos: InstanceArg,
+) -> std::process::Command {
     match argpos {
         InstanceArg::First => {
             // reconstruct command with argument at the beginning
-            let mut new_cmd = Command::new(cmd.get_program());
+            let mut new_cmd = std::process::Command::new(cmd.get_program());
             new_cmd.arg(path).args(cmd.get_args());
             for (key, val) in cmd.get_envs() {
                 if let Some(val) = val {

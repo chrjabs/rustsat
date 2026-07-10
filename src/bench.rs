@@ -5,13 +5,15 @@
 mod card_enc {
     extern crate test;
 
-    use test::Bencher;
-
-    use crate::{
-        encodings::card::{BoundBoth, BoundLower, BoundUpper, Totalizer},
-        instances::{BasicVarManager, Cnf, ManageVars},
-        types::{Lit, Var},
-    };
+    use crate::encodings::card::BoundBoth;
+    use crate::encodings::card::BoundLower;
+    use crate::encodings::card::BoundUpper;
+    use crate::encodings::card::Totalizer;
+    use crate::instances::BasicVarManager;
+    use crate::instances::Cnf;
+    use crate::instances::ManageVars;
+    use crate::types::Lit;
+    use crate::types::Var;
 
     fn build_full_ub<CE: BoundUpper + FromIterator<Lit>>(nlits: u32) {
         let mut enc = CE::from_iter((0..nlits).map(|idx| Lit::new(idx, false)));
@@ -39,17 +41,17 @@ mod card_enc {
     }
 
     #[bench]
-    fn totalizer_ub(b: &mut Bencher) {
+    fn totalizer_ub(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<Totalizer>(1000));
     }
 
     #[bench]
-    fn totalizer_lb(b: &mut Bencher) {
+    fn totalizer_lb(b: &mut test::Bencher) {
         b.iter(|| build_full_lb::<Totalizer>(1000));
     }
 
     #[bench]
-    fn totalizer_both(b: &mut Bencher) {
+    fn totalizer_both(b: &mut test::Bencher) {
         b.iter(|| build_full_both::<Totalizer>(1000));
     }
 }
@@ -57,14 +59,16 @@ mod card_enc {
 mod pb_enc {
     extern crate test;
 
-    use test::Bencher;
-
-    use crate::{
-        encodings::pb::{BinaryAdder, BoundUpper, DynamicPolyWatchdog, GeneralizedTotalizer},
-        instances::{BasicVarManager, Cnf, ManageVars},
-        lit,
-        types::{Lit, Var},
-    };
+    use crate::encodings::pb::BinaryAdder;
+    use crate::encodings::pb::BoundUpper;
+    use crate::encodings::pb::DynamicPolyWatchdog;
+    use crate::encodings::pb::GeneralizedTotalizer;
+    use crate::instances::BasicVarManager;
+    use crate::instances::Cnf;
+    use crate::instances::ManageVars;
+    use crate::lit;
+    use crate::types::Lit;
+    use crate::types::Var;
 
     macro_rules! lits {
         (small) => {
@@ -241,40 +245,38 @@ mod pb_enc {
     }
 
     #[bench]
-    fn gte_ub(b: &mut Bencher) {
+    fn gte_ub(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<GeneralizedTotalizer>(&lits!(small)));
     }
 
     #[bench]
-    fn dpw_ub(b: &mut Bencher) {
+    fn dpw_ub(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<DynamicPolyWatchdog>(&lits!(small)));
     }
 
     #[bench]
-    fn adder_ub(b: &mut Bencher) {
+    fn adder_ub(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<BinaryAdder>(&lits!(small)));
     }
 
     #[bench]
-    fn gte_ub_large(b: &mut Bencher) {
+    fn gte_ub_large(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<GeneralizedTotalizer>(&lits!(large)));
     }
 
     #[bench]
-    fn dpw_ub_large(b: &mut Bencher) {
+    fn dpw_ub_large(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<DynamicPolyWatchdog>(&lits!(large)));
     }
 
     #[bench]
-    fn adder_ub_large(b: &mut Bencher) {
+    fn adder_ub_large(b: &mut test::Bencher) {
         b.iter(|| build_full_ub::<BinaryAdder>(&lits!(large)));
     }
 }
 
 mod fio {
     extern crate test;
-
-    use test::Bencher;
 
     use crate::instances::SatInstance;
 
@@ -286,7 +288,7 @@ mod fio {
     }
 
     #[bench]
-    fn read_write(b: &mut Bencher) {
+    fn read_write(b: &mut test::Bencher) {
         b.iter(|| read_write_dimacs());
     }
 }

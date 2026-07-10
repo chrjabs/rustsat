@@ -12,18 +12,17 @@
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 //!   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
-use std::ops::RangeBounds;
-
-use crate::{
-    encodings::{
-        nodedb::{NodeById, NodeCon, NodeLike},
-        totdb, CollectClauses, EncodeStats, EnforceError, Monotone,
-    },
-    instances::ManageVars,
-    types::{Lit, RsHashMap},
-};
-
-use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
+use crate::encodings::nodedb::NodeById;
+use crate::encodings::nodedb::NodeCon;
+use crate::encodings::nodedb::NodeLike;
+use crate::encodings::pb::BoundUpperIncremental;
+use crate::encodings::pb::Encode;
+use crate::encodings::totdb;
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+use crate::types::RsHashMap;
 
 /// Implementation of the binary adder tree generalized totalizer encoding
 /// \[1\]. The implementation is incremental. The implementation is recursive.
@@ -191,7 +190,7 @@ impl GeneralizedTotalizer {
     }
 }
 
-impl Encode for GeneralizedTotalizer {
+impl super::Encode for GeneralizedTotalizer {
     fn weight_sum(&self) -> usize {
         self.lit_buffer.iter().fold(0, |sum, (_, w)| sum + w)
             + if let Some(root) = self.root {
@@ -226,7 +225,7 @@ impl Encode for GeneralizedTotalizer {
     }
 }
 
-impl EncodeIncremental for GeneralizedTotalizer {
+impl super::EncodeIncremental for GeneralizedTotalizer {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.extend_tree(usize::MAX);
         if let Some(con) = self.root {
@@ -235,7 +234,7 @@ impl EncodeIncremental for GeneralizedTotalizer {
     }
 }
 
-impl BoundUpper for GeneralizedTotalizer {
+impl super::BoundUpper for GeneralizedTotalizer {
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
@@ -244,7 +243,7 @@ impl BoundUpper for GeneralizedTotalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
@@ -307,7 +306,7 @@ impl BoundUpper for GeneralizedTotalizer {
     }
 }
 
-impl BoundUpperIncremental for GeneralizedTotalizer {
+impl super::BoundUpperIncremental for GeneralizedTotalizer {
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
@@ -316,7 +315,7 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() {
@@ -344,9 +343,9 @@ impl BoundUpperIncremental for GeneralizedTotalizer {
     }
 }
 
-impl Monotone for GeneralizedTotalizer {}
+impl crate::encodings::Monotone for GeneralizedTotalizer {}
 
-impl EncodeStats for GeneralizedTotalizer {
+impl crate::encodings::EncodeStats for GeneralizedTotalizer {
     fn n_clauses(&self) -> usize {
         self.n_clauses
     }
@@ -397,7 +396,7 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         use super::cert::BoundUpperIncremental;
@@ -419,8 +418,9 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
         W: std::io::Write,
         Self: FromIterator<(Lit, usize)> + Sized,
     {
-        use pigeons::{OperationSequence, VarLike};
+        use pigeons::VarLike;
 
+        use crate::encodings::pb::BoundUpper;
         use crate::types::Var;
 
         // TODO: properly take care of constraints where no structure is built
@@ -453,7 +453,8 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
                 #[cfg(feature = "verbose-proofs")]
                 proof.comment(&"rewritten main constraint")?;
                 id = proof.operations(
-                    &(OperationSequence::<Var>::from(unit.var().axiom(!unit.is_neg())) * weight
+                    &(pigeons::OperationSequence::<Var>::from(unit.var().axiom(!unit.is_neg()))
+                        * weight
                         + id),
                 )?;
                 unit_id
@@ -462,7 +463,9 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
                 // NOTE: by the time we're here, all buffered literals have been removed from `id`
                 debug_assert_eq!(!unit, olit);
                 let unit_id = proof.operations(
-                    &((OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()) / val),
+                    &((pigeons::OperationSequence::<Var>::from(id)
+                        + sem_defs.only_if_def.unwrap())
+                        / val),
                 )?;
                 #[cfg(feature = "verbose-proofs")]
                 proof.equals(&unit_cl, Some(unit_id.into()))?;
@@ -487,7 +490,7 @@ impl super::cert::BoundUpperIncremental for GeneralizedTotalizer {
     ) -> Result<(), crate::encodings::cert::EncodingError>
     where
         Col: crate::encodings::cert::CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
         W: std::io::Write,
     {
         let range = super::prepare_ub_range(self, range);
@@ -529,17 +532,15 @@ impl super::cert::BoundUpperIncremental for GeneralizedTotalizer {
 /// Generalized totalizer encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "_internals")]
 pub mod referenced {
-    use std::{cell::RefCell, ops::RangeBounds};
-
-    use crate::{
-        encodings::{
-            nodedb::{NodeCon, NodeLike},
-            pb::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental},
-            totdb, CollectClauses, EnforceError,
-        },
-        instances::ManageVars,
-        types::Lit,
-    };
+    use crate::encodings::nodedb::NodeCon;
+    use crate::encodings::nodedb::NodeLike;
+    use crate::encodings::pb::BoundUpperIncremental;
+    use crate::encodings::pb::Encode;
+    use crate::encodings::totdb;
+    use crate::encodings::CollectClauses;
+    use crate::encodings::EnforceError;
+    use crate::instances::ManageVars;
+    use crate::types::Lit;
 
     /// Generalized totalizer encoding with a _mutable reference_ to a totalizer
     /// database rather than owning it.
@@ -558,7 +559,7 @@ pub mod referenced {
         db: &'totdb mut totdb::Db,
     }
 
-    /// Generalized totalizer encoding with a [`RefCell`] to a totalizer
+    /// Generalized totalizer encoding with a [`std::cell::RefCell`] to a totalizer
     /// database rather than owning it.
     ///
     /// ## References
@@ -572,7 +573,7 @@ pub mod referenced {
         /// The maximum weight of any leaf
         max_leaf_weight: usize,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut totdb::Db>,
+        db: &'totdb std::cell::RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> Gte<'totdb> {
@@ -597,7 +598,7 @@ pub mod referenced {
         pub fn new(
             root: NodeCon,
             max_leaf_weight: usize,
-            db: &'totdb RefCell<&'totdb mut totdb::Db>,
+            db: &'totdb std::cell::RefCell<&'totdb mut totdb::Db>,
         ) -> Self {
             Self {
                 root,
@@ -613,7 +614,7 @@ pub mod referenced {
         }
     }
 
-    impl Encode for Gte<'_> {
+    impl crate::encodings::pb::Encode for Gte<'_> {
         fn weight_sum(&self) -> usize {
             self.root.map(self.db[self.root.id].max_val())
         }
@@ -633,7 +634,7 @@ pub mod referenced {
         }
     }
 
-    impl Encode for GteCell<'_> {
+    impl crate::encodings::pb::Encode for GteCell<'_> {
         fn weight_sum(&self) -> usize {
             self.root.map(self.db.borrow()[self.root.id].max_val())
         }
@@ -653,19 +654,19 @@ pub mod referenced {
         }
     }
 
-    impl EncodeIncremental for Gte<'_> {
+    impl crate::encodings::pb::EncodeIncremental for Gte<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db.reserve_vars(self.root, var_manager);
         }
     }
 
-    impl EncodeIncremental for GteCell<'_> {
+    impl crate::encodings::pb::EncodeIncremental for GteCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db.borrow_mut().reserve_vars(self.root, var_manager);
         }
     }
 
-    impl BoundUpper for Gte<'_> {
+    impl crate::encodings::pb::BoundUpper for Gte<'_> {
         fn encode_ub<Col, R>(
             &mut self,
             range: R,
@@ -674,7 +675,7 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
@@ -730,7 +731,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpper for GteCell<'_> {
+    impl crate::encodings::pb::BoundUpper for GteCell<'_> {
         fn encode_ub<Col, R>(
             &mut self,
             range: R,
@@ -739,7 +740,7 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
@@ -795,7 +796,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpperIncremental for Gte<'_> {
+    impl crate::encodings::pb::BoundUpperIncremental for Gte<'_> {
         fn encode_ub_change<Col, R>(
             &mut self,
             range: R,
@@ -804,7 +805,7 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
@@ -834,7 +835,7 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {

@@ -1,20 +1,18 @@
 //! # Totalizer Database
 
-use std::{cmp, num::NonZeroUsize, ops};
+use std::num::NonZeroUsize;
 
-use crate::{
-    encodings::atomics,
-    instances::ManageVars,
-    lit,
-    types::{Assignment, Lit, RsHashMap},
-    utils::{unreachable_none, LimitedIter},
-};
+use crate::instances::ManageVars;
+use crate::types::Assignment;
+use crate::types::Lit;
+use crate::utils::unreachable_none;
 
-use super::{
-    nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-    nodedbimpl::DrainError,
-    CollectClauses,
-};
+use super::nodedb::NodeById;
+use super::nodedb::NodeCon;
+use super::nodedb::NodeId;
+use super::nodedb::NodeLike;
+use super::nodedbimpl::DrainError;
+use super::CollectClauses;
 
 #[cfg(feature = "proof-logging")]
 #[path = "cert.rs"]
@@ -46,11 +44,11 @@ pub struct Db {
     /// The node database of the totalizer
     nodes: Vec<Node>,
     /// Mapping literals to leaf nodes
-    lookup_leaf: RsHashMap<Lit, NodeId>,
+    lookup_leaf: crate::types::RsHashMap<Lit, NodeId>,
     /// Dummy Node ID
     dummy_id: Option<NodeId>,
     #[cfg(feature = "proof-logging")]
-    semantic_defs: RsHashMap<cert::SemDefId, cert::SemDefs>,
+    semantic_defs: crate::types::RsHashMap<cert::SemDefId, cert::SemDefs>,
 }
 
 impl NodeById for Db {
@@ -88,18 +86,18 @@ impl NodeById for Db {
 
     type Drain<'own> = std::vec::Drain<'own, Node>;
 
-    fn drain<R: ops::RangeBounds<NodeId>>(
+    fn drain<R: std::ops::RangeBounds<NodeId>>(
         &mut self,
         range: R,
     ) -> Result<Self::Drain<'_>, DrainError> {
         let range = match range.start_bound() {
-            ops::Bound::Included(id) => *id,
-            ops::Bound::Excluded(id) => id + 1,
-            ops::Bound::Unbounded => NodeId(0),
+            std::ops::Bound::Included(id) => *id,
+            std::ops::Bound::Excluded(id) => id + 1,
+            std::ops::Bound::Unbounded => NodeId(0),
         }..match range.end_bound() {
-            ops::Bound::Included(id) => id + 1,
-            ops::Bound::Excluded(id) => *id,
-            ops::Bound::Unbounded => NodeId(self.nodes.len()),
+            std::ops::Bound::Included(id) => id + 1,
+            std::ops::Bound::Excluded(id) => *id,
+            std::ops::Bound::Unbounded => NodeId(self.nodes.len()),
         };
         if range.is_empty() {
             return Ok(self.nodes.drain(self.nodes.len()..self.nodes.len()));
@@ -122,13 +120,13 @@ impl NodeById for Db {
     }
 }
 
-impl ops::IndexMut<NodeId> for Db {
+impl std::ops::IndexMut<NodeId> for Db {
     fn index_mut(&mut self, index: NodeId) -> &mut Self::Output {
         &mut self.nodes[index.0]
     }
 }
 
-impl ops::Index<NodeId> for Db {
+impl std::ops::Index<NodeId> for Db {
     type Output = Node;
 
     fn index(&self, index: NodeId) -> &Self::Output {
@@ -230,8 +228,10 @@ impl Db {
                                     collector,
                                     var_manager
                                 )?);
-                                collector
-                                    .add_clause(atomics::cube_impl_lit(&[llit, rlit], olit))?;
+                                collector.add_clause(crate::encodings::atomics::cube_impl_lit(
+                                    &[llit, rlit],
+                                    olit,
+                                ))?;
                             }
                         }
                     }
@@ -242,14 +242,16 @@ impl Db {
                     if let Some(llit) =
                         self.define_weighted(lcon.id, lcon.rev_map(val), collector, var_manager)?
                     {
-                        collector.add_clause(atomics::lit_impl_lit(llit, olit))?;
+                        collector
+                            .add_clause(crate::encodings::atomics::lit_impl_lit(llit, olit))?;
                     }
                 }
                 if rcon.is_possible(val) && rcon.rev_map(val) <= self[rcon.id].max_val() {
                     if let Some(rlit) =
                         self.define_weighted(rcon.id, rcon.rev_map(val), collector, var_manager)?
                     {
-                        collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
+                        collector
+                            .add_clause(crate::encodings::atomics::lit_impl_lit(rlit, olit))?;
                     }
                 }
 
@@ -317,8 +319,8 @@ impl Db {
 
         // The maximum values contributed from each child
         let (left_if, right_if) = if new_semantics.has_if() {
-            let left_if_max = cmp::min(self.con_len(lcon), idx + 1);
-            let right_if_max = cmp::min(self.con_len(rcon), idx + 1);
+            let left_if_max = std::cmp::min(self.con_len(lcon), idx + 1);
+            let right_if_max = std::cmp::min(self.con_len(rcon), idx + 1);
             (
                 idx + 1 - right_if_max..=left_if_max,
                 idx + 1 - left_if_max..=right_if_max,
@@ -329,8 +331,8 @@ impl Db {
         };
 
         let (left_only_if, right_only_if) = if new_semantics.has_only_if() {
-            let left_only_if_max = cmp::min(self.con_len(lcon), idx);
-            let right_only_if_max = cmp::min(self.con_len(rcon), idx);
+            let left_only_if_max = std::cmp::min(self.con_len(lcon), idx);
+            let right_only_if_max = std::cmp::min(self.con_len(rcon), idx);
             (
                 idx - right_only_if_max..=left_only_if_max,
                 idx - left_only_if_max..=right_only_if_max,
@@ -459,7 +461,7 @@ impl Db {
             let rval = idx + 1 - lval;
             debug_assert!(pre.right_if.contains(&rval));
             debug_assert!(new_semantics.has_if());
-            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut lhs = [Lit::new(0, false), Lit::new(0, false)]; // avoids allocation
             let mut nlits = 0;
             if lval > 0 {
                 lhs[nlits] = *unreachable_none!(llits[con_idx(lval - 1, pre.lcon)].lit());
@@ -469,7 +471,7 @@ impl Db {
                 lhs[nlits] = *unreachable_none!(rlits[con_idx(rval - 1, pre.rcon)].lit());
                 nlits += 1;
             }
-            atomics::cube_impl_lit(&lhs[..nlits], olit)
+            crate::encodings::atomics::cube_impl_lit(&lhs[..nlits], olit)
         };
         collector.extend_clauses(pre.left_if.clone().map(if_clause))?;
         // Only if semantics
@@ -477,7 +479,7 @@ impl Db {
             let rval = idx - lval;
             debug_assert!(pre.right_only_if.contains(&rval));
             debug_assert!(new_semantics.has_only_if());
-            let mut lhs = [lit![0], lit![0]]; // avoids allocation
+            let mut lhs = [Lit::new(0, false), Lit::new(0, false)]; // avoids allocation
             let mut nlits = 0;
             if lval < self.con_len(pre.lcon) {
                 lhs[nlits] = !*unreachable_none!(llits[con_idx(lval, pre.lcon)].lit());
@@ -487,7 +489,7 @@ impl Db {
                 lhs[nlits] = !*unreachable_none!(rlits[con_idx(rval, pre.rcon)].lit());
                 nlits += 1;
             }
-            atomics::cube_impl_lit(&lhs[..nlits], !olit)
+            crate::encodings::atomics::cube_impl_lit(&lhs[..nlits], !olit)
         };
         collector.extend_clauses(pre.left_only_if.clone().map(only_if_clause))?;
 
@@ -524,7 +526,7 @@ impl Db {
                     var_manager,
                 )?;
                 let olit = self.get_olit(id, idx, var_manager);
-                collector.add_clause(atomics::lit_impl_lit(ilit, olit))?;
+                collector.add_clause(crate::encodings::atomics::lit_impl_lit(ilit, olit))?;
                 // Mark positive literal as encoded
                 self[id].mut_unit().lits[idx].add_semantics(semantics);
                 return Ok(olit);
@@ -564,7 +566,8 @@ impl Db {
 
         if divisor.get() == 1 {
             if let Some(limit) = len_limit {
-                for val in LimitedIter::new(&mut self[id].vals(offset..), limit.get()) {
+                for val in crate::utils::LimitedIter::new(&mut self[id].vals(offset..), limit.get())
+                {
                     self[id].reserve_vars(val..=val, var_manager);
                 }
             } else {
@@ -716,10 +719,10 @@ enum PrecondOutcome {
 struct UnweightedPrecondResult {
     lcon: NodeCon,
     rcon: NodeCon,
-    left_if: ops::RangeInclusive<usize>,
-    right_if: ops::RangeInclusive<usize>,
-    left_only_if: ops::RangeInclusive<usize>,
-    right_only_if: ops::RangeInclusive<usize>,
+    left_if: std::ops::RangeInclusive<usize>,
+    right_if: std::ops::RangeInclusive<usize>,
+    left_only_if: std::ops::RangeInclusive<usize>,
+    right_only_if: std::ops::RangeInclusive<usize>,
 }
 
 /// A totalizer adder node
@@ -737,7 +740,7 @@ pub enum Node {
 }
 
 impl NodeLike for Node {
-    type ValIter = std::iter::Chain<ops::Range<usize>, std::vec::IntoIter<usize>>;
+    type ValIter = std::iter::Chain<std::ops::Range<usize>, std::vec::IntoIter<usize>>;
 
     fn is_leaf(&self) -> bool {
         matches!(self, Node::Leaf(_))
@@ -763,7 +766,7 @@ impl NodeLike for Node {
 
     fn vals<R>(&self, range: R) -> Self::ValIter
     where
-        R: ops::RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         match &self {
             Node::Leaf(_) => {
@@ -774,14 +777,14 @@ impl NodeLike for Node {
             }
             Node::Unit(node) => {
                 let lb = match range.start_bound() {
-                    ops::Bound::Included(b) => cmp::max(*b, 1),
-                    ops::Bound::Excluded(b) => b + 1,
-                    ops::Bound::Unbounded => 1,
+                    std::ops::Bound::Included(b) => std::cmp::max(*b, 1),
+                    std::ops::Bound::Excluded(b) => b + 1,
+                    std::ops::Bound::Unbounded => 1,
                 };
                 let ub = match range.end_bound() {
-                    ops::Bound::Included(b) => cmp::min(b + 1, node.lits.len() + 1),
-                    ops::Bound::Excluded(b) => cmp::min(*b, node.lits.len() + 1),
-                    ops::Bound::Unbounded => node.lits.len() + 1,
+                    std::ops::Bound::Included(b) => std::cmp::min(b + 1, node.lits.len() + 1),
+                    std::ops::Bound::Excluded(b) => std::cmp::min(*b, node.lits.len() + 1),
+                    std::ops::Bound::Unbounded => node.lits.len() + 1,
                 };
                 (lb..ub).chain(vec![])
             }
@@ -792,14 +795,14 @@ impl NodeLike for Node {
                         .unwrap_or_else(|e| e)
                 };
                 let from = match range.start_bound() {
-                    ops::Bound::Included(b) => bin_search(*b),
-                    ops::Bound::Excluded(b) => bin_search(*b + 1),
-                    ops::Bound::Unbounded => 0,
+                    std::ops::Bound::Included(b) => bin_search(*b),
+                    std::ops::Bound::Excluded(b) => bin_search(*b + 1),
+                    std::ops::Bound::Unbounded => 0,
                 };
                 let till = match range.end_bound() {
-                    ops::Bound::Included(b) => bin_search(*b + 1),
-                    ops::Bound::Excluded(b) => bin_search(*b),
-                    ops::Bound::Unbounded => node.lits.len(),
+                    std::ops::Bound::Included(b) => bin_search(*b + 1),
+                    std::ops::Bound::Excluded(b) => bin_search(*b),
+                    std::ops::Bound::Unbounded => node.lits.len(),
                 };
                 let vals: Vec<_> = node.lits[from..till].iter().map(|(val, _)| *val).collect();
                 (0..0).chain(vals)
@@ -1003,24 +1006,24 @@ impl Node {
     /// Reserves variables for all the outputs of this node in the given range
     pub fn reserve_vars<R>(&mut self, range: R, var_manager: &mut dyn ManageVars)
     where
-        R: ops::RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         match self {
             Node::Unit(UnitNode { lits, .. }) => {
                 let range = match range.start_bound() {
-                    ops::Bound::Included(&v) => {
+                    std::ops::Bound::Included(&v) => {
                         if v == 0 {
                             0
                         } else {
                             v - 1
                         }
                     }
-                    ops::Bound::Excluded(&v) => v,
-                    ops::Bound::Unbounded => 0,
+                    std::ops::Bound::Excluded(&v) => v,
+                    std::ops::Bound::Unbounded => 0,
                 }..match range.end_bound() {
-                    ops::Bound::Included(&v) => v,
-                    ops::Bound::Excluded(&v) => v - 1,
-                    ops::Bound::Unbounded => lits.len(),
+                    std::ops::Bound::Included(&v) => v,
+                    std::ops::Bound::Excluded(&v) => v - 1,
+                    std::ops::Bound::Unbounded => lits.len(),
                 };
                 for olit in &mut lits[range] {
                     if let LitData::None = olit {
@@ -1034,14 +1037,14 @@ impl Node {
                         .unwrap_or_else(|e| e)
                 };
                 let from = match range.start_bound() {
-                    ops::Bound::Included(b) => bin_search(*b),
-                    ops::Bound::Excluded(b) => bin_search(*b + 1),
-                    ops::Bound::Unbounded => 0,
+                    std::ops::Bound::Included(b) => bin_search(*b),
+                    std::ops::Bound::Excluded(b) => bin_search(*b + 1),
+                    std::ops::Bound::Unbounded => 0,
                 };
                 let till = match range.end_bound() {
-                    ops::Bound::Included(b) => bin_search(*b + 1),
-                    ops::Bound::Excluded(b) => bin_search(*b),
-                    ops::Bound::Unbounded => lits.len(),
+                    std::ops::Bound::Included(b) => bin_search(*b + 1),
+                    std::ops::Bound::Excluded(b) => bin_search(*b),
+                    std::ops::Bound::Unbounded => lits.len(),
                 };
                 for (_, olit) in &mut lits[from..till] {
                     if let LitData::None = olit {
@@ -1056,7 +1059,7 @@ impl Node {
     /// Adjusts the connections of the node to draining a range of nodes. If the
     /// nodes references a nodes within the drained range, it returns that
     /// [`NodeId`] as an Error.
-    fn drain(&mut self, range: ops::Range<NodeId>) -> Result<(), NodeId> {
+    fn drain(&mut self, range: std::ops::Range<NodeId>) -> Result<(), NodeId> {
         match self {
             Node::Leaf(_) | Node::Dummy => Ok(()),
             Node::Unit(UnitNode { left, right, .. })
@@ -1085,7 +1088,7 @@ impl Node {
 
 /// Access to output literals. Panics if the literal has not been reserved yet.
 /// The index is the output literal _value_, not it's index.
-impl ops::Index<usize> for Node {
+impl std::ops::Index<usize> for Node {
     type Output = Lit;
 
     fn index(&self, val: usize) -> &Self::Output {
@@ -1145,7 +1148,7 @@ impl UnitNode {
     }
 }
 
-impl ops::Index<usize> for UnitNode {
+impl std::ops::Index<usize> for UnitNode {
     type Output = Lit;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -1192,7 +1195,7 @@ impl GeneralNode {
             for (ridx, &r) in rvals.iter().enumerate() {
                 // TODO: can we do a bit better here? `lidx * ridx` does not work, as there might
                 // be duplicate values that were already merged
-                idx = cmp::max(idx, ridx);
+                idx = std::cmp::max(idx, ridx);
                 let val = l + r;
                 while idx < lits.len() && lits[idx].0 < val {
                     idx += 1;

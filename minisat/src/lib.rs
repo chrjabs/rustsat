@@ -25,28 +25,24 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use rustsat::{solvers::SolverState, types::Var};
-use std::{ffi::c_int, fmt};
-use thiserror::Error;
-
 pub mod core;
 pub mod simp;
 
 /// Fatal error returned if the Minisat API returns an invalid value
-#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(thiserror::Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("minisat c-api returned an invalid value: {api_call} -> {value}")]
 pub struct InvalidApiReturn {
     api_call: &'static str,
-    value: c_int,
+    value: ::core::ffi::c_int,
 }
 
 /// Error returned if a provided assumption variable was eliminated in preprocessing by the solver
 ///
 /// Minisat does not support assumptions over eliminated variables. To prevent this, variables that
 /// will be used as assumptions can be frozen via [`rustsat::solvers::FreezeVar`]
-#[derive(Error, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(thiserror::Error, Clone, Copy, PartialEq, Eq, Debug)]
 #[error("assumption variable {0} has been eliminated by minisat simplification")]
-pub struct AssumpEliminated(Var);
+pub struct AssumpEliminated(rustsat::types::Var);
 
 #[derive(Debug, PartialEq, Eq, Default)]
 enum InternalSolverState {
@@ -58,12 +54,12 @@ enum InternalSolverState {
 }
 
 impl InternalSolverState {
-    fn to_external(&self) -> SolverState {
+    fn to_external(&self) -> rustsat::solvers::SolverState {
         match self {
-            InternalSolverState::Configuring => SolverState::Configuring,
-            InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::Sat => SolverState::Sat,
-            InternalSolverState::Unsat(_) => SolverState::Unsat,
+            InternalSolverState::Configuring => rustsat::solvers::SolverState::Configuring,
+            InternalSolverState::Input => rustsat::solvers::SolverState::Input,
+            InternalSolverState::Sat => rustsat::solvers::SolverState::Sat,
+            InternalSolverState::Unsat(_) => rustsat::solvers::SolverState::Unsat,
         }
     }
 }
@@ -79,8 +75,8 @@ pub enum Limit {
     Propagations(i64),
 }
 
-impl fmt::Display for Limit {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Limit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Limit::None => write!(f, "none"),
             Limit::Conflicts(val) => write!(f, "conflicts ({val})"),

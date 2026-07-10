@@ -1,21 +1,15 @@
 extern crate proc_macro;
 
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{parse_quote, Attribute};
-
-use super::IntegrationInput;
-
-pub fn base(input: IntegrationInput) -> TokenStream {
+pub fn base(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -44,7 +38,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn small_sat() {
@@ -54,7 +48,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(1);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn small_unsat() {
@@ -64,7 +58,7 @@ pub fn base(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(2);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn minisat_segfault() {
@@ -76,16 +70,16 @@ pub fn base(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn incremental(input: IntegrationInput) -> TokenStream {
+pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -96,7 +90,7 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn assumption_sequence() {
@@ -201,7 +195,7 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(1);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn core_implied() {
@@ -289,7 +283,7 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(2);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn assumption_empty() {
@@ -318,7 +312,7 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
         }
     });
     let ignore = ignoretok(3);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn solution_caching() {
@@ -349,16 +343,16 @@ pub fn incremental(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn learning(input: IntegrationInput) -> TokenStream {
+pub fn learning(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -369,7 +363,7 @@ pub fn learning(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn learner_callback() {
@@ -396,16 +390,16 @@ pub fn learning(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn phasing(input: IntegrationInput) -> TokenStream {
+pub fn phasing(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -416,7 +410,7 @@ pub fn phasing(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn user_phases() {
@@ -450,16 +444,16 @@ pub fn phasing(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn flipping(input: IntegrationInput) -> TokenStream {
+pub fn flipping(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -470,7 +464,7 @@ pub fn flipping(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn flipping_lits() {
@@ -495,16 +489,16 @@ pub fn flipping(input: IntegrationInput) -> TokenStream {
     ts
 }
 
-pub fn internal_stats(input: IntegrationInput) -> TokenStream {
+pub fn internal_stats(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
     let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<Attribute> {
+    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
         if input.bools.len() > idx && input.bools[idx] {
-            Some(parse_quote! {#[ignore]})
+            Some(syn::parse_quote! {#[ignore]})
         } else {
             None
         }
     };
-    let mut ts = quote! {
+    let mut ts = quote::quote! {
         macro_rules! init_slv {
             ($slv:ty) => {
                 <$slv>::default()
@@ -515,7 +509,7 @@ pub fn internal_stats(input: IntegrationInput) -> TokenStream {
         }
     };
     let ignore = ignoretok(0);
-    ts.extend(quote! {
+    ts.extend(quote::quote! {
         #[test]
         #ignore
         fn internal_stats() {

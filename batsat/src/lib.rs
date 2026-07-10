@@ -26,16 +26,13 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use std::time::Duration;
-
-use batsat::{intmap::AsIndex, lbool, Callbacks, SolverInterface};
-use rustsat::{
-    solvers::{
-        Solve, SolveIncremental, SolveStats, SolverResult, SolverState, SolverStats, StateError,
-    },
-    types::{Cl, Clause, Lit, TernaryVal, Var},
-    utils::Timer,
-};
+use batsat::intmap::AsIndex;
+use batsat::SolverInterface;
+use rustsat::solvers::SolverResult;
+use rustsat::types::Cl;
+use rustsat::types::Clause;
+use rustsat::types::Lit;
+use rustsat::types::Var;
 
 /// RustSAT wrapper for [`batsat::BasicSolver`]
 pub type BasicSolver = Solver<batsat::BasicCallbacks>;
@@ -49,28 +46,28 @@ enum InternalSolverState {
 }
 
 impl InternalSolverState {
-    fn to_external(&self) -> SolverState {
+    fn to_external(&self) -> rustsat::solvers::SolverState {
         match self {
-            InternalSolverState::Input => SolverState::Input,
-            InternalSolverState::Sat => SolverState::Sat,
-            InternalSolverState::Unsat(_) => SolverState::Unsat,
+            InternalSolverState::Input => rustsat::solvers::SolverState::Input,
+            InternalSolverState::Sat => rustsat::solvers::SolverState::Sat,
+            InternalSolverState::Unsat(_) => rustsat::solvers::SolverState::Unsat,
         }
     }
 }
 
 /// RustSAT wrapper for a [`batsat::Solver`] Solver from BatSat
 #[derive(Default)]
-pub struct Solver<Cb: Callbacks> {
+pub struct Solver<Cb: batsat::Callbacks> {
     internal: batsat::Solver<Cb>,
     state: InternalSolverState,
     n_sat: usize,
     n_unsat: usize,
     n_terminated: usize,
     avg_clause_len: f32,
-    cpu_time: Duration,
+    cpu_time: std::time::Duration,
 }
 
-impl<Cb: Callbacks> std::fmt::Debug for Solver<Cb> {
+impl<Cb: batsat::Callbacks> std::fmt::Debug for Solver<Cb> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solver")
             .field("internal", &"omitted")
@@ -84,7 +81,7 @@ impl<Cb: Callbacks> std::fmt::Debug for Solver<Cb> {
     }
 }
 
-impl<Cb: Callbacks> Solver<Cb> {
+impl<Cb: batsat::Callbacks> Solver<Cb> {
     /// Gets a reference to the internal [`BasicSolver`]
     #[must_use]
     pub fn batsat_ref(&self) -> &batsat::Solver<Cb> {
@@ -100,6 +97,8 @@ impl<Cb: Callbacks> Solver<Cb> {
     #[expect(clippy::cast_precision_loss)]
     #[inline]
     fn update_avg_clause_len(&mut self, clause: &Cl) {
+        use rustsat::solvers::SolveStats;
+
         self.avg_clause_len = (self.avg_clause_len * ((self.n_clauses()) as f32)
             + clause.len() as f32)
             / (self.n_clauses() + 1) as f32;
@@ -111,19 +110,19 @@ impl<Cb: Callbacks> Solver<Cb> {
             .map(|l| batsat::Lit::new(self.internal.var_of_int(l.vidx32()), l.is_pos()))
             .collect::<Vec<_>>();
 
-        let start = Timer::now();
+        let start = rustsat::utils::Timer::now();
         let ret = match self.internal.solve_limited(&assumps) {
-            x if x == lbool::TRUE => {
+            x if x == batsat::lbool::TRUE => {
                 self.n_sat += 1;
                 self.state = InternalSolverState::Sat;
                 SolverResult::Sat
             }
-            x if x == lbool::FALSE => {
+            x if x == batsat::lbool::FALSE => {
                 self.n_unsat += 1;
                 self.state = InternalSolverState::Unsat(!assumps.is_empty());
                 SolverResult::Unsat
             }
-            x if x == lbool::UNDEF => {
+            x if x == batsat::lbool::UNDEF => {
                 self.n_terminated += 1;
                 self.state = InternalSolverState::Input;
                 SolverResult::Interrupted
@@ -135,8 +134,10 @@ impl<Cb: Callbacks> Solver<Cb> {
     }
 }
 
-impl<Cb: Callbacks> Extend<Clause> for Solver<Cb> {
+impl<Cb: batsat::Callbacks> Extend<Clause> for Solver<Cb> {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter()
             .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
@@ -145,9 +146,11 @@ impl<Cb: Callbacks> Extend<Clause> for Solver<Cb> {
 impl<'a, C, Cb> Extend<&'a C> for Solver<Cb>
 where
     C: AsRef<Cl> + ?Sized,
-    Cb: Callbacks,
+    Cb: batsat::Callbacks,
 {
     fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -155,7 +158,7 @@ where
     }
 }
 
-impl<Cb: Callbacks> Solve for Solver<Cb> {
+impl<Cb: batsat::Callbacks> rustsat::solvers::Solve for Solver<Cb> {
     fn signature(&self) -> &'static str {
         "BatSat 0.6.0"
     }
@@ -173,10 +176,10 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
         Ok(self.solve_track_stats(&[]))
     }
 
-    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<rustsat::types::TernaryVal> {
         if self.state != InternalSolverState::Sat {
-            return Err(StateError {
-                required_state: SolverState::Sat,
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Sat,
                 actual_state: self.state.to_external(),
             }
             .into());
@@ -185,9 +188,9 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
         let lit = batsat::Lit::new(batsat::Var::from_index(lit.vidx()), lit.is_pos());
 
         match self.internal.value_lit(lit) {
-            x if x == lbool::TRUE => Ok(TernaryVal::True),
-            x if x == lbool::FALSE => Ok(TernaryVal::False),
-            x if x == lbool::UNDEF => Ok(TernaryVal::DontCare),
+            x if x == batsat::lbool::TRUE => Ok(rustsat::types::TernaryVal::True),
+            x if x == batsat::lbool::FALSE => Ok(rustsat::types::TernaryVal::False),
+            x if x == batsat::lbool::UNDEF => Ok(rustsat::types::TernaryVal::DontCare),
             _ => unreachable!(),
         }
     }
@@ -218,7 +221,7 @@ impl<Cb: Callbacks> Solve for Solver<Cb> {
     }
 }
 
-impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
+impl<Cb: batsat::Callbacks> rustsat::solvers::SolveIncremental for Solver<Cb> {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
         Ok(self.solve_track_stats(assumps))
     }
@@ -237,8 +240,8 @@ impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
                     Ok(vec![])
                 }
             }
-            other => Err(StateError {
-                required_state: SolverState::Unsat,
+            other => Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Unsat,
                 actual_state: other.to_external(),
             }
             .into()),
@@ -246,9 +249,9 @@ impl<Cb: Callbacks> SolveIncremental for Solver<Cb> {
     }
 }
 
-impl<Cb: Callbacks> SolveStats for Solver<Cb> {
-    fn stats(&self) -> SolverStats {
-        SolverStats {
+impl<Cb: batsat::Callbacks> rustsat::solvers::SolveStats for Solver<Cb> {
+    fn stats(&self) -> rustsat::solvers::SolverStats {
+        rustsat::solvers::SolverStats {
             n_sat: self.n_sat,
             n_unsat: self.n_unsat,
             n_terminated: self.n_terminated,
@@ -288,7 +291,7 @@ impl<Cb: Callbacks> SolveStats for Solver<Cb> {
         self.avg_clause_len
     }
 
-    fn cpu_solve_time(&self) -> Duration {
+    fn cpu_solve_time(&self) -> std::time::Duration {
         self.cpu_time
     }
 }

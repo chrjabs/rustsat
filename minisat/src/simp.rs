@@ -3,41 +3,36 @@
 //! Interface to the [Minisat](https://github.com/niklasso/minisat) incremental
 //! SAT solver.
 
-use core::ffi::{c_int, CStr};
+use core::ffi::c_int;
+use core::ffi::CStr;
 
-use rustsat::{
-    solvers::{
-        FreezeVar, GetInternalStats, Interrupt, InterruptSolver, LimitConflicts, LimitPropagations,
-        PhaseLit, Propagate, PropagateResult, Solve, SolveIncremental, SolveStats, SolverResult,
-        SolverState, SolverStats, StateError,
-    },
-    types::{Cl, Clause, Lit, TernaryVal, Var},
-    utils::{from_raw_parts_maybe_null, Timer},
-};
-
-use super::{ffi, handle_oom, AssumpEliminated, InternalSolverState, InvalidApiReturn, Limit};
+use rustsat::solvers::SolverResult;
+use rustsat::types::Cl;
+use rustsat::types::Clause;
+use rustsat::types::Lit;
+use rustsat::types::Var;
 
 /// The Minisat solver type with preprocessing
 #[derive(Debug)]
 pub struct Minisat {
-    handle: *mut ffi::CMinisatSimp,
-    state: InternalSolverState,
-    stats: SolverStats,
+    handle: *mut crate::ffi::CMinisatSimp,
+    state: crate::InternalSolverState,
+    stats: rustsat::solvers::SolverStats,
 }
 
 unsafe impl Send for Minisat {}
 
 impl Default for Minisat {
     fn default() -> Self {
-        let handle = unsafe { ffi::cminisatsimp_init() };
+        let handle = unsafe { crate::ffi::cminisatsimp_init() };
         assert!(
             !handle.is_null(),
             "not enough memory to initialize minisat solver"
         );
         Self {
             handle,
-            state: InternalSolverState::default(),
-            stats: SolverStats::default(),
+            state: crate::InternalSolverState::default(),
+            stats: rustsat::solvers::SolverStats::default(),
         }
     }
 }
@@ -52,14 +47,14 @@ impl Minisat {
     }
 
     /// Sets an internal limit for Minisat
-    pub fn set_limit(&mut self, limit: Limit) {
+    pub fn set_limit(&mut self, limit: crate::Limit) {
         match limit {
-            Limit::None => unsafe { ffi::cminisatsimp_set_no_limit(self.handle) },
-            Limit::Conflicts(limit) => unsafe {
-                ffi::cminisatsimp_set_conf_limit(self.handle, limit);
+            crate::Limit::None => unsafe { crate::ffi::cminisatsimp_set_no_limit(self.handle) },
+            crate::Limit::Conflicts(limit) => unsafe {
+                crate::ffi::cminisatsimp_set_conf_limit(self.handle, limit);
             },
-            Limit::Propagations(limit) => unsafe {
-                ffi::cminisatsimp_set_prop_limit(self.handle, limit);
+            crate::Limit::Propagations(limit) => unsafe {
+                crate::ffi::cminisatsimp_set_prop_limit(self.handle, limit);
             },
         }
     }
@@ -67,26 +62,28 @@ impl Minisat {
     /// Gets the current number of assigned literals
     #[must_use]
     pub fn n_assigns(&self) -> c_int {
-        unsafe { ffi::cminisatsimp_n_assigns(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_n_assigns(self.handle) }
     }
 
     /// Gets the current number of learnt clauses
     #[must_use]
     pub fn n_learnts(&self) -> c_int {
-        unsafe { ffi::cminisatsimp_n_learnts(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_n_learnts(self.handle) }
     }
 
     /// Checks if a variable has been eliminated by preprocessing.
     pub fn var_eliminated(&mut self, var: Var) -> bool {
         (unsafe {
             #[expect(clippy::cast_possible_wrap)]
-            ffi::cminisatsimp_is_eliminated(self.handle, var.idx32() as c_int)
+            crate::ffi::cminisatsimp_is_eliminated(self.handle, var.idx32() as c_int)
         } != 0)
     }
 }
 
 impl Extend<Clause> for Minisat {
     fn extend<T: IntoIterator<Item = Clause>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter()
             .for_each(|cl| self.add_clause(cl).expect("Error adding clause in extend"));
     }
@@ -97,6 +94,8 @@ where
     C: AsRef<Cl> + ?Sized,
 {
     fn extend<T: IntoIterator<Item = &'a C>>(&mut self, iter: T) {
+        use rustsat::solvers::Solve;
+
         iter.into_iter().for_each(|cl| {
             self.add_clause_ref(cl)
                 .expect("Error adding clause in extend");
@@ -104,9 +103,9 @@ where
     }
 }
 
-impl Solve for Minisat {
+impl rustsat::solvers::Solve for Minisat {
     fn signature(&self) -> &'static str {
-        let c_chars = unsafe { ffi::cminisat_signature() };
+        let c_chars = unsafe { crate::ffi::cminisat_signature() };
         let c_str = unsafe { CStr::from_ptr(c_chars) };
         c_str
             .to_str()
@@ -115,35 +114,37 @@ impl Solve for Minisat {
 
     fn solve(&mut self) -> anyhow::Result<SolverResult> {
         // If already solved, return state
-        if let InternalSolverState::Sat = self.state {
+        if let crate::InternalSolverState::Sat = self.state {
             return Ok(SolverResult::Sat);
         }
-        if let InternalSolverState::Unsat(under_assumps) = &self.state {
+        if let crate::InternalSolverState::Unsat(under_assumps) = &self.state {
             if !under_assumps {
                 return Ok(SolverResult::Unsat);
             }
         }
-        let start = Timer::now();
+        let start = rustsat::utils::Timer::now();
         // Solve with minisat backend
-        let res = handle_oom!(unsafe { ffi::cminisatsimp_solve(self.handle, std::ptr::null(), 0) });
+        let res = crate::handle_oom!(unsafe {
+            crate::ffi::cminisatsimp_solve(self.handle, std::ptr::null(), 0)
+        });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
                 self.stats.n_terminated += 1;
-                self.state = InternalSolverState::Input;
+                self.state = crate::InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
                 self.stats.n_sat += 1;
-                self.state = InternalSolverState::Sat;
+                self.state = crate::InternalSolverState::Sat;
                 Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(false);
+                self.state = crate::InternalSolverState::Unsat(false);
                 Ok(SolverResult::Unsat)
             }
-            value => Err(InvalidApiReturn {
+            value => Err(crate::InvalidApiReturn {
                 api_call: "cminisatsimp_solve",
                 value,
             }
@@ -151,19 +152,19 @@ impl Solve for Minisat {
         }
     }
 
-    fn lit_val(&self, lit: Lit) -> anyhow::Result<TernaryVal> {
-        if self.state != InternalSolverState::Sat {
-            return Err(StateError {
-                required_state: SolverState::Sat,
+    fn lit_val(&self, lit: Lit) -> anyhow::Result<rustsat::types::TernaryVal> {
+        if self.state != crate::InternalSolverState::Sat {
+            return Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Sat,
                 actual_state: self.state.to_external(),
             }
             .into());
         }
-        match unsafe { ffi::cminisatsimp_val(self.handle, lit.into()) } {
-            ffi::T_UNASSIGNED => Ok(TernaryVal::DontCare),
-            ffi::T_TRUE => Ok(TernaryVal::True),
-            ffi::T_FALSE => Ok(TernaryVal::False),
-            value => Err(InvalidApiReturn {
+        match unsafe { crate::ffi::cminisatsimp_val(self.handle, lit.into()) } {
+            crate::ffi::T_UNASSIGNED => Ok(rustsat::types::TernaryVal::DontCare),
+            crate::ffi::T_TRUE => Ok(rustsat::types::TernaryVal::True),
+            crate::ffi::T_FALSE => Ok(rustsat::types::TernaryVal::False),
+            value => Err(crate::InvalidApiReturn {
                 api_call: "cminisatsimp_val",
                 value,
             }
@@ -179,9 +180,9 @@ impl Solve for Minisat {
         // Update wrapper-internal state
         self.stats.n_clauses += 1;
         self.update_avg_clause_len(clause);
-        self.state = InternalSolverState::Input;
-        handle_oom!(unsafe {
-            ffi::cminisatsimp_add_clause(
+        self.state = crate::InternalSolverState::Input;
+        crate::handle_oom!(unsafe {
+            crate::ffi::cminisatsimp_add_clause(
                 self.handle,
                 AsRef::<[Lit]>::as_ref(clause).as_ptr().cast(),
                 clause.len(),
@@ -191,44 +192,44 @@ impl Solve for Minisat {
     }
 
     fn reserve(&mut self, max_var: Var) -> anyhow::Result<()> {
-        handle_oom!(unsafe {
+        crate::handle_oom!(unsafe {
             #[expect(clippy::cast_possible_wrap)]
-            ffi::cminisatsimp_reserve(self.handle, max_var.idx32() as c_int)
+            crate::ffi::cminisatsimp_reserve(self.handle, max_var.idx32() as c_int)
         });
         Ok(())
     }
 }
 
-impl SolveIncremental for Minisat {
+impl rustsat::solvers::SolveIncremental for Minisat {
     fn solve_assumps(&mut self, assumps: &[Lit]) -> anyhow::Result<SolverResult> {
-        let start = Timer::now();
+        let start = rustsat::utils::Timer::now();
         // Solve with minisat backend
         for a in assumps {
             if self.var_eliminated(a.var()) {
-                return Err(AssumpEliminated(a.var()).into());
+                return Err(crate::AssumpEliminated(a.var()).into());
             }
         }
-        let res = handle_oom!(unsafe {
-            ffi::cminisatsimp_solve(self.handle, assumps.as_ptr().cast(), assumps.len())
+        let res = crate::handle_oom!(unsafe {
+            crate::ffi::cminisatsimp_solve(self.handle, assumps.as_ptr().cast(), assumps.len())
         });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
             0 => {
                 self.stats.n_terminated += 1;
-                self.state = InternalSolverState::Input;
+                self.state = crate::InternalSolverState::Input;
                 Ok(SolverResult::Interrupted)
             }
             10 => {
                 self.stats.n_sat += 1;
-                self.state = InternalSolverState::Sat;
+                self.state = crate::InternalSolverState::Sat;
                 Ok(SolverResult::Sat)
             }
             20 => {
                 self.stats.n_unsat += 1;
-                self.state = InternalSolverState::Unsat(true);
+                self.state = crate::InternalSolverState::Unsat(true);
                 Ok(SolverResult::Unsat)
             }
-            value => Err(InvalidApiReturn {
+            value => Err(crate::InvalidApiReturn {
                 api_call: "cminisatsimp_solve",
                 value,
             }
@@ -238,25 +239,25 @@ impl SolveIncremental for Minisat {
 
     fn core(&mut self) -> anyhow::Result<Vec<Lit>> {
         match &self.state {
-            InternalSolverState::Unsat(under_assumps) => {
+            crate::InternalSolverState::Unsat(under_assumps) => {
                 if *under_assumps {
                     let conflict = unsafe {
-                        let mut conflict = std::ptr::null::<ffi::c_Lit>();
+                        let mut conflict = std::ptr::null::<crate::ffi::c_Lit>();
                         let mut conflict_len = 0;
-                        ffi::cminisatsimp_conflict(
+                        crate::ffi::cminisatsimp_conflict(
                             self.handle,
                             &raw mut conflict,
                             &raw mut conflict_len,
                         );
-                        from_raw_parts_maybe_null(conflict.cast(), conflict_len)
+                        rustsat::utils::from_raw_parts_maybe_null(conflict.cast(), conflict_len)
                     };
                     Ok(conflict.to_vec())
                 } else {
                     Ok(vec![])
                 }
             }
-            other => Err(StateError {
-                required_state: SolverState::Unsat,
+            other => Err(rustsat::solvers::StateError {
+                required_state: rustsat::solvers::SolverState::Unsat,
                 actual_state: other.to_external(),
             }
             .into()),
@@ -264,7 +265,7 @@ impl SolveIncremental for Minisat {
     }
 }
 
-impl Interrupt for Minisat {
+impl rustsat::solvers::Interrupt for Minisat {
     type Interrupter = Interrupter;
     fn interrupter(&mut self) -> Self::Interrupter {
         Interrupter {
@@ -277,28 +278,32 @@ impl Interrupt for Minisat {
 #[derive(Debug)]
 pub struct Interrupter {
     /// The C API handle
-    handle: *mut ffi::CMinisatSimp,
+    handle: *mut crate::ffi::CMinisatSimp,
 }
 
 unsafe impl Send for Interrupter {}
 unsafe impl Sync for Interrupter {}
 
-impl InterruptSolver for Interrupter {
+impl rustsat::solvers::InterruptSolver for Interrupter {
     fn interrupt(&self) {
-        unsafe { ffi::cminisatsimp_interrupt(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_interrupt(self.handle) }
     }
 }
 
-impl PhaseLit for Minisat {
+impl rustsat::solvers::PhaseLit for Minisat {
     /// Forces the default decision phase of a variable to a certain value
     fn phase_lit(&mut self, lit: Lit) -> anyhow::Result<()> {
+        use rustsat::solvers::Solve;
+
         self.reserve(lit.var())?;
-        handle_oom!(unsafe { ffi::cminisatsimp_phase(self.handle, lit.into()) });
+        crate::handle_oom!(unsafe { crate::ffi::cminisatsimp_phase(self.handle, lit.into()) });
         Ok(())
     }
 
     /// Undoes the effect of a call to [`Minisat::phase_lit`]
     fn unphase_var(&mut self, var: Var) -> anyhow::Result<()> {
+        use rustsat::solvers::SolveStats;
+
         match self.max_var() {
             None => return Ok(()),
             Some(max) if max < var => return Ok(()),
@@ -306,23 +311,27 @@ impl PhaseLit for Minisat {
         }
         unsafe {
             #[expect(clippy::cast_possible_wrap)]
-            ffi::cminisatsimp_unphase(self.handle, var.idx32() as c_int);
+            crate::ffi::cminisatsimp_unphase(self.handle, var.idx32() as c_int);
         };
         Ok(())
     }
 }
 
-impl FreezeVar for Minisat {
+impl rustsat::solvers::FreezeVar for Minisat {
     fn freeze_var(&mut self, var: Var) -> anyhow::Result<()> {
+        use rustsat::solvers::Solve;
+
         self.reserve(var)?;
         unsafe {
             #[expect(clippy::cast_possible_wrap)]
-            ffi::cminisatsimp_set_frozen(self.handle, var.idx32() as c_int, 1);
+            crate::ffi::cminisatsimp_set_frozen(self.handle, var.idx32() as c_int, 1);
         };
         Ok(())
     }
 
     fn melt_var(&mut self, var: Var) -> anyhow::Result<()> {
+        use rustsat::solvers::SolveStats;
+
         match self.max_var() {
             None => return Ok(()),
             Some(max) if max < var => return Ok(()),
@@ -330,12 +339,14 @@ impl FreezeVar for Minisat {
         }
         unsafe {
             #[expect(clippy::cast_possible_wrap)]
-            ffi::cminisatsimp_set_frozen(self.handle, var.idx32() as c_int, 0);
+            crate::ffi::cminisatsimp_set_frozen(self.handle, var.idx32() as c_int, 0);
         };
         Ok(())
     }
 
     fn is_frozen(&mut self, var: Var) -> anyhow::Result<bool> {
+        use rustsat::solvers::SolveStats;
+
         match self.max_var() {
             None => return Ok(false),
             Some(max) if max < var => return Ok(false),
@@ -343,14 +354,14 @@ impl FreezeVar for Minisat {
         }
         Ok(unsafe {
             #[expect(clippy::cast_possible_wrap)]
-            ffi::cminisatsimp_is_frozen(self.handle, var.idx32() as c_int)
+            crate::ffi::cminisatsimp_is_frozen(self.handle, var.idx32() as c_int)
         } != 0)
     }
 }
 
-impl LimitConflicts for Minisat {
+impl rustsat::solvers::LimitConflicts for Minisat {
     fn limit_conflicts(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
-        self.set_limit(Limit::Conflicts(if let Some(limit) = limit {
+        self.set_limit(crate::Limit::Conflicts(if let Some(limit) = limit {
             i64::from(limit)
         } else {
             -1
@@ -359,9 +370,9 @@ impl LimitConflicts for Minisat {
     }
 }
 
-impl LimitPropagations for Minisat {
+impl rustsat::solvers::LimitPropagations for Minisat {
     fn limit_propagations(&mut self, limit: Option<u32>) -> anyhow::Result<()> {
-        self.set_limit(Limit::Propagations(if let Some(limit) = limit {
+        self.set_limit(crate::Limit::Propagations(if let Some(limit) = limit {
             i64::from(limit)
         } else {
             -1
@@ -370,58 +381,58 @@ impl LimitPropagations for Minisat {
     }
 }
 
-impl GetInternalStats for Minisat {
+impl rustsat::solvers::GetInternalStats for Minisat {
     fn propagations(&self) -> usize {
-        unsafe { ffi::cminisatsimp_propagations(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_propagations(self.handle) }
             .try_into()
             .unwrap()
     }
 
     fn decisions(&self) -> usize {
-        unsafe { ffi::cminisatsimp_decisions(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_decisions(self.handle) }
             .try_into()
             .unwrap()
     }
 
     fn conflicts(&self) -> usize {
-        unsafe { ffi::cminisatsimp_conflicts(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_conflicts(self.handle) }
             .try_into()
             .unwrap()
     }
 }
 
-impl Propagate for Minisat {
+impl rustsat::solvers::Propagate for Minisat {
     fn propagate(
         &mut self,
         assumps: &[Lit],
         phase_saving: bool,
-    ) -> anyhow::Result<PropagateResult> {
-        let start = Timer::now();
-        self.state = InternalSolverState::Input;
+    ) -> anyhow::Result<rustsat::solvers::PropagateResult> {
+        let start = rustsat::utils::Timer::now();
+        self.state = crate::InternalSolverState::Input;
         // Propagate with minisat backend
         let mut props = Vec::new();
         let ptr: *mut Vec<Lit> = &raw mut props;
-        let res = handle_oom!(unsafe {
-            ffi::cminisatsimp_propcheck(
+        let res = crate::handle_oom!(unsafe {
+            crate::ffi::cminisatsimp_propcheck(
                 self.handle,
                 assumps.as_ptr().cast(),
                 assumps.len(),
                 c_int::from(phase_saving),
-                Some(ffi::rustsat_minisat_collect_lits),
+                Some(crate::ffi::rustsat_minisat_collect_lits),
                 ptr.cast::<std::os::raw::c_void>(),
             )
         });
         self.stats.cpu_solve_time += start.elapsed();
         match res {
-            10 => Ok(PropagateResult {
+            10 => Ok(rustsat::solvers::PropagateResult {
                 propagated: props,
                 conflict: false,
             }),
-            20 => Ok(PropagateResult {
+            20 => Ok(rustsat::solvers::PropagateResult {
                 propagated: props,
                 conflict: true,
             }),
-            value => Err(InvalidApiReturn {
+            value => Err(crate::InvalidApiReturn {
                 api_call: "cminisatsimp_propcheck",
                 value,
             }
@@ -430,8 +441,8 @@ impl Propagate for Minisat {
     }
 }
 
-impl SolveStats for Minisat {
-    fn stats(&self) -> SolverStats {
+impl rustsat::solvers::SolveStats for Minisat {
+    fn stats(&self) -> rustsat::solvers::SolverStats {
         let mut stats = self.stats.clone();
         stats.max_var = self.max_var();
         stats.n_clauses = self.n_clauses();
@@ -439,7 +450,7 @@ impl SolveStats for Minisat {
     }
 
     fn max_var(&self) -> Option<Var> {
-        let max_var_idx = unsafe { ffi::cminisatsimp_n_vars(self.handle) };
+        let max_var_idx = unsafe { crate::ffi::cminisatsimp_n_vars(self.handle) };
         if max_var_idx > 0 {
             Some(Var::new(
                 (max_var_idx - 1)
@@ -452,7 +463,7 @@ impl SolveStats for Minisat {
     }
 
     fn n_clauses(&self) -> usize {
-        unsafe { ffi::cminisatsimp_n_clauses(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_n_clauses(self.handle) }
             .try_into()
             .unwrap()
     }
@@ -460,7 +471,7 @@ impl SolveStats for Minisat {
 
 impl Drop for Minisat {
     fn drop(&mut self) {
-        unsafe { ffi::cminisatsimp_release(self.handle) }
+        unsafe { crate::ffi::cminisatsimp_release(self.handle) }
     }
 }
 

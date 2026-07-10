@@ -4,12 +4,13 @@
 //!
 //! - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+
 use super::Encode;
-use crate::{
-    encodings::{CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    types::Lit,
-};
 
 /// Implementations of the pairwise at-most-1 encoding.
 ///

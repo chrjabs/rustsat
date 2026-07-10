@@ -1,10 +1,5 @@
 #![warn(clippy::pedantic)]
 
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
-
 fn main() {
     if std::mem::size_of::<std::ffi::c_int>() != std::mem::size_of::<u32>() {
         // NOTE: this is required for RustSAT and Minisat literals to have compatible memory
@@ -16,7 +11,7 @@ fn main() {
     // Build C++ library
     build();
 
-    let out_dir = env::var("OUT_DIR").unwrap();
+    let out_dir = std::env::var("OUT_DIR").unwrap();
 
     println!("cargo:rerun-if-changed=vendor/");
 
@@ -41,15 +36,15 @@ fn main() {
         .generate()
         .expect("Unable to generate ffi bindings");
     bindings
-        .write_to_file(PathBuf::from(out_dir).join("bindings.rs"))
+        .write_to_file(std::path::PathBuf::from(out_dir).join("bindings.rs"))
         .expect("Could not write ffi bindings");
 }
 
 fn build() {
-    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut minisat_dir_str = crate_dir.clone();
     minisat_dir_str.push_str("/vendor");
-    let minisat_dir = Path::new(&minisat_dir_str);
+    let minisat_dir = std::path::Path::new(&minisat_dir_str);
     let mut conf = cmake::Config::new(minisat_dir);
     conf.define("BUILD_BINARIES", "OFF");
     #[cfg(feature = "quiet")]

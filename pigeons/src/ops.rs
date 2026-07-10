@@ -2,17 +2,12 @@
 //!
 //! Types to generate sequences of operations for reverse polish notation.
 
-use std::{
-    fmt,
-    num::NonZeroUsize,
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign},
-};
-
 use itertools::Itertools;
 
-use crate::{AbsConstraintId, VarLike};
-
-use super::{Axiom, ConstraintId};
+use crate::AbsConstraintId;
+use crate::Axiom;
+use crate::ConstraintId;
+use crate::VarLike;
 
 /// A sequence of operations to be added to the proof in reverse polish notation
 #[derive(Clone, Debug)]
@@ -156,8 +151,8 @@ impl<V: VarLike> From<Operation<V>> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> fmt::Display for OperationSequence<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for OperationSequence<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
             IntOpSeq::Empty => panic!("cannot write empty operation sequence"),
             IntOpSeq::Singleton(op) => write!(f, "{op}"),
@@ -166,7 +161,7 @@ impl<V: VarLike> fmt::Display for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> Mul<usize> for OperationSequence<V> {
+impl<V: VarLike> std::ops::Mul<usize> for OperationSequence<V> {
     type Output = OperationSequence<V>;
 
     fn mul(mut self, rhs: usize) -> Self::Output {
@@ -182,7 +177,7 @@ impl<V: VarLike> Mul<usize> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> MulAssign<usize> for OperationSequence<V> {
+impl<V: VarLike> std::ops::MulAssign<usize> for OperationSequence<V> {
     fn mul_assign(&mut self, rhs: usize) {
         if rhs == 0 {
             *self = OperationSequence::empty();
@@ -196,7 +191,7 @@ impl<V: VarLike> MulAssign<usize> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> Mul<OperationSequence<V>> for usize {
+impl<V: VarLike> std::ops::Mul<OperationSequence<V>> for usize {
     type Output = OperationSequence<V>;
 
     fn mul(self, rhs: OperationSequence<V>) -> Self::Output {
@@ -204,7 +199,7 @@ impl<V: VarLike> Mul<OperationSequence<V>> for usize {
     }
 }
 
-impl<V: VarLike> Div<usize> for OperationSequence<V> {
+impl<V: VarLike> std::ops::Div<usize> for OperationSequence<V> {
     type Output = OperationSequence<V>;
 
     fn div(mut self, rhs: usize) -> Self::Output {
@@ -217,7 +212,7 @@ impl<V: VarLike> Div<usize> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> DivAssign<usize> for OperationSequence<V> {
+impl<V: VarLike> std::ops::DivAssign<usize> for OperationSequence<V> {
     fn div_assign(&mut self, rhs: usize) {
         if !self.is_empty() {
             self.push(Operation::Div(
@@ -239,9 +234,9 @@ pub(crate) enum Operation<V: VarLike> {
     /// An addition operation over two constraints
     Add,
     /// A constant multiplication operation
-    Mult(NonZeroUsize),
+    Mult(std::num::NonZeroUsize),
     /// A constant division operation
-    Div(NonZeroUsize),
+    Div(std::num::NonZeroUsize),
     /// A boolean saturation operation
     Sat,
     /// A weakening operation
@@ -260,8 +255,8 @@ impl<V: VarLike> From<Axiom<V>> for Operation<V> {
     }
 }
 
-impl<V: VarLike> fmt::Display for Operation<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<V: VarLike> std::fmt::Display for Operation<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Operation::Id(id) => write!(f, "{id}"),
             Operation::Axiom(ax) => write!(f, "{ax}"),
@@ -277,12 +272,12 @@ impl<V: VarLike> fmt::Display for Operation<V> {
 /// A trait implemented by all types intended to be used in building an [`OperationSequence`]
 pub trait OperationLike<V: VarLike>:
     Into<OperationSequence<V>>
-    + Add<OperationSequence<V>, Output = OperationSequence<V>>
-    + Add<ConstraintId, Output = OperationSequence<V>>
-    + Add<AbsConstraintId, Output = OperationSequence<V>>
-    + Add<Axiom<V>, Output = OperationSequence<V>>
-    + Mul<usize, Output = OperationSequence<V>>
-    + Div<usize, Output = OperationSequence<V>>
+    + std::ops::Add<OperationSequence<V>, Output = OperationSequence<V>>
+    + std::ops::Add<ConstraintId, Output = OperationSequence<V>>
+    + std::ops::Add<AbsConstraintId, Output = OperationSequence<V>>
+    + std::ops::Add<Axiom<V>, Output = OperationSequence<V>>
+    + std::ops::Mul<usize, Output = OperationSequence<V>>
+    + std::ops::Div<usize, Output = OperationSequence<V>>
 {
     /// Applies saturation
     #[must_use]
@@ -296,7 +291,7 @@ pub trait OperationLike<V: VarLike>:
     }
 }
 
-impl<V: VarLike, O: Into<OperationSequence<V>>> Add<O> for OperationSequence<V> {
+impl<V: VarLike, O: Into<OperationSequence<V>>> std::ops::Add<O> for OperationSequence<V> {
     type Output = OperationSequence<V>;
 
     fn add(mut self, rhs: O) -> Self::Output {
@@ -313,7 +308,7 @@ impl<V: VarLike, O: Into<OperationSequence<V>>> Add<O> for OperationSequence<V> 
     }
 }
 
-impl<V: VarLike, O: Into<OperationSequence<V>>> AddAssign<O> for OperationSequence<V> {
+impl<V: VarLike, O: Into<OperationSequence<V>>> std::ops::AddAssign<O> for OperationSequence<V> {
     fn add_assign(&mut self, rhs: O) {
         let rhs = Into::<OperationSequence<V>>::into(rhs);
         let was_empty = self.is_empty();
@@ -334,7 +329,7 @@ impl<V: VarLike> From<ConstraintId> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> Add<OperationSequence<V>> for ConstraintId {
+impl<V: VarLike> std::ops::Add<OperationSequence<V>> for ConstraintId {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: OperationSequence<V>) -> Self::Output {
@@ -342,7 +337,7 @@ impl<V: VarLike> Add<OperationSequence<V>> for ConstraintId {
     }
 }
 
-impl<V: VarLike> Add<Axiom<V>> for ConstraintId {
+impl<V: VarLike> std::ops::Add<Axiom<V>> for ConstraintId {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: Axiom<V>) -> Self::Output {
@@ -356,7 +351,7 @@ impl<V: VarLike> From<AbsConstraintId> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> Add<OperationSequence<V>> for AbsConstraintId {
+impl<V: VarLike> std::ops::Add<OperationSequence<V>> for AbsConstraintId {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: OperationSequence<V>) -> Self::Output {
@@ -364,7 +359,7 @@ impl<V: VarLike> Add<OperationSequence<V>> for AbsConstraintId {
     }
 }
 
-impl<V: VarLike> Add<Axiom<V>> for AbsConstraintId {
+impl<V: VarLike> std::ops::Add<Axiom<V>> for AbsConstraintId {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: Axiom<V>) -> Self::Output {
@@ -380,7 +375,7 @@ impl<V: VarLike> From<Axiom<V>> for OperationSequence<V> {
     }
 }
 
-impl<V: VarLike> Add<OperationSequence<V>> for Axiom<V> {
+impl<V: VarLike> std::ops::Add<OperationSequence<V>> for Axiom<V> {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: OperationSequence<V>) -> Self::Output {
@@ -388,7 +383,7 @@ impl<V: VarLike> Add<OperationSequence<V>> for Axiom<V> {
     }
 }
 
-impl<V: VarLike> Add<ConstraintId> for Axiom<V> {
+impl<V: VarLike> std::ops::Add<ConstraintId> for Axiom<V> {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: ConstraintId) -> Self::Output {
@@ -396,7 +391,7 @@ impl<V: VarLike> Add<ConstraintId> for Axiom<V> {
     }
 }
 
-impl<V: VarLike> Add<AbsConstraintId> for Axiom<V> {
+impl<V: VarLike> std::ops::Add<AbsConstraintId> for Axiom<V> {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: AbsConstraintId) -> Self::Output {
@@ -404,7 +399,7 @@ impl<V: VarLike> Add<AbsConstraintId> for Axiom<V> {
     }
 }
 
-impl<V: VarLike> Add<Axiom<V>> for Axiom<V> {
+impl<V: VarLike> std::ops::Add<Axiom<V>> for Axiom<V> {
     type Output = OperationSequence<V>;
 
     fn add(self, rhs: Axiom<V>) -> Self::Output {
@@ -412,7 +407,7 @@ impl<V: VarLike> Add<Axiom<V>> for Axiom<V> {
     }
 }
 
-impl<V: VarLike> Mul<usize> for Axiom<V> {
+impl<V: VarLike> std::ops::Mul<usize> for Axiom<V> {
     type Output = OperationSequence<V>;
 
     fn mul(self, rhs: usize) -> Self::Output {
@@ -420,7 +415,7 @@ impl<V: VarLike> Mul<usize> for Axiom<V> {
     }
 }
 
-impl<V: VarLike> Div<usize> for Axiom<V> {
+impl<V: VarLike> std::ops::Div<usize> for Axiom<V> {
     type Output = OperationSequence<V>;
 
     fn div(self, rhs: usize) -> Self::Output {

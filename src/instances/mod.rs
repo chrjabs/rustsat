@@ -3,24 +3,22 @@
 //! Types representing general satisfiability and optimization instances with
 //! functionality to convert them to SAT or MaxSAT instances.
 
-use std::{
-    any::{Any, TypeId},
-    hash::{Hash, Hasher},
-    io,
-};
+use std::hash::Hasher;
 
-use crate::{
-    types::{Lit, RsHashMap, RsHasher, Var},
-    var,
-};
+use crate::types::Lit;
+use crate::types::RsHashMap;
+use crate::types::Var;
 
 mod sat;
-pub use sat::{Cnf, Instance as SatInstance};
+pub use sat::Cnf;
+pub use sat::Instance as SatInstance;
 
 #[cfg(feature = "optimization")]
 mod opt;
 #[cfg(feature = "optimization")]
-pub use opt::{Instance as OptInstance, Objective};
+pub use opt::Instance as OptInstance;
+#[cfg(feature = "optimization")]
+pub use opt::Objective;
 
 #[cfg(feature = "multiopt")]
 mod multiopt;
@@ -113,7 +111,7 @@ impl ManageVars for BasicVarManager {
     }
 
     fn max_var(&self) -> Option<Var> {
-        if self.next_var == var![0] {
+        if self.next_var == Var::new(0) {
             None
         } else {
             Some(self.next_var - 1)
@@ -212,7 +210,7 @@ impl ManageVars for ReindexingVarManager {
     }
 
     fn max_var(&self) -> Option<Var> {
-        if self.next_var == var![0] {
+        if self.next_var == Var::new(0) {
             None
         } else {
             Some(self.next_var - 1)
@@ -267,7 +265,7 @@ impl ObjectVarManager {
     /// A new variable is used up if the object is seen for the first time
     pub fn object_var<T>(&mut self, obj: T) -> Var
     where
-        T: Eq + Hash + 'static,
+        T: Eq + std::hash::Hash + 'static,
     {
         let key: Box<dyn VarKey> = Box::new(obj);
         if let Some(v) = self.object_map.get(&key) {
@@ -297,7 +295,7 @@ impl ManageVars for ObjectVarManager {
     }
 
     fn max_var(&self) -> Option<Var> {
-        if self.next_var == var![0] {
+        if self.next_var == Var::new(0) {
             None
         } else {
             Some(self.next_var - 1)
@@ -393,7 +391,7 @@ impl ManageVars for RandReindVarManager {
     }
 
     fn max_var(&self) -> Option<Var> {
-        if self.next_var == var![0] {
+        if self.next_var == Var::new(0) {
             None
         } else {
             Some(self.next_var - 1)
@@ -429,10 +427,10 @@ impl ManageVars for RandReindVarManager {
 trait VarKey {
     fn eq(&self, other: &dyn VarKey) -> bool;
     fn hash(&self) -> u64;
-    fn as_any(&self) -> &dyn Any;
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
-impl<T: Eq + Hash + 'static> VarKey for T {
+impl<T: Eq + std::hash::Hash + 'static> VarKey for T {
     fn eq(&self, other: &dyn VarKey) -> bool {
         if let Some(other) = other.as_any().downcast_ref::<T>() {
             return self == other;
@@ -441,14 +439,14 @@ impl<T: Eq + Hash + 'static> VarKey for T {
     }
 
     fn hash(&self) -> u64 {
-        let mut h = RsHasher::default();
+        let mut h = crate::types::RsHasher::default();
         // mix the typeid of T into the hash to make distinct types
         // provide distinct hashes
-        Hash::hash(&(TypeId::of::<T>(), self), &mut h);
+        std::hash::Hash::hash(&(std::any::TypeId::of::<T>(), self), &mut h);
         h.finish()
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 }
@@ -461,8 +459,8 @@ impl PartialEq for Box<dyn VarKey> {
 
 impl Eq for Box<dyn VarKey> {}
 
-impl Hash for Box<dyn VarKey> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
+impl std::hash::Hash for Box<dyn VarKey> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         let key_hash = VarKey::hash(self.as_ref());
         state.write_u64(key_hash);
     }
@@ -473,7 +471,7 @@ impl Hash for Box<dyn VarKey> {
 pub enum WriteDimacsError {
     /// Input-output error
     #[error("IO error: {0}")]
-    Io(#[from] io::Error),
+    Io(#[from] std::io::Error),
     /// The instance is non-clausal
     #[error("writing to DIMACS files requires clausal constraints")]
     RequiresClausal,
@@ -485,7 +483,7 @@ pub enum WriteDimacsError {
 pub enum WriteOpbError {
     /// Input-output error
     #[error("IO error: {0}")]
-    Io(#[from] io::Error),
+    Io(#[from] std::io::Error),
     /// The instance is non-clausal
     #[error("writing to OPB files requires soft literal objectives")]
     RequiresSoftLits,

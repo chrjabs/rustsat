@@ -15,20 +15,16 @@
 
 #![expect(clippy::module_name_repetitions)]
 
-use std::collections::VecDeque;
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::instances::ManageVars;
+use crate::types::Clause;
+use crate::types::Lit;
+use crate::types::RsHashMap;
 
-use crate::{
-    clause,
-    encodings::{CollectClauses, EncodeStats, EnforceError, Monotone},
-    instances::ManageVars,
-    types::{Clause, Lit, RsHashMap},
-    OutOfMemory,
-};
-
-use super::{
-    BoundBoth, BoundBothIncremental, BoundLower, BoundLowerIncremental, BoundUpper,
-    BoundUpperIncremental, Encode, EncodeIncremental,
-};
+use super::BoundLowerIncremental;
+use super::BoundUpperIncremental;
+use super::Encode;
 
 /// Implementation of the binary adder encoding first described in \[1\].
 /// The implementation follows the description in \[2\].
@@ -82,7 +78,9 @@ impl BinaryAdder {
             self.weight_sum += weight;
             let max_bucket = (usize::BITS - weight.leading_zeros()) as usize;
             if max_bucket >= buckets.len() {
-                buckets.resize_with(max_bucket + 1, || VecDeque::with_capacity(1));
+                buckets.resize_with(max_bucket + 1, || {
+                    std::collections::VecDeque::with_capacity(1)
+                });
             }
             for (idx, bucket) in buckets.iter_mut().take(max_bucket + 1).enumerate() {
                 if weight & (1usize << idx) != 0 {
@@ -96,7 +94,9 @@ impl BinaryAdder {
         // Add existing structure into buckets
         if let Some(structure) = &self.structure {
             if buckets.len() < structure.outputs.len() {
-                buckets.resize_with(structure.outputs.len(), || VecDeque::with_capacity(1));
+                buckets.resize_with(structure.outputs.len(), || {
+                    std::collections::VecDeque::with_capacity(1)
+                });
             }
             for (bucket, &output) in buckets.iter_mut().zip(&structure.outputs) {
                 let Some(output) = output else {
@@ -110,7 +110,9 @@ impl BinaryAdder {
         let mut idx = 0;
         while idx < buckets.len() {
             if idx == buckets.len() - 1 && buckets[idx].len() >= 2 {
-                buckets.resize_with(buckets.len() + 1, || VecDeque::with_capacity(1));
+                buckets.resize_with(buckets.len() + 1, || {
+                    std::collections::VecDeque::with_capacity(1)
+                });
             }
             while buckets[idx].len() >= 3 {
                 let a = buckets[idx].pop_front().unwrap();
@@ -148,7 +150,7 @@ impl BinaryAdder {
     }
 }
 
-impl Encode for BinaryAdder {
+impl super::Encode for BinaryAdder {
     fn weight_sum(&self) -> usize {
         self.lit_buffer
             .iter()
@@ -156,13 +158,13 @@ impl Encode for BinaryAdder {
     }
 }
 
-impl BoundUpper for BinaryAdder {
+impl super::BoundUpper for BinaryAdder {
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), OutOfMemory>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: std::ops::RangeBounds<usize>,
@@ -204,13 +206,13 @@ impl BoundUpper for BinaryAdder {
     }
 }
 
-impl BoundUpperIncremental for BinaryAdder {
+impl super::BoundUpperIncremental for BinaryAdder {
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), OutOfMemory>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: std::ops::RangeBounds<usize>,
@@ -269,13 +271,13 @@ impl BoundUpperIncremental for BinaryAdder {
     }
 }
 
-impl BoundLower for BinaryAdder {
+impl super::BoundLower for BinaryAdder {
     fn encode_lb<Col, R>(
         &mut self,
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), OutOfMemory>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: std::ops::RangeBounds<usize>,
@@ -322,13 +324,13 @@ impl BoundLower for BinaryAdder {
     }
 }
 
-impl BoundLowerIncremental for BinaryAdder {
+impl super::BoundLowerIncremental for BinaryAdder {
     fn encode_lb_change<Col, R>(
         &mut self,
         range: R,
         collector: &mut Col,
         var_manager: &mut dyn ManageVars,
-    ) -> Result<(), OutOfMemory>
+    ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
         R: std::ops::RangeBounds<usize>,
@@ -387,7 +389,7 @@ impl BoundLowerIncremental for BinaryAdder {
     }
 }
 
-impl BoundBoth for BinaryAdder {
+impl super::BoundBoth for BinaryAdder {
     fn encode_both<Col, R>(
         &mut self,
         range: R,
@@ -404,9 +406,9 @@ impl BoundBoth for BinaryAdder {
     }
 }
 
-impl BoundBothIncremental for BinaryAdder {}
+impl super::BoundBothIncremental for BinaryAdder {}
 
-impl EncodeIncremental for BinaryAdder {
+impl super::EncodeIncremental for BinaryAdder {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         self.extend_structure();
 
@@ -420,9 +422,9 @@ impl EncodeIncremental for BinaryAdder {
     }
 }
 
-impl Monotone for BinaryAdder {}
+impl crate::encodings::Monotone for BinaryAdder {}
 
-impl EncodeStats for BinaryAdder {
+impl crate::encodings::EncodeStats for BinaryAdder {
     fn n_clauses(&self) -> usize {
         self.n_clauses
     }
@@ -544,7 +546,7 @@ fn get_bit_if<Col>(
     nodes: &mut [Node],
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<Lit, OutOfMemory>
+) -> Result<Lit, crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -567,7 +569,7 @@ fn get_bit_only_if<Col>(
     nodes: &mut [Node],
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<Lit, OutOfMemory>
+) -> Result<Lit, crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -589,7 +591,7 @@ fn sum_if<Col>(
     nodes: &mut [Node],
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<Lit, OutOfMemory>
+) -> Result<Lit, crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -658,7 +660,7 @@ fn sum_only_if<Col>(
     nodes: &mut [Node],
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<Lit, OutOfMemory>
+) -> Result<Lit, crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -727,7 +729,7 @@ fn carry_if<Col>(
     nodes: &mut [Node],
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<Lit, OutOfMemory>
+) -> Result<Lit, crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -794,7 +796,7 @@ fn carry_only_if<Col>(
     nodes: &mut [Node],
     collector: &mut Col,
     var_manager: &mut dyn ManageVars,
-) -> Result<Lit, OutOfMemory>
+) -> Result<Lit, crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -889,7 +891,7 @@ fn comparator_if<Col>(
     output: Lit,
     lhs: &[Option<Lit>],
     collector: &mut Col,
-) -> Result<(), OutOfMemory>
+) -> Result<(), crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
@@ -902,7 +904,7 @@ where
             return None;
         }
 
-        let mut cl = clause![];
+        let mut cl = Clause::new();
 
         let lhs_i = lhs[i]?;
         cl |= !lhs_i;
@@ -930,14 +932,14 @@ fn comparator_only_if<Col>(
     output: Lit,
     lhs: &[Option<Lit>],
     collector: &mut Col,
-) -> Result<(), OutOfMemory>
+) -> Result<(), crate::OutOfMemory>
 where
     Col: CollectClauses,
 {
     debug_assert!(rhs < (1usize << lhs.len()));
 
     if rhs == (1usize << lhs.len()) - 1 {
-        return collector.add_clause(clause![!output]);
+        return collector.add_clause(crate::clause![!output]);
     }
 
     let rhs = rhs + 1;
@@ -949,7 +951,7 @@ where
             return None;
         }
 
-        let mut cl = clause![];
+        let mut cl = Clause::new();
 
         if let Some(lhs_i) = lhs[i] {
             cl |= lhs_i;

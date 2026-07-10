@@ -110,10 +110,6 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use std::collections::TryReserveError;
-
-use thiserror::Error;
-
 pub mod algs;
 pub mod encodings;
 pub mod instances;
@@ -126,7 +122,7 @@ pub mod utils;
 ///
 /// The parameter will hold an explanation of why the action is not allowed
 #[cfg(feature = "_internals")]
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 #[error("action not allowed: {0}")]
 pub struct NotAllowed(&'static str);
 
@@ -140,29 +136,29 @@ mod bench;
 /// can lead to a panic instead to an error. Mainly add clauses to solvers and collecting clauses
 /// from encodings are done in a safe way. This is intended, e.g., for anytime solvers that might
 /// want a change to print a final output if they run out of memory.
-#[derive(Error, Debug, PartialEq, Eq)]
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum OutOfMemory {
     /// A `try_reserve` operation in Rust ran out of memory
     #[error("try reserve error: {0}")]
-    TryReserve(TryReserveError),
+    TryReserve(std::collections::TryReserveError),
     /// An external API (typically a solver) ran out of memory
     #[error("external API operation ran out of memory")]
     ExternalApi,
 }
 
-impl From<TryReserveError> for OutOfMemory {
-    fn from(value: TryReserveError) -> Self {
+impl From<std::collections::TryReserveError> for OutOfMemory {
+    fn from(value: std::collections::TryReserveError) -> Self {
         OutOfMemory::TryReserve(value)
     }
 }
 
 /// Error returned if an operation requires clausal constraints, but this is not the case
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 #[error("operation requires a clausal constraint(s) but it is not")]
 pub struct RequiresClausal;
 
 /// Error returned if an operation requires an objective represented as soft literals, but this is
 /// not the case
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 #[error("operation requires an objective only consisting of soft literals")]
 pub struct RequiresSoftLits;

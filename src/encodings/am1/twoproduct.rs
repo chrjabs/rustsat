@@ -4,14 +4,13 @@
 //!
 //! - Jingchao Chen: _A New SAT Encoding of the At-Most-One Constraint_, ModRef 2010.
 
-use std::marker::PhantomData;
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
 
 use super::Encode;
-use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    types::Lit,
-};
 
 /// Implementations of the 2-product at-most-1 encoding.
 ///
@@ -27,7 +26,7 @@ pub struct TwoProduct<Sub = super::Pairwise> {
     n_clauses: usize,
     /// The number of new variables in the encoding
     n_vars: u32,
-    _sub: PhantomData<Sub>,
+    _sub: std::marker::PhantomData<Sub>,
 }
 
 impl<Sub> Encode for TwoProduct<Sub>
@@ -71,8 +70,8 @@ where
             let col_idx = idx % q;
             let col_sel = aux_cols[col_idx];
             [
-                atomics::lit_impl_lit(lit, row_sel),
-                atomics::lit_impl_lit(lit, col_sel),
+                crate::encodings::atomics::lit_impl_lit(lit, row_sel),
+                crate::encodings::atomics::lit_impl_lit(lit, col_sel),
             ]
         }))?;
 
@@ -115,7 +114,7 @@ impl<Sub> From<Vec<Lit>> for TwoProduct<Sub> {
             in_lits: lits,
             n_clauses: 0,
             n_vars: 0,
-            _sub: PhantomData,
+            _sub: std::marker::PhantomData,
         }
     }
 }
@@ -126,7 +125,7 @@ impl<Sub> FromIterator<Lit> for TwoProduct<Sub> {
             in_lits: Vec::from_iter(iter),
             n_clauses: 0,
             n_vars: 0,
-            _sub: PhantomData,
+            _sub: std::marker::PhantomData,
         }
     }
 }

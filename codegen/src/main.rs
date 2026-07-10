@@ -1,9 +1,5 @@
 use std::io::Write;
 
-use minijinja::{context, Environment};
-use similar::{ChangeTag, TextDiff};
-use tempfile::NamedTempFile;
-
 fn main() {
     // Check if current directory has a Cargo.toml with [workspace]
     let cargo_toml_path = std::env::current_dir().unwrap().join("Cargo.toml");
@@ -141,8 +137,8 @@ fn main() {
     }
 }
 
-fn template_env() -> Environment<'static> {
-    let mut env = Environment::new();
+fn template_env() -> minijinja::Environment<'static> {
+    let mut env = minijinja::Environment::new();
     env.set_loader(minijinja::path_loader("codegen/templates"));
     env
 }
@@ -215,13 +211,13 @@ fn diff(path: &str, generated: &str) -> bool {
     if old == generated {
         return false;
     }
-    let diff = TextDiff::from_lines(old, generated);
+    let diff = similar::TextDiff::from_lines(old, generated);
     eprintln!("Diff for {path}:");
     for change in diff.iter_all_changes() {
         let sign = match change.tag() {
-            ChangeTag::Delete => "-",
-            ChangeTag::Insert => "+",
-            ChangeTag::Equal => " ",
+            similar::ChangeTag::Delete => "-",
+            similar::ChangeTag::Insert => "+",
+            similar::ChangeTag::Equal => " ",
         };
         eprint!("{}{}", sign, change);
     }
@@ -231,19 +227,19 @@ fn diff(path: &str, generated: &str) -> bool {
 fn capi_enc_bindings<E: Enc>(
     template: &str,
     encs: &[E],
-    templates: &Environment<'static>,
+    templates: &minijinja::Environment<'static>,
 ) -> String {
     let tmpl = templates.get_template(template).expect("missing template");
     let ub = encs.iter().any(|enc| enc.ub());
     let lb = encs.iter().any(|enc| enc.lb());
-    tmpl.render(context!(encodings => encs, ub => ub, lb => lb))
+    tmpl.render(minijinja::context!(encodings => encs, ub => ub, lb => lb))
         .expect("missing template context")
 }
 
 fn capi_tests<E: Enc>(
     id: &str,
     encs: &[E],
-    templates: &Environment<'static>,
+    templates: &minijinja::Environment<'static>,
     do_check: bool,
 ) -> bool {
     let mut has_changes = false;
@@ -263,7 +259,7 @@ fn capi_tests<E: Enc>(
                     }
                     let path = format!("capi/tests/{}-{name}", enc.id());
                     let generated = clang_format(
-                        tmpl.render(context!(enc => enc))
+                        tmpl.render(minijinja::context!(enc => enc))
                             .expect("missing template context"),
                     );
                     if do_check {
@@ -363,7 +359,7 @@ impl Enc for Pb<'_> {
 fn capi_header(do_check: bool) -> bool {
     let mut temp_path = None;
     let path = if do_check {
-        let path = NamedTempFile::new().unwrap().into_temp_path();
+        let path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
         std::fs::copy("capi/rustsat.h", &path).unwrap();
         temp_path = Some(path);
         temp_path.as_ref().unwrap().to_str().unwrap()

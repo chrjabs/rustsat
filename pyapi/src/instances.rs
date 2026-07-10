@@ -1,46 +1,33 @@
 //! # Python API for RustSAT Instance Types
 
-use pyo3::{
-    exceptions::{PyRuntimeError, PyTypeError},
-    prelude::*,
-};
-
-use rustsat::{
-    clause,
-    instances::{BasicVarManager, Cnf as RsCnf, ManageVars},
-    types::{Clause as RsClause, Lit as RsLit, Var},
-};
-
-use crate::{
-    types::{Clause, Lit},
-    SingleOrList,
-};
+use pyo3::prelude::*;
+use rustsat::instances::ManageVars;
 
 /// Simple counting variable manager
 #[pyclass]
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq)]
-pub struct VarManager(BasicVarManager);
+pub struct VarManager(rustsat::instances::BasicVarManager);
 
-impl From<BasicVarManager> for VarManager {
-    fn from(value: BasicVarManager) -> Self {
+impl From<rustsat::instances::BasicVarManager> for VarManager {
+    fn from(value: rustsat::instances::BasicVarManager) -> Self {
         VarManager(value)
     }
 }
 
-impl From<VarManager> for BasicVarManager {
+impl From<VarManager> for rustsat::instances::BasicVarManager {
     fn from(value: VarManager) -> Self {
         value.0
     }
 }
 
-impl<'a> From<&'a VarManager> for &'a BasicVarManager {
+impl<'a> From<&'a VarManager> for &'a rustsat::instances::BasicVarManager {
     fn from(value: &'a VarManager) -> Self {
         &value.0
     }
 }
 
-impl<'a> From<&'a mut VarManager> for &'a mut BasicVarManager {
+impl<'a> From<&'a mut VarManager> for &'a mut rustsat::instances::BasicVarManager {
     fn from(value: &'a mut VarManager) -> Self {
         &mut value.0
     }
@@ -52,12 +39,12 @@ impl VarManager {
     #[new]
     #[pyo3(text_signature = "(n_used = 0)")]
     fn new(n_used: u32) -> Self {
-        BasicVarManager::from_next_free(Var::new(n_used)).into()
+        rustsat::instances::BasicVarManager::from_next_free(rustsat::types::Var::new(n_used)).into()
     }
 
     /// Increases the number of variables marked as used
     fn increase_used(&mut self, n_used: u32) -> bool {
-        self.0.increase_next_free(Var::new(n_used))
+        self.0.increase_next_free(rustsat::types::Var::new(n_used))
     }
 
     /// Gets a new unused variable
@@ -77,12 +64,12 @@ impl VarManager {
 #[pyclass(sequence)]
 #[derive(Debug, Eq, Default)]
 pub struct Cnf {
-    cnf: RsCnf,
+    cnf: rustsat::instances::Cnf,
     modified: bool,
 }
 
-impl From<RsCnf> for Cnf {
-    fn from(value: RsCnf) -> Self {
+impl From<rustsat::instances::Cnf> for Cnf {
+    fn from(value: rustsat::instances::Cnf) -> Self {
         Self {
             cnf: value,
             modified: false,
@@ -90,7 +77,7 @@ impl From<RsCnf> for Cnf {
     }
 }
 
-impl From<Cnf> for RsCnf {
+impl From<Cnf> for rustsat::instances::Cnf {
     fn from(value: Cnf) -> Self {
         value.cnf
     }
@@ -106,37 +93,46 @@ impl PartialEq for Cnf {
 impl Cnf {
     /// Adds a clause to the CNF
     #[inline]
-    pub fn add_clause(&mut self, clause: &Clause) {
+    pub fn add_clause(&mut self, clause: &crate::types::Clause) {
         self.modified = true;
         self.cnf.add_clause(clause.inner().clone());
     }
 
     /// Adds a unit clause to the CNF
-    pub fn add_unit(&mut self, unit: Lit) {
+    pub fn add_unit(&mut self, unit: crate::types::Lit) {
         self.modified = true;
-        self.cnf.add_clause(clause![unit.into()]);
+        self.cnf.add_clause(rustsat::clause![unit.into()]);
     }
 
     /// Adds a binary clause to the CNF
-    pub fn add_binary(&mut self, lit1: Lit, lit2: Lit) {
+    pub fn add_binary(&mut self, lit1: crate::types::Lit, lit2: crate::types::Lit) {
         self.modified = true;
-        self.cnf.add_clause(RsLit::from(lit1) | RsLit::from(lit2));
+        self.cnf
+            .add_clause(rustsat::types::Lit::from(lit1) | rustsat::types::Lit::from(lit2));
     }
 
     /// Adds a ternary clause to the CNF
-    pub fn add_ternary(&mut self, lit1: Lit, lit2: Lit, lit3: Lit) {
+    pub fn add_ternary(
+        &mut self,
+        lit1: crate::types::Lit,
+        lit2: crate::types::Lit,
+        lit3: crate::types::Lit,
+    ) {
         self.modified = true;
-        self.cnf
-            .add_clause(RsLit::from(lit1) | RsLit::from(lit2) | RsLit::from(lit3));
+        self.cnf.add_clause(
+            rustsat::types::Lit::from(lit1)
+                | rustsat::types::Lit::from(lit2)
+                | rustsat::types::Lit::from(lit3),
+        );
     }
 
     #[new]
     #[pyo3(text_signature = "(clauses = [])")]
-    fn new(clauses: Vec<Clause>) -> Self {
+    fn new(clauses: Vec<crate::types::Clause>) -> Self {
         clauses
             .into_iter()
-            .map(Into::<RsClause>::into)
-            .collect::<RsCnf>()
+            .map(Into::<rustsat::types::Clause>::into)
+            .collect::<rustsat::instances::Cnf>()
             .into()
     }
 
@@ -150,89 +146,92 @@ impl Cnf {
 
     #[expect(clippy::cast_sign_loss)]
     #[expect(clippy::needless_pass_by_value)]
-    fn __getitem__(&self, idx: Bound<'_, PyAny>) -> PyResult<SingleOrList<Clause>> {
+    fn __getitem__(
+        &self,
+        idx: Bound<'_, PyAny>,
+    ) -> PyResult<crate::SingleOrList<crate::types::Clause>> {
         if let Ok(idx) = idx.extract::<i32>() {
             let idx: usize = idx.try_into().expect("got unexpected negative index");
-            Ok(SingleOrList::Single(self.cnf[idx].clone().into()))
+            Ok(crate::SingleOrList::Single(self.cnf[idx].clone().into()))
         } else if let Ok(slice) = idx.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.__len__().try_into().unwrap())?;
             debug_assert!(indices.start >= 0);
             debug_assert!(indices.stop >= 0);
             debug_assert!(indices.step >= 0);
-            Ok(SingleOrList::List(
+            Ok(crate::SingleOrList::List(
                 (indices.start as usize..indices.stop as usize)
                     .step_by(indices.step as usize)
                     .map(|idx| self.cnf[idx].clone().into())
                     .collect(),
             ))
         } else {
-            Err(PyTypeError::new_err("Unsupported type"))
+            Err(pyo3::exceptions::PyTypeError::new_err("Unsupported type"))
         }
     }
 
     /// Adds an implication of form `a -> b`
-    fn add_lit_impl_lit(&mut self, a: Lit, b: Lit) {
+    fn add_lit_impl_lit(&mut self, a: crate::types::Lit, b: crate::types::Lit) {
         self.modified = true;
         self.cnf.add_lit_impl_lit(a.into(), b.into());
     }
 
     /// Adds an implication of form `a -> (b1 | b2 | ... | bm)`
-    fn add_lit_impl_clause(&mut self, a: Lit, b: Vec<Lit>) {
+    fn add_lit_impl_clause(&mut self, a: crate::types::Lit, b: Vec<crate::types::Lit>) {
         self.modified = true;
-        let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
+        let b: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(b) };
         self.cnf.add_lit_impl_clause(a.into(), &b);
     }
 
     /// Adds an implication of form `a -> (b1 & b2 & ... & bm)`
-    fn add_lit_impl_cube(&mut self, a: Lit, b: Vec<Lit>) {
+    fn add_lit_impl_cube(&mut self, a: crate::types::Lit, b: Vec<crate::types::Lit>) {
         self.modified = true;
-        let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
+        let b: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(b) };
         self.cnf.add_lit_impl_cube(a.into(), &b);
     }
 
     /// Adds an implication of form `(a1 & a2 & ... & an) -> b`
-    fn add_cube_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    fn add_cube_impl_lit(&mut self, a: Vec<crate::types::Lit>, b: crate::types::Lit) {
         self.modified = true;
-        let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
+        let a: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(a) };
         self.cnf.add_cube_impl_lit(&a, b.into());
     }
 
     /// Adds an implication of form `(a1 | a2 | ... | an) -> b`
-    fn add_clause_impl_lit(&mut self, a: Vec<Lit>, b: Lit) {
+    fn add_clause_impl_lit(&mut self, a: Vec<crate::types::Lit>, b: crate::types::Lit) {
         self.modified = true;
-        let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
+        let a: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(a) };
         self.cnf.add_clause_impl_lit(&a, b.into());
     }
 
     /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 | b2 | ... | bm)`
-    fn add_cube_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    fn add_cube_impl_clause(&mut self, a: Vec<crate::types::Lit>, b: Vec<crate::types::Lit>) {
         self.modified = true;
-        let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
-        let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
+        let a: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(a) };
+        let b: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(b) };
         self.cnf.add_cube_impl_clause(&a, &b);
     }
 
     /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 | b2 | ... | bm)`
-    fn add_clause_impl_clause(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    fn add_clause_impl_clause(&mut self, a: Vec<crate::types::Lit>, b: Vec<crate::types::Lit>) {
         self.modified = true;
-        let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
-        let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
+        let a: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(a) };
+        let b: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(b) };
         self.cnf.add_clause_impl_clause(&a, &b);
     }
 
     /// Adds an implication of form `(a1 | a2 | ... | an) -> (b1 & b2 & ... & bm)`
-    fn add_clause_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    fn add_clause_impl_cube(&mut self, a: Vec<crate::types::Lit>, b: Vec<crate::types::Lit>) {
         self.modified = true;
-        let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
-        let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
+        let a: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(a) };
+        let b: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(b) };
         self.cnf.add_clause_impl_cube(&a, &b);
     }
 
     /// Adds an implication of form `(a1 & a2 & ... & an) -> (b1 & b2 & ... & bm)`
-    fn add_cube_impl_cube(&mut self, a: Vec<Lit>, b: Vec<Lit>) {
+    fn add_cube_impl_cube(&mut self, a: Vec<crate::types::Lit>, b: Vec<crate::types::Lit>) {
         self.modified = true;
-        let a: Vec<RsLit> = unsafe { std::mem::transmute(a) };
-        let b: Vec<RsLit> = unsafe { std::mem::transmute(b) };
+        let a: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(a) };
+        let b: Vec<rustsat::types::Lit> = unsafe { std::mem::transmute(b) };
         self.cnf.add_cube_impl_cube(&a, &b);
     }
 
@@ -265,9 +264,11 @@ impl CnfIter {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Clause>> {
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<crate::types::Clause>> {
         if slf.cnf.borrow(slf.py()).modified {
-            return Err(PyRuntimeError::new_err("cnf modified during iteration"));
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "cnf modified during iteration",
+            ));
         }
         if slf.index < slf.cnf.borrow(slf.py()).__len__() {
             slf.index += 1;

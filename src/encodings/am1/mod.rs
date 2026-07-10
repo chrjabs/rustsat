@@ -20,9 +20,6 @@
 //! enc.encode(&mut encoding, &mut var_manager).unwrap();
 //! ```
 
-use super::CollectClauses;
-use crate::instances::ManageVars;
-
 mod pairwise;
 pub use pairwise::Pairwise;
 
@@ -53,10 +50,10 @@ pub trait Encode {
     fn encode<Col>(
         &mut self,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
-        Col: CollectClauses;
+        Col: super::CollectClauses;
 }
 
 /// The default at-most-1 encoding. For now this is a [`Pairwise`] encoding.

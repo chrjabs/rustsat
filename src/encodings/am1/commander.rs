@@ -5,14 +5,13 @@
 //! - Will Klieber and Gihwon Kwon: _Efficient CNF Encoding for Selecting 1 from N Objects, CFV
 //!   2007.
 
-use std::marker::PhantomData;
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
 
 use super::Encode;
-use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    types::Lit,
-};
 
 /// Implementations of the commander at-most-1 encoding.
 ///
@@ -34,7 +33,7 @@ pub struct Commander<const N: usize = 4, Sub = super::Pairwise> {
     n_clauses: usize,
     /// The number of new variables in the encoding
     n_vars: u32,
-    _phantom: PhantomData<Sub>,
+    _phantom: std::marker::PhantomData<Sub>,
 }
 
 impl<const N: usize, Sub> Encode for Commander<N, Sub>
@@ -65,7 +64,8 @@ where
 
         for (split, &commander) in commanders.iter().enumerate() {
             let lits = &self.in_lits[split * N..std::cmp::min(self.in_lits.len(), (split + 1) * N)];
-            collector.extend_clauses(atomics::clause_impl_lit(lits, commander))?;
+            collector
+                .extend_clauses(crate::encodings::atomics::clause_impl_lit(lits, commander))?;
             let mut sub = lits.iter().copied().collect::<Sub>();
             sub.encode(collector, var_manager)?;
         }
@@ -106,7 +106,7 @@ impl<const N: usize, Sub> From<Vec<Lit>> for Commander<N, Sub> {
             in_lits: lits,
             n_clauses: 0,
             n_vars: 0,
-            _phantom: PhantomData,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
@@ -117,7 +117,7 @@ impl<const N: usize, Sub> FromIterator<Lit> for Commander<N, Sub> {
             in_lits: Vec::from_iter(iter),
             n_clauses: 0,
             n_vars: 0,
-            _phantom: PhantomData,
+            _phantom: std::marker::PhantomData,
         }
     }
 }

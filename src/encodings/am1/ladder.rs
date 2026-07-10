@@ -4,13 +4,13 @@
 //!
 //! - Ian P. Gent and Peter Nightingale: _A new Encoding of AllDifferent into SAT_, ModRef 2004.
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+
 use super::Encode;
-use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    lit,
-    types::Lit,
-};
 
 /// Implementations of the ladder at-most-1 encoding.
 ///
@@ -50,12 +50,11 @@ impl Encode for Ladder {
             .map(|_| var_manager.new_lit())
             .collect();
         // ladder validity clauses
-        collector.extend_clauses(
-            (0..self.in_lits.len() - 2)
-                .map(|idx| atomics::lit_impl_lit(aux_lits[idx + 1], aux_lits[idx])),
-        )?;
+        collector.extend_clauses((0..self.in_lits.len() - 2).map(|idx| {
+            crate::encodings::atomics::lit_impl_lit(aux_lits[idx + 1], aux_lits[idx])
+        }))?;
         // channelling clauses
-        let mut buf = [lit![0], lit![0]];
+        let mut buf = [Lit::new(0, false), Lit::new(1, false)];
         for idx in 0..self.in_lits.len() {
             let mut cube_len = 0;
             if idx > 0 {
@@ -68,7 +67,7 @@ impl Encode for Ladder {
             }
             let cube = &buf[0..cube_len];
             let lit = self.in_lits[idx];
-            collector.extend_clauses(atomics::lit_impl_cube(lit, cube))?;
+            collector.extend_clauses(crate::encodings::atomics::lit_impl_cube(lit, cube))?;
         }
 
         self.n_clauses = collector.n_clauses() - prev_clauses;

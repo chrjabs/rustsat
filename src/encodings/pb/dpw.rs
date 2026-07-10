@@ -13,29 +13,24 @@
 //! - \[1\] Tobias Paxian and Sven Reimer and Bernd Becker: _Dynamic Polynomial
 //!   Watchdog Encoding for Solving Weighted MaxSAT_, SAT 2018.
 
-use std::{
-    cmp,
-    collections::BTreeMap,
-    num::{NonZeroU8, NonZeroUsize},
-    ops::RangeBounds,
-};
+use std::num::NonZeroU8;
+use std::num::NonZeroUsize;
 
-use crate::{
-    clause,
-    encodings::{
-        atomics,
-        nodedb::{NodeById, NodeCon, NodeId, NodeLike},
-        totdb, CollectClauses, EncodeStats, EnforceError, IterWeightedInputs,
-    },
-    instances::ManageVars,
-    lit,
-    types::{Lit, RsHashMap},
-    utils::{self, unreachable_none},
-};
+use crate::encodings::nodedb::NodeById;
+use crate::encodings::nodedb::NodeCon;
+use crate::encodings::nodedb::NodeId;
+use crate::encodings::nodedb::NodeLike;
+use crate::encodings::pb::BoundUpperIncremental;
+use crate::encodings::pb::Encode;
+use crate::encodings::totdb;
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::encodings::IterWeightedInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+use crate::types::RsHashMap;
 
-use super::{BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental};
-
-type WeightQ = BTreeMap<usize, Vec<NodeCon>>;
+type WeightQ = std::collections::BTreeMap<usize, Vec<NodeCon>>;
 
 /// Errors related to incremental precision
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
@@ -148,7 +143,7 @@ impl DynamicPolyWatchdog {
     #[must_use]
     pub fn next_precision(&self) -> usize {
         if let Some((&max_weight, _)) = self.weight_queue.iter().next_back() {
-            let digits = utils::digits(max_weight, 2) as usize;
+            let digits = crate::utils::digits(max_weight, 2) as usize;
             1 << (digits - 1)
         } else {
             1
@@ -180,7 +175,7 @@ impl DynamicPolyWatchdog {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if let Some(structure) = &self.structure {
@@ -191,30 +186,30 @@ impl DynamicPolyWatchdog {
                 // positively harden lower bound
                 collector.extend_clauses(
                     root.vals(..=range.start)
-                        .filter_map(|val| root.lit(val).map(|&olit| clause![olit])),
+                        .filter_map(|val| root.lit(val).map(|&olit| crate::clause![olit])),
                 )?;
                 // negatively harden upper bound
                 collector.extend_clauses(
                     root.vals(range.end..)
-                        .filter_map(|val| root.lit(val).map(|&olit| clause![!olit])),
+                        .filter_map(|val| root.lit(val).map(|&olit| crate::clause![!olit])),
                 )?;
             } else {
-                let idx_offset = (utils::digits(structure.prec_div, 2) - 1) as usize;
+                let idx_offset = (crate::utils::digits(structure.prec_div, 2) - 1) as usize;
                 for (idx, &bottom) in structure.bottom_buckets.iter().rev().enumerate() {
                     let div = 1usize << (idx + idx_offset);
                     let range = range.start / div..range.end.div_ceil(div);
-                    let top_con = unreachable_none!(self.db[bottom].left());
+                    let top_con = crate::utils::unreachable_none!(self.db[bottom].left());
                     debug_assert_eq!(top_con.divisor(), 1);
                     let top = &self.db[top_con.id];
                     // positively harden lower bound
                     collector.extend_clauses(
                         top.vals(..=top_con.rev_map(range.start))
-                            .filter_map(|val| top.lit(val).map(|&olit| clause![olit])),
+                            .filter_map(|val| top.lit(val).map(|&olit| crate::clause![olit])),
                     )?;
                     // negatively harden upper bound
                     collector.extend_clauses(
                         top.vals(top_con.rev_map_round_up(range.end)..)
-                            .filter_map(|val| top.lit(val).map(|&olit| clause![!olit])),
+                            .filter_map(|val| top.lit(val).map(|&olit| crate::clause![!olit])),
                     )?;
                 }
             }
@@ -254,7 +249,7 @@ impl Structure {
     }
 }
 
-impl Encode for DynamicPolyWatchdog {
+impl super::Encode for DynamicPolyWatchdog {
     fn weight_sum(&self) -> usize {
         self.weight_sum
     }
@@ -268,7 +263,7 @@ impl IterWeightedInputs for DynamicPolyWatchdog {
     }
 }
 
-impl EncodeIncremental for DynamicPolyWatchdog {
+impl super::EncodeIncremental for DynamicPolyWatchdog {
     fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
         // Special case for a single input literal, don't need an encoding structure
         if self.in_lits.len() <= 1 {
@@ -290,7 +285,7 @@ impl EncodeIncremental for DynamicPolyWatchdog {
     }
 }
 
-impl BoundUpper for DynamicPolyWatchdog {
+impl super::BoundUpper for DynamicPolyWatchdog {
     fn encode_ub<Col, R>(
         &mut self,
         range: R,
@@ -299,7 +294,7 @@ impl BoundUpper for DynamicPolyWatchdog {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         self.db.reset_encoded(totdb::Semantics::If);
         self.encode_ub_change(range, collector, var_manager)
@@ -317,8 +312,10 @@ impl BoundUpper for DynamicPolyWatchdog {
             }
             debug_assert!(structure.prec_div >= self.prec_div);
             let ub = ub
-                / 2_usize
-                    .pow(utils::digits(structure.prec_div, 2) - utils::digits(self.prec_div, 2));
+                / 2_usize.pow(
+                    crate::utils::digits(structure.prec_div, 2)
+                        - crate::utils::digits(self.prec_div, 2),
+                );
             enforce_ub(structure, ub, &self.db)
         } else {
             if self.in_lits.len() > 1 {
@@ -351,7 +348,7 @@ impl BoundUpper for DynamicPolyWatchdog {
     }
 }
 
-impl BoundUpperIncremental for DynamicPolyWatchdog {
+impl super::BoundUpperIncremental for DynamicPolyWatchdog {
     fn encode_ub_change<Col, R>(
         &mut self,
         range: R,
@@ -360,7 +357,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>,
+        R: std::ops::RangeBounds<usize>,
     {
         let range = super::prepare_ub_range(self, range);
         if range.is_empty() || self.in_lits.len() <= 1 {
@@ -406,7 +403,7 @@ impl BoundUpperIncremental for DynamicPolyWatchdog {
     }
 }
 
-impl EncodeStats for DynamicPolyWatchdog {
+impl crate::encodings::EncodeStats for DynamicPolyWatchdog {
     fn n_clauses(&self) -> usize {
         self.n_clauses
     }
@@ -444,21 +441,14 @@ impl FromIterator<(Lit, usize)> for DynamicPolyWatchdog {
 /// Dynamic polynomial watchdog encoding types that do not own but reference their [`totdb::Db`]
 #[cfg(feature = "_internals")]
 pub mod referenced {
-    use std::{cell::RefCell, ops::RangeBounds};
-
-    use crate::{
-        encodings::{
-            nodedb::{NodeCon, NodeLike},
-            totdb, CollectClauses, EnforceError,
-        },
-        instances::ManageVars,
-        types::Lit,
-    };
-
-    use super::{
-        encode_output, enforce_ub, BoundUpper, BoundUpperIncremental, Encode, EncodeIncremental,
-        Structure,
-    };
+    use crate::encodings::nodedb::NodeCon;
+    use crate::encodings::nodedb::NodeLike;
+    use crate::encodings::pb::BoundUpperIncremental;
+    use crate::encodings::totdb;
+    use crate::encodings::CollectClauses;
+    use crate::encodings::EnforceError;
+    use crate::instances::ManageVars;
+    use crate::types::Lit;
 
     /// Dynamic polynomial watchdog structure with a _mutable reference_ to a totalizer
     /// database rather than owning it.
@@ -470,12 +460,12 @@ pub mod referenced {
     #[derive(Debug)]
     pub struct DynamicPolyWatchdog<'totdb> {
         /// The encoding root and the tares
-        structure: &'totdb Structure,
+        structure: &'totdb super::Structure,
         /// The node database of the totalizer
         db: &'totdb mut totdb::Db,
     }
 
-    /// Dynamic polynomial watchdog structure with a [`RefCell`] to a totalizer
+    /// Dynamic polynomial watchdog structure with a [`std::cell::RefCell`] to a totalizer
     /// database rather than owning it.
     ///
     /// ## References
@@ -485,14 +475,14 @@ pub mod referenced {
     #[derive(Debug)]
     pub struct DynamicPolyWatchdogCell<'totdb> {
         /// The encoding root and the tares
-        structure: &'totdb Structure,
+        structure: &'totdb super::Structure,
         /// The node database of the totalizer
-        db: &'totdb RefCell<&'totdb mut totdb::Db>,
+        db: &'totdb std::cell::RefCell<&'totdb mut totdb::Db>,
     }
 
     impl<'totdb> DynamicPolyWatchdog<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
-        pub fn new(structure: &'totdb Structure, db: &'totdb mut totdb::Db) -> Self {
+        pub fn new(structure: &'totdb super::Structure, db: &'totdb mut totdb::Db) -> Self {
             Self { structure, db }
         }
 
@@ -506,8 +496,8 @@ pub mod referenced {
     impl<'totdb> DynamicPolyWatchdogCell<'totdb> {
         /// Constructs a new DPW encoding referencing a totalizer database
         pub fn new(
-            structure: &'totdb Structure,
-            db: &'totdb RefCell<&'totdb mut totdb::Db>,
+            structure: &'totdb super::Structure,
+            db: &'totdb std::cell::RefCell<&'totdb mut totdb::Db>,
         ) -> Self {
             Self { structure, db }
         }
@@ -519,28 +509,28 @@ pub mod referenced {
         }
     }
 
-    impl Encode for DynamicPolyWatchdog<'_> {
+    impl crate::encodings::pb::Encode for DynamicPolyWatchdog<'_> {
         fn weight_sum(&self) -> usize {
             let output_weight = 1 << self.structure.output_power();
             self.db[self.structure.root()].len() * output_weight
         }
     }
 
-    impl Encode for DynamicPolyWatchdogCell<'_> {
+    impl crate::encodings::pb::Encode for DynamicPolyWatchdogCell<'_> {
         fn weight_sum(&self) -> usize {
             let output_weight = 1 << self.structure.output_power();
             self.db.borrow()[self.structure.root()].len() * output_weight
         }
     }
 
-    impl EncodeIncremental for DynamicPolyWatchdog<'_> {
+    impl crate::encodings::pb::EncodeIncremental for DynamicPolyWatchdog<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db
                 .reserve_vars(NodeCon::full(self.structure.root()), var_manager);
         }
     }
 
-    impl EncodeIncremental for DynamicPolyWatchdogCell<'_> {
+    impl crate::encodings::pb::EncodeIncremental for DynamicPolyWatchdogCell<'_> {
         fn reserve(&mut self, var_manager: &mut dyn ManageVars) {
             self.db
                 .borrow_mut()
@@ -548,7 +538,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpper for DynamicPolyWatchdog<'_> {
+    impl crate::encodings::pb::BoundUpper for DynamicPolyWatchdog<'_> {
         fn encode_ub<Col, R>(
             &mut self,
             range: R,
@@ -557,14 +547,14 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             self.db.reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
         fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
-            enforce_ub(self.structure, ub, self.db)
+            super::enforce_ub(self.structure, ub, self.db)
         }
 
         fn coarse_ub(&self, ub: usize) -> usize {
@@ -573,7 +563,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpper for DynamicPolyWatchdogCell<'_> {
+    impl crate::encodings::pb::BoundUpper for DynamicPolyWatchdogCell<'_> {
         fn encode_ub<Col, R>(
             &mut self,
             range: R,
@@ -582,14 +572,14 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             self.db.borrow_mut().reset_encoded(totdb::Semantics::If);
             self.encode_ub_change(range, collector, var_manager)
         }
 
         fn enforce_ub(&self, ub: usize) -> Result<Vec<Lit>, EnforceError> {
-            enforce_ub(self.structure, ub, &self.db.borrow())
+            super::enforce_ub(self.structure, ub, &self.db.borrow())
         }
 
         fn coarse_ub(&self, ub: usize) -> usize {
@@ -598,7 +588,7 @@ pub mod referenced {
         }
     }
 
-    impl BoundUpperIncremental for DynamicPolyWatchdog<'_> {
+    impl crate::encodings::pb::BoundUpperIncremental for DynamicPolyWatchdog<'_> {
         fn encode_ub_change<Col, R>(
             &mut self,
             range: R,
@@ -607,7 +597,7 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
@@ -616,13 +606,13 @@ pub mod referenced {
             let output_weight = 1 << self.structure.output_power();
             let output_range = (range.start / output_weight)..=((range.end - 1) / output_weight);
             for oidx in output_range {
-                encode_output(self.structure, oidx, self.db, collector, var_manager)?;
+                super::encode_output(self.structure, oidx, self.db, collector, var_manager)?;
             }
             Ok(())
         }
     }
 
-    impl BoundUpperIncremental for DynamicPolyWatchdogCell<'_> {
+    impl crate::encodings::pb::BoundUpperIncremental for DynamicPolyWatchdogCell<'_> {
         fn encode_ub_change<Col, R>(
             &mut self,
             range: R,
@@ -631,7 +621,7 @@ pub mod referenced {
         ) -> Result<(), crate::OutOfMemory>
         where
             Col: CollectClauses,
-            R: RangeBounds<usize>,
+            R: std::ops::RangeBounds<usize>,
         {
             let range = super::super::prepare_ub_range(self, range);
             if range.is_empty() {
@@ -640,7 +630,7 @@ pub mod referenced {
             let output_weight = 1 << self.structure.output_power();
             let output_range = (range.start / output_weight)..=((range.end - 1) / output_weight);
             for oidx in output_range {
-                encode_output(
+                super::encode_output(
                     self.structure,
                     oidx,
                     &mut self.db.borrow_mut(),
@@ -683,18 +673,18 @@ fn lit_weight_queue<LI: Iterator<Item = (Lit, usize)>>(
 #[cfg_attr(feature = "_internals", visibility::make(pub))]
 #[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
 fn con_weight_queue<CI: Iterator<Item = NodeCon>>(cons: CI) -> WeightQ {
-    let mut weight_queue: WeightQ = BTreeMap::new();
+    let mut weight_queue: WeightQ = WeightQ::new();
     for con in cons {
         if let Some(cons) = weight_queue.get_mut(&con.multiplier()) {
             cons.push(NodeCon {
-                multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                multiplier: crate::utils::unreachable_none!(NonZeroUsize::new(1)),
                 ..con
             });
         } else {
             weight_queue.insert(
                 con.multiplier(),
                 vec![NodeCon {
-                    multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                    multiplier: crate::utils::unreachable_none!(NonZeroUsize::new(1)),
                     ..con
                 }],
             );
@@ -719,9 +709,9 @@ fn build_structure(
 ) -> Structure {
     // prec_div has to be a power of 2
     debug_assert!(prec_div <= 1 || prec_div.is_power_of_two());
-    let skipped_levels = utils::digits(prec_div, 2) as usize - 1;
+    let skipped_levels = crate::utils::digits(prec_div, 2) as usize - 1;
 
-    let basis_len = utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
+    let basis_len = crate::utils::digits(*weight_queue.iter().next_back().unwrap().0, 2) as usize;
     let mut structure = Structure {
         bottom_buckets: Vec::with_capacity(basis_len),
         tares: Vec::with_capacity(basis_len - 1),
@@ -737,9 +727,9 @@ fn build_structure(
     // Loop while there are new weights that need to be added and distribute
     // them to relevant top buckets
     while !weight_queue.is_empty() && weight_queue.iter().next_back().unwrap().0 >= &prec_div {
-        let (weight, cons) = unreachable_none!(weight_queue.pop_last());
+        let (weight, cons) = crate::utils::unreachable_none!(weight_queue.pop_last());
         let merged = tot_db.merge_balanced(&cons).unwrap();
-        let digits = utils::digits(weight, 2) as usize;
+        let digits = crate::utils::digits(weight, 2) as usize;
         let current_weight = 1 << (digits - 1);
         top_buckets[tb_idx(digits)].push(merged);
         // Insert remainder of totalizer as new child
@@ -810,10 +800,10 @@ fn build_structure(
         }
 
         let right = NodeCon {
-            id: *unreachable_none!(bottom_buckets.last()),
+            id: *crate::utils::unreachable_none!(bottom_buckets.last()),
             offset: bb_offset,
-            divisor: unreachable_none!(NonZeroU8::new(2)),
-            multiplier: unreachable_none!(NonZeroUsize::new(1)),
+            divisor: crate::utils::unreachable_none!(NonZeroU8::new(2)),
+            multiplier: crate::utils::unreachable_none!(NonZeroUsize::new(1)),
             len_limit: None,
         };
         let bottom = tot_db.insert(totdb::Node::internal(top_bucket, right, tot_db));
@@ -852,7 +842,7 @@ where
     Col: CollectClauses,
 {
     debug_assert!(bot_struct.prec_div >= top_struct.prec_div * (1 << (top_struct.tares.len() - 1)));
-    let skipped_between = (utils::digits(
+    let skipped_between = (crate::utils::digits(
         bot_struct.prec_div / (top_struct.prec_div * (1 << top_struct.tares.len())),
         2,
     ) - 1) as usize;
@@ -863,7 +853,7 @@ where
     // in structure
     bot_struct.tares.resize(
         bot_struct.tares.len() + top_struct.tares.len() + skipped_between,
-        lit![0],
+        Lit::new(0, false),
     );
     bot_struct.tares[..].copy_within(..n_old_tares, top_struct.tares.len() + skipped_between);
     for tare_idx in top_struct.tares.len()..top_struct.tares.len() + skipped_between {
@@ -896,8 +886,8 @@ where
                 *right = NodeCon {
                     id: new_bottom,
                     offset: 0,
-                    divisor: unreachable_none!(NonZeroU8::new(2)),
-                    multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                    divisor: crate::utils::unreachable_none!(NonZeroU8::new(2)),
+                    multiplier: crate::utils::unreachable_none!(NonZeroUsize::new(1)),
                     len_limit: None,
                 }
             }
@@ -921,8 +911,8 @@ where
             *right = NodeCon {
                 id: *top_struct.bottom_buckets.first().unwrap(),
                 offset: 0,
-                divisor: unreachable_none!(NonZeroU8::new(2)),
-                multiplier: unreachable_none!(NonZeroUsize::new(1)),
+                divisor: crate::utils::unreachable_none!(NonZeroU8::new(2)),
+                multiplier: crate::utils::unreachable_none!(NonZeroUsize::new(1)),
                 len_limit: None,
             }
         }
@@ -963,7 +953,7 @@ where
             .collect();
         for (olit, val) in olits_to_extend {
             for rval in tot_db[right.id].vals(
-                right.rev_map(old_right_max + 1)..=right.rev_map(cmp::min(right_max + 1, val)),
+                right.rev_map(old_right_max + 1)..=right.rev_map(std::cmp::min(right_max + 1, val)),
             ) {
                 let lval = val - right.map(rval);
                 if left.is_possible(lval) {
@@ -975,7 +965,8 @@ where
                         var_manager,
                     )?;
                     if lval == 0 {
-                        collector.add_clause(atomics::lit_impl_lit(rlit, olit))?;
+                        collector
+                            .add_clause(crate::encodings::atomics::lit_impl_lit(rlit, olit))?;
                     } else {
                         debug_assert_eq!(left.divisor(), 1);
                         let llit = tot_db.define_unweighted(
@@ -985,7 +976,10 @@ where
                             collector,
                             var_manager,
                         )?;
-                        collector.add_clause(atomics::cube_impl_lit(&[rlit, llit], olit))?;
+                        collector.add_clause(crate::encodings::atomics::cube_impl_lit(
+                            &[rlit, llit],
+                            olit,
+                        ))?;
                     }
                 }
             }

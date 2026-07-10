@@ -1,11 +1,11 @@
 extern crate proc_macro;
 
-use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{LitStr, Type};
-
-pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream {
-    let mut ts = quote! {
+pub fn basic(
+    slv: syn::Type,
+    signature: syn::LitStr,
+    multi_threaded: bool,
+) -> proc_macro2::TokenStream {
+    let mut ts = quote::quote! {
         #[test]
         fn build_destroy() {
             let _solver = #slv::default();
@@ -183,7 +183,7 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
         }
     };
     if multi_threaded {
-        ts.extend(quote! {
+        ts.extend(quote::quote! {
             #[test]
             fn tiny_instance_multithreaded_sat() {
                 use std::{sync::{Arc, Mutex}, thread};
@@ -228,8 +228,8 @@ pub fn basic(slv: Type, signature: LitStr, multi_threaded: bool) -> TokenStream 
     ts
 }
 
-pub fn termination(slv: Type) -> TokenStream {
-    quote! {
+pub fn termination(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn termination_callback() {
             use rustsat::{lit, solvers::{Solve, SolverResult, Terminate, ControlSignal}};
@@ -261,8 +261,8 @@ pub fn termination(slv: Type) -> TokenStream {
     }
 }
 
-pub fn learn(slv: Type) -> TokenStream {
-    quote! {
+pub fn learn(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn learner_callback() {
             use rustsat::{lit, solvers::{Solve, SolverResult, Learn}};
@@ -305,8 +305,8 @@ pub fn learn(slv: Type) -> TokenStream {
     }
 }
 
-pub fn freezing(slv: Type) -> TokenStream {
-    quote! {
+pub fn freezing(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn freezing() {
             use rustsat::{lit, var, solvers::{Solve, FreezeVar}};
@@ -324,8 +324,8 @@ pub fn freezing(slv: Type) -> TokenStream {
     }
 }
 
-pub fn propagate(slv: Type) -> TokenStream {
-    quote! {
+pub fn propagate(slv: syn::Type) -> proc_macro2::TokenStream {
+    quote::quote! {
         #[test]
         fn propagate() {
             use rustsat::{lit, solvers::{Solve, Propagate}};

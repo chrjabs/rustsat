@@ -1,30 +1,26 @@
 extern crate proc_macro;
 
-use proc_macro::TokenStream;
-use quote::ToTokens;
-use syn::{
-    parse::Parse, parse_macro_input, punctuated::Punctuated, Expr, LitBool, LitStr, Token, Type,
-};
-
 mod integration;
 mod unit;
 
 enum InitBy {
-    Default(Type),
-    Expr(Expr),
+    Default(syn::Type),
+    Expr(syn::Expr),
 }
 
-impl Parse for InitBy {
+impl syn::parse::Parse for InitBy {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(if let syn::Result::<Type>::Ok(r#type) = input.parse() {
-            Self::Default(r#type)
-        } else {
-            Self::Expr(input.parse()?)
-        })
+        Ok(
+            if let syn::Result::<syn::Type>::Ok(r#type) = input.parse() {
+                Self::Default(r#type)
+            } else {
+                Self::Expr(input.parse()?)
+            },
+        )
     }
 }
 
-impl ToTokens for InitBy {
+impl quote::ToTokens for InitBy {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
             InitBy::Default(r#type) => r#type.to_tokens(tokens),
@@ -38,30 +34,31 @@ struct IntegrationInput {
     bools: Vec<bool>,
 }
 
-impl Parse for IntegrationInput {
+impl syn::parse::Parse for IntegrationInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let slv: InitBy = input.parse()?;
         if input.is_empty() {
             return Ok(Self { slv, bools: vec![] });
         }
-        let _: Token![,] = input.parse()?;
-        let bools = Punctuated::<LitBool, Token![,]>::parse_terminated(input)?;
+        let _: syn::Token![,] = input.parse()?;
+        let bools =
+            syn::punctuated::Punctuated::<syn::LitBool, syn::Token![,]>::parse_terminated(input)?;
         let bools: Vec<_> = bools.into_iter().map(|lit| lit.value).collect();
         Ok(Self { slv, bools })
     }
 }
 
 struct BasicUnitInput {
-    slv: Type,
-    signature: LitStr,
+    slv: syn::Type,
+    signature: syn::LitStr,
     mt: Option<bool>,
 }
 
-impl Parse for BasicUnitInput {
+impl syn::parse::Parse for BasicUnitInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let slv: Type = input.parse()?;
-        let _: Token![,] = input.parse()?;
-        let signature: LitStr = input.parse()?;
+        let slv: syn::Type = input.parse()?;
+        let _: syn::Token![,] = input.parse()?;
+        let signature: syn::LitStr = input.parse()?;
         if input.is_empty() {
             return Ok(Self {
                 slv,
@@ -69,8 +66,8 @@ impl Parse for BasicUnitInput {
                 mt: None,
             });
         }
-        let _: Token![,] = input.parse()?;
-        let mt: LitBool = input.parse()?;
+        let _: syn::Token![,] = input.parse()?;
+        let mt: syn::LitBool = input.parse()?;
         Ok(Self {
             slv,
             signature,
@@ -80,68 +77,68 @@ impl Parse for BasicUnitInput {
 }
 
 #[proc_macro]
-pub fn basic_unittests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as BasicUnitInput);
+pub fn basic_unittests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as BasicUnitInput);
     let mt = input.mt.unwrap_or(true);
     unit::basic(input.slv, input.signature, mt).into()
 }
 
 #[proc_macro]
-pub fn termination_unittests(tokens: TokenStream) -> TokenStream {
-    let slv = parse_macro_input!(tokens as Type);
+pub fn termination_unittests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let slv = syn::parse_macro_input!(tokens as syn::Type);
     unit::termination(slv).into()
 }
 
 #[proc_macro]
-pub fn learner_unittests(tokens: TokenStream) -> TokenStream {
-    let slv = parse_macro_input!(tokens as Type);
+pub fn learner_unittests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let slv = syn::parse_macro_input!(tokens as syn::Type);
     unit::learn(slv).into()
 }
 
 #[proc_macro]
-pub fn freezing_unittests(tokens: TokenStream) -> TokenStream {
-    let slv = parse_macro_input!(tokens as Type);
+pub fn freezing_unittests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let slv = syn::parse_macro_input!(tokens as syn::Type);
     unit::freezing(slv).into()
 }
 
 #[proc_macro]
-pub fn propagating_unittests(tokens: TokenStream) -> TokenStream {
-    let slv = parse_macro_input!(tokens as Type);
+pub fn propagating_unittests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let slv = syn::parse_macro_input!(tokens as syn::Type);
     unit::propagate(slv).into()
 }
 
 #[proc_macro]
-pub fn base_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as IntegrationInput);
+pub fn base_tests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as IntegrationInput);
     integration::base(input).into()
 }
 
 #[proc_macro]
-pub fn incremental_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as IntegrationInput);
+pub fn incremental_tests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as IntegrationInput);
     integration::incremental(input).into()
 }
 
 #[proc_macro]
-pub fn learning_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as IntegrationInput);
+pub fn learning_tests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as IntegrationInput);
     integration::learning(input).into()
 }
 
 #[proc_macro]
-pub fn phasing_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as IntegrationInput);
+pub fn phasing_tests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as IntegrationInput);
     integration::phasing(input).into()
 }
 
 #[proc_macro]
-pub fn flipping_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as IntegrationInput);
+pub fn flipping_tests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as IntegrationInput);
     integration::flipping(input).into()
 }
 
 #[proc_macro]
-pub fn internal_stats_tests(tokens: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(tokens as IntegrationInput);
+pub fn internal_stats_tests(tokens: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(tokens as IntegrationInput);
     integration::internal_stats(input).into()
 }

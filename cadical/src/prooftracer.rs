@@ -1,14 +1,9 @@
 //! # CaDiCaL Proof Tracing Functionality
 
-use std::ffi::{c_int, c_void};
+use core::ffi::c_int;
+use core::ffi::c_void;
 
-use rustsat::{
-    solvers::SolverResult,
-    types::{Assignment, Clause, Lit},
-    utils::from_raw_parts_maybe_null,
-};
-
-use crate::ffi;
+use rustsat::types::Lit;
 
 /// The ID of a clause internal to CaDiCaL
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -76,7 +71,7 @@ pub trait TraceProof {
     /// argument will contain its id.
     /// Note that the empty clause is already added through [`TraceProof::add_derived_clause`]
     /// and finalized with [`TraceProof::finalize_clause`]
-    fn report_status(&mut self, status: SolverResult, id: ClauseId) {}
+    fn report_status(&mut self, status: rustsat::solvers::SolverResult, id: ClauseId) {}
 
     /// Notify the observer that a clause is finalized.
     fn finalize_clause(&mut self, id: ClauseId, clause: &CaDiCaLClause) {}
@@ -136,7 +131,7 @@ pub trait TraceProof {
 /// been disconnected from the solver
 #[derive(Debug)]
 pub struct ProofTracerHandle<PT> {
-    c_class: *mut ffi::CCaDiCaLTracer,
+    c_class: *mut crate::ffi::CCaDiCaLTracer,
     tracer: *mut PT,
     trait_ptr: *mut *mut dyn TraceProof,
 }
@@ -175,10 +170,10 @@ impl super::CaDiCaL<'_, '_> {
         let trait_ptr = Box::new(tracer as *mut dyn TraceProof);
         let trait_ptr = Box::into_raw(trait_ptr);
         let ptr = unsafe {
-            ffi::ccadical_connect_proof_tracer(
+            crate::ffi::ccadical_connect_proof_tracer(
                 self.handle,
                 trait_ptr.cast::<c_void>(),
-                ffi::prooftracer::DISPATCH_CALLBACKS,
+                crate::ffi::prooftracer::DISPATCH_CALLBACKS,
                 antecedents,
             )
         };
@@ -203,7 +198,7 @@ impl super::CaDiCaL<'_, '_> {
     where
         PT: TraceProof + 'static,
     {
-        if !unsafe { ffi::ccadical_disconnect_proof_tracer(self.handle, handle.c_class) } {
+        if !unsafe { crate::ffi::ccadical_disconnect_proof_tracer(self.handle, handle.c_class) } {
             return Err(ProofTracerNotConnected);
         }
         let trait_ptr = unsafe { Box::from_raw(handle.trait_ptr) };
@@ -241,7 +236,7 @@ pub struct CaDiCaLClause<'slf> {
 impl CaDiCaLClause<'_> {
     pub(crate) fn new(cl_len: usize, cl_data: *const c_int) -> Self {
         Self {
-            lits: unsafe { from_raw_parts_maybe_null(cl_data, cl_len) },
+            lits: unsafe { rustsat::utils::from_raw_parts_maybe_null(cl_data, cl_len) },
         }
     }
 
@@ -274,7 +269,7 @@ impl CaDiCaLClause<'_> {
     ///
     /// This is costly because of IPASIR to [`Lit`] conversion and memory allocation
     #[must_use]
-    pub fn to_owned(&self) -> Clause {
+    pub fn to_owned(&self) -> rustsat::types::Clause {
         self.iter().collect()
     }
 }
@@ -302,7 +297,7 @@ pub struct CaDiCaLAssignment<'slf> {
 impl CaDiCaLAssignment<'_> {
     pub(crate) fn new(assign_len: usize, assign_data: *const c_int) -> Self {
         Self {
-            lits: unsafe { from_raw_parts_maybe_null(assign_data, assign_len) },
+            lits: unsafe { rustsat::utils::from_raw_parts_maybe_null(assign_data, assign_len) },
         }
     }
 
@@ -335,7 +330,7 @@ impl CaDiCaLAssignment<'_> {
     ///
     /// This is costly because of IPASIR to [`Lit`] conversion and memory allocation
     #[must_use]
-    pub fn to_owned(&self) -> Assignment {
+    pub fn to_owned(&self) -> rustsat::types::Assignment {
         self.iter().collect()
     }
 }

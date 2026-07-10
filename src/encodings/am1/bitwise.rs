@@ -6,13 +6,13 @@
 //!   Programming 2007.
 //! - Steven D. Prestwich: _CNF Encodings_, in Handbook of Satisfiability 2021.
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EncodeStats;
+use crate::encodings::IterInputs;
+use crate::instances::ManageVars;
+use crate::types::Lit;
+
 use super::Encode;
-use crate::{
-    encodings::{atomics, CollectClauses, EncodeStats, IterInputs},
-    instances::ManageVars,
-    types::Lit,
-    utils,
-};
 
 /// Implementations of the bitwise at-most-1 encoding.
 ///
@@ -50,12 +50,12 @@ impl Encode for Bitwise {
         }
         let prev_clauses = collector.n_clauses();
 
-        let p = utils::digits(self.in_lits.len() - 1, 2);
+        let p = crate::utils::digits(self.in_lits.len() - 1, 2);
         let aux_vars: Vec<_> = (0..p).map(|_| var_manager.new_var()).collect();
 
         let clause = |idx: usize, k: usize| {
             let aux = aux_vars[k].lit(idx & (1 << k) == 0);
-            atomics::lit_impl_lit(self.in_lits[idx], aux)
+            crate::encodings::atomics::lit_impl_lit(self.in_lits[idx], aux)
         };
         collector.extend_clauses(
             (0..self.in_lits.len()).flat_map(|idx| (0..p as usize).map(move |k| clause(idx, k))),

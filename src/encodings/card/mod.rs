@@ -26,21 +26,17 @@
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodeCard`.
 
-use std::{
-    cmp,
-    ops::{Bound, Range, RangeBounds},
-};
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::CardEqConstr;
+use crate::types::constraints::CardLbConstr;
+use crate::types::constraints::CardUbConstr;
+use crate::types::Clause;
+use crate::types::Lit;
 
-use super::{CollectClauses, ConstraintEncodingError, EnforceError, NotEncoded};
-use crate::{
-    clause,
-    instances::ManageVars,
-    types::{
-        constraints::{CardConstraint, CardEqConstr, CardLbConstr, CardUbConstr},
-        Clause, Lit,
-    },
-    utils::unreachable_err,
-};
+use super::CollectClauses;
+use super::ConstraintEncodingError;
+use super::EnforceError;
+use super::NotEncoded;
 
 pub mod totalizer;
 pub use totalizer::Totalizer;
@@ -71,11 +67,11 @@ pub trait BoundUpper: Encode {
         &mut self,
         range: R,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
     /// Returns assumptions/units for enforcing an upper bound (`sum of lits <=
     /// ub`). Make sure that [`BoundUpper::encode_ub`] has been called
     /// adequately and nothing has been called afterwards.
@@ -93,7 +89,7 @@ pub trait BoundUpper: Encode {
     fn encode_ub_constr<Col>(
         constr: CardUbConstr,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
@@ -106,7 +102,7 @@ pub trait BoundUpper: Encode {
             enc.enforce_ub(ub)
                 .unwrap()
                 .into_iter()
-                .map(|unit| clause![unit]),
+                .map(|unit| crate::clause![unit]),
         )?;
         Ok(())
     }
@@ -127,11 +123,11 @@ pub trait BoundLower: Encode {
         &mut self,
         range: R,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
     /// Returns assumptions/units for enforcing a lower bound (`sum of lits >=
     /// lb`). Make sure that [`BoundLower::encode_lb`] has been called
     /// adequately and nothing has been added afterwards.
@@ -149,7 +145,7 @@ pub trait BoundLower: Encode {
     fn encode_lb_constr<Col>(
         constr: CardLbConstr,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
@@ -165,7 +161,7 @@ pub trait BoundLower: Encode {
             enc.enforce_lb(lb)
                 .unwrap()
                 .into_iter()
-                .map(|unit| clause![unit]),
+                .map(|unit| crate::clause![unit]),
         )?;
         Ok(())
     }
@@ -185,11 +181,11 @@ pub trait BoundBoth: BoundUpper + BoundLower {
         &mut self,
         range: R,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.encode_ub(range.clone(), collector, var_manager)?;
         self.encode_lb(range, collector, var_manager)?;
@@ -216,7 +212,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     fn encode_eq_constr<Col>(
         constr: CardEqConstr,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
@@ -232,7 +228,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
             enc.enforce_eq(b)
                 .unwrap()
                 .into_iter()
-                .map(|unit| clause![unit]),
+                .map(|unit| crate::clause![unit]),
         )?;
         Ok(())
     }
@@ -244,7 +240,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
     fn encode_constr<Col>(
         constr: CardConstraint,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), ConstraintEncodingError>
     where
         Col: CollectClauses,
@@ -264,7 +260,7 @@ pub trait BoundBoth: BoundUpper + BoundLower {
 /// Trait for all cardinality encodings of form `sum of lits <> rhs`
 pub trait EncodeIncremental: Encode {
     /// Reserves all variables this encoding might need
-    fn reserve(&mut self, var_manager: &mut dyn ManageVars);
+    fn reserve(&mut self, var_manager: &mut dyn crate::instances::ManageVars);
 }
 
 /// Trait for incremental cardinality encodings that allow upper bounding of the
@@ -283,11 +279,11 @@ pub trait BoundUpperIncremental: BoundUpper + EncodeIncremental {
         &mut self,
         range: R,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
 }
 
 /// Trait for incremental cardinality encodings that allow lower bounding of the
@@ -305,11 +301,11 @@ pub trait BoundLowerIncremental: BoundLower + EncodeIncremental {
         &mut self,
         range: R,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize>;
+        R: std::ops::RangeBounds<usize>;
 }
 
 /// Trait for incremental cardinality encodings that allow upper and lower bounding
@@ -326,11 +322,11 @@ pub trait BoundBothIncremental: BoundUpperIncremental + BoundLowerIncremental + 
         &mut self,
         range: R,
         collector: &mut Col,
-        var_manager: &mut dyn ManageVars,
+        var_manager: &mut dyn crate::instances::ManageVars,
     ) -> Result<(), crate::OutOfMemory>
     where
         Col: CollectClauses,
-        R: RangeBounds<usize> + Clone,
+        R: std::ops::RangeBounds<usize> + Clone,
     {
         self.encode_ub_change(range.clone(), collector, var_manager)?;
         self.encode_lb_change(range, collector, var_manager)
@@ -392,11 +388,14 @@ pub fn new_default_inc_both() -> impl BoundBoth {
 /// # Errors
 ///
 /// If the clause collector runs out of memory.
-pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
+pub fn default_encode_cardinality_constraint<Col>(
     constr: CardConstraint,
     collector: &mut Col,
-    var_manager: &mut dyn ManageVars,
-) -> Result<(), crate::OutOfMemory> {
+    var_manager: &mut dyn crate::instances::ManageVars,
+) -> Result<(), crate::OutOfMemory>
+where
+    Col: CollectClauses,
+{
     encode_cardinality_constraint::<DefBothBounding, Col>(constr, collector, var_manager)
 }
 
@@ -405,11 +404,15 @@ pub fn default_encode_cardinality_constraint<Col: CollectClauses>(
 /// # Errors
 ///
 /// If the clause collector runs out of memory.
-pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: CollectClauses>(
+pub fn encode_cardinality_constraint<CE, Col>(
     constr: CardConstraint,
     collector: &mut Col,
-    var_manager: &mut dyn ManageVars,
-) -> Result<(), crate::OutOfMemory> {
+    var_manager: &mut dyn crate::instances::ManageVars,
+) -> Result<(), crate::OutOfMemory>
+where
+    CE: BoundBoth + FromIterator<Lit>,
+    Col: CollectClauses,
+{
     if constr.is_tautology() {
         return Ok(());
     }
@@ -417,13 +420,23 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: Col
         return collector.add_clause(Clause::new());
     }
     if constr.is_positive_assignment() {
-        return collector.extend_clauses(constr.into_lits().into_iter().map(|lit| clause![lit]));
+        return collector.extend_clauses(
+            constr
+                .into_lits()
+                .into_iter()
+                .map(|lit| crate::clause![lit]),
+        );
     }
     if constr.is_negative_assignment() {
-        return collector.extend_clauses(constr.into_lits().into_iter().map(|lit| clause![!lit]));
+        return collector.extend_clauses(
+            constr
+                .into_lits()
+                .into_iter()
+                .map(|lit| crate::clause![!lit]),
+        );
     }
     if constr.is_clause() {
-        return collector.add_clause(unreachable_err!(constr.into_clause()));
+        return collector.add_clause(crate::utils::unreachable_err!(constr.into_clause()));
     }
     match CE::encode_constr(constr, collector, var_manager) {
         Ok(()) => Ok(()),
@@ -432,38 +445,50 @@ pub fn encode_cardinality_constraint<CE: BoundBoth + FromIterator<Lit>, Col: Col
     }
 }
 
-fn prepare_ub_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+fn prepare_ub_range<Enc, R>(enc: &Enc, range: R) -> std::ops::Range<usize>
+where
+    Enc: Encode,
+    R: std::ops::RangeBounds<usize>,
+{
     (match range.start_bound() {
-        Bound::Included(b) => *b,
-        Bound::Excluded(b) => b + 1,
-        Bound::Unbounded => 0,
+        std::ops::Bound::Included(b) => *b,
+        std::ops::Bound::Excluded(b) => b + 1,
+        std::ops::Bound::Unbounded => 0,
     })..match range.end_bound() {
-        Bound::Included(b) => cmp::min(b + 1, enc.n_lits()),
-        Bound::Excluded(b) => cmp::min(*b, enc.n_lits()),
-        Bound::Unbounded => enc.n_lits(),
+        std::ops::Bound::Included(b) => std::cmp::min(b + 1, enc.n_lits()),
+        std::ops::Bound::Excluded(b) => std::cmp::min(*b, enc.n_lits()),
+        std::ops::Bound::Unbounded => enc.n_lits(),
     }
 }
 
-fn prepare_lb_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+fn prepare_lb_range<Enc, R>(enc: &Enc, range: R) -> std::ops::Range<usize>
+where
+    Enc: Encode,
+    R: std::ops::RangeBounds<usize>,
+{
     (match range.start_bound() {
-        Bound::Included(b) => cmp::max(*b, 1),
-        Bound::Excluded(b) => cmp::max(b + 1, 1),
-        Bound::Unbounded => 1,
+        std::ops::Bound::Included(b) => std::cmp::max(*b, 1),
+        std::ops::Bound::Excluded(b) => std::cmp::max(b + 1, 1),
+        std::ops::Bound::Unbounded => 1,
     })..match range.end_bound() {
-        Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),
-        Bound::Excluded(b) => cmp::min(*b, enc.n_lits() + 1),
-        Bound::Unbounded => enc.n_lits() + 1,
+        std::ops::Bound::Included(b) => std::cmp::min(b + 1, enc.n_lits() + 1),
+        std::ops::Bound::Excluded(b) => std::cmp::min(*b, enc.n_lits() + 1),
+        std::ops::Bound::Unbounded => enc.n_lits() + 1,
     }
 }
 
-fn prepare_both_range<Enc: Encode, R: RangeBounds<usize>>(enc: &Enc, range: R) -> Range<usize> {
+fn prepare_both_range<Enc, R>(enc: &Enc, range: R) -> std::ops::Range<usize>
+where
+    Enc: Encode,
+    R: std::ops::RangeBounds<usize>,
+{
     (match range.start_bound() {
-        Bound::Included(b) => *b,
-        Bound::Excluded(b) => b + 1,
-        Bound::Unbounded => 1,
+        std::ops::Bound::Included(b) => *b,
+        std::ops::Bound::Excluded(b) => b + 1,
+        std::ops::Bound::Unbounded => 1,
     })..match range.end_bound() {
-        Bound::Included(b) => cmp::min(b + 1, enc.n_lits() + 1),
-        Bound::Excluded(b) => cmp::min(*b, enc.n_lits() + 1),
-        Bound::Unbounded => enc.n_lits() + 1,
+        std::ops::Bound::Included(b) => std::cmp::min(b + 1, enc.n_lits() + 1),
+        std::ops::Bound::Excluded(b) => std::cmp::min(*b, enc.n_lits() + 1),
+        std::ops::Bound::Unbounded => enc.n_lits() + 1,
     }
 }

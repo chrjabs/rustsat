@@ -1,16 +1,18 @@
 //! # Operator Implementations for easily building Formulas
 
-use std::ops;
+use crate::instances::Cnf;
+use crate::instances::ManageVars;
+use crate::instances::SatInstance;
 
-use crate::instances::{Cnf, ManageVars, SatInstance};
-
-use super::{constraints::Clause, Lit, Var};
+use super::Clause;
+use super::Lit;
+use super::Var;
 
 // === Negation ===
 
 // --- Var ---
 
-impl ops::Not for Var {
+impl std::ops::Not for Var {
     type Output = Lit;
 
     #[inline]
@@ -19,7 +21,7 @@ impl ops::Not for Var {
     }
 }
 
-impl ops::Neg for Var {
+impl std::ops::Neg for Var {
     type Output = Lit;
 
     #[inline]
@@ -30,7 +32,7 @@ impl ops::Neg for Var {
 
 // --- Lit ---
 
-impl ops::Not for Lit {
+impl std::ops::Not for Lit {
     type Output = Lit;
 
     #[inline]
@@ -41,7 +43,7 @@ impl ops::Not for Lit {
     }
 }
 
-impl ops::Neg for Lit {
+impl std::ops::Neg for Lit {
     type Output = Lit;
 
     #[inline]
@@ -56,7 +58,7 @@ impl ops::Neg for Lit {
 
 // --- Var ---
 
-impl ops::BitOr<Var> for Var {
+impl std::ops::BitOr<Var> for Var {
     type Output = Clause;
 
     fn bitor(self, rhs: Var) -> Self::Output {
@@ -64,7 +66,7 @@ impl ops::BitOr<Var> for Var {
     }
 }
 
-impl ops::BitOr<Lit> for Var {
+impl std::ops::BitOr<Lit> for Var {
     type Output = Clause;
 
     fn bitor(self, rhs: Lit) -> Self::Output {
@@ -72,7 +74,7 @@ impl ops::BitOr<Lit> for Var {
     }
 }
 
-impl ops::BitOr<Clause> for Var {
+impl std::ops::BitOr<Clause> for Var {
     type Output = Clause;
 
     fn bitor(self, rhs: Clause) -> Self::Output {
@@ -84,7 +86,7 @@ impl ops::BitOr<Clause> for Var {
 
 // --- Lit ---
 
-impl ops::BitOr<Var> for Lit {
+impl std::ops::BitOr<Var> for Lit {
     type Output = Clause;
 
     fn bitor(self, rhs: Var) -> Self::Output {
@@ -92,7 +94,7 @@ impl ops::BitOr<Var> for Lit {
     }
 }
 
-impl ops::BitOr<Lit> for Lit {
+impl std::ops::BitOr<Lit> for Lit {
     type Output = Clause;
 
     fn bitor(self, rhs: Lit) -> Self::Output {
@@ -100,7 +102,7 @@ impl ops::BitOr<Lit> for Lit {
     }
 }
 
-impl ops::BitOr<Clause> for Lit {
+impl std::ops::BitOr<Clause> for Lit {
     type Output = Clause;
 
     fn bitor(self, rhs: Clause) -> Self::Output {
@@ -112,7 +114,7 @@ impl ops::BitOr<Clause> for Lit {
 
 // --- Clause ---
 
-impl ops::BitOr<Var> for Clause {
+impl std::ops::BitOr<Var> for Clause {
     type Output = Clause;
 
     fn bitor(mut self, rhs: Var) -> Self::Output {
@@ -121,7 +123,7 @@ impl ops::BitOr<Var> for Clause {
     }
 }
 
-impl ops::BitOr<Lit> for Clause {
+impl std::ops::BitOr<Lit> for Clause {
     type Output = Clause;
 
     fn bitor(mut self, rhs: Lit) -> Self::Output {
@@ -130,7 +132,7 @@ impl ops::BitOr<Lit> for Clause {
     }
 }
 
-impl ops::BitOr<Clause> for Clause {
+impl std::ops::BitOr<Clause> for Clause {
     type Output = Clause;
 
     fn bitor(mut self, rhs: Clause) -> Self::Output {
@@ -139,19 +141,19 @@ impl ops::BitOr<Clause> for Clause {
     }
 }
 
-impl ops::BitOrAssign<Var> for Clause {
+impl std::ops::BitOrAssign<Var> for Clause {
     fn bitor_assign(&mut self, rhs: Var) {
         self.add(rhs.pos_lit());
     }
 }
 
-impl ops::BitOrAssign<Lit> for Clause {
+impl std::ops::BitOrAssign<Lit> for Clause {
     fn bitor_assign(&mut self, rhs: Lit) {
         self.add(rhs);
     }
 }
 
-impl ops::BitOrAssign<Clause> for Clause {
+impl std::ops::BitOrAssign<Clause> for Clause {
     fn bitor_assign(&mut self, rhs: Clause) {
         self.extend(rhs);
     }
@@ -161,7 +163,7 @@ impl ops::BitOrAssign<Clause> for Clause {
 
 // --- Var ---
 
-impl ops::BitAnd<Var> for Var {
+impl std::ops::BitAnd<Var> for Var {
     type Output = Cnf;
 
     fn bitand(self, rhs: Var) -> Self::Output {
@@ -172,7 +174,7 @@ impl ops::BitAnd<Var> for Var {
     }
 }
 
-impl ops::BitAnd<Lit> for Var {
+impl std::ops::BitAnd<Lit> for Var {
     type Output = Cnf;
 
     fn bitand(self, rhs: Lit) -> Self::Output {
@@ -180,7 +182,7 @@ impl ops::BitAnd<Lit> for Var {
     }
 }
 
-impl ops::BitAnd<Clause> for Var {
+impl std::ops::BitAnd<Clause> for Var {
     type Output = Cnf;
 
     fn bitand(self, rhs: Clause) -> Self::Output {
@@ -188,7 +190,7 @@ impl ops::BitAnd<Clause> for Var {
     }
 }
 
-impl ops::BitAnd<Cnf> for Var {
+impl std::ops::BitAnd<Cnf> for Var {
     type Output = Cnf;
 
     fn bitand(self, rhs: Cnf) -> Self::Output {
@@ -200,7 +202,7 @@ impl ops::BitAnd<Cnf> for Var {
 
 // --- Lit ---
 
-impl ops::BitAnd<Var> for Lit {
+impl std::ops::BitAnd<Var> for Lit {
     type Output = Cnf;
 
     fn bitand(self, rhs: Var) -> Self::Output {
@@ -208,7 +210,7 @@ impl ops::BitAnd<Var> for Lit {
     }
 }
 
-impl ops::BitAnd<Lit> for Lit {
+impl std::ops::BitAnd<Lit> for Lit {
     type Output = Cnf;
 
     fn bitand(self, rhs: Lit) -> Self::Output {
@@ -216,7 +218,7 @@ impl ops::BitAnd<Lit> for Lit {
     }
 }
 
-impl ops::BitAnd<Clause> for Lit {
+impl std::ops::BitAnd<Clause> for Lit {
     type Output = Cnf;
 
     fn bitand(self, rhs: Clause) -> Self::Output {
@@ -224,7 +226,7 @@ impl ops::BitAnd<Clause> for Lit {
     }
 }
 
-impl ops::BitAnd<Cnf> for Lit {
+impl std::ops::BitAnd<Cnf> for Lit {
     type Output = Cnf;
 
     fn bitand(self, rhs: Cnf) -> Self::Output {
@@ -236,7 +238,7 @@ impl ops::BitAnd<Cnf> for Lit {
 
 // --- Clause ---
 
-impl ops::BitAnd<Var> for Clause {
+impl std::ops::BitAnd<Var> for Clause {
     type Output = Cnf;
 
     fn bitand(self, rhs: Var) -> Self::Output {
@@ -244,7 +246,7 @@ impl ops::BitAnd<Var> for Clause {
     }
 }
 
-impl ops::BitAnd<Lit> for Clause {
+impl std::ops::BitAnd<Lit> for Clause {
     type Output = Cnf;
 
     fn bitand(self, rhs: Lit) -> Self::Output {
@@ -252,7 +254,7 @@ impl ops::BitAnd<Lit> for Clause {
     }
 }
 
-impl ops::BitAnd<Clause> for Clause {
+impl std::ops::BitAnd<Clause> for Clause {
     type Output = Cnf;
 
     fn bitand(self, rhs: Clause) -> Self::Output {
@@ -260,7 +262,7 @@ impl ops::BitAnd<Clause> for Clause {
     }
 }
 
-impl ops::BitAnd<Cnf> for Clause {
+impl std::ops::BitAnd<Cnf> for Clause {
     type Output = Cnf;
 
     fn bitand(self, rhs: Cnf) -> Self::Output {
@@ -272,7 +274,7 @@ impl ops::BitAnd<Cnf> for Clause {
 
 // --- Cnf ---
 
-impl ops::BitAnd<Var> for Cnf {
+impl std::ops::BitAnd<Var> for Cnf {
     type Output = Cnf;
 
     fn bitand(mut self, rhs: Var) -> Self::Output {
@@ -281,7 +283,7 @@ impl ops::BitAnd<Var> for Cnf {
     }
 }
 
-impl ops::BitAnd<Lit> for Cnf {
+impl std::ops::BitAnd<Lit> for Cnf {
     type Output = Cnf;
 
     fn bitand(mut self, rhs: Lit) -> Self::Output {
@@ -290,7 +292,7 @@ impl ops::BitAnd<Lit> for Cnf {
     }
 }
 
-impl ops::BitAnd<Clause> for Cnf {
+impl std::ops::BitAnd<Clause> for Cnf {
     type Output = Cnf;
 
     fn bitand(mut self, rhs: Clause) -> Self::Output {
@@ -299,7 +301,7 @@ impl ops::BitAnd<Clause> for Cnf {
     }
 }
 
-impl ops::BitAnd<Cnf> for Cnf {
+impl std::ops::BitAnd<Cnf> for Cnf {
     type Output = Cnf;
 
     fn bitand(mut self, rhs: Cnf) -> Self::Output {
@@ -308,25 +310,25 @@ impl ops::BitAnd<Cnf> for Cnf {
     }
 }
 
-impl ops::BitAndAssign<Var> for Cnf {
+impl std::ops::BitAndAssign<Var> for Cnf {
     fn bitand_assign(&mut self, rhs: Var) {
         self.add_clause(Clause::from([rhs.pos_lit()]));
     }
 }
 
-impl ops::BitAndAssign<Lit> for Cnf {
+impl std::ops::BitAndAssign<Lit> for Cnf {
     fn bitand_assign(&mut self, rhs: Lit) {
         self.add_clause(Clause::from([rhs]));
     }
 }
 
-impl ops::BitAndAssign<Clause> for Cnf {
+impl std::ops::BitAndAssign<Clause> for Cnf {
     fn bitand_assign(&mut self, rhs: Clause) {
         self.add_clause(rhs);
     }
 }
 
-impl ops::BitAndAssign<Cnf> for Cnf {
+impl std::ops::BitAndAssign<Cnf> for Cnf {
     fn bitand_assign(&mut self, rhs: Cnf) {
         self.extend(rhs);
     }
@@ -334,7 +336,7 @@ impl ops::BitAndAssign<Cnf> for Cnf {
 
 // --- SatInstance ---
 
-impl<VM: ManageVars> ops::BitAnd<Var> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAnd<Var> for SatInstance<VM> {
     type Output = SatInstance<VM>;
 
     fn bitand(mut self, rhs: Var) -> Self::Output {
@@ -343,7 +345,7 @@ impl<VM: ManageVars> ops::BitAnd<Var> for SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars> ops::BitAnd<Lit> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAnd<Lit> for SatInstance<VM> {
     type Output = SatInstance<VM>;
 
     fn bitand(mut self, rhs: Lit) -> Self::Output {
@@ -352,7 +354,7 @@ impl<VM: ManageVars> ops::BitAnd<Lit> for SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars> ops::BitAnd<Clause> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAnd<Clause> for SatInstance<VM> {
     type Output = SatInstance<VM>;
 
     fn bitand(mut self, rhs: Clause) -> Self::Output {
@@ -361,7 +363,7 @@ impl<VM: ManageVars> ops::BitAnd<Clause> for SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars> ops::BitAnd<Cnf> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAnd<Cnf> for SatInstance<VM> {
     type Output = SatInstance<VM>;
 
     fn bitand(mut self, rhs: Cnf) -> Self::Output {
@@ -370,7 +372,7 @@ impl<VM: ManageVars> ops::BitAnd<Cnf> for SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars> ops::BitAnd<SatInstance<VM>> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAnd<SatInstance<VM>> for SatInstance<VM> {
     type Output = SatInstance<VM>;
 
     fn bitand(mut self, rhs: SatInstance<VM>) -> Self::Output {
@@ -379,31 +381,31 @@ impl<VM: ManageVars> ops::BitAnd<SatInstance<VM>> for SatInstance<VM> {
     }
 }
 
-impl<VM: ManageVars> ops::BitAndAssign<Var> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAndAssign<Var> for SatInstance<VM> {
     fn bitand_assign(&mut self, rhs: Var) {
         self.add_clause(Clause::from([rhs.pos_lit()]));
     }
 }
 
-impl<VM: ManageVars> ops::BitAndAssign<Lit> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAndAssign<Lit> for SatInstance<VM> {
     fn bitand_assign(&mut self, rhs: Lit) {
         self.add_clause(Clause::from([rhs]));
     }
 }
 
-impl<VM: ManageVars> ops::BitAndAssign<Clause> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAndAssign<Clause> for SatInstance<VM> {
     fn bitand_assign(&mut self, rhs: Clause) {
         self.add_clause(rhs);
     }
 }
 
-impl<VM: ManageVars> ops::BitAndAssign<Cnf> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAndAssign<Cnf> for SatInstance<VM> {
     fn bitand_assign(&mut self, rhs: Cnf) {
         <SatInstance<VM> as Extend<Clause>>::extend(self, rhs);
     }
 }
 
-impl<VM: ManageVars> ops::BitAndAssign<SatInstance<VM>> for SatInstance<VM> {
+impl<VM: ManageVars> std::ops::BitAndAssign<SatInstance<VM>> for SatInstance<VM> {
     fn bitand_assign(&mut self, rhs: SatInstance<VM>) {
         self.extend(rhs);
     }

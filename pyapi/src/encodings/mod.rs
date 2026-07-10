@@ -2,17 +2,17 @@
 
 use pyo3::prelude::*;
 
-use rustsat::encodings::EnforceError;
-
 pub mod am1;
 pub mod card;
 pub mod pb;
 
-fn convert_enforce_error(err: EnforceError) -> PyErr {
+fn convert_enforce_error(err: rustsat::encodings::EnforceError) -> PyErr {
     match err {
-        EnforceError::NotEncoded => {
+        rustsat::encodings::EnforceError::NotEncoded => {
             pyo3::exceptions::PyRuntimeError::new_err("not encoded to enforce bound")
         }
-        EnforceError::Unsat => pyo3::exceptions::PyValueError::new_err("encoding is unsat"),
+        rustsat::encodings::EnforceError::Unsat => {
+            pyo3::exceptions::PyValueError::new_err("encoding is unsat")
+        }
     }
 }
