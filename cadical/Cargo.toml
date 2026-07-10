@@ -61,7 +61,7 @@ thiserror.workspace = true
 bindgen.workspace = true
 cc.workspace = true
 chrono.workspace = true
-git2 = { workspace = true, optional = true }
+git2 = { workspace = true, optional = true, features = ["https"] }
 glob.workspace = true
 # keep-sorted end
 
