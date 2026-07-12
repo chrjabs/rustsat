@@ -59,7 +59,7 @@ jobs:
     name: 🏗️ Dev dependencies
     runs-on: [self-hosted, nix]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: 🏗️ Build dev dependencies
         run: nix build .#cargoDevArtifacts
   tests:
@@ -69,7 +69,7 @@ jobs:
       - dev-deps
     if: '!github.event.pull_request.draft'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: 🧪 Run tests
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').tests"
       - name: 🧪 Run tests for external solver CaDiCaL
@@ -83,7 +83,7 @@ jobs:
     runs-on: [self-hosted, nix]
     if: '!github.event.pull_request.draft'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: 🏗️ Check MSRV builds
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').msrv"
   wasm-check:
@@ -91,7 +91,7 @@ jobs:
     runs-on: [self-hosted, nix]
     if: '!github.event.pull_request.draft'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: 🏄 Check WASM compatibility
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').wasm"
   code-quality:
@@ -100,7 +100,7 @@ jobs:
     needs:
       - dev-deps
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: ✨ Check formatting
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').treefmt"
       - name: ✨ Cargo deny bans licenses sources
@@ -124,8 +124,8 @@ jobs:
     runs-on: [self-hosted, nix]
     if: '!github.event.pull_request.draft'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: ✨ Build Python API and check
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').pyapi"
   doc:
@@ -135,8 +135,8 @@ jobs:
       - dev-deps
     if: '!github.event.pull_request.draft'
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: ✨ Build doc
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').doc"
       - name: 🧪 Run doc tests
@@ -148,7 +148,7 @@ jobs:
       - tests
       - doc
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: ✨ Collect coverage reports
         run: |
           nix build .#testCoverage
@@ -167,7 +167,7 @@ jobs:
       - dev-deps
     if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'heavy-tests')"
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: ✨ Run feature powerset checks
         run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').featurePowerset"
   cadical-each-feature:
@@ -177,7 +177,7 @@ jobs:
       - dev-deps
     if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/cadical')"
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: 🧪 Test each feature
         run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run --exclude-features logging nextest run -p rustsat-cadical
   kissat-each-feature:
@@ -187,6 +187,6 @@ jobs:
       - dev-deps
     if: "!github.event.pull_request.draft && contains(github.event.pull_request.labels.*.name, 'solvers/kissat')"
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - name: 🧪 Test each feature
         run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run nextest run -p rustsat-kissat
