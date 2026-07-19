@@ -26,7 +26,7 @@ rust-version = "1.87.0" # update the crate documentation if you change this
 [workspace.dependencies]
 # keep-sorted start block=yes
 annotate-snippets = "0.12.16"
-anyhow = "1.0.103"
+anyhow = "1.0.104"
 bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
 ] }
@@ -52,12 +52,12 @@ rustsat = { version = "0.7.5", path = "./", default-features = false }
 rustsat-cadical = { version = "0.7.5", path = "./cadical" }
 rustsat-minisat = { version = "0.7.5", path = "./minisat" }
 rustsat-solvertests = { path = "./solvertests" }
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.150"
 signal-hook = "0.4.4"
 tempfile = "3.27.0"
 termcolor = "1.4.1"
-thiserror = "2.0.18"
+thiserror = "2.0.19"
 visibility = "0.1.1"
 web-time = "1.1.0"
 winnow = { version = "1.0.4", default-features = false, features = [
