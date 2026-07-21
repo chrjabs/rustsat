@@ -151,11 +151,9 @@ impl Clause {
         // Check for tautology
         let mut neg_last = None;
         if let Err(()) = self.iter().try_for_each(|l| {
-            if let Some(neg_last) = neg_last {
-                if l == &neg_last {
-                    // Positive lits always come first
-                    return Err(());
-                }
+            if neg_last.is_some_and(|neg_last| l == &neg_last) {
+                // Positive lits always come first
+                return Err(());
             }
             neg_last = Some(!*l);
             Ok(())
