@@ -47,7 +47,7 @@ fn main() {
 
 fn build() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let mut glucose_dir_str = crate_dir.clone();
+    let mut glucose_dir_str = crate_dir;
     glucose_dir_str.push_str("/vendor");
     let glucose_dir = Path::new(&glucose_dir_str);
     let mut conf = cmake::Config::new(glucose_dir);
