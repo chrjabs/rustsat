@@ -47,7 +47,7 @@ fn main() {
 
 fn build() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let mut minisat_dir_str = crate_dir.clone();
+    let mut minisat_dir_str = crate_dir;
     minisat_dir_str.push_str("/vendor");
     let minisat_dir = Path::new(&minisat_dir_str);
     let mut conf = cmake::Config::new(minisat_dir);

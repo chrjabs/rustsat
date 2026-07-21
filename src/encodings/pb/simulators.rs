@@ -1098,8 +1098,7 @@ where
         Col: CollectClauses,
         R: RangeBounds<usize> + Clone,
     {
-        self.card_enc
-            .encode_both(range.clone(), collector, var_manager)?;
+        self.card_enc.encode_both(range, collector, var_manager)?;
         Ok(())
     }
 
