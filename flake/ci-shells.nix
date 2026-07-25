@@ -3,7 +3,10 @@
   perSystem =
     { pkgs, self', ... }:
     let
-      craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (_: self'.packages.rust-toolchain);
+      craneLib =
+        ((inputs.crane.mkLib pkgs).overrideScope (_: _: { stdenvSelector = ps: ps.clangStdenv; }))
+        .overrideToolchain
+          (_: self'.packages.rust-toolchain);
     in
     {
       devShells = {

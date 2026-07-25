@@ -10,9 +10,10 @@
       checkMsrv =
         crate:
         let
-          craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (
-            p: (p.extend (import inputs.rust-overlay)).rust-bin.stable."${workspaceMsrv}".minimal
-          );
+          craneLib =
+            ((inputs.crane.mkLib pkgs).overrideScope (_: _: { stdenvSelector = ps: ps.clangStdenv; }))
+            .overrideToolchain
+              (p: (p.extend (import inputs.rust-overlay)).rust-bin.stable."${workspaceMsrv}".minimal);
           cargoArtifacts = craneLib.buildDepsOnly (
             commonArgs
             // {
