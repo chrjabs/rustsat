@@ -22,7 +22,7 @@
     cleanedSrc =
       pkgs:
       let
-        craneLib = inputs.crane.mkLib pkgs;
+        craneLib = (inputs.crane.mkLib pkgs).overrideScope (_: _: { stdenvSelector = ps: ps.clangStdenv; });
         additionalSrcFilter =
           path: _type:
           builtins.match ".*(data.*|cp?p?|hp?p?|j2|snap|CMakeLists.txt|VERSION|README.md)$" path != null;
@@ -36,7 +36,6 @@
 
     commonCraneArgs = pkgs: {
       src = config.flake.shared.cleanedSrc pkgs;
-      stdenv = ps: ps.clangStdenv;
       strictDeps = true;
       nativeBuildInputs = with pkgs; [
         # keep-sorted start
