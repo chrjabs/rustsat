@@ -28,3 +28,7 @@ Before contributing, kindly go through the following checklist:
   test suite on a variety of different platforms.
 - Add new test for new features or tests that would have caught bugs you fixed.
   If this is not possible, explain why.
+- Familiarize yourself with [Ed Page's guidelines on Rust
+  style](https://epage.github.io/dev/rust-style/). While we don't follow this
+  strictly, keep his style advice in mind when writing contributions to
+  RustSAT.
