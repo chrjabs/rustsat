@@ -120,53 +120,49 @@ macro_rules! unreachable_err {
 }
 pub(crate) use unreachable_err;
 
-pub use timer::Timer;
+/// A timer to measure execution time.
+///
+/// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
+/// is based on `web-time`
+#[cfg(any(target_family = "unix", target_family = "windows"))]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct Timer(cpu_time::ThreadTime);
 
 #[cfg(any(target_family = "unix", target_family = "windows"))]
-mod timer {
-    /// A timer to measure execution time.
-    ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
-    /// is based on `web-time`
-    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-    pub struct Timer(cpu_time::ThreadTime);
+impl Timer {
+    /// Gets the current time
+    #[must_use]
+    pub fn now() -> Self {
+        Timer(cpu_time::ThreadTime::now())
+    }
 
-    impl Timer {
-        /// Gets the current time
-        #[must_use]
-        pub fn now() -> Self {
-            Timer(cpu_time::ThreadTime::now())
-        }
-
-        /// Gets the amount of time elapsed since the timer was initialized
-        #[must_use]
-        pub fn elapsed(&self) -> std::time::Duration {
-            self.0.elapsed()
-        }
+    /// Gets the amount of time elapsed since the timer was initialized
+    #[must_use]
+    pub fn elapsed(&self) -> std::time::Duration {
+        self.0.elapsed()
     }
 }
 
+/// A timer to measure execution time.
+///
+/// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
+/// is based on `web-time`
 #[cfg(not(any(target_family = "unix", target_family = "windows")))]
-mod timer {
-    /// A timer to measure execution time.
-    ///
-    /// On `unix`/`windows` systems, this is based on `cpu_time::ThreadTime`, on `wasm` systems, it
-    /// is based on `web-time`
-    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-    pub struct Timer(web_time::Instant);
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct Timer(web_time::Instant);
 
-    impl Timer {
-        /// Gets the current time
-        #[must_use]
-        pub fn now() -> Self {
-            Timer(web_time::Instant::now())
-        }
+#[cfg(not(any(target_family = "unix", target_family = "windows")))]
+impl Timer {
+    /// Gets the current time
+    #[must_use]
+    pub fn now() -> Self {
+        Timer(web_time::Instant::now())
+    }
 
-        /// Gets the amount of time elapsed since the timer was initialized
-        #[must_use]
-        pub fn elapsed(&self) -> std::time::Duration {
-            self.0.elapsed()
-        }
+    /// Gets the amount of time elapsed since the timer was initialized
+    #[must_use]
+    pub fn elapsed(&self) -> std::time::Duration {
+        self.0.elapsed()
     }
 }
 
