@@ -166,6 +166,22 @@ impl Timer {
     }
 }
 
+/// Defines a module that is public if the `_internals` feature is active
+macro_rules! module_pub_if_internals {
+    ($default_vis:vis $name:ident) => {
+        #[cfg(feature = "_internals")]
+        #[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
+        pub mod $name;
+
+        #[cfg(not(feature = "_internals"))]
+        $default_vis mod $name;
+    };
+    ($name:ident) => {
+        module_pub_if_internals!(pub(self) $name)
+    };
+}
+pub(crate) use module_pub_if_internals;
+
 #[cfg(test)]
 mod tests {
     #[test]

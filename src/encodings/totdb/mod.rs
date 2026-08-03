@@ -7,11 +7,11 @@ use crate::types::Assignment;
 use crate::types::Lit;
 use crate::utils::unreachable_none;
 
+use super::nodedb::DrainError;
 use super::nodedb::NodeById;
 use super::nodedb::NodeCon;
 use super::nodedb::NodeId;
 use super::nodedb::NodeLike;
-use super::nodedbimpl::DrainError;
 use super::CollectClauses;
 
 #[cfg(feature = "proof-logging")]

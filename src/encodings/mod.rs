@@ -84,38 +84,9 @@ pub trait EncodeStats {
     fn n_vars(&self) -> u32;
 }
 
-#[path = "nodedb.rs"]
-mod nodedbimpl;
+crate::utils::module_pub_if_internals!(nodedb);
 
-// Module defined inline to be able to dynamically change visibility
-// (non-inline modules in proc macro input are unstable)
-#[cfg_attr(feature = "_internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
-mod nodedb {
-    //! # Node Database Functionality For Universal Tree-Like Encodings
-    //!
-    //! Encodings with a tree-like structure where each node contains a sorted
-    //! version of its children's literals. The leaves are input literals.
-    //!
-    //! This is used as the basis for the dynamic polynomial watchdog encoding.
-    //! (Note that the DPW encoding is not technically tree-like since it might
-    //! share substructures, but close enough.)
-
-    pub use super::nodedbimpl::*;
-}
-
-#[path = "totdb/mod.rs"]
-mod totdbimpl;
-
-// Module defined inline to be able to dynamically change visibility
-// (non-inline modules in proc macro input are unstable)
-#[cfg_attr(feature = "_internals", visibility::make(pub))]
-#[cfg_attr(docsrs, doc(cfg(feature = "_internals")))]
-mod totdb {
-    //! # Totalizer Database
-    pub(crate) use super::totdbimpl::LitData;
-    pub use super::totdbimpl::*;
-}
+crate::utils::module_pub_if_internals!(totdb);
 
 /// Iterate over encoding inputs
 pub trait IterInputs {
