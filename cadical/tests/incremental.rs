@@ -1,1 +1,1 @@
-rustsat_solvertests::incremental_tests!(rustsat_cadical::CaDiCaL);
+rustsat_solvertests::integration!(incremental: rustsat_cadical::CaDiCaL);

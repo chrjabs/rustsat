@@ -298,9 +298,8 @@ impl<Cb: batsat::Callbacks> rustsat::solvers::SolveStats for Solver<Cb> {
 
 #[cfg(test)]
 mod test {
-    rustsat_solvertests::basic_unittests!(
+    rustsat_solvertests::unit!(basic-no-multithreaded:
         super::BasicSolver,
-        "BatSat [major].[minor].[patch]",
-        false
+        "BatSat [major].[minor].[patch]"
     );
 }

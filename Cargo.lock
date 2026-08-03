@@ -1459,10 +1459,7 @@ dependencies = [
 name = "rustsat-solvertests"
 version = "0.7.5"
 dependencies = [
- "proc-macro2",
- "quote",
  "rustsat",
- "syn 2.0.119",
 ]
 
 [[package]]

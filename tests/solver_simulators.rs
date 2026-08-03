@@ -2,15 +2,14 @@ mod incremental {
     mod minisat {
         use rustsat::solvers::simulators;
 
-        rustsat_solvertests::base_tests!(
+        rustsat_solvertests::integration!(base:
             simulators::Incremental<rustsat_minisat::core::Minisat>,
             false,
-            true,
-            false
+            true
         );
 
-        rustsat_solvertests::incremental_tests!(
-            simulators::Incremental<rustsat_minisat::core::Minisat>,
+        rustsat_solvertests::integration!(incremental:
+            simulators::Incremental<rustsat_minisat::core::Minisat>
         );
     }
 }

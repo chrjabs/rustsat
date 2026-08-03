@@ -2,20 +2,17 @@ mod file_file {
     use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
 
-    rustsat_solvertests::base_tests!(
+    rustsat_solvertests::integration!(base:
         {
-            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let slv = std::env::var("RS_EXT_SOLVER").expect(
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
+            let infile = tempfile::NamedTempFile::new().unwrap();
+            let outfile = tempfile::NamedTempFile::new().unwrap();
             ExternalSolver::new(
                 std::process::Command::new(slv),
-                external::InputVia::file_last(format!(
-                    "{manifest}/target/extsolver_file_file_{testid}.cnf"
-                )),
-                external::OutputVia::file(format!(
-                    "{manifest}/target/extsolver_file_file_{testid}.log"
-                )),
+                external::InputVia::file_last(infile.path()),
+                external::OutputVia::file(outfile.path()),
                 "extsolver",
             )
         },
@@ -29,17 +26,15 @@ mod file_pipe {
     use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
 
-    rustsat_solvertests::base_tests!(
+    rustsat_solvertests::integration!(base:
         {
-            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
             let slv = std::env::var("RS_EXT_SOLVER").expect(
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
+            let infile = tempfile::NamedTempFile::new().unwrap();
             ExternalSolver::new(
                 std::process::Command::new(slv),
-                external::InputVia::file_last(format!(
-                    "{manifest}/target/extsolver_file_pipe_{testid}.cnf"
-                )),
+                external::InputVia::file_last(infile.path()),
                 external::OutputVia::pipe(),
                 "extsolver",
             )
@@ -54,7 +49,7 @@ mod tempfile_pipe {
     use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
 
-    rustsat_solvertests::base_tests!(
+    rustsat_solvertests::integration!(base:
         {
             let slv = std::env::var("RS_EXT_SOLVER").expect(
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
@@ -76,7 +71,7 @@ mod pipe_pipe {
     use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
 
-    rustsat_solvertests::base_tests!(
+    rustsat_solvertests::integration!(base:
         {
             let slv = std::env::var("RS_EXT_SOLVER").expect(
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
@@ -98,18 +93,16 @@ mod pipe_file {
     use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
 
-    rustsat_solvertests::base_tests!(
+    rustsat_solvertests::integration!(base:
         {
             let slv = std::env::var("RS_EXT_SOLVER").expect(
                 "please set the `RS_EXT_SOLVER` environment variable to run tests for external solvers",
             );
-            let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+            let outfile = tempfile::NamedTempFile::new().unwrap();
             ExternalSolver::new(
                 std::process::Command::new(slv),
                 external::InputVia::pipe(),
-                external::OutputVia::file(format!(
-                    "{manifest}/target/extsolver_pipe_file_{testid}.log"
-                )),
+                external::OutputVia::file(outfile.path()),
                 "extsolver",
             )
         },
@@ -141,14 +134,14 @@ mod simulator {
         }
     }
 
-    rustsat_solvertests::base_tests!(
+    rustsat_solvertests::integration!(base:
         simulators::Incremental<ExternalSolver, Init>,
         true,
         true,
         true
     );
 
-    rustsat_solvertests::incremental_tests!(
+    rustsat_solvertests::integration!(incremental:
         simulators::Incremental<ExternalSolver, Init>,
         true,
         true,

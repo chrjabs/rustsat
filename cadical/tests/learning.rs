@@ -1,1 +1,1 @@
-rustsat_solvertests::learning_tests!(rustsat_cadical::CaDiCaL);
+rustsat_solvertests::integration!(learning: rustsat_cadical::CaDiCaL);

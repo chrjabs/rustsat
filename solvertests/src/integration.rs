@@ -1,98 +1,61 @@
-extern crate proc_macro;
-
-pub fn base(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
-    let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
-        if input.bools.len() > idx && input.bools[idx] {
-            Some(syn::parse_quote! {#[ignore]})
-        } else {
-            None
-        }
-    };
-    let mut ts = quote::quote! {
-        macro_rules! init_slv {
-            ($slv:ty) => {
-                <$slv>::default()
-            };
-            ($init:expr) => {
-                $init
-            };
-        }
-
-        macro_rules! test_inst {
-            ($init:expr, $inst:expr, $res:expr) => {{
-                let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-                let mut solver = $init;
-                let inst = rustsat::instances::SatInstance::<rustsat::instances::BasicVarManager>::from_dimacs_path(format!("{manifest}/{}", $inst))
-                    .expect("failed to parse instance");
-                rustsat::solvers::Solve::add_cnf_ref(&mut solver, inst.cnf())
-                    .expect("failed to add cnf to solver");
-                let res = rustsat::solvers::Solve::solve(&mut solver).expect("failed solving");
-                assert_eq!(res, $res);
-                if $res == rustsat::solvers::SolverResult::Sat {
-                    let sol = rustsat::solvers::Solve::solution(&solver, inst.max_var().expect("no variables in instance"))
-                        .expect("failed to get solution from solver");
-                    assert_eq!(inst.evaluate(&sol), rustsat::types::TernaryVal::True);
-                }
-            }};
-        }
-    };
-    let ignore = ignoretok(0);
-    ts.extend(quote::quote! {
+#[macro_export]
+macro_rules! integration {
+    (base: $solver:block, $ignore_small_sat:literal, $ignore_small_unsat:literal, $ignore_minisat_segfault:literal) => {
         #[test]
-        #ignore
+        #[cfg_attr($ignore_small_sat, ignore)]
         fn small_sat() {
-            let testid = "small_sat";
-            let solver = init_slv!(#slv);
-            test_inst!(solver, "data/AProVE11-12.cnf", rustsat::solvers::SolverResult::Sat);
+            $crate::test_inst!(
+                $solver,
+                "data/AProVE11-12.cnf",
+                rustsat::solvers::SolverResult::Sat
+            );
         }
-    });
-    let ignore = ignoretok(1);
-    ts.extend(quote::quote! {
-        #[test]
-        #ignore
-        fn small_unsat() {
-            let testid = "small_unsat";
-            let solver = init_slv!(#slv);
-            test_inst!(solver, "data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf", rustsat::solvers::SolverResult::Unsat);
-        }
-    });
-    let ignore = ignoretok(2);
-    ts.extend(quote::quote! {
-        #[test]
-        #ignore
-        fn minisat_segfault() {
-            let testid = "minisat_segfault";
-            let solver = init_slv!(#slv);
-            test_inst!(solver, "data/minisat-segfault.cnf", rustsat::solvers::SolverResult::Unsat);
-        }
-    });
-    ts
-}
 
-pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
-    let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
-        if input.bools.len() > idx && input.bools[idx] {
-            Some(syn::parse_quote! {#[ignore]})
-        } else {
-            None
-        }
-    };
-    let mut ts = quote::quote! {
-        macro_rules! init_slv {
-            ($slv:ty) => {
-                <$slv>::default()
-            };
-            ($init:expr) => {
-                $init
-            };
-        }
-    };
-    let ignore = ignoretok(0);
-    ts.extend(quote::quote! {
         #[test]
-        #ignore
+        #[cfg_attr($ignore_small_unsat, ignore)]
+        fn small_unsat() {
+            $crate::test_inst!(
+                $solver,
+                "data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf",
+                rustsat::solvers::SolverResult::Unsat
+            );
+        }
+
+        #[test]
+        #[cfg_attr($ignore_minisat_segfault, ignore)]
+        fn minisat_segfault() {
+            $crate::test_inst!(
+                $solver,
+                "data/minisat-segfault.cnf",
+                rustsat::solvers::SolverResult::Unsat
+            );
+        }
+    };
+    (base: $solver:block, $ignore1:literal, $ignore2:literal) => {
+        $crate::integration!(base: $solver, $ignore1, $ignore2, false);
+    };
+    (base: $solver:block, $ignore1:literal) => {
+        $crate::integration!(base: $solver, $ignore1, false, false);
+    };
+    (base: $solver:block) => {
+        $crate::integration!(base: $solver, false, false, false);
+    };
+    (base: $solver:ty, $ignore1:literal, $ignore2:literal, $ignore3:literal) => {
+        $crate::integration!(base: {<$solver>::default()}, $ignore1, $ignore2, $ignore3);
+    };
+    (base: $solver:ty, $ignore1:literal, $ignore2:literal) => {
+        $crate::integration!(base: {<$solver>::default()}, $ignore1, $ignore2, false);
+    };
+    (base: $solver:ty, $ignore1:literal) => {
+        $crate::integration!(base: {<$solver>::default()}, $ignore1, false, false);
+    };
+    (base: $solver:ty) => {
+        $crate::integration!(base: {<$solver>::default()}, false, false, false);
+    };
+
+    (incremental: $solver:block, $ignore_assumption_sequence:literal, $ignore_core_implied:literal, $ignore_assumption_empty:literal, $ignore_solution_caching:literal) => {
+        #[test]
+        #[cfg_attr($ignore_assumption_sequence, ignore)]
         fn assumption_sequence() {
             use rustsat::instances::SatInstance;
             use rustsat::lit;
@@ -100,8 +63,7 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             use rustsat::solvers::SolveIncremental;
             use rustsat::solvers::SolverResult;
 
-            let testid = "assumption_sequence";
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("data/small.cnf").unwrap();
             solver.add_cnf(inst.into_cnf().0).unwrap();
@@ -193,11 +155,9 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             assert_eq!(res, SolverResult::Unsat);
             assert!(solver.core().unwrap().len() >= 2);
         }
-    });
-    let ignore = ignoretok(1);
-    ts.extend(quote::quote! {
+
         #[test]
-        #ignore
+        #[cfg_attr($ignore_core_implied, ignore)]
         fn core_implied() {
             use rustsat::instances::SatInstance;
             use rustsat::lit;
@@ -205,8 +165,7 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             use rustsat::solvers::SolveIncremental;
             use rustsat::solvers::SolverResult;
 
-            let testid = "assumption_sequence";
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("data/small.cnf").unwrap();
             solver.add_cnf(inst.into_cnf().0).unwrap();
@@ -281,11 +240,9 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
                 .unwrap();
             assert_eq!(res, SolverResult::Unsat);
         }
-    });
-    let ignore = ignoretok(2);
-    ts.extend(quote::quote! {
+
         #[test]
-        #ignore
+        #[cfg_attr($ignore_assumption_empty, ignore)]
         fn assumption_empty() {
             use rustsat::instances::SatInstance;
             use rustsat::lit;
@@ -293,8 +250,7 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             use rustsat::solvers::SolveIncremental;
             use rustsat::solvers::SolverResult;
 
-            let testid = "assumption_empty";
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             let mut instance: SatInstance = SatInstance::new();
             let l1 = instance.new_lit();
             let l2 = instance.new_lit();
@@ -310,11 +266,9 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             let mut core = solver.core().unwrap();
             assert_eq!(core, &[]);
         }
-    });
-    let ignore = ignoretok(3);
-    ts.extend(quote::quote! {
+
         #[test]
-        #ignore
+        #[cfg_attr($ignore_solution_caching, ignore)]
         fn solution_caching() {
             use rustsat::instances::SatInstance;
             use rustsat::lit;
@@ -322,7 +276,7 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             use rustsat::solvers::SolveIncremental;
             use rustsat::solvers::SolverResult;
 
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             let res = solver.solve().unwrap();
             assert_eq!(res, SolverResult::Sat);
             solver.add_binary(lit![0], lit![1]).unwrap();
@@ -338,34 +292,38 @@ pub fn incremental(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             let res = solver.solve().unwrap();
             assert_eq!(res, SolverResult::Unsat);
         }
-    });
-
-    ts
-}
-
-pub fn learning(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
-    let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
-        if input.bools.len() > idx && input.bools[idx] {
-            Some(syn::parse_quote! {#[ignore]})
-        } else {
-            None
-        }
     };
-    let mut ts = quote::quote! {
-        macro_rules! init_slv {
-            ($slv:ty) => {
-                <$slv>::default()
-            };
-            ($init:expr) => {
-                $init
-            };
-        }
+    (incremental: $solver:block, $ignore1:literal, $ignore2:literal, $ignore3:literal) => {
+        $crate::integration!(incremental: $solver, $ignore1, $ignore2, $ignore3, false);
     };
-    let ignore = ignoretok(0);
-    ts.extend(quote::quote! {
+    (incremental: $solver:block, $ignore1:literal, $ignore2:literal) => {
+        $crate::integration!(incremental: $solver, $ignore1, $ignore2, false, false);
+    };
+    (incremental: $solver:block, $ignore1:literal) => {
+        $crate::integration!(incremental: $solver, $ignore1, false, false, false);
+    };
+    (incremental: $solver:block) => {
+        $crate::integration!(incremental: $solver, false, false, false, false);
+    };
+    (incremental: $solver:ty, $ignore1:literal, $ignore2:literal, $ignore3:literal, $ignore4:literal) => {
+        $crate::integration!(incremental: {<$solver>::default()}, $ignore1, $ignore2, $ignore3, $ignore4);
+    };
+    (incremental: $solver:ty, $ignore1:literal, $ignore2:literal, $ignore_assumption_empty:literal) => {
+        $crate::integration!(incremental: {<$solver>::default()}, $ignore1, $ignore2, $ignore3, false);
+    };
+    (incremental: $solver:ty, $ignore1:literal, $ignore2:literal) => {
+        $crate::integration!(incremental: {<$solver>::default()}, $ignore1, $ignore2, false, false);
+    };
+    (incremental: $solver:ty, $ignore1:literal) => {
+        $crate::integration!(incremental: {<$solver>::default()}, $ignore1, false, false, false);
+    };
+    (incremental: $solver:ty) => {
+        $crate::integration!(incremental: {<$solver>::default()}, false, false, false, false);
+    };
+
+    (learning: $solver:block, $ignore_learner_callback:literal) => {
         #[test]
-        #ignore
+        #[cfg_attr($ignore_learner_callback, ignore)]
         fn learner_callback() {
             use rustsat::instances::SatInstance;
             use rustsat::solvers::Learn;
@@ -374,7 +332,7 @@ pub fn learning(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
 
             let mut n_learned = 0;
             {
-                let mut solver = init_slv!(#slv);
+                let mut solver = $solver;
                 let inst: SatInstance =
                     SatInstance::from_dimacs_path("data/smtlib-qfbv-aigs-ext_con_032_008_0256-tseitin.cnf").unwrap();
                 solver.add_cnf(inst.into_cnf().0).unwrap();
@@ -384,33 +342,20 @@ pub fn learning(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             }
             assert!(n_learned > 0);
         }
-    });
-    ts
-}
+    };
+    (learning: $solver:block) => {
+        $crate::integration!(learning: $solver, false);
+    };
+    (learning: $solver:ty, $ignore1:literal) => {
+        $crate::integration!(learning: {<$solver>::default()}, $ignore1);
+    };
+    (learning: $solver:ty) => {
+        $crate::integration!(learning: {<$solver>::default()}, false);
+    };
 
-pub fn phasing(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
-    let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
-        if input.bools.len() > idx && input.bools[idx] {
-            Some(syn::parse_quote! {#[ignore]})
-        } else {
-            None
-        }
-    };
-    let mut ts = quote::quote! {
-        macro_rules! init_slv {
-            ($slv:ty) => {
-                <$slv>::default()
-            };
-            ($init:expr) => {
-                $init
-            };
-        }
-    };
-    let ignore = ignoretok(0);
-    ts.extend(quote::quote! {
+    (phasing: $solver:block, $ignore_user_phases:literal) => {
         #[test]
-        #ignore
+        #[cfg_attr($ignore_user_phases, ignore)]
         fn user_phases() {
             use rustsat::instances::SatInstance;
             use rustsat::lit;
@@ -420,8 +365,7 @@ pub fn phasing(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             use rustsat::types::TernaryVal;
             use rustsat::var;
 
-            let testid = "user_phases";
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             let inst: SatInstance =
                 SatInstance::from_dimacs_path("data/small.cnf").unwrap();
             solver.add_cnf(inst.into_cnf().0).unwrap();
@@ -439,33 +383,20 @@ pub fn phasing(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             solver.unphase_var(var![1]).unwrap();
             solver.unphase_var(var![0]).unwrap();
         }
-    });
-    ts
-}
+    };
+    (phasing: $solver:block) => {
+        $crate::integration!(phasing: $solver, false);
+    };
+    (phasing: $solver:ty, $ignore1:literal) => {
+        $crate::integration!(phasing: {<$solver>::default()}, $ignore1);
+    };
+    (phasing: $solver:ty) => {
+        $crate::integration!(phasing: {<$solver>::default()}, false);
+    };
 
-pub fn flipping(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
-    let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
-        if input.bools.len() > idx && input.bools[idx] {
-            Some(syn::parse_quote! {#[ignore]})
-        } else {
-            None
-        }
-    };
-    let mut ts = quote::quote! {
-        macro_rules! init_slv {
-            ($slv:ty) => {
-                <$slv>::default()
-            };
-            ($init:expr) => {
-                $init
-            };
-        }
-    };
-    let ignore = ignoretok(0);
-    ts.extend(quote::quote! {
+    (flipping: $solver:block, $ignore_flipping_lits:literal) => {
         #[test]
-        #ignore
+        #[cfg_attr($ignore_flipping_lits, ignore)]
         fn flipping_lits() {
             use rustsat::clause;
             use rustsat::lit;
@@ -474,7 +405,7 @@ pub fn flipping(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             use rustsat::solvers::SolveIncremental;
             use rustsat::solvers::SolverResult;
 
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             solver.add_clause(clause![lit![0]]).unwrap();
             solver.add_clause(clause![lit![1], lit![2]]).unwrap();
             assert_eq!(
@@ -487,33 +418,20 @@ pub fn flipping(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
             assert!(solver.flip_lit(!lit![1]).unwrap());
             assert!(!solver.is_flippable(!lit![2]).unwrap());
         }
-    });
-    ts
-}
+    };
+    (flipping: $solver:block) => {
+        $crate::integration!(flipping: $solver, false);
+    };
+    (flipping: $solver:ty, $ignore1:literal) => {
+        $crate::integration!(flipping: {<$solver>::default()}, $ignore1);
+    };
+    (flipping: $solver:ty) => {
+        $crate::integration!(flipping: {<$solver>::default()}, false);
+    };
 
-pub fn internal_stats(input: crate::IntegrationInput) -> proc_macro2::TokenStream {
-    let slv = input.slv;
-    let ignoretok = |idx: usize| -> Option<syn::Attribute> {
-        if input.bools.len() > idx && input.bools[idx] {
-            Some(syn::parse_quote! {#[ignore]})
-        } else {
-            None
-        }
-    };
-    let mut ts = quote::quote! {
-        macro_rules! init_slv {
-            ($slv:ty) => {
-                <$slv>::default()
-            };
-            ($init:expr) => {
-                $init
-            };
-        }
-    };
-    let ignore = ignoretok(0);
-    ts.extend(quote::quote! {
+    (internal-stats: $solver:block, $ignore_internal_stats:literal) => {
         #[test]
-        #ignore
+        #[cfg_attr($ignore_internal_stats, ignore)]
         fn internal_stats() {
             use rustsat::instances::SatInstance;
             use rustsat::solvers::GetInternalStats;
@@ -521,7 +439,7 @@ pub fn internal_stats(input: crate::IntegrationInput) -> proc_macro2::TokenStrea
             use rustsat::solvers::SolverResult;
 
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-            let mut solver = init_slv!(#slv);
+            let mut solver = $solver;
             assert_eq!(solver.propagations(), 0);
             assert_eq!(solver.decisions(), 0);
             assert_eq!(solver.conflicts(), 0);
@@ -534,6 +452,14 @@ pub fn internal_stats(input: crate::IntegrationInput) -> proc_macro2::TokenStrea
             assert!(solver.decisions() > 0);
             assert!(solver.conflicts() > 0);
         }
-    });
-    ts
+    };
+    (internal-stats: $solver:block) => {
+        $crate::integration!(internal-stats: $solver, false);
+    };
+    (internal-stats: $solver:ty, $ignore1:literal) => {
+        $crate::integration!(internal-stats: {<$solver>::default()}, $ignore1);
+    };
+    (internal-stats: $solver:ty) => {
+        $crate::integration!(internal-stats: {<$solver>::default()}, false);
+    };
 }

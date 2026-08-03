@@ -572,7 +572,7 @@ mod test {
     use super::Kissat;
     use super::Limit;
 
-    rustsat_solvertests::basic_unittests!(
+    rustsat_solvertests::unit!(basic:
         Kissat,
         "kissat-(sc2022-(light|hyper|bulky)|[major].[minor].[patch])"
     );

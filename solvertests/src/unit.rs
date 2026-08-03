@@ -1,28 +1,69 @@
-extern crate proc_macro;
+#[macro_export]
+macro_rules! unit {
+    (basic: $solver:ty, $signature:literal) => {
+        $crate::unit!(basic-no-multithreaded: $solver, $signature);
 
-pub fn basic(
-    slv: syn::Type,
-    signature: syn::LitStr,
-    multi_threaded: bool,
-) -> proc_macro2::TokenStream {
-    let mut ts = quote::quote! {
+        #[test]
+        fn tiny_instance_multithreaded_sat() {
+            use rustsat::lit;
+            use rustsat::solvers::Solve;
+            use rustsat::solvers::SolverResult;
+            use rustsat::types::TernaryVal;
+            use rustsat::var;
+
+            let mutex_solver = std::sync::Arc::new(std::sync::Mutex::new(<$solver>::default()));
+
+            {
+                // Build in one thread
+                let mut solver = mutex_solver.lock().unwrap();
+                solver.add_binary(lit![0], !lit![1]).unwrap();
+                solver.add_unit(lit![0]).unwrap();
+                solver.add_binary(lit![1], !lit![2]).unwrap();
+            }
+
+            // Now in another thread
+            let s = mutex_solver.clone();
+            let ret = std::thread::spawn(move || {
+                let mut solver = s.lock().unwrap();
+                solver.solve()
+            })
+            .join()
+            .unwrap();
+            match ret {
+                Err(e) => panic!("got error when solving: {}", e),
+                Ok(res) => assert_eq!(res, SolverResult::Sat),
+            }
+
+            // Finally, back in the main thread
+            let ret = {
+                let solver = mutex_solver.lock().unwrap();
+                solver.full_solution()
+            };
+
+            match ret {
+                Err(e) => panic!("got error when solving: {}", e),
+                Ok(res) => assert_eq!(res.var_value(var![0]), TernaryVal::True),
+            }
+        }
+    };
+    (basic-no-multithreaded: $solver:ty, $signature:literal) => {
         #[test]
         fn build_destroy() {
-            let _solver = #slv::default();
+            let _solver = <$solver>::default();
         }
 
         #[test]
         fn build_two() {
-            let _solver1 = #slv::default();
-            let _solver2 = #slv::default();
+            let _solver1 = <$solver>::default();
+            let _solver2 = <$solver>::default();
         }
 
         #[test]
         fn signature() {
             use rustsat::solvers::Solve;
 
-            let pat = #signature;
-            let sig = #slv::default().signature();
+            let pat = $signature;
+            let sig = <$solver>::default().signature();
             let mut pat_chars = pat.chars();
             let mut sig_chars = sig.chars().peekable();
             let mut alt_depth = 0;
@@ -121,7 +162,7 @@ pub fn basic(
             use rustsat::solvers::SolveStats;
             use rustsat::var;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
 
             assert_eq!(solver.n_clauses(), 0);
             assert_eq!(solver.max_var(), None);
@@ -160,7 +201,7 @@ pub fn basic(
             use rustsat::solvers::Solve;
             use rustsat::solvers::SolverResult;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
             solver.add_binary(lit![1], !lit![2]).unwrap();
             let ret = solver.solve();
@@ -177,7 +218,7 @@ pub fn basic(
             use rustsat::solvers::Solve;
             use rustsat::solvers::SolverResult;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
             solver.add_unit(!lit![0]).unwrap();
             solver.add_binary(lit![0], !lit![1]).unwrap();
             solver.add_binary(lit![1], !lit![2]).unwrap();
@@ -190,57 +231,8 @@ pub fn basic(
             assert!(solver.full_solution().is_err());
         }
     };
-    if multi_threaded {
-        ts.extend(quote::quote! {
-            #[test]
-            fn tiny_instance_multithreaded_sat() {
-                use rustsat::lit;
-                use rustsat::solvers::Solve;
-                use rustsat::solvers::SolverResult;
-                use rustsat::types::TernaryVal;
-                use rustsat::var;
 
-                let mutex_solver = std::sync::Arc::new(std::sync::Mutex::new(#slv::default()));
-
-                {
-                    // Build in one thread
-                    let mut solver = mutex_solver.lock().unwrap();
-                    solver.add_binary(lit![0], !lit![1]).unwrap();
-                    solver.add_unit(lit![0]).unwrap();
-                    solver.add_binary(lit![1], !lit![2]).unwrap();
-                }
-
-                // Now in another thread
-                let s = mutex_solver.clone();
-                let ret = std::thread::spawn(move || {
-                    let mut solver = s.lock().unwrap();
-                    solver.solve()
-                })
-                .join()
-                .unwrap();
-                match ret {
-                    Err(e) => panic!("got error when solving: {}", e),
-                    Ok(res) => assert_eq!(res, SolverResult::Sat),
-                }
-
-                // Finally, back in the main thread
-                let ret = {
-                    let solver = mutex_solver.lock().unwrap();
-                    solver.full_solution()
-                };
-
-                match ret {
-                    Err(e) => panic!("got error when solving: {}", e),
-                    Ok(res) => assert_eq!(res.var_value(var![0]), TernaryVal::True),
-                }
-            }
-        });
-    };
-    ts
-}
-
-pub fn termination(slv: syn::Type) -> proc_macro2::TokenStream {
-    quote::quote! {
+    (termination: $solver:ty) => {
         #[test]
         fn termination_callback() {
             use rustsat::lit;
@@ -249,7 +241,7 @@ pub fn termination(slv: syn::Type) -> proc_macro2::TokenStream {
             use rustsat::solvers::SolverResult;
             use rustsat::solvers::Terminate;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
             solver.add_binary(lit![1], !lit![2]).unwrap();
             solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -273,11 +265,9 @@ pub fn termination(slv: syn::Type) -> proc_macro2::TokenStream {
             // to be called, there is no guarantee that the callback is actually
             // called during solving. This might cause this test to fail with some solvers.
         }
-    }
-}
+    };
 
-pub fn learn(slv: syn::Type) -> proc_macro2::TokenStream {
-    quote::quote! {
+    (learn: $solver:ty) => {
         #[test]
         fn learner_callback() {
             use rustsat::lit;
@@ -285,7 +275,7 @@ pub fn learn(slv: syn::Type) -> proc_macro2::TokenStream {
             use rustsat::solvers::Solve;
             use rustsat::solvers::SolverResult;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
             solver.add_binary(lit![1], !lit![2]).unwrap();
             solver.add_binary(lit![2], !lit![3]).unwrap();
@@ -320,11 +310,9 @@ pub fn learn(slv: syn::Type) -> proc_macro2::TokenStream {
                 Ok(res) => assert_eq!(res, SolverResult::Unsat),
             }
         }
-    }
-}
+    };
 
-pub fn freezing(slv: syn::Type) -> proc_macro2::TokenStream {
-    quote::quote! {
+    (freezing: $solver:ty) => {
         #[test]
         fn freezing() {
             use rustsat::lit;
@@ -332,7 +320,7 @@ pub fn freezing(slv: syn::Type) -> proc_macro2::TokenStream {
             use rustsat::solvers::Solve;
             use rustsat::var;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
             solver.add_binary(lit![0], !lit![1]).unwrap();
 
             solver.freeze_var(var![0]).unwrap();
@@ -343,18 +331,16 @@ pub fn freezing(slv: syn::Type) -> proc_macro2::TokenStream {
 
             assert!(!solver.is_frozen(var![0]).unwrap());
         }
-    }
-}
+    };
 
-pub fn propagate(slv: syn::Type) -> proc_macro2::TokenStream {
-    quote::quote! {
+    (propagate: $solver:ty) => {
         #[test]
         fn propagate() {
             use rustsat::lit;
             use rustsat::solvers::Solve;
             use rustsat::solvers::Propagate;
 
-            let mut solver = #slv::default();
+            let mut solver = <$solver>::default();
             solver.add_binary(!lit![0], lit![1]).unwrap();
             solver.add_binary(!lit![1], lit![2]).unwrap();
             solver.add_binary(!lit![2], lit![3]).unwrap();
@@ -374,5 +360,5 @@ pub fn propagate(slv: syn::Type) -> proc_macro2::TokenStream {
             let res = solver.propagate(&[lit![0]], false).unwrap();
             assert!(res.conflict);
         }
-    }
+    };
 }

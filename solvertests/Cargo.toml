@@ -11,15 +11,9 @@ publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-proc-macro = true
-
 [dependencies]
 # keep-sorted start
-proc-macro2 = "1.0"
-quote = "1.0"
 rustsat.workspace = true
-syn = "2.0"
 # keep-sorted end
 
 [features]

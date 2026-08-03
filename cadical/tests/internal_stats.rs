@@ -1,1 +1,1 @@
-rustsat_solvertests::internal_stats_tests!(rustsat_cadical::CaDiCaL);
+rustsat_solvertests::integration!(internal-stats: rustsat_cadical::CaDiCaL);

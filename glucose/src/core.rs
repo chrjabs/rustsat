@@ -427,8 +427,8 @@ mod test {
 
     use super::Glucose;
 
-    rustsat_solvertests::basic_unittests!(Glucose, "Glucose [major].[minor].[patch]");
-    rustsat_solvertests::propagating_unittests!(Glucose);
+    rustsat_solvertests::unit!(basic: Glucose, "Glucose [major].[minor].[patch]");
+    rustsat_solvertests::unit!(propagate: Glucose);
 
     #[test]
     fn backend_stats() {

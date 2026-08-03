@@ -1401,11 +1401,11 @@ mod test {
 
     use super::*;
 
-    rustsat_solvertests::basic_unittests!(CaDiCaL, "cadical-[major].[minor].[patch]");
-    rustsat_solvertests::termination_unittests!(CaDiCaL);
-    rustsat_solvertests::learner_unittests!(CaDiCaL);
-    rustsat_solvertests::freezing_unittests!(CaDiCaL);
-    rustsat_solvertests::propagating_unittests!(CaDiCaL);
+    rustsat_solvertests::unit!(basic: CaDiCaL, "cadical-[major].[minor].[patch]");
+    rustsat_solvertests::unit!(termination: CaDiCaL);
+    rustsat_solvertests::unit!(learn: CaDiCaL);
+    rustsat_solvertests::unit!(freezing: CaDiCaL);
+    rustsat_solvertests::unit!(propagate: CaDiCaL);
 
     #[test]
     fn configure() {

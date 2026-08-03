@@ -427,8 +427,8 @@ mod test {
 
     use super::Minisat;
 
-    rustsat_solvertests::basic_unittests!(Minisat, "Minisat [major].[minor].[patch]");
-    rustsat_solvertests::propagating_unittests!(Minisat);
+    rustsat_solvertests::unit!(basic: Minisat, "Minisat [major].[minor].[patch]");
+    rustsat_solvertests::unit!(propagate: Minisat);
 
     #[test]
     fn backend_stats() {

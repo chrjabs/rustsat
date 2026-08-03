@@ -1,9 +1,9 @@
 mod base {
-    rustsat_solvertests::base_tests!(rustsat_cadical::CaDiCaL);
+    rustsat_solvertests::integration!(base: rustsat_cadical::CaDiCaL);
 }
 
 mod sat {
-    rustsat_solvertests::base_tests!({
+    rustsat_solvertests::integration!(base: {
         let mut slv = rustsat_cadical::CaDiCaL::default();
         slv.set_configuration(rustsat_cadical::Config::Sat).unwrap();
         slv
@@ -11,7 +11,7 @@ mod sat {
 }
 
 mod unsat {
-    rustsat_solvertests::base_tests!({
+    rustsat_solvertests::integration!(base: {
         let mut slv = rustsat_cadical::CaDiCaL::default();
         slv.set_configuration(rustsat_cadical::Config::Unsat)
             .unwrap();

@@ -1,1 +1,1 @@
-rustsat_solvertests::incremental_tests!(rustsat_batsat::BasicSolver);
+rustsat_solvertests::integration!(incremental: rustsat_batsat::BasicSolver);
