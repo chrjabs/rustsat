@@ -3,7 +3,6 @@
 //! This crate contains tools for and built on the RustSAT library.
 
 mod parsing;
-pub mod utils;
 
 pub mod encodings;
 

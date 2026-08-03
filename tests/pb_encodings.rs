@@ -19,7 +19,9 @@ use rustsat::solvers::SolverResult;
 use rustsat::types::Lit;
 use rustsat::types::RsHashMap;
 use rustsat::var;
-use rustsat_tools::test_all;
+
+mod common;
+use common::test_all;
 
 fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>() {
     // Set up instance
@@ -452,7 +454,8 @@ mod dpw_inc_prec {
     use rustsat::solvers::SolverResult;
     use rustsat::types::RsHashMap;
     use rustsat::var;
-    use rustsat_tools::test_all;
+
+    use crate::common::test_all;
 
     #[test]
     fn incremental_precision() {
@@ -679,7 +682,8 @@ mod cert {
     use rustsat::types::RsHashMap;
     use rustsat::types::Var;
     use rustsat::var;
-    use rustsat_tools::test_all;
+
+    use crate::common::test_all;
 
     fn test_inc_pb_ub<PBE: BoundUpperIncremental + Extend<(Lit, usize)> + Default>() {
         // Set up instance

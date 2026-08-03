@@ -10,7 +10,9 @@ use rustsat::solvers::SolveIncremental;
 use rustsat::solvers::SolverResult;
 use rustsat::types::Lit;
 use rustsat::var;
-use rustsat_tools::test_all;
+
+mod common;
+use common::test_all;
 
 macro_rules! gen_tests {
     ($mod:ident, $enc:ty) => {

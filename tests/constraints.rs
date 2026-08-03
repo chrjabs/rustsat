@@ -13,7 +13,7 @@ macro_rules! test_card {
         inst.add_card_constr($constr);
         let (cnf, _) = inst.into_cnf();
         println!("{:?}", cnf);
-        let mut solver = rustsat_tools::Solver::default();
+        let mut solver = rustsat_minisat::core::Minisat::default();
         solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),
@@ -32,7 +32,7 @@ macro_rules! test_pb {
         inst.add_pb_constr($constr);
         let (cnf, _) = inst.into_cnf();
         println!("{:?}", cnf);
-        let mut solver = rustsat_tools::Solver::default();
+        let mut solver = rustsat_minisat::core::Minisat::default();
         solver.add_cnf(cnf).unwrap();
         assert_eq!(
             solver.solve_assumps($sat_assump).unwrap(),

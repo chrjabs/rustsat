@@ -13,7 +13,9 @@ use rustsat::solvers::SolveIncremental;
 use rustsat::solvers::SolverResult;
 use rustsat::types::Lit;
 use rustsat::var;
-use rustsat_tools::test_all;
+
+mod common;
+use common::test_all;
 
 fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
     // Set up instance
@@ -407,7 +409,7 @@ fn test_ub_exhaustive<CE: BoundUpperIncremental + From<Vec<Lit>>>() {
 }
 
 fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
-    let mut solver = rustsat_tools::Solver::default();
+    let mut solver = rustsat_minisat::core::Minisat::default();
     let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
     let mut var_manager = BasicVarManager::default();
     var_manager.increase_next_free(var![4]);
@@ -570,7 +572,8 @@ mod cert {
     use rustsat::types::Lit;
     use rustsat::types::Var;
     use rustsat::var;
-    use rustsat_tools::test_all;
+
+    use crate::common::test_all;
 
     fn test_inc_both_card<CE: BoundBothIncremental + Extend<Lit> + Default>() {
         // Set up instance
@@ -668,7 +671,7 @@ mod cert {
     }
 
     fn test_both_exhaustive<CE: BoundBothIncremental + From<Vec<Lit>>>() {
-        let mut solver = rustsat_tools::Solver::default();
+        let mut solver = rustsat_minisat::core::Minisat::default();
         let mut enc = CE::from(vec![lit![0], lit![1], lit![2], lit![3]]);
         let mut var_manager = BasicVarManager::default();
         var_manager.increase_next_free(var![4]);

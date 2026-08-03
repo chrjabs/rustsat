@@ -4,7 +4,9 @@ use rustsat::solvers::Solve;
 use rustsat::solvers::SolveIncremental;
 use rustsat::solvers::SolverResult;
 use rustsat::types::Lit;
-use rustsat_tools::test_all;
+
+mod common;
+use common::test_all;
 
 #[test]
 fn cnf_implications() {
