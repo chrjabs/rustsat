@@ -65,6 +65,7 @@ flake-args: {
           VERIPB_CHECKER = lib.getExe pkgs.veripb;
           RS_EXT_SOLVER = lib.getExe' pkgs.cadical "cadical";
           JJ_PRE_PUSH_CHECKER = lib.getExe pkgs.prek;
+          CARGO_RDME_RUSTDOC_TOOLCHAIN = "default";
           shellHook = prevAttrs.shellHook + config.pre-commit.shellHook;
         });
       };
