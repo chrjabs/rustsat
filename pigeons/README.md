@@ -20,31 +20,31 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 
 ## Coverage of VeriPB Syntax
 
-- [x] `f`: [`Proof::new`]
-- [x] `pol`: [`Proof::operations`]
-- [x] `rup`: [`Proof::reverse_unit_prop`]
-- [x] `del`: [`Proof::delete_ids`], [`Proof::delete_id_range`], [`Proof::delete_constr`]
-- [x] `delc`: [`Proof::delete_core_ids`]
-- [x] `deld`: [`Proof::delete_derived_ids`]
-- [x] `obju`: [`Proof::update_objective`]
-- [x] `red`: [`Proof::redundant`]
-- [x] `dom`: [`Proof::dominated`]
-- [x] `core`: [`Proof::move_ids_to_core`], [`Proof::move_range_to_core`]
-- [x] `sol`: [`Proof::solution`]
-- [x] `solx`: [`Proof::exclude_solution`]
-- [x] `soli`: [`Proof::improve_solution`]
-- [x] `output`: [`Proof::output`], [`Proof::conclude`]
-- [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
-  [`Proof::update_default_conclusion`]
+- [x] `f`: [`Proof::new`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.new)
+- [x] `pol`: [`Proof::operations`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.operations)
+- [x] `rup`: [`Proof::reverse_unit_prop`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.reverse_unit_prop)
+- [x] `del`: [`Proof::delete_ids`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.delete_ids), [`Proof::delete_id_range`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.delete_id_range), [`Proof::delete_constr`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.delete_constr)
+- [x] `delc`: [`Proof::delete_core_ids`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.delete_core_ids)
+- [x] `deld`: [`Proof::delete_derived_ids`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.delete_derived_ids)
+- [x] `obju`: [`Proof::update_objective`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.update_objective)
+- [x] `red`: [`Proof::redundant`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.redundant)
+- [x] `dom`: [`Proof::dominated`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.dominated)
+- [x] `core`: [`Proof::move_ids_to_core`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.move_ids_to_core), [`Proof::move_range_to_core`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.move_range_to_core)
+- [x] `sol`: [`Proof::solution`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.solution)
+- [x] `solx`: [`Proof::exclude_solution`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.exclude_solution)
+- [x] `soli`: [`Proof::improve_solution`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.improve_solution)
+- [x] `output`: [`Proof::output`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.output), [`Proof::conclude`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.conclude)
+- [x] `conclusion`: [`Proof::conclude`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.conclude), [`Proof::new_with_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.new_with_conclusion),
+  [`Proof::update_default_conclusion`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.update_default_conclusion)
 - [x] Sub-proofs
-- [x] `e`: [`Proof::equals`]
-- [x] `ea`: [`Proof::equals_add`]
-- [x] `eobj`: [`Proof::obj_equals`]
-- [x] `i`: [`Proof::implied`]
-- [x] `ia`: [`Proof::implied_add`]
-- [x] `#`: [`Proof::set_level`]
-- [x] `w`: [`Proof::wipe_level`]
-- [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
+- [x] `e`: [`Proof::equals`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.equals)
+- [x] `ea`: [`Proof::equals_add`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.equals_add)
+- [x] `eobj`: [`Proof::obj_equals`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.obj_equals)
+- [x] `i`: [`Proof::implied`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.implied)
+- [x] `ia`: [`Proof::implied_add`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.implied_add)
+- [x] `#`: [`Proof::set_level`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.set_level)
+- [x] `w`: [`Proof::wipe_level`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.wipe_level)
+- [x] `strengthening_to_core`: [`Proof::strengthening_to_core`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.strengthening_to_core)
 - [x] `def_order`
 - [x] `load_order`
 

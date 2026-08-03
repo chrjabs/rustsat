@@ -53,6 +53,7 @@
       CARGO_PROFILE = "";
       NEXTEST_PROFILE = "ci";
       CI = "true";
+      CARGO_RDME_RUSTDOC_TOOLCHAIN = "default";
     };
 
     nextestRecordingArgs = pkgs: {
@@ -90,16 +91,19 @@
         inherit system;
         overlays = [
           inputs.nur-packages.overlays.default
-          # Pin cargo-rdme to 1.x until https://github.com/orium/cargo-rdme/issues/271 is resolved
+          # Remove once https://github.com/orium/cargo-rdme/pull/283 is merged
           (final: _: {
-            cargo-rdme = final.rustPlatform.buildRustPackage (finalAttrs: {
+            cargo-rdme = final.rustPlatform.buildRustPackage (_finalAttrs: {
               pname = "cargo-rdme";
-              version = "1.5.1";
-              src = final.fetchCrate {
-                inherit (finalAttrs) pname version;
-                hash = "sha256-d3WughXxh9cBzy33s3iB75paldZFokGGI1L9yTLGYoc=";
+              version = "2.1.1-pre";
+              src = final.fetchFromGitHub {
+                owner = "chrjabs";
+                repo = "cargo-rdme";
+                rev = "72daf387aec627a2b637bcb784ac903a1a6fac1b";
+                hash = "sha256-kD4IyeJrWJStezhvpC2mlHr2JZy0ejSWMDnn/yzz/zE=";
               };
-              cargoHash = "sha256-26Poh5lUCYi+a+/E7pOYwilKX+eqRmbRNYRFdVfRSCw=";
+              cargoHash = "sha256-MhtPaVWao90CyIjd4LQbjl7XugvGGlA6UE4A9DJ2KkU=";
+              doCheck = false;
             });
           })
         ];
