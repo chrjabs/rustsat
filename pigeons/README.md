@@ -63,5 +63,6 @@ This library is a simple abstraction layer for writing proofs checkable with Ver
 - [x] `start_time` and `end_time`: [`Proof::start_checker_timer`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.start_checker_timer) and [`Proof::end_checker_timer`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.end_checker_timer)
 - [x] `is_deleted`: [`Proof::is_deleted`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.is_deleted)
 - [x] `fail`: [`Proof::fail_checking`](https://docs.rs/pigeons/latest/pigeons/struct.Proof.html#method.fail_checking)
+- [x] Reified constraints: [`ConstraintLike::reification`](https://docs.rs/pigeons/latest/pigeons/trait.ConstraintLike.html#tymethod.reification)
 
 <!-- cargo-rdme end -->
