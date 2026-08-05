@@ -1,4 +1,21 @@
-//! # Macro Helpers
+//! # Helper Macros for Easier Use of the Crate
+
+/// Helper macro to create reified constraints with syntax looking similar to VeriPB syntax
+#[macro_export]
+macro_rules! reified {
+    ($lit:block <== $constr:expr) => {
+        $crate::ReifiedConstraint::constraint_implies_lit($constr, $crate::Axiom::from($lit))
+    };
+    ($($lit:block)+ ==> $constr:expr) => {
+        $crate::ReifiedConstraint::lits_imply_constraint([$($crate::Axiom::from($lit)),+], $constr)
+    };
+    ($($lit:block),+ ==> $constr:expr) => {
+        $crate::ReifiedConstraint::lits_imply_constraint([$($crate::Axiom::from($lit)),+], $constr)
+    };
+    (iterator: $lits:block ==> $constr:expr) => {
+        $crate::ReifiedConstraint::lits_imply_constraint($lits.into_iter().map($crate::Axiom::from), $constr)
+    };
+}
 
 macro_rules! implement {
     (forward from $wrapped:ident) => {

@@ -18,13 +18,24 @@ use pigeons::VarLike;
 
 type OpsSeq = OperationSequence<&'static str>;
 
-struct Constr<V = &'static str> {
+struct Constr<V: VarLike = &'static str> {
     terms: Vec<(isize, bool, V)>,
     rhs: isize,
 }
 
 macro_rules! c {
-    ($($coeff:literal $neg:literal $var:expr),* ; $rhs:literal) => {Constr { terms: vec![$(($coeff, $neg, $var),)*], rhs: $rhs }};
+    ($($coeff:literal $neg:literal $var:expr),* ; $rhs:literal) => {
+        Constr {
+            terms: vec![$(($coeff, $neg, $var),)*],
+            rhs: $rhs,
+        }
+    };
+    ($($rneg:literal $rvar:literal),+ ==> $($coeff:literal $neg:literal $var:expr),* ; $rhs:literal) => {
+        pigeons::reified!($({$rvar.axiom($rneg)}),+ ==> c!($($coeff $neg $var),* ; $rhs))
+    };
+    ($rneg:literal $rvar:literal <== $($coeff:literal $neg:literal $var:expr),* ; $rhs:literal) => {
+        pigeons::reified!({$rvar.axiom($rneg)} <== c!($($coeff $neg $var),* ; $rhs))
+    };
     ($opb:literal) => {Constr::parse($opb)}
 }
 
@@ -1306,6 +1317,32 @@ fn dominance_with_aux_vars() {
         format!("{manifest}/data/dominance_with_aux_vars.opb"),
         proof_file.path(),
     );
+}
+
+#[test]
+fn implication_parsing() {
+    let mut proof = new_proof(0, true);
+    proof
+        .redundant(
+            &c!(false "x1" ==> 1 false "x2", 2 false "x3" ; 3),
+            ["x1".neg_axiom().into()],
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+    proof
+        .redundant(
+            &c!(false "x1" <== 1 false "x2", 2 false "x3" ; 3),
+            ["x1".pos_axiom().into()],
+        )
+        .unwrap()
+        .finish()
+        .unwrap();
+    let proof_file = proof
+        .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
+        .unwrap();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    verify_proof(format!("{manifest}/data/empty.opb"), proof_file.path());
 }
 
 #[test]

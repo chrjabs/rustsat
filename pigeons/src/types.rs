@@ -823,6 +823,13 @@ impl<'c, C: ConstraintLike> From<&'c C> for ConstrFormatter<'c, C> {
 
 impl<C: ConstraintLike> std::fmt::Display for ConstrFormatter<'_, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.constr.reification(crate::private::Token) {
+            crate::Reification::None => Ok(()),
+            crate::Reification::LitsImplyConstraint(axioms) => {
+                write!(f, "{} {REIFY_RIGHT} ", axioms.iter().format(" "))
+            }
+            crate::Reification::ConstraintImpliesLit(axiom) => write!(f, "{axiom} {REIFY_LEFT} "),
+        }?;
         write!(
             f,
             "{} >= {}",
