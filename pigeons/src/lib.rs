@@ -1111,7 +1111,7 @@ pub trait ConstraintLike {
 pub enum Reification<'a, V: VarLike> {
     /// A simple constraint without reification
     None,
-    /// A set of literals that each imply the constraint
+    /// A set of literals that all together (as a conjunction) imply the constraint
     LitsImplyConstraint(&'a [Axiom<V>]),
     /// A literal implied by the constraint
     ConstraintImpliesLit(Axiom<V>),
