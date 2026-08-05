@@ -34,6 +34,16 @@ macro_rules! get_olit {
     };
 }
 
+macro_rules! reif {
+    ($lit:block ==> $constr:expr) => {{
+        let lit = $lit;
+        ReifiedPb::LitImplPb(lit.var().axiom(lit.is_neg()), $constr)
+    }};
+    ($lit:block <== $constr:expr) => {{
+        ReifiedPb::PbImplLit($constr, $lit)
+    }};
+}
+
 impl super::Db {
     #[expect(clippy::too_many_arguments)]
     fn define_semantics<W>(
@@ -140,12 +150,12 @@ impl super::Db {
             let olit = self[id][value];
             SemDefs::new(
                 Some(proof.redundant(
-                    &crate::encodings::atomics::pb_impl_lit(&sum, olit),
+                    &reif!({olit} <== &sum),
                     [olit.var().substitute_fixed(true)],
                     None,
                 )?),
                 Some(proof.redundant(
-                    &crate::encodings::atomics::lit_impl_pb(olit, &sum),
+                    &reif!({olit} ==> &sum),
                     [olit.var().substitute_fixed(false)],
                     None,
                 )?),
@@ -1329,6 +1339,36 @@ impl std::ops::Mul<usize> for SemDefinition {
 pub(super) enum SemDefType {
     If,
     OnlyIf,
+}
+
+enum ReifiedPb<'slf> {
+    LitImplPb(pigeons::Axiom<crate::types::Var>, &'slf PbConstraint),
+    PbImplLit(&'slf PbConstraint, Lit),
+}
+
+impl pigeons::ConstraintLike<crate::types::Var> for ReifiedPb<'_> {
+    fn rhs(&self) -> isize {
+        match self {
+            ReifiedPb::LitImplPb(_, pb) | ReifiedPb::PbImplLit(pb, _) => pb.rhs(),
+        }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+        match self {
+            ReifiedPb::LitImplPb(_, pb) | ReifiedPb::PbImplLit(pb, _) => pb.sum_iter(),
+        }
+    }
+
+    fn reification(&self) -> pigeons::Reification<'_, crate::types::Var> {
+        match self {
+            ReifiedPb::LitImplPb(lit, _) => {
+                pigeons::Reification::LitsImplyConstraint(std::slice::from_ref(lit))
+            }
+            ReifiedPb::PbImplLit(_, lit) => {
+                pigeons::Reification::ConstraintImpliesLit(lit.var().axiom(lit.is_neg()))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
