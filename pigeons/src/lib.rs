@@ -57,6 +57,7 @@
 //! - [x] `start_time` and `end_time`: [`Proof::start_checker_timer`] and [`Proof::end_checker_timer`]
 //! - [x] `is_deleted`: [`Proof::is_deleted`]
 //! - [x] `fail`: [`Proof::fail`]
+//! - [x] Reified constraints: [`ConstraintLike::reification`]
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -1094,6 +1095,91 @@ pub trait ConstraintLike {
 
     /// Gets an iterator over the coefficient literal pairs in the constraint
     fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)>;
+
+    /// The potential reification of the constraint
+    ///
+    /// This method is sealed to only be allowed to be overridden in this crate. For downstream
+    /// users, use the [`ReifiedConstraint`] type
+    fn reification(&self, _: private::Token) -> Reification<'_, Self::Var> {
+        Reification::None
+    }
+}
+
+/// Potential reification of a constraint
+#[derive(Debug, Copy, Clone)]
+pub enum Reification<'a, V: VarLike> {
+    /// A simple constraint without reification
+    None,
+    /// A set of literals that each imply the constraint
+    LitsImplyConstraint(&'a [Axiom<V>]),
+    /// A literal implied by the constraint
+    ConstraintImpliesLit(Axiom<V>),
+}
+
+mod private {
+    /// Private type for partially sealing traits
+    // https://predr.ag/blog/definitive-guide-to-sealed-traits-in-rust/#partially-sealed-traits
+    #[derive(Debug)]
+    pub struct Token;
+}
+
+/// Helper type to easily create reified constraints
+#[derive(Debug, Clone)]
+pub struct ReifiedConstraint<C: ConstraintLike> {
+    constr: C,
+    reification: ReificationData<C::Var>,
+}
+
+impl<C> ReifiedConstraint<C>
+where
+    C: ConstraintLike,
+{
+    /// Creates a new reified (`l1 l2 ==> Constr`) constraint
+    pub fn lits_imply_constraint<I>(lits: I, constr: C) -> Self
+    where
+        I: IntoIterator<Item = Axiom<C::Var>>,
+    {
+        Self {
+            constr,
+            reification: ReificationData::LitsImplyConstraint(lits.into_iter().collect()),
+        }
+    }
+
+    /// Creates a new reified (`l <== Constr`) constraint
+    pub fn constraint_implies_lit(constr: C, lit: Axiom<C::Var>) -> Self {
+        Self {
+            constr,
+            reification: ReificationData::ConstraintImpliesLit(lit),
+        }
+    }
+}
+
+impl<C> ConstraintLike for ReifiedConstraint<C>
+where
+    C: ConstraintLike,
+{
+    type Var = C::Var;
+
+    fn rhs(&self) -> isize {
+        self.constr.rhs()
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)> {
+        self.constr.sum_iter()
+    }
+
+    fn reification(&self, _: private::Token) -> Reification<'_, Self::Var> {
+        match &self.reification {
+            ReificationData::LitsImplyConstraint(lits) => Reification::LitsImplyConstraint(lits),
+            ReificationData::ConstraintImpliesLit(lit) => Reification::ConstraintImpliesLit(*lit),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ReificationData<V: VarLike> {
+    LitsImplyConstraint(Vec<Axiom<V>>),
+    ConstraintImpliesLit(Axiom<V>),
 }
 
 /// Trait that needs to be implemented for types used as objectives
@@ -1245,6 +1331,24 @@ end pseudo-Boolean proof;
                 [super::ConstraintId::last(1), super::ConstraintId::abs(42)],
             )
             .unwrap();
+        proof
+            .reverse_unit_prop(
+                &crate::reified!({"x42".pos_axiom()}, {"x12".neg_axiom()} ==> Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                }),
+                None,
+            )
+            .unwrap();
+        proof
+            .reverse_unit_prop(
+                &crate::reified!({"x42".neg_axiom()} <== Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                }),
+                None,
+            )
+            .unwrap();
         drop(proof);
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
@@ -1254,6 +1358,8 @@ end pseudo-Boolean proof;
 f 0;
 {RUP} 3 x1 -42 ~x2 >= 2;
 {RUP} 5 x3 -12 ~x4 >= 3 : -1 42;
+{RUP} x42 ~x12 ==> 5 x3 -12 ~x4 >= 3;
+{RUP} ~x42 <== 5 x3 -12 ~x4 >= 3;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;

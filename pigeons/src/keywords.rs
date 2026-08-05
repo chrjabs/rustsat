@@ -28,6 +28,8 @@ keyword!(GOAL_ID, "#");
 keyword!(MAP_TO, "->");
 keyword!(OFF, "off");
 keyword!(ON, "on");
+keyword!(REIFY_LEFT, "<==");
+keyword!(REIFY_RIGHT, "==>");
 keyword!(RULE_TERM, ";");
 keyword!(SEP_A, ":");
 keyword!(SEP_B, ":");
