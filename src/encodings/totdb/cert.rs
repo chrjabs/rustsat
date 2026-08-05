@@ -140,13 +140,13 @@ impl super::Db {
             let olit = self[id][value];
             let if_def = proof
                 .redundant(
-                    &crate::encodings::atomics::pb_impl_lit(&sum, olit),
+                    &pigeons::reified!({olit} <== &sum),
                     [olit.var().substitute_fixed(true)],
                 )?
                 .finish()?;
             let only_if_def = proof
                 .redundant(
-                    &crate::encodings::atomics::lit_impl_pb(olit, &sum),
+                    &pigeons::reified!({olit} ==> &sum),
                     [olit.var().substitute_fixed(false)],
                 )?
                 .finish()?;
