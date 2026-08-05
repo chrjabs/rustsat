@@ -59,6 +59,7 @@
 //! - [x] `start_time` and `end_time`: [`Proof::start_checker_timer`] and [`Proof::end_checker_timer`]
 //! - [x] `is_deleted`: [`Proof::is_deleted`]
 //! - [x] `fail`: [`Proof::fail`]
+//! - [x] Reified constraints: [`ConstraintLike::reification`]
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -1306,6 +1307,24 @@ pub trait ConstraintLike<V: VarLike> {
 
     /// Gets an iterator over the coefficient literal pairs in the constraint
     fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
+
+    /// The potential reification of the constraint
+    #[cfg(not(feature = "version2"))]
+    fn reification(&self) -> Reification<'_, V> {
+        Reification::None
+    }
+}
+
+/// Potential reification of a constraint
+#[cfg(not(feature = "version2"))]
+#[derive(Debug, Copy, Clone)]
+pub enum Reification<'a, V: VarLike> {
+    /// A simple constraint without reification
+    None,
+    /// A set of literals that each imply the constraint
+    LitsImplyConstraint(&'a [Axiom<V>]),
+    /// A literal implied by the constraint
+    ConstraintImpliesLit(Axiom<V>),
 }
 
 /// Trait that needs to be implemented for types used as objectives
@@ -1447,6 +1466,15 @@ end pseudo-Boolean proof;
     struct Constr {
         terms: Vec<(isize, bool, &'static str)>,
         rhs: isize,
+        #[cfg(not(feature = "version2"))]
+        reification: Reification,
+    }
+
+    #[cfg(not(feature = "version2"))]
+    enum Reification {
+        None,
+        Right(Vec<crate::Axiom<&'static str>>),
+        Left(bool, &'static str),
     }
 
     impl<'slf> super::ConstraintLike<&'slf str> for Constr {
@@ -1458,6 +1486,17 @@ end pseudo-Boolean proof;
             self.terms
                 .iter()
                 .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))
+        }
+
+        #[cfg(not(feature = "version2"))]
+        fn reification(&self) -> crate::Reification<'_, &'slf str> {
+            match &self.reification {
+                Reification::None => crate::Reification::None,
+                Reification::Right(items) => crate::Reification::LitsImplyConstraint(items),
+                Reification::Left(neg, v) => {
+                    crate::Reification::ConstraintImpliesLit(v.axiom(*neg))
+                }
+            }
         }
     }
 
@@ -1472,6 +1511,8 @@ end pseudo-Boolean proof;
                 &Constr {
                     terms: vec![(3, false, "x1"), (-42, true, "x2")],
                     rhs: 2,
+                    #[cfg(not(feature = "version2"))]
+                    reification: Reification::None,
                 },
                 None,
             )
@@ -1481,8 +1522,32 @@ end pseudo-Boolean proof;
                 &Constr {
                     terms: vec![(5, false, "x3"), (-12, true, "x4")],
                     rhs: 3,
+                    #[cfg(not(feature = "version2"))]
+                    reification: Reification::None,
                 },
                 [super::ConstraintId::last(1), super::ConstraintId::abs(42)],
+            )
+            .unwrap();
+        #[cfg(not(feature = "version2"))]
+        proof
+            .reverse_unit_prop(
+                &Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                    reification: Reification::Right(vec!["x42".pos_axiom(), "x12".neg_axiom()]),
+                },
+                None,
+            )
+            .unwrap();
+        #[cfg(not(feature = "version2"))]
+        proof
+            .reverse_unit_prop(
+                &Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                    reification: Reification::Left(true, "x42"),
+                },
+                None,
             )
             .unwrap();
         drop(proof);
@@ -1509,6 +1574,8 @@ end pseudo-Boolean proof
 f 0;
 {RUP} 3 x1 -42 ~x2 >= 2 ;
 {RUP} 5 x3 -12 ~x4 >= 3 : -1 42;
+{RUP} x42 ~x12 ==> 5 x3 -12 ~x4 >= 3 ;
+{RUP} ~x42 <== 5 x3 -12 ~x4 >= 3 ;
 output NONE;
 conclusion NONE;
 end pseudo-Boolean proof;

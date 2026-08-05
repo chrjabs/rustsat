@@ -1473,6 +1473,14 @@ impl<'c, V: VarLike, C: ConstraintLike<V>> From<&'c C> for ConstrFormatter<'c, V
 
 impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ConstrFormatter<'_, V, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[cfg(not(feature = "version2"))]
+        match self.constr.reification() {
+            crate::Reification::None => Ok(()),
+            crate::Reification::LitsImplyConstraint(axioms) => {
+                write!(f, "{} {REIFY_RIGHT} ", axioms.iter().format(" "))
+            }
+            crate::Reification::ConstraintImpliesLit(axiom) => write!(f, "{axiom} {REIFY_LEFT} "),
+        }?;
         write!(
             f,
             "{} >= {}",

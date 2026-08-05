@@ -53,6 +53,10 @@ keyword!(SEP_AS_TERM, v2 = ";", v3 = "");
 keyword!(SEP_B, ":");
 keyword!(TRUE, "1");
 // keep-sorted end
+#[cfg(not(feature = "version2"))]
+keyword!(REIFY_LEFT, "<==");
+#[cfg(not(feature = "version2"))]
+keyword!(REIFY_RIGHT, "==>");
 
 // Rules
 // keep-sorted start
