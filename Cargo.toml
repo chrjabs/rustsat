@@ -57,7 +57,7 @@ serde_json = "1.0.151"
 signal-hook = "0.4.4"
 tempfile = "3.27.0"
 termcolor = "1.4.1"
-thiserror = "2.0.19"
+thiserror = "2.0.20"
 visibility = "0.1.1"
 web-time = "1.1.0"
 winnow = { version = "1.0.4", default-features = false, features = [
