@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.7.6 - 2026-08-08
+
+[457d6d7](457d6d7bf27998947edc45fa2200d6a5fef6c389)...[a139089](a1390895d5db5a72f1744bab934f90ad651af249)
+
+### <!-- 1 -->Bug Fixes
+
+- Update patch updates (#606) ([140802d](140802d5f982460a381b09acff12d9f83f3dab9f)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+
+### <!-- 5 -->Refactor
+
+- Switch to `mod.rs` for root modules ([257bfb6](257bfb6c2490c1f1347e6cb2521bcca3376f41b4))
+
+### <!-- 8 -->Miscellaneous Tasks
+
+- Convert `allow` to `expect` for lints (#596) ([69b046d](69b046d090c4c51407278848a9f3de2926c6ed3c))
+- Use clang ASan in tests instead of valgrind ([169aded](169aded5fcbde61d3ede83b4645f6b622035ed5f))
+- Use fewer and individual `use` statements ([4b63725](4b637252834f3beb1f9b761d7b2806cf7e801864))
+- Update version in header ([a139089](a1390895d5db5a72f1744bab934f90ad651af249))
+
 ## rustsat-v0.7.5 - 2026-01-30
 
 [1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[9ae341d](9ae341d26bcfba2bd78869bcb31c27ccdfc44889)
