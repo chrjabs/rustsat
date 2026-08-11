@@ -445,9 +445,6 @@ impl super::cert::BoundUpper for Totalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::OperationLike;
-        use pigeons::OperationSequence;
-
         use crate::types::Var;
 
         // TODO: properly take care of constraints where no structure is built
@@ -463,7 +460,7 @@ impl super::cert::BoundUpper for Totalizer {
             .output_proof_details(ub + 1)
             .expect("encoded just before, so should be fine");
         let unit_id = proof.operations(
-            &(OperationSequence::<Var>::from(id) + sem_defs.only_if_def.unwrap()).saturate(),
+            &pigeons::derivation!(vartype Var: (id + {sem_defs.only_if_def.unwrap()}) s),
         )?;
         let unit_cl = crate::clause![!olit];
         #[cfg(feature = "verbose-proofs")]
@@ -550,9 +547,6 @@ impl super::cert::BoundLower for Totalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::OperationLike;
-        use pigeons::OperationSequence;
-
         use crate::types::Var;
 
         // TODO: properly take care of constraints where no structure is built
@@ -567,9 +561,8 @@ impl super::cert::BoundLower for Totalizer {
         let (olit, sem_defs) = enc
             .output_proof_details(lb)
             .expect("encoded right before, so should be fine");
-        let unit_id = proof.operations(
-            &(OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate(),
-        )?;
+        let unit_id = proof
+            .operations(&pigeons::derivation!(vartype Var: (id + {sem_defs.if_def.unwrap()}) s))?;
         let unit_cl = crate::clause![olit];
         #[cfg(feature = "verbose-proofs")]
         proof.equals(&unit_cl, Some(unit_id.into()))?;
@@ -658,9 +651,6 @@ impl super::cert::BoundBoth for Totalizer {
         W: std::io::Write,
         Self: FromIterator<Lit> + Sized,
     {
-        use pigeons::OperationLike;
-        use pigeons::OperationSequence;
-
         use crate::types::Var;
 
         // TODO: properly take care of constraints where no structure is built
@@ -677,7 +667,7 @@ impl super::cert::BoundBoth for Totalizer {
             .output_proof_details(b + 1)
             .expect("encoded just before, so should be fine");
         let unit_id = proof.operations(
-            &(OperationSequence::<Var>::from(id + 1) + sem_defs.only_if_def.unwrap()).saturate(),
+            &pigeons::derivation!(vartype Var: ({id + 1} + {sem_defs.only_if_def.unwrap()}) s),
         )?;
         let unit_cl = crate::clause![!olit];
         #[cfg(feature = "verbose-proofs")]
@@ -687,9 +677,8 @@ impl super::cert::BoundBoth for Totalizer {
         let (olit, sem_defs) = enc
             .output_proof_details(b)
             .expect("encoded just before, so should be fine");
-        let unit_id = proof.operations(
-            &((OperationSequence::<Var>::from(id) + sem_defs.if_def.unwrap()).saturate()),
-        )?;
+        let unit_id = proof
+            .operations(&pigeons::derivation!(vartype Var: (id + {sem_defs.if_def.unwrap()}) s))?;
         let unit_cl = crate::clause![olit];
         #[cfg(feature = "verbose-proofs")]
         proof.equals(&unit_cl, Some(unit_id.into()))?;
