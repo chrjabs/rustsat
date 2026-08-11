@@ -2,21 +2,19 @@
 
 use std::io::BufRead;
 
+use pigeons::derivation;
 use pigeons::Conclusion;
 use pigeons::ConstraintId as Id;
 use pigeons::ConstraintLike;
 use pigeons::ObjectiveLike;
 use pigeons::ObjectiveUpdate;
-use pigeons::OperationLike;
-use pigeons::OperationSequence;
+use pigeons::OrderVar;
 use pigeons::OutputGuarantee;
 use pigeons::OutputType;
 use pigeons::Proof;
 use pigeons::ProofGoalId;
 use pigeons::Substitution;
 use pigeons::VarLike;
-
-type OpsSeq = OperationSequence<&'static str>;
 
 struct Constr<V: VarLike = &'static str> {
     terms: Vec<(isize, bool, V)>,
@@ -179,20 +177,17 @@ fn new_proof(num_constraints: usize, optimization: bool) -> Proof<tempfile::Name
 #[test]
 fn all_diff() {
     let mut proof = new_proof(15, false);
-    let new1 = proof
-        .operations(&(OpsSeq::from(Id::abs(3)) + Id::abs(4) + Id::abs(5)))
-        .unwrap();
+    let new1 = proof.operations(&derivation!([3] + [4] + [5])).unwrap();
     let new2 = proof
-        .operations(
-            &(OpsSeq::from(Id::abs(14))
-                + Id::abs(15)
-                + "y_x1_8".pos_axiom()
-                + "y_x2_8".pos_axiom()
-                + "y_x1_9".pos_axiom()
-                + "y_x2_9".pos_axiom()),
-        )
+        .operations(&derivation!(
+            [14] + [15]
+                + { "y_x1_8".pos_axiom() }
+                + { "y_x2_8".pos_axiom() }
+                + { "y_x1_9".pos_axiom() }
+                + { "y_x2_9".pos_axiom() }
+        ))
         .unwrap();
-    let contrad = proof.operations(&(OpsSeq::from(new1) + new2)).unwrap();
+    let contrad = proof.operations(&derivation!(new1 + new2)).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
             &OutputGuarantee::None,
@@ -292,17 +287,10 @@ fn g3_g5() {
         .unwrap();
     proof.set_level(1).unwrap();
     let sum = proof
-        .operations(
-            &[c, d, e, f, g, h, i, j, k, l]
-                .into_iter()
-                .fold(OpsSeq::from(b), |seq, id| seq + id)
-                .saturate(),
-        )
+        .operations(&derivation!((b + c + d + e + f + g + h + i + j + k + l) s))
         .unwrap();
     proof.implied_add(&c!("1 ~x0_0 1 x1_0 1 x1_1 1 x1_2 1 x1_3 1 x1_4 1 x1_5 1 x1_6 1 x1_7 1 x1_8 1 x1_9 1 x1_10 >= 1"), Some(Id::from(sum))).unwrap();
-    let sum2 = proof
-        .operations(&(OpsSeq::from(sum) + a).saturate())
-        .unwrap();
+    let sum2 = proof.operations(&derivation!((sum + a) s)).unwrap();
     let implied = proof
         .implied_add(
             &c!("1 ~x0_0 1 x1_1 1 x1_2 1 x1_3 1 x1_4 1 x1_5 1 x1_6 1 x1_7 1 x1_8 1 x1_9 1 x1_10 >= 1"),
@@ -328,9 +316,7 @@ fn g3_g5() {
 fn strengthening_to_core() {
     let mut proof = new_proof(4, false);
     proof.strengthening_to_core(true).unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1))
-        .unwrap();
+    proof.operations(&derivation!([3] * 1 + [4] * 1)).unwrap();
     proof
         .redundant(&c!("1 x3 >= 1"), ["x3".substitute_fixed(true)])
         .unwrap();
@@ -352,7 +338,7 @@ fn strengthening_to_core_proof_by_contradiction() {
         .proof_by_contradiction(&c!("1 ~x3 2 x4 2 x5 2 x6 >= 4"))
         .unwrap();
     subproof
-        .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1 + Id::last(1)))
+        .operations(&derivation!([3] * 1 + [4] * 1 + [-1]))
         .unwrap();
     subproof.finish().unwrap();
     let proof_file = proof
@@ -368,13 +354,9 @@ fn strengthening_to_core_proof_by_contradiction() {
 #[test]
 fn subproof() {
     let mut proof = new_proof(7, false);
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)).saturate()))
-        .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(8)) + Id::abs(2) + Id::abs(3)))
-        .unwrap();
-    proof.operations(&(OpsSeq::from(Id::abs(9)) / 2)).unwrap();
+    proof.operations(&derivation!([1] s)).unwrap();
+    proof.operations(&derivation!([8] + [2] + [3])).unwrap();
+    proof.operations(&derivation!([9] d 2)).unwrap();
     let mut subproof = proof
         .redundant(
             &c!("1 x1 >= 1"),
@@ -390,19 +372,15 @@ fn subproof() {
         .unwrap();
     let mut subsubproof = subproof.proof_goal(ProofGoalId::specific(1)).unwrap();
     subsubproof
-        .operations(&(OpsSeq::from(Id::last(1)) + Id::last(2) + Id::abs(5) + Id::abs(6)))
+        .operations(&derivation!([-1] + [-2] + [5] + [6]))
         .unwrap();
+    subsubproof.operations(&derivation!([-1] + [4])).unwrap();
     subsubproof
-        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(4)))
-        .unwrap();
-    subsubproof
-        .operations(&(OpsSeq::from(Id::last(1)) + "x6".pos_axiom()))
+        .operations(&derivation!([-1] + { "x6".pos_axiom() }))
         .unwrap();
     subsubproof.finish().unwrap();
     let mut subsubproof = subproof.proof_goal(ProofGoalId::from(Id::abs(1))).unwrap();
-    subsubproof
-        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(2)))
-        .unwrap();
+    subsubproof.operations(&derivation!([-1] + [2])).unwrap();
     subsubproof.finish().unwrap();
     subproof.finish().unwrap();
     let id = proof.reverse_unit_prop(&c!(">= 1"), None).unwrap();
@@ -427,27 +405,23 @@ fn miniproof_polishnotation_1() {
     )
     .expect("failed to start proof");
     proof
-        .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1).saturate())
+        .operations(&derivation!(([3] * 1 + [4] * 1) s))
         .unwrap();
     proof
         .equals(&c!("1 x1 +1 x3 >= 1"), Some(proof.first_proof_id().into()))
         .unwrap();
     let next_id = proof.next_id();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(6)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2] + [6])).unwrap();
     proof
         .equals(&c!("+2 x1 +2 x2 +2 x3 >= 3"), Some(next_id.into()))
         .unwrap();
     proof
-        .operations(&((OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(6)) / 2))
+        .operations(&derivation!(([1] + [2] + [6]) d 2))
         .unwrap();
     proof
         .equals(&c!("1 x1 1 x2 1 x3 >= 2"), Some(Id::abs(8)))
         .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(5)) * 2 + OpsSeq::from(Id::abs(8)) * 2))
-        .unwrap();
+    proof.operations(&derivation!([5] * 2 + [8] * 2)).unwrap();
     proof.equals(&c!(">= 2"), Some(Id::abs(9))).unwrap();
     drop(proof);
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -493,7 +467,7 @@ fn optimization_2() {
         .obj_equals(&[(-2, "x1"), (-2, "x2"), (-2, "x3")])
         .unwrap();
     proof
-        .operations(&((OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(3)) / 2))
+        .operations(&derivation!(([1] + [2] + [3]) d 2))
         .unwrap();
     proof
         .improve_solution(["x1".pos_axiom(), "x2".neg_axiom(), "x3".neg_axiom()])
@@ -501,9 +475,7 @@ fn optimization_2() {
     proof
         .equals(&c!("-2 ~x1 -2 ~x2 -2 ~x3 >= -3"), Some(Id::abs(5)))
         .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(4)) * 2 + Id::abs(5)))
-        .unwrap();
+    proof.operations(&derivation!([4] * 2 + [5])).unwrap();
     proof
         .reverse_unit_prop(&c!("2 ~x3 2 ~x2 2 ~x1 >= 4"), None)
         .unwrap();
@@ -640,24 +612,16 @@ fn deletion_multiple_core() {
 fn deletion_find() {
     let mut proof = new_proof(2, false);
     let constr = c!("2 x1 2 x2 2 ~x3 >= 3");
-    let last = proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    let last = proof.operations(&derivation!([1] + [2])).unwrap();
     proof.equals(&constr, Some(last.into())).unwrap();
     proof.delete_ids([last.into()]).unwrap().finish().unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
-    let last = proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    let last = proof.operations(&derivation!([1] + [2])).unwrap();
     proof.equals(&constr, Some(last.into())).unwrap();
     proof.delete_constr(&constr).unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
-    let a = proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
-    let b = proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    let a = proof.operations(&derivation!([1] + [2])).unwrap();
+    let b = proof.operations(&derivation!([1] + [2])).unwrap();
     proof.delete_constr(&constr).unwrap();
     proof.equals(&constr, Some(Id::last(1))).unwrap();
     proof.equals(&constr, Some(Id::last(2))).unwrap();
@@ -667,31 +631,19 @@ fn deletion_find() {
         .finish()
         .unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
     proof.delete_constr(&constr).unwrap();
     proof.equals(&constr, Some(Id::last(1))).unwrap();
     proof.equals(&constr, Some(Id::last(2))).unwrap();
     proof.delete_constr(&constr).unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
     proof.delete_constr(&constr).unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
     proof.delete_constr(&constr).unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
     proof.equals(&constr, Some(Id::last(1))).unwrap();
     proof.equals(&constr, Some(Id::last(2))).unwrap();
     proof.equals(&constr, Some(Id::last(3))).unwrap();
@@ -713,7 +665,7 @@ fn deletion_find() {
 fn objective_update_diff() {
     let mut proof = new_proof(3, true);
     proof
-        .operations(&((OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(3)) / 2))
+        .operations(&derivation!(([1] + [2] + [3]) d 2))
         .unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     proof
@@ -730,9 +682,7 @@ fn objective_update_diff() {
         .finish()
         .unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
-    proof
-        .operations(&((OpsSeq::from(Id::abs(4)) * 2 + Id::abs(5)) / 3))
-        .unwrap();
+    proof.operations(&derivation!(([4] * 2 + [5]) d 3)).unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     // obju diff 1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2 ;
     proof
@@ -769,7 +719,7 @@ fn objective_update_diff() {
 fn objective_update() {
     let mut proof = new_proof(3, true);
     proof
-        .operations(&((OpsSeq::from(Id::abs(1)) + Id::abs(2) + Id::abs(3)) / 2))
+        .operations(&derivation!(([1] + [2] + [3]) d 2))
         .unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     proof
@@ -786,9 +736,7 @@ fn objective_update() {
         .finish()
         .unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
-    proof
-        .operations(&((OpsSeq::from(Id::abs(4)) * 2 + Id::abs(5)) / 3))
-        .unwrap();
+    proof.operations(&derivation!(([4] * 2 + [5]) d 3)).unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     // obju diff 1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2 ;
     proof
@@ -832,15 +780,13 @@ fn dominance_simple_order() {
     let mut order = order.transitivity_proof().unwrap();
     let mut goal = order.proof_goal(goal).unwrap();
     let negated_constraint = goal.negated_constraint_id();
-    goal.operations(&(OpsSeq::from(Id::last(2)) + Id::last(3) + negated_constraint))
+    goal.operations(&derivation!(vartype OrderVar<&str>: [-2] + [-3] + negated_constraint))
         .unwrap();
     goal.finish().unwrap();
     let order = order.finish().unwrap();
     proof.load_order(&order, ["x1"]).unwrap();
 
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
     proof
         .redundant(&c!("1 a3 1 x1 >= 1"), ["a3".pos_axiom().into()])
         .unwrap()
@@ -858,9 +804,7 @@ fn dominance_simple_order() {
         .finish()
         .unwrap();
     proof.unload_order().unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
-        .unwrap();
+    proof.operations(&derivation!([1] + [2])).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
@@ -876,7 +820,7 @@ fn delete_core_subproof_proofgoal() {
     let mut proof = new_proof(3, false);
     let mut subproof = proof.delete_ids([Id::abs(2)]).unwrap();
     subproof
-        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(1) + OpsSeq::from(Id::abs(3)) * 2))
+        .operations(&derivation!([1] + [1] + [3] * 2))
         .unwrap();
     subproof.finish().unwrap();
     proof.is_deleted(&c!("1 x1 1 x2 2 ~x3 >= 2")).unwrap();
@@ -894,23 +838,15 @@ fn delete_core_subproof_proofgoal() {
 #[test]
 fn variable_form_division() {
     let mut proof = new_proof(4, false);
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)).variable_form_division(3)))
-        .unwrap();
+    proof.operations(&derivation!([1] c 3)).unwrap();
     proof
         .equals(&c!("-1 x3 -1 x4 >= -1"), Some(Id::last(1)))
         .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(3)).variable_form_division(2)))
-        .unwrap();
+    proof.operations(&derivation!([3] c 2)).unwrap();
     proof.equals(&c!(">= -1"), Some(Id::last(1))).unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(4)).variable_form_division(2)))
-        .unwrap();
+    proof.operations(&derivation!([4] c 2)).unwrap();
     proof.equals(&c!(">= 0"), Some(Id::last(1))).unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(2)) + Id::abs(5)))
-        .unwrap();
+    proof.operations(&derivation!([2] + [5])).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(
             &OutputGuarantee::None,
@@ -927,24 +863,16 @@ fn variable_form_division() {
 #[test]
 fn normalized_mir_cut() {
     let mut proof = new_proof(4, false);
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)).normalized_form_mir_cut(3)))
-        .unwrap();
+    proof.operations(&derivation!([1] n 3)).unwrap();
     proof
         .equals(&c!("1 ~x1 2 x2 2 ~x3 3 x4 >= 4"), Some(Id::last(1)))
         .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(2)) + Id::last(1)))
-        .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(3)).normalized_form_mir_cut(2)))
-        .unwrap();
+    proof.operations(&derivation!([2] + [-1])).unwrap();
+    proof.operations(&derivation!([3] n 2)).unwrap();
     proof
         .equals(&c!("1 ~x1 1 x2 1 x3 >= 1"), Some(Id::last(1)))
         .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(4)).normalized_form_mir_cut(2)))
-        .unwrap();
+    proof.operations(&derivation!([4] n 2)).unwrap();
     proof
         .equals(&c!("1 ~x1 1 x2 1 x3 1 x5 >= 2"), Some(Id::last(1)))
         .unwrap();
@@ -961,22 +889,14 @@ fn normalized_mir_cut() {
 #[test]
 fn variable_form_mir_cut() {
     let mut proof = new_proof(4, false);
-    proof
-        .operations(&(OpsSeq::from(Id::abs(1)).variable_form_mir_cut(3)))
-        .unwrap();
+    proof.operations(&derivation!([1] m 3)).unwrap();
     proof
         .equals(&c!("1 x1 -1 x2 -2 x3 3 x4 >= 2"), Some(Id::last(1)))
         .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(2)) + Id::last(1)))
-        .unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(3)).variable_form_mir_cut(2)))
-        .unwrap();
+    proof.operations(&derivation!([2] + [-1])).unwrap();
+    proof.operations(&derivation!([3] m 2)).unwrap();
     proof.equals(&c!("1 x3 >= 0"), Some(Id::last(1))).unwrap();
-    proof
-        .operations(&(OpsSeq::from(Id::abs(4)).variable_form_mir_cut(2)))
-        .unwrap();
+    proof.operations(&derivation!([4] m 2)).unwrap();
     proof
         .equals(&c!("1 x2 1 x5 >= 1"), Some(Id::last(1)))
         .unwrap();
@@ -993,11 +913,11 @@ fn variable_form_mir_cut() {
 #[test]
 fn lower_rhs() {
     let mut proof = new_proof(1, false);
-    proof.operations(&(OpsSeq::from(Id::abs(1)) - 5)).unwrap();
+    proof.operations(&derivation!([1] - 5)).unwrap();
     proof
         .equals(&c!("1 x1 3 x2 5 x3 >= 3"), Some(Id::last(1)))
         .unwrap();
-    proof.operations(&(OpsSeq::from(Id::abs(2)) - 5)).unwrap();
+    proof.operations(&derivation!([2] - 5)).unwrap();
     proof
         .equals(&c!("1 x1 3 x2 5 x3 >= -2"), Some(Id::last(1)))
         .unwrap();
@@ -1122,57 +1042,49 @@ fn dominance_with_aux_vars() {
 
     let mut trans_proof = def.transitivity_proof().unwrap();
     let mut tp_goal = trans_proof.proof_goal(pid).unwrap();
-    tp_goal
-        .operations(&(OpsSeq::from(Id::abs(55)) * 4 + Id::abs(17)))
-        .unwrap();
+    tp_goal.operations(&derivation!([55] * 4 + [17])).unwrap();
 
     for idx in 0..3 {
         let d = d_s[3 - idx].aux();
         tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
         tp_goal
-            .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+            .operations(&derivation!(vartype OrderVar<&str>: [-2] w d))
             .unwrap();
         tp_goal
-            .operations(&(OpsSeq::from(Id::last(2)) * 4 + Id::abs(15 - 2 * idx)))
+            .operations(&derivation!([-2] * 4 + { Id::abs(15 - 2 * idx) }))
             .unwrap();
     }
 
     let d = d_s[0].aux();
     tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
     tp_goal
-        .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+        .operations(&derivation!(vartype OrderVar<&str>: [-2] w d))
         .unwrap();
-    tp_goal
-        .operations(&(OpsSeq::from(Id::last(2)) + Id::abs(9)))
-        .unwrap();
-    tp_goal
-        .operations(&(OpsSeq::from(Id::abs(56)) * 4 + Id::abs(35)))
-        .unwrap();
+    tp_goal.operations(&derivation!([-2] + [9])).unwrap();
+    tp_goal.operations(&derivation!([56] * 4 + [35])).unwrap();
 
     for idx in 0..3 {
         let d = d_s[3 - idx].fresh_1();
         tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
         tp_goal
-            .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+            .operations(&derivation!(vartype OrderVar<&str>: [-2] w d))
             .unwrap();
         tp_goal
-            .operations(&(OpsSeq::from(Id::last(2)) * 4 + Id::abs(33 - 2 * idx)))
+            .operations(&derivation!([-2] * 4 + { Id::abs(33 - 2 * idx) }))
             .unwrap();
     }
 
     let d = d_s[0].fresh_1();
     tp_goal.reverse_unit_prop(&c![1 false d; 1], None).unwrap();
     tp_goal
-        .operations(&OperationSequence::from(Id::last(2)).weaken(d))
+        .operations(&derivation!(vartype OrderVar<&str>: [-2] w d))
+        .unwrap();
+    tp_goal.operations(&derivation!([-2] + [27])).unwrap();
+    tp_goal
+        .operations(&derivation!(([2] + [37] + [-1]) s))
         .unwrap();
     tp_goal
-        .operations(&(OpsSeq::from(Id::last(2)) + Id::abs(27)))
-        .unwrap();
-    tp_goal
-        .operations(&(OpsSeq::from(Id::abs(2)) + Id::abs(37) + Id::last(1)).saturate())
-        .unwrap();
-    tp_goal
-        .operations(&(OpsSeq::from(Id::abs(20)) + Id::abs(37) + Id::abs(70)).saturate())
+        .operations(&derivation!(([20] + [37] + [70]) s))
         .unwrap();
 
     for idx in 0..3 {
@@ -1180,74 +1092,42 @@ fn dominance_with_aux_vars() {
         let w = x_s[idx + 1].fresh_right();
         let c = a_s[idx].fresh_2();
         tp_goal
-            .operations(
-                &OperationSequence::from(Id::abs(39 + idx * 2))
-                    .weaken(u)
-                    .weaken(w)
-                    .saturate(),
-            )
+            .operations(&derivation!(vartype OrderVar<&str>: {Id::abs(39 + idx * 2)} w u w w s))
             .unwrap();
+        tp_goal.operations(&derivation!([-1] + [-3])).unwrap();
+        tp_goal.operations(&derivation!([-2] + [-3])).unwrap();
         tp_goal
-            .operations(&(OpsSeq::from(Id::last(1)) + Id::last(3)))
-            .unwrap();
-        tp_goal
-            .operations(&(OpsSeq::from(Id::last(2)) + Id::last(3)))
+            .operations(&derivation!(vartype OrderVar<&str>: {Id::abs(39 + idx * 2)} w c s))
             .unwrap();
         tp_goal
             .operations(
-                &OperationSequence::from(Id::abs(39 + idx * 2))
-                    .weaken(c)
-                    .saturate(),
+                &derivation!(([-2] + {Id::abs(82 - idx * 3)} + [-1] + [-3] * 2 + {Id::abs(4 + idx * 2)}) s)
             )
             .unwrap();
         tp_goal
             .operations(
-                &(OpsSeq::from(Id::last(2))
-                    + Id::abs(82 - idx * 3)
-                    + Id::last(1)
-                    + (OpsSeq::from(Id::last(3)) * 2)
-                    + Id::abs(4 + idx * 2))
-                .saturate(),
-            )
-            .unwrap();
-        tp_goal
-            .operations(
-                &(OpsSeq::from(Id::last(4))
-                    + Id::abs(69 - idx * 3)
-                    + Id::last(2)
-                    + (OpsSeq::from(Id::last(3)) * 2)
-                    + Id::abs(22 + idx * 2))
-                .saturate(),
+                &derivation!(([-4] + {Id::abs(69 - idx * 3)} + [-2] + [-3] * 2 + {Id::abs(22 + idx * 2)}) s)
             )
             .unwrap();
     }
 
-    tp_goal
-        .operations(&(OpsSeq::from(Id::abs(70)) + Id::abs(83)))
-        .unwrap();
+    tp_goal.operations(&derivation!([70] + [83])).unwrap();
 
     for idx in 0..4 {
         tp_goal
-            .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(46 + idx * 2)).saturate())
+            .operations(&derivation!(([-1] + {Id::abs(46 + idx * 2)}) s))
             .unwrap();
         tp_goal
             .operations(
-                &((OpsSeq::from(Id::abs(69 - idx * 3))
-                    + Id::abs(82 - idx * 3)
-                    + Id::abs(84 + idx * 6)
-                    + Id::abs(85 + idx * 6))
-                .saturate()
-                    + (OpsSeq::from(Id::last(1)) * 3)),
+                &derivation!(({Id::abs(69 - idx * 3)} + {Id::abs(82 - idx * 3)} + {Id::abs(84 + idx * 6)} + {Id::abs(85 + idx * 6)}) s + [-1] * 3)
             )
             .unwrap();
     }
 
-    tp_goal
-        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(54)).saturate())
-        .unwrap();
+    tp_goal.operations(&derivation!(([-1] + [54]) s)).unwrap();
     let negated_constraint = tp_goal.negated_constraint_id();
     tp_goal
-        .operations(&(OpsSeq::from(Id::last(1)) + negated_constraint))
+        .operations(&derivation!([-1] + negated_constraint))
         .unwrap();
     tp_goal.finish().unwrap();
 
