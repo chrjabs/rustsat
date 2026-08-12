@@ -556,30 +556,6 @@ where
     }
 }
 
-/// An element of a sub-proof
-///
-/// Sub-proofs are a sequence of [`Derivation`]s and [`ProofGoal`]s
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum SubproofElement<V: VarLike, C> {
-    /// A derivation outside a proof goal
-    Derivation(Derivation<V, C>),
-    /// A proof goal in the sub proof
-    Goal(ProofGoal<V, C>),
-}
-
-impl<V: VarLike, C> From<Derivation<V, C>> for SubproofElement<V, C> {
-    fn from(value: Derivation<V, C>) -> Self {
-        SubproofElement::Derivation(value)
-    }
-}
-
-impl<V: VarLike, C> From<ProofGoal<V, C>> for SubproofElement<V, C> {
-    fn from(value: ProofGoal<V, C>) -> Self {
-        SubproofElement::Goal(value)
-    }
-}
-
 /// A proof target of a sub-proof
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -678,7 +654,7 @@ impl<V: VarLike, C: ConstraintLike> std::fmt::Display for ProofGoal<V, C> {
 }
 
 /// A [`ProofGoal`] ID
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProofGoalId {
     /// A [`ProofGoal`] for a constraint
@@ -717,22 +693,20 @@ impl std::fmt::Display for ProofGoalId {
 /// An objective update step (`obju`)
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike, C> {
+pub enum ObjectiveUpdate<O> {
     /// `new`
-    New(O, Vec<ProofGoal<V, C>>),
+    New(O),
     /// `diff`
     Diff(O),
 }
 
-impl<V, O, C> ObjectiveUpdate<V, O, C>
+impl<O> ObjectiveUpdate<O>
 where
-    V: VarLike,
     O: ObjectiveLike,
-    C: ConstraintLike,
 {
     /// Creates an explicit objective update by specifying the entire new objective
-    pub fn new<I: IntoIterator<Item = ProofGoal<V, C>>>(objective: O, subproof: I) -> Self {
-        ObjectiveUpdate::New(objective, subproof.into_iter().collect())
+    pub fn new(objective: O) -> Self {
+        ObjectiveUpdate::New(objective)
     }
 
     /// Creates an objective update by specifying the difference to the old objective
@@ -741,25 +715,14 @@ where
     }
 }
 
-impl<V, O, C> std::fmt::Display for ObjectiveUpdate<V, O, C>
+impl<O> std::fmt::Display for ObjectiveUpdate<O>
 where
-    V: VarLike,
     O: ObjectiveLike,
-    C: ConstraintLike,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectiveUpdate::New(obj, subproof) => {
-                write!(f, "{OBJ_UPDATE_NEW} {}", ObjFormatter::from(obj))?;
-                if !subproof.is_empty() {
-                    writeln!(f, " {SEP_A} {SUBPROOF}")?;
-                    for goal in subproof {
-                        goal.format_indented(f, 2)?;
-                        writeln!(f)?;
-                    }
-                    writeln!(f, "{QED}{RULE_TERM}")?;
-                }
-                Ok(())
+            ObjectiveUpdate::New(obj) => {
+                write!(f, "{OBJ_UPDATE_NEW} {}", ObjFormatter::from(obj))
             }
             ObjectiveUpdate::Diff(obj) => {
                 write!(f, "{OBJ_UPDATE_DIFF} {}", ObjFormatter::from(obj))
