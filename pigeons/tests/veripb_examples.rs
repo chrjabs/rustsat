@@ -15,9 +15,7 @@ use pigeons::OrderVar;
 use pigeons::OutputGuarantee;
 use pigeons::OutputType;
 use pigeons::Proof;
-use pigeons::ProofGoal;
 use pigeons::ProofGoalId;
-use pigeons::SubproofElement;
 use pigeons::Substitution;
 use pigeons::VarLike;
 
@@ -224,47 +222,65 @@ fn implication_weaker() {
 #[test]
 fn g3_g5() {
     let mut proof = new_proof(361, false);
-    let a = proof.redundant::<&'static str, _, _ ,_>(
+    let a = proof.redundant(
         &c!("-1 x0_0 -1 x1_0 -1 x2_0 -1 x3_0 -1 x4_0 -1 x5_0 -1 x6_0 -1 x7_0 -1 x8_0 -1 x9_0 >= -1"),
         [],
-        None
-    ).unwrap();
+    ).unwrap().finish().unwrap();
     let b = proof
-        .redundant::<&'static str, _, _ ,_>(
+        .redundant(
             &c!("1 ~x0_0 1 x9_1 1 x9_2 1 x9_3 1 x9_4 1 x9_5 1 x9_6 1 x9_7 1 x9_8 1 x9_9 1 x9_10 >= 1"),
             [],
-            None,
         )
-        .unwrap();
+        .unwrap().finish().unwrap();
     let c = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_1 1 x1_0 1 x1_2 1 x1_10 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_1 1 x1_0 1 x1_2 1 x1_10 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let d = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_2 1 x1_0 1 x1_1 1 x1_3 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_2 1 x1_0 1 x1_1 1 x1_3 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let e = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_3 1 x1_0 1 x1_2 1 x1_4 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_3 1 x1_0 1 x1_2 1 x1_4 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let f = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_4 1 x1_0 1 x1_3 1 x1_5 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_4 1 x1_0 1 x1_3 1 x1_5 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let g = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_5 1 x1_0 1 x1_4 1 x1_6 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_5 1 x1_0 1 x1_4 1 x1_6 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let h = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_6 1 x1_0 1 x1_5 1 x1_7 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_6 1 x1_0 1 x1_5 1 x1_7 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let i = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_7 1 x1_0 1 x1_6 1 x1_8 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_7 1 x1_0 1 x1_6 1 x1_8 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let j = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_8 1 x1_0 1 x1_7 1 x1_9 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_8 1 x1_0 1 x1_7 1 x1_9 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let k = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_9 1 x1_0 1 x1_8 1 x1_10 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_9 1 x1_0 1 x1_8 1 x1_10 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     let l = proof
-        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_10 1 x1_0 1 x1_1 1 x1_9 >= 1"), [], None)
+        .redundant(&c!("1 ~x9_10 1 x1_0 1 x1_1 1 x1_9 >= 1"), [])
+        .unwrap()
+        .finish()
         .unwrap();
     proof.set_level(1).unwrap();
     let sum = proof
@@ -308,7 +324,7 @@ fn strengthening_to_core() {
         .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1))
         .unwrap();
     proof
-        .redundant(&c!("1 x3 >= 1"), ["x3".substitute_fixed(true)], None)
+        .redundant(&c!("1 x3 >= 1"), ["x3".substitute_fixed(true)])
         .unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
@@ -324,14 +340,13 @@ fn strengthening_to_core() {
 fn strengthening_to_core_proof_by_contradiction() {
     let mut proof = new_proof(4, false);
     proof.strengthening_to_core(true).unwrap();
-    proof
-        .proof_by_contradiction(
-            &c!("1 ~x3 2 x4 2 x5 2 x6 >= 4"),
-            [SubproofElement::Derivation(
-                (OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1 + Id::last(1)).into(),
-            )],
-        )
+    let mut subproof = proof
+        .proof_by_contradiction(&c!("1 ~x3 2 x4 2 x5 2 x6 >= 4"))
         .unwrap();
+    subproof
+        .operations(&(OpsSeq::from(Id::abs(3)) * 1 + OpsSeq::from(Id::abs(4)) * 1 + Id::last(1)))
+        .unwrap();
+    subproof.finish().unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
@@ -352,7 +367,7 @@ fn subproof() {
         .operations(&(OpsSeq::from(Id::abs(8)) + Id::abs(2) + Id::abs(3)))
         .unwrap();
     proof.operations(&(OpsSeq::from(Id::abs(9)) / 2)).unwrap();
-    proof
+    let mut subproof = proof
         .redundant(
             &c!("1 x1 >= 1"),
             [
@@ -363,24 +378,25 @@ fn subproof() {
                 "x4".substitute_literal("x6".pos_axiom()),
                 "x6".substitute_literal("x2".pos_axiom()),
             ],
-            [
-                ProofGoal::new(
-                    ProofGoalId::specific(1),
-                    [
-                        (OpsSeq::from(Id::last(1)) + Id::last(2) + Id::abs(5) + Id::abs(6)).into(),
-                        (OpsSeq::from(Id::last(1)) + Id::abs(4)).into(),
-                        (OpsSeq::from(Id::last(1)) + "x6".pos_axiom()).into(),
-                    ],
-                )
-                .into(),
-                ProofGoal::new(
-                    ProofGoalId::from(Id::abs(1)),
-                    [(OpsSeq::from(Id::last(1)) + Id::abs(2)).into()],
-                )
-                .into(),
-            ],
         )
         .unwrap();
+    let mut subsubproof = subproof.proof_goal(ProofGoalId::specific(1)).unwrap();
+    subsubproof
+        .operations(&(OpsSeq::from(Id::last(1)) + Id::last(2) + Id::abs(5) + Id::abs(6)))
+        .unwrap();
+    subsubproof
+        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(4)))
+        .unwrap();
+    subsubproof
+        .operations(&(OpsSeq::from(Id::last(1)) + "x6".pos_axiom()))
+        .unwrap();
+    subsubproof.finish().unwrap();
+    let mut subsubproof = subproof.proof_goal(ProofGoalId::from(Id::abs(1))).unwrap();
+    subsubproof
+        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(2)))
+        .unwrap();
+    subsubproof.finish().unwrap();
+    subproof.finish().unwrap();
     let id = proof.reverse_unit_prop(&c!(">= 1"), None).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::Unsat(Some(id.into())))
@@ -504,18 +520,14 @@ fn optimization_2() {
 fn deletion_multiple() {
     let mut proof = new_proof(0, false);
     let a = proof
-        .redundant(
-            &c!("1 ~x1 >= 1"),
-            [Substitution::from("x1".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x1 >= 1"), [Substitution::from("x1".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     let b = proof
-        .redundant(
-            &c!("1 ~x2 >= 1"),
-            [Substitution::from("x2".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x2 >= 1"), [Substitution::from("x2".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     let c = proof.reverse_unit_prop(&c!("1 ~x1 >= 1"), None).unwrap();
     proof
@@ -525,12 +537,15 @@ fn deletion_multiple() {
                 Substitution::from("x3".pos_axiom()),
                 Substitution::from("x4".pos_axiom()),
             ],
-            None,
         )
+        .unwrap()
+        .finish()
         .unwrap();
     let e = proof.reverse_unit_prop(&c!("1 ~x1 >= 1"), None).unwrap();
     proof
-        .delete_ids::<&'static str, Constr, _, _>([a.into(), b.into(), c.into(), e.into()], None)
+        .delete_ids([a.into(), b.into(), c.into(), e.into()])
+        .unwrap()
+        .finish()
         .unwrap();
     proof
         .reverse_unit_prop(&c!("2 x1 2 x2 1 x3 1 x4 >= 2"), None)
@@ -546,18 +561,14 @@ fn deletion_multiple() {
 fn deletion_range() {
     let mut proof = new_proof(0, false);
     let a = proof
-        .redundant(
-            &c!("1 ~x1 >= 1"),
-            [Substitution::from("x1".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x1 >= 1"), [Substitution::from("x1".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     proof
-        .redundant(
-            &c!("1 ~x2 >= 1"),
-            [Substitution::from("x2".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x2 >= 1"), [Substitution::from("x2".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     proof
         .reverse_unit_prop(&c!("1 ~x1 >= 1"), [a.into()])
@@ -569,8 +580,9 @@ fn deletion_range() {
                 Substitution::from("x3".pos_axiom()),
                 Substitution::from("x4".pos_axiom()),
             ],
-            None,
         )
+        .unwrap()
+        .finish()
         .unwrap();
     let e = proof.reverse_unit_prop(&c!("1 ~x1 >= 1"), None).unwrap();
     proof.delete_id_range(Id::from(a)..=Id::from(e)).unwrap();
@@ -585,18 +597,14 @@ fn deletion_range() {
 fn deletion_multiple_derived() {
     let mut proof = new_proof(0, false);
     let a = proof
-        .redundant(
-            &c!("1 ~x1 >= 1"),
-            [Substitution::from("x1".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x1 >= 1"), [Substitution::from("x1".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     let b = proof
-        .redundant(
-            &c!("1 ~x2 >= 1"),
-            [Substitution::from("x2".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x2 >= 1"), [Substitution::from("x2".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     proof.delete_derived_ids([a.into(), b.into()]).unwrap();
     let proof_file = proof
@@ -628,9 +636,7 @@ fn deletion_find() {
         .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
         .unwrap();
     proof.equals(&constr, Some(last.into())).unwrap();
-    proof
-        .delete_ids::<&'static str, Constr, _, _>([last.into()], None)
-        .unwrap();
+    proof.delete_ids([last.into()]).unwrap().finish().unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
     let last = proof
         .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
@@ -648,7 +654,9 @@ fn deletion_find() {
     proof.equals(&constr, Some(Id::last(1))).unwrap();
     proof.equals(&constr, Some(Id::last(2))).unwrap();
     proof
-        .delete_ids::<&'static str, Constr, _, _>([a.into(), b.into()], None)
+        .delete_ids([a.into(), b.into()])
+        .unwrap()
+        .finish()
         .unwrap();
     // is_deleted 2 x1 2 x2 2 ~x3 >= 3 ;
     proof
@@ -704,15 +712,14 @@ fn objective_update_diff() {
         .redundant(
             &c!("3 ~y1 1 ~x1 1 ~x2 1 ~x3 >= 3"),
             ["y1".neg_axiom().into()],
-            None,
         )
+        .unwrap()
+        .finish()
         .unwrap();
     proof
-        .redundant(
-            &c!("1 y1 1 x1 1 x2 1 x3 >= 1"),
-            ["y1".pos_axiom().into()],
-            None,
-        )
+        .redundant(&c!("1 y1 1 x1 1 x2 1 x3 >= 1"), ["y1".pos_axiom().into()])
+        .unwrap()
+        .finish()
         .unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     proof
@@ -721,9 +728,11 @@ fn objective_update_diff() {
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     // obju diff 1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2 ;
     proof
-        .update_objective::<&'static str, _, _>(&ObjectiveUpdate::<_, _, Constr>::diff(Obj::parse(
+        .update_objective(&ObjectiveUpdate::diff(Obj::parse(
             "1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2",
         )))
+        .unwrap()
+        .finish()
         .unwrap();
     // soli x1 ~x2 ~x3
     proof
@@ -759,15 +768,14 @@ fn objective_update() {
         .redundant(
             &c!("3 ~y1 1 ~x1 1 ~x2 1 ~x3 >= 3"),
             ["y1".neg_axiom().into()],
-            None,
         )
+        .unwrap()
+        .finish()
         .unwrap();
     proof
-        .redundant(
-            &c!("1 y1 1 x1 1 x2 1 x3 >= 1"),
-            ["y1".pos_axiom().into()],
-            None,
-        )
+        .redundant(&c!("1 y1 1 x1 1 x2 1 x3 >= 1"), ["y1".pos_axiom().into()])
+        .unwrap()
+        .finish()
         .unwrap();
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     proof
@@ -776,10 +784,9 @@ fn objective_update() {
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     // obju diff 1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2 ;
     proof
-        .update_objective::<&'static str, _, _>(&ObjectiveUpdate::<_, _, Constr>::new(
-            Obj::parse("1 y1 2"),
-            None,
-        ))
+        .update_objective(&ObjectiveUpdate::new(Obj::parse("1 y1 2")))
+        .unwrap()
+        .finish()
         .unwrap();
     // soli x1 ~x2 ~x3
     proof
@@ -824,7 +831,9 @@ fn dominance_simple_order() {
         .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
         .unwrap();
     proof
-        .redundant(&c!("1 a3 1 x1 >= 1"), ["a3".pos_axiom().into()], None)
+        .redundant(&c!("1 a3 1 x1 >= 1"), ["a3".pos_axiom().into()])
+        .unwrap()
+        .finish()
         .unwrap();
     proof
         .dominated(
@@ -833,8 +842,9 @@ fn dominance_simple_order() {
                 "x1".substitute_literal("x2".pos_axiom()),
                 "x2".substitute_literal("x1".pos_axiom()),
             ],
-            None,
         )
+        .unwrap()
+        .finish()
         .unwrap();
     proof.load_order::<&'static str, _>("", []).unwrap();
     proof
@@ -853,14 +863,11 @@ fn dominance_simple_order() {
 #[test]
 fn delete_core_subproof_proofgoal() {
     let mut proof = new_proof(3, false);
-    proof
-        .delete_ids::<&'static str, Constr, _, _>(
-            [Id::abs(2)],
-            [SubproofElement::Derivation(
-                (OpsSeq::from(Id::last(1)) + Id::abs(1) + OpsSeq::from(Id::abs(3)) * 2).into(),
-            )],
-        )
+    let mut subproof = proof.delete_ids([Id::abs(2)]).unwrap();
+    subproof
+        .operations(&(OpsSeq::from(Id::last(1)) + Id::abs(1) + OpsSeq::from(Id::abs(3)) * 2))
         .unwrap();
+    subproof.finish().unwrap();
     proof.is_deleted(&c!("1 x1 1 x2 2 ~x3 >= 2")).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
@@ -1006,18 +1013,14 @@ fn fail() {
 fn output_file() {
     let mut proof = new_proof(0, false);
     let a = proof
-        .redundant(
-            &c!("1 ~x1 >= 1"),
-            [Substitution::from("x1".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x1 >= 1"), [Substitution::from("x1".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     let b = proof
-        .redundant(
-            &c!("1 ~x2 >= 1"),
-            [Substitution::from("x2".neg_axiom())],
-            None,
-        )
+        .redundant(&c!("1 ~x2 >= 1"), [Substitution::from("x2".neg_axiom())])
+        .unwrap()
+        .finish()
         .unwrap();
     proof.move_ids_to_core([a.into(), b.into()]).unwrap();
     let proof_file = proof
