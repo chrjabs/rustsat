@@ -206,8 +206,14 @@ fn main() {
     let cadical_dir = get_cadical_dir(version, None);
 
     // Mark when to rerun the build script
-    println!("cargo:rerun-if-changed={cadical_dir}/src/");
-    println!("cargo:rerun-if-changed=cpp-extension/");
+    if let Some(cadical_dir) = check_env_var!("CADICAL_SRC_DIR") {
+        println!("cargo:rerun-if-changed={cadical_dir}/src/");
+    } else {
+        if version == Version::default() {
+            println!("cargo:rerun-if-changed={cadical_dir}/src/");
+        }
+        println!("cargo:rerun-if-changed=cpp-extension/");
+    }
     println!("cargo:rerun-if-env-changed=CADICAL_SRC_DIR");
     println!("cargo:rerun-if-env-changed=CADICAL_PATCHES");
     println!("cargo:rerun-if-env-changed=CADICAL_RUN_CPP_TESTS");
