@@ -132,24 +132,25 @@ impl super::Db {
         // must always add both semantic definitions straight away, later they might not be
         // trivially redundant anymore
         let defs = if value == 0 {
-            SemDefs::new(None, Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?))
+            SemDefs::new(None, Some(proof.redundant(&sum, [])?.finish()?))
         } else if value > self[id].max_val() {
             let sum = PbConstraint::new_lb_unsigned(leaves.map(|(l, w)| (!l, w)), 0);
-            SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?), None)
+            SemDefs::new(Some(proof.redundant(&sum, [])?.finish()?), None)
         } else {
             let olit = self[id][value];
-            SemDefs::new(
-                Some(proof.redundant(
+            let if_def = proof
+                .redundant(
                     &crate::encodings::atomics::pb_impl_lit(&sum, olit),
                     [olit.var().substitute_fixed(true)],
-                    None,
-                )?),
-                Some(proof.redundant(
+                )?
+                .finish()?;
+            let only_if_def = proof
+                .redundant(
                     &crate::encodings::atomics::lit_impl_pb(olit, &sum),
                     [olit.var().substitute_fixed(false)],
-                    None,
-                )?),
-            )
+                )?
+                .finish()?;
+            SemDefs::new(Some(if_def), Some(only_if_def))
         };
         debug_assert!(!self.semantic_defs.contains_key(&def_id));
         self.semantic_defs.insert(def_id, defs);
@@ -196,11 +197,11 @@ impl super::Db {
         proof.comment(&"value == offset")?;
         let defs = SemDefs::new(
             None,
-            Some(proof.redundant::<Var, _, _, _>(
-                &PbConstraint::new_lb_unsigned(leaves.clone(), 0),
-                [],
-                [],
-            )?),
+            Some(
+                proof
+                    .redundant(&PbConstraint::new_lb_unsigned(leaves.clone(), 0), [])?
+                    .finish()?,
+            ),
         );
         let def_id = SemDefId {
             id,
@@ -320,7 +321,7 @@ impl super::Db {
             let sum = PbConstraint::new_lb_unsigned(leaves.map(|(l, w)| (!l, w)), 0);
             #[cfg(feature = "verbose-proofs")]
             proof.comment(&"value > max")?;
-            let defs = SemDefs::new(Some(proof.redundant::<Var, _, _, _>(&sum, [], [])?), None);
+            let defs = SemDefs::new(Some(proof.redundant(&sum, [])?.finish()?), None);
             let def_id = SemDefId {
                 id,
                 value: len_limit.map_or(self[id].max_val() + 1, |lim| lim.get() + offset + 1),
@@ -400,7 +401,7 @@ impl super::Db {
             .values()
             .flat_map(SemDefs::iter)
             .map(Into::into);
-        proof.delete_ids::<Var, crate::types::Clause, _, _>(iter, None)?;
+        proof.delete_ids(iter)?.finish()?;
         self.semantic_defs.clear();
         Ok(())
     }

@@ -80,7 +80,6 @@ pub use types::ProblemType;
 pub use types::ProofGoal;
 pub use types::ProofGoalId;
 pub use types::ProofOnlyVar;
-pub use types::SubproofElement;
 pub use types::Substitution;
 pub use types::TimerHandle;
 
@@ -95,6 +94,9 @@ pub use ops::OperationSequence;
 mod keywords;
 #[allow(clippy::wildcard_imports)]
 use keywords::*;
+
+pub mod guards;
+mod macros;
 
 macro_rules! unreachable_err {
     ($res:expr) => {{
@@ -239,45 +241,22 @@ where
         self.default_conclusion = (output_guarantee, format!("{conclusion}"));
     }
 
+    fn writer(&mut self) -> &mut Writer {
+        &mut self.writer
+    }
+
+    // required with this signature for macro implementations
+    #[expect(clippy::unused_self)]
+    fn level(&self) -> usize {
+        0
+    }
+
     /// Gets a new [`AbsConstraintId`] and increments the counter
     #[must_use]
     fn new_id(&mut self) -> AbsConstraintId {
         let id = self.next_id;
         self.next_id += 1;
         id
-    }
-
-    /// Writes a sub-proof, if the iterator is not empty
-    fn write_subproof<V, C, PI>(
-        &mut self,
-        mut proof: std::iter::Peekable<PI>,
-    ) -> std::io::Result<()>
-    where
-        V: VarLike,
-        C: ConstraintLike,
-        PI: Iterator<Item = SubproofElement<V, C>>,
-    {
-        if proof.peek().is_some() {
-            self.next_id += 1; // negated `constr`
-            writeln!(self.writer, " {SEP_A} {SUBPROOF}")?;
-            for element in proof {
-                let bump_ids = match element {
-                    SubproofElement::Derivation(derivation) => {
-                        writeln!(self.writer, "  {derivation}")?;
-                        1
-                    }
-                    SubproofElement::Goal(goal) => {
-                        goal.write_indented(&mut self.writer, 2)?;
-                        writeln!(self.writer)?;
-                        // negated proof goal + 1 for each derivation
-                        1 + goal.n_derivations()
-                    }
-                };
-                self.next_id += bump_ids;
-            }
-            write!(self.writer, "{QED}")?;
-        }
-        Ok(())
     }
 
     /// Gets a new [`ProofOnlyVar`] and increments the counter
@@ -351,59 +330,8 @@ where
         Ok(())
     }
 
-    /// Adds a new constraint that is derived via a sequence of operations and returns its
-    /// [`AbsConstraintId`]
-    ///
-    /// # Proof Log
-    ///
-    /// Adds a `pol`-rule line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails.
-    pub fn operations<V: VarLike>(
-        &mut self,
-        operations: &OperationSequence<V>,
-    ) -> std::io::Result<AbsConstraintId> {
-        writeln!(self.writer, "{POLISH} {operations}{RULE_TERM}")?;
-        Ok(self.new_id())
-    }
-
-    /// Adds a constraint implied by reverse unit propagation and returns its [`AbsConstraintId`]
-    ///
-    /// # Proof Log
-    ///
-    /// Adds a `rup`-rule line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails.
-    pub fn reverse_unit_prop<C, I>(
-        &mut self,
-        constr: &C,
-        hints: I,
-    ) -> std::io::Result<AbsConstraintId>
-    where
-        C: ConstraintLike,
-        I: IntoIterator<Item = ConstraintId>,
-    {
-        let mut hints = hints.into_iter().peekable();
-        if hints.peek().is_some() {
-            writeln!(
-                self.writer,
-                "{RUP} {} {SEP_A} {}{RULE_TERM}",
-                ConstrFormatter::from(constr),
-                hints.format(" ")
-            )?;
-        } else {
-            writeln!(
-                self.writer,
-                "{RUP} {}{RULE_TERM}",
-                ConstrFormatter::from(constr)
-            )?;
-        }
-        Ok(self.new_id())
-    }
+    macros::implement!(operations);
+    macros::implement!(reverse_unit_prop);
 
     /// Deletes a set of constraint by their [`ConstraintId`]s
     ///
@@ -416,20 +344,13 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_ids<V, C, II, PI>(&mut self, ids: II, proof: PI) -> std::io::Result<()>
+    pub fn delete_ids<II>(&mut self, ids: II) -> std::io::Result<guards::SubProof<'_, Writer, ()>>
     where
-        V: VarLike,
-        C: ConstraintLike,
         II: IntoIterator<Item = ConstraintId>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
         write!(self.writer, "{DEL_ID} {} ", ids.into_iter().format(" "))?;
-        let mut proof = proof.into_iter().peekable();
-        if proof.peek().is_some() {
-            write!(self.writer, "{SEP_A}")?;
-        }
-        self.write_subproof(proof)?;
-        writeln!(self.writer, "{RULE_TERM}")
+        let guard = guards::SubProof::new_with_prefix(self, SEP_A, 1);
+        Ok(guard)
     }
 
     /// Deletes an explicitly specified constraint
@@ -543,17 +464,16 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn update_objective<V, O, C>(
+    pub fn update_objective<O>(
         &mut self,
-        update: &ObjectiveUpdate<V, O, C>,
-    ) -> std::io::Result<()>
+        update: &ObjectiveUpdate<O>,
+    ) -> std::io::Result<guards::SubProof<'_, Writer, ()>>
     where
-        V: VarLike,
         O: ObjectiveLike,
-        C: ConstraintLike,
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
-        writeln!(self.writer, "{OBJ_UPDATE} {update}{RULE_TERM}")
+        writeln!(self.writer, "{OBJ_UPDATE} {update}")?;
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Adds a proof by contradiction rule
@@ -565,20 +485,15 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn proof_by_contradiction<V, C, PI>(
+    pub fn proof_by_contradiction<C>(
         &mut self,
         constr: &C,
-        proof: PI,
-    ) -> std::io::Result<AbsConstraintId>
+    ) -> std::io::Result<guards::SubProof<'_, Writer>>
     where
-        V: VarLike,
         C: ConstraintLike,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
         write!(self.writer, "{PBC} {}", ConstrFormatter::from(constr))?;
-        self.write_subproof(proof.into_iter().peekable())?;
-        writeln!(self.writer, "{RULE_TERM}")?;
-        Ok(self.new_id())
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Adds a constraint that is redundant, checked via redundance based strengthening
@@ -590,17 +505,14 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn redundant<V, C, SI, PI>(
+    pub fn redundant<C, SI>(
         &mut self,
         constr: &C,
         subs: SI,
-        proof: PI,
-    ) -> std::io::Result<AbsConstraintId>
+    ) -> std::io::Result<guards::SubProof<'_, Writer>>
     where
-        V: VarLike,
         C: ConstraintLike,
-        SI: IntoIterator<Item = Substitution<V>>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
+        SI: IntoIterator<Item = Substitution<C::Var>>,
     {
         write!(
             self.writer,
@@ -608,9 +520,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof.into_iter().peekable())?;
-        writeln!(self.writer, "{RULE_TERM}")?;
-        Ok(self.new_id())
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Adds a constraint that is redundant, checked via dominance
@@ -622,17 +532,15 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn dominated<V, C, SI, PI>(
+    pub fn dominated<V, C, SI>(
         &mut self,
         constr: &C,
         subs: SI,
-        proof: PI,
-    ) -> std::io::Result<AbsConstraintId>
+    ) -> std::io::Result<guards::SubProof<'_, Writer>>
     where
         V: VarLike,
         C: ConstraintLike,
         SI: IntoIterator<Item = Substitution<V>>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
         write!(
             self.writer,
@@ -640,9 +548,7 @@ where
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof.into_iter().peekable())?;
-        writeln!(self.writer, "{RULE_TERM}")?;
-        Ok(self.new_id())
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Moves constraints to the core set by [`ConstraintId`]
