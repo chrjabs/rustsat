@@ -73,7 +73,6 @@ keyword!(ORDER_DEFINITION, "def");
 keyword!(ORDER_REFLEXIVITY, "reflexivity");
 keyword!(ORDER_TRANSITIVITY, "transitivity");
 keyword!(ORDER_VARS, "vars");
-keyword!(ORDER_VARS_AUX, "aux");
 keyword!(ORDER_VARS_FRESH_RIGHT, "fresh_right");
 keyword!(ORDER_VARS_LEFT, "left");
 keyword!(ORDER_VARS_RIGHT, "right");
