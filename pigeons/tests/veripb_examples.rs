@@ -5,13 +5,10 @@ use std::io::BufRead;
 use pigeons::Conclusion;
 use pigeons::ConstraintId as Id;
 use pigeons::ConstraintLike;
-use pigeons::Derivation;
 use pigeons::ObjectiveLike;
 use pigeons::ObjectiveUpdate;
 use pigeons::OperationLike;
 use pigeons::OperationSequence;
-use pigeons::Order;
-use pigeons::OrderVar;
 use pigeons::OutputGuarantee;
 use pigeons::OutputType;
 use pigeons::Proof;
@@ -811,22 +808,25 @@ fn objective_update() {
     )
 }
 
-type OrderConstr = Constr<OrderVar<&'static str>>;
-
 #[test]
 fn dominance_simple_order() {
     let mut proof = new_proof(10, false);
-    let mut order = Order::<&'static str, OrderConstr>::new("simple".to_string());
-    let (left, right) = order.use_var("x1");
-    order.add_definition_constraint(
-        c!(-1 false left, 1 false right; 0),
-        vec![Derivation::Operations(
-            OperationSequence::from(Id::last(2)) + Id::last(3) + Id::last(1),
-        )],
-        None,
-    );
-    proof.define_order(&order).unwrap();
-    proof.load_order("simple", ["x1"]).unwrap();
+
+    let mut order = proof.define_order("simple").unwrap();
+    let (left, right) = order.add_input_var("x1");
+    let mut order = order.definition().unwrap();
+    let goal = order
+        .definition_constraint(&c!(-1 false left, 1 false right; 0))
+        .unwrap();
+    let mut order = order.transitivity_proof().unwrap();
+    let mut goal = order.proof_goal(goal).unwrap();
+    let negated_constraint = goal.negated_constraint_id();
+    goal.operations(&(OpsSeq::from(Id::last(2)) + Id::last(3) + negated_constraint))
+        .unwrap();
+    goal.finish().unwrap();
+    let order = order.finish().unwrap();
+    proof.load_order(&order, ["x1"]).unwrap();
+
     proof
         .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
         .unwrap();
@@ -846,7 +846,7 @@ fn dominance_simple_order() {
         .unwrap()
         .finish()
         .unwrap();
-    proof.load_order::<&'static str, _>("", []).unwrap();
+    proof.unload_order().unwrap();
     proof
         .operations(&(OpsSeq::from(Id::abs(1)) + Id::abs(2)))
         .unwrap();
