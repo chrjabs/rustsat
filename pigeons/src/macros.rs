@@ -1,13 +1,13 @@
 //! # Macro Helpers
 
 macro_rules! implement {
-    (forward_from_proof) => {
-        fn writer(&mut self) -> &mut Writer {
-            self.proof.writer()
+    (forward from $wrapped:ident) => {
+        fn writer(&mut self) -> &mut impl std::io::Write {
+            self.$wrapped.writer()
         }
 
         fn new_id(&mut self) -> crate::AbsConstraintId {
-            self.proof.new_id()
+            self.$wrapped.new_id()
         }
     };
 
@@ -91,19 +91,6 @@ macro_rules! implement {
                 )?;
             }
             Ok(self.new_id())
-        }
-    };
-
-    (proof_goal$( with $pre:ident)?) => {
-        /// Starts a new proof goal in the sub-proof
-        ///
-        /// # Errors
-        ///
-        /// If writing the proof fails
-        pub fn proof_goal(&mut self, id: crate::ProofGoalId) -> std::io::Result<crate::guards::ProofGoal<'_, Writer>> {
-            $(self.$pre()?;)?
-            let level = self.level();
-            crate::guards::ProofGoal::new(self.proof, id, level)
         }
     };
 }

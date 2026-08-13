@@ -8,7 +8,6 @@ use itertools::Itertools;
 use crate::keywords::*;
 use crate::ConstraintLike;
 use crate::ObjectiveLike;
-use crate::OperationSequence;
 use crate::VarLike;
 
 /// The proof problem type
@@ -360,15 +359,56 @@ impl<V: VarLike> std::fmt::Display for SubstituteWith<V> {
     }
 }
 
-/// An order in the proof
-#[derive(Debug)]
+/// An order that has been defined can be loaded in the proof
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Order<V: VarLike, C: ConstraintLike<Var = OrderVar<V>>> {
+pub struct Order {
     name: String,
-    used_vars: rustc_hash::FxHashSet<V>,
-    definition: Vec<C>,
-    trans_proof: Vec<ProofGoal<OrderVar<V>, C>>,
-    refl_proof: Option<Vec<ProofGoal<OrderVar<V>, C>>>,
+    num_def_constraints: usize,
+}
+
+impl Order {
+    pub(crate) fn new(name: String) -> Self {
+        Self {
+            name,
+            num_def_constraints: 0,
+        }
+    }
+
+    /// Gets the name of the order
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn new_def_constraint(&mut self) {
+        self.num_def_constraints += 1;
+    }
+
+    #[must_use]
+    pub(crate) fn num_def_constraints(&self) -> usize {
+        self.num_def_constraints
+    }
+}
+
+/// A proof goal for the transitivity and reflexivity proofs in an order definition
+#[derive(Debug, Copy, Clone)]
+pub struct OrderDefinitionProofGoalId(NonZeroUsize);
+
+impl OrderDefinitionProofGoalId {
+    pub(crate) fn new(id: usize) -> Self {
+        Self(NonZeroUsize::new(id).expect("ID needs to be non-zero"))
+    }
+
+    pub(crate) fn as_proof_goal_id(self) -> ProofGoalId {
+        ProofGoalId::Specific(self.0)
+    }
+}
+
+impl std::fmt::Display for OrderDefinitionProofGoalId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{GOAL_ID}{}", self.0)
+    }
 }
 
 /// A variable to be used in an order definition
@@ -394,262 +434,6 @@ impl<V: VarLike> std::fmt::Display for OrderVar<V> {
             OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
             OrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(*v)),
         }
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike<Var = OrderVar<V>>> Order<V, C> {
-    /// Creates a new builder structure
-    #[must_use]
-    pub fn new(name: String) -> Self {
-        Order {
-            name,
-            used_vars: rustc_hash::FxHashSet::default(),
-            definition: vec![],
-            trans_proof: vec![],
-            refl_proof: None,
-        }
-    }
-
-    /// Gets the name of the order
-    #[must_use]
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Gets an iterator over the used variables
-    pub fn used_vars(&self) -> impl Iterator<Item = V> + '_ {
-        self.used_vars.iter().copied()
-    }
-
-    /// Marks a variable as used in the order and gets its left and right variants to be used in
-    /// the definitions
-    pub fn use_var(&mut self, v: V) -> (OrderVar<V>, OrderVar<V>) {
-        self.used_vars.insert(v);
-        (OrderVar::Left(v), OrderVar::Right(v))
-    }
-
-    /// Adds a constraint to the order definition
-    ///
-    /// The constraint must only use left and right variables that have been marked as used
-    // Since we push `constr` into the definitions, `self.definition.len()` is never zero
-    #[expect(clippy::missing_panics_doc)]
-    pub fn add_definition_constraint(
-        &mut self,
-        constr: C,
-        trans_proof: Vec<Derivation<OrderVar<V>, C>>,
-        refl_proof: Option<Vec<Derivation<OrderVar<V>, C>>>,
-    ) {
-        self.definition.push(constr);
-        self.trans_proof.push(ProofGoal {
-            id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-            derivations: trans_proof,
-        });
-        if let Some(new_goal) = refl_proof {
-            if let Some(proof) = &mut self.refl_proof {
-                proof.push(ProofGoal {
-                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-                    derivations: new_goal,
-                });
-            } else {
-                self.refl_proof = Some(vec![ProofGoal {
-                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-                    derivations: new_goal,
-                }]);
-            }
-        }
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike<Var = OrderVar<V>>> std::fmt::Display for Order<V, C> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{ORDER_DEFINE} {}", self.name)?;
-        // Variables
-        writeln!(f, "  {ORDER_VARS}")?;
-        writeln!(
-            f,
-            "    {ORDER_VARS_LEFT} {}{RULE_TERM}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("u_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(
-            f,
-            "    {ORDER_VARS_RIGHT} {}{RULE_TERM}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("v_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(f, "    {ORDER_VARS_AUX}{RULE_TERM}")?;
-        writeln!(f, "  {END}{RULE_TERM}")?;
-        // Order definition
-        writeln!(f, "  {ORDER_DEFINITION}")?;
-        for def in &self.definition {
-            writeln!(f, "    {} ;", ConstrFormatter::from(def))?;
-        }
-        writeln!(f, "  {END}{RULE_TERM}")?;
-        // Proofs
-        writeln!(f, "  {ORDER_TRANSITIVITY}")?;
-        writeln!(f, "    {ORDER_VARS}")?;
-        writeln!(
-            f,
-            "      {ORDER_VARS_FRESH_RIGHT} {}{RULE_TERM}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(f, "    {END}{RULE_TERM}")?;
-        writeln!(f, "    {PROOF}")?;
-        for goal in &self.trans_proof {
-            goal.format_indented(f, 6)?;
-            writeln!(f)?;
-        }
-        writeln!(f, "    {QED}{RULE_TERM}")?;
-        writeln!(f, "  {END}{RULE_TERM}")?;
-        if let Some(proof) = &self.refl_proof {
-            writeln!(f, "  {ORDER_REFLEXIVITY}")?;
-            writeln!(f, "    {PROOF}")?;
-            for goal in proof {
-                goal.format_indented(f, 6)?;
-                writeln!(f)?;
-            }
-            writeln!(f, "    {QED}{RULE_TERM}")?;
-            writeln!(f, "  {END}{RULE_TERM}")?;
-        }
-        write!(f, "{END}")
-    }
-}
-
-/// A derivation step
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum Derivation<V: VarLike, C> {
-    /// A constraint added by reverse unit propagation, including hints
-    Rup(C, Vec<ConstraintId>),
-    /// A constraint derived by a sequence of operations
-    Operations(OperationSequence<V>),
-}
-
-impl<V, C> From<OperationSequence<V>> for Derivation<V, C>
-where
-    V: VarLike,
-{
-    fn from(value: OperationSequence<V>) -> Self {
-        Derivation::Operations(value)
-    }
-}
-
-impl<V, C> std::fmt::Display for Derivation<V, C>
-where
-    V: VarLike,
-    C: ConstraintLike,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Derivation::Rup(constr, hints) => write!(
-                f,
-                "{RUP} {} {SEP_A} {}{RULE_TERM}",
-                ConstrFormatter::from(constr),
-                hints.iter().format(" ")
-            ),
-            Derivation::Operations(ops) => write!(f, "{POLISH} {ops}{RULE_TERM}"),
-        }
-    }
-}
-
-/// A proof target of a sub-proof
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ProofGoal<V: VarLike, C> {
-    /// The goal id
-    id: ProofGoalId,
-    /// For now only operation derivations are supported
-    derivations: Vec<Derivation<V, C>>,
-}
-
-impl<V: VarLike, C: ConstraintLike> Extend<Derivation<V, C>> for ProofGoal<V, C> {
-    fn extend<T: IntoIterator<Item = Derivation<V, C>>>(&mut self, iter: T) {
-        self.derivations.extend(iter);
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike> ProofGoal<V, C> {
-    /// Creates a new proof goal
-    #[must_use]
-    pub fn empty(id: ProofGoalId) -> Self {
-        ProofGoal {
-            id,
-            derivations: vec![],
-        }
-    }
-
-    /// Creates a new proof goal
-    #[must_use]
-    pub fn new<I>(id: ProofGoalId, derivations: I) -> Self
-    where
-        I: IntoIterator<Item = Derivation<V, C>>,
-    {
-        ProofGoal {
-            id,
-            derivations: derivations.into_iter().collect(),
-        }
-    }
-
-    /// Gets the number of derivation steps in the proof goal
-    #[must_use]
-    pub fn n_derivations(&self) -> usize {
-        self.derivations.len()
-    }
-
-    /// Writes the proof goal to a writer, indented by a number of spaces
-    ///
-    /// # Errors
-    ///
-    /// If writing fails, returns an error
-    pub fn write_indented<W: std::io::Write>(
-        &self,
-        writer: &mut W,
-        indent: usize,
-    ) -> std::io::Result<()> {
-        writeln!(
-            writer,
-            "{:indent$}{PROOFGOAL} {}",
-            "",
-            self.id,
-            indent = indent
-        )?;
-        for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
-        }
-        write!(writer, "{:indent$}{QED}{RULE_TERM}", "", indent = indent)
-    }
-
-    /// Formats the proof goal, indented by a number of spaces
-    ///
-    /// # Errors
-    ///
-    /// If formatting fails, returns an error
-    pub fn format_indented<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        indent: usize,
-    ) -> std::fmt::Result {
-        writeln!(
-            writer,
-            "{:indent$}{PROOFGOAL} {}",
-            "",
-            self.id,
-            indent = indent
-        )?;
-        for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
-        }
-        write!(writer, "{:indent$}{QED}{RULE_TERM}", "", indent = indent)
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike> std::fmt::Display for ProofGoal<V, C> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.format_indented(f, 0)
     }
 }
 

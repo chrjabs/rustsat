@@ -70,14 +70,13 @@ pub use types::AbsConstraintId;
 pub use types::Axiom;
 pub use types::Conclusion;
 pub use types::ConstraintId;
-pub use types::Derivation;
 pub use types::ObjectiveUpdate;
 pub use types::Order;
+pub use types::OrderDefinitionProofGoalId;
 pub use types::OrderVar;
 pub use types::OutputGuarantee;
 pub use types::OutputType;
 pub use types::ProblemType;
-pub use types::ProofGoal;
 pub use types::ProofGoalId;
 pub use types::ProofOnlyVar;
 pub use types::Substitution;
@@ -344,7 +343,7 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_ids<II>(&mut self, ids: II) -> std::io::Result<guards::SubProof<'_, Writer, ()>>
+    pub fn delete_ids<II>(&mut self, ids: II) -> std::io::Result<guards::SubProof<'_, Self, ()>>
     where
         II: IntoIterator<Item = ConstraintId>,
     {
@@ -467,7 +466,7 @@ where
     pub fn update_objective<O>(
         &mut self,
         update: &ObjectiveUpdate<O>,
-    ) -> std::io::Result<guards::SubProof<'_, Writer, ()>>
+    ) -> std::io::Result<guards::SubProof<'_, Self, ()>>
     where
         O: ObjectiveLike,
     {
@@ -488,7 +487,7 @@ where
     pub fn proof_by_contradiction<C>(
         &mut self,
         constr: &C,
-    ) -> std::io::Result<guards::SubProof<'_, Writer>>
+    ) -> std::io::Result<guards::SubProof<'_, Self>>
     where
         C: ConstraintLike,
     {
@@ -509,7 +508,7 @@ where
         &mut self,
         constr: &C,
         subs: SI,
-    ) -> std::io::Result<guards::SubProof<'_, Writer>>
+    ) -> std::io::Result<guards::SubProof<'_, Self>>
     where
         C: ConstraintLike,
         SI: IntoIterator<Item = Substitution<C::Var>>,
@@ -536,7 +535,7 @@ where
         &mut self,
         constr: &C,
         subs: SI,
-    ) -> std::io::Result<guards::SubProof<'_, Writer>>
+    ) -> std::io::Result<guards::SubProof<'_, Self>>
     where
         V: VarLike,
         C: ConstraintLike,
@@ -897,12 +896,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> std::io::Result<()>
+    pub fn define_order<S>(&mut self, name: S) -> std::io::Result<guards::Order<'_, Writer>>
     where
-        V: VarLike,
-        C: ConstraintLike<Var = OrderVar<V>>,
+        S: Into<String>,
     {
-        writeln!(self.writer, "{order}{RULE_TERM}")
+        guards::Order::new(self, name)
     }
 
     /// Loads an order that needs to be previously defined
@@ -914,17 +912,31 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn load_order<V, I>(&mut self, name: &str, vars: I) -> std::io::Result<()>
+    pub fn load_order<V, I>(&mut self, order: &Order, vars: I) -> std::io::Result<()>
     where
         V: VarLike,
         I: IntoIterator<Item = V>,
     {
         writeln!(
             self.writer,
-            "{ORDER_LOAD} {name} {}{RULE_TERM}",
+            "{ORDER_LOAD} {} {}{RULE_TERM}",
+            order.name(),
             vars.into_iter()
                 .format_with(" ", |v, f| f(&V::Formatter::from(v)))
         )
+    }
+
+    /// Unloads the currently active order
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `load_order` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn unload_order(&mut self) -> std::io::Result<()> {
+        writeln!(self.writer, "{ORDER_LOAD} {RULE_TERM}")
     }
 
     /// Sets the strengthening to core mode
