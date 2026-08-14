@@ -1105,8 +1105,10 @@ impl Objective {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pigeons::ObjectiveLike<crate::types::Var> for Objective {
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+impl pigeons::ObjectiveLike for Objective {
+    type Var = crate::types::Var;
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
         self.iter_soft_lits()
             .expect("objective for proof logging cannot have soft clauses")
             .into_iter()
@@ -1720,7 +1722,7 @@ mod tests {
                 "{} {}",
                 obj.sum_iter()
                     .format_with(" ", |(w, a), f| f(&format_args!("{w} {a}"))),
-                <super::Objective as ObjectiveLike<super::Var>>::offset(&obj)
+                <super::Objective as ObjectiveLike>::offset(&obj)
             ),
             truth
         );
