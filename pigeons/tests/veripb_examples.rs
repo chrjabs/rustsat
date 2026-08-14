@@ -58,7 +58,9 @@ impl<'slf> Constr<&'slf str> {
     }
 }
 
-impl<V: VarLike> ConstraintLike<V> for Constr<V> {
+impl<V: VarLike> ConstraintLike for Constr<V> {
+    type Var = V;
+
     fn rhs(&self) -> isize {
         self.rhs
     }
@@ -99,7 +101,9 @@ impl<'slf> Obj<'slf> {
     }
 }
 
-impl<'slf> ObjectiveLike<&'slf str> for Obj<'slf> {
+impl<'slf> ObjectiveLike for Obj<'slf> {
+    type Var = &'slf str;
+
     fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<&'slf str>)> {
         self.terms
             .iter()
@@ -220,47 +224,47 @@ fn implication_weaker() {
 #[test]
 fn g3_g5() {
     let mut proof = new_proof(361, false);
-    let a = proof.redundant(
+    let a = proof.redundant::<&'static str, _, _ ,_>(
         &c!("-1 x0_0 -1 x1_0 -1 x2_0 -1 x3_0 -1 x4_0 -1 x5_0 -1 x6_0 -1 x7_0 -1 x8_0 -1 x9_0 >= -1"),
         [],
         None
     ).unwrap();
     let b = proof
-        .redundant(
+        .redundant::<&'static str, _, _ ,_>(
             &c!("1 ~x0_0 1 x9_1 1 x9_2 1 x9_3 1 x9_4 1 x9_5 1 x9_6 1 x9_7 1 x9_8 1 x9_9 1 x9_10 >= 1"),
             [],
             None,
         )
         .unwrap();
     let c = proof
-        .redundant(&c!("1 ~x9_1 1 x1_0 1 x1_2 1 x1_10 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_1 1 x1_0 1 x1_2 1 x1_10 >= 1"), [], None)
         .unwrap();
     let d = proof
-        .redundant(&c!("1 ~x9_2 1 x1_0 1 x1_1 1 x1_3 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_2 1 x1_0 1 x1_1 1 x1_3 >= 1"), [], None)
         .unwrap();
     let e = proof
-        .redundant(&c!("1 ~x9_3 1 x1_0 1 x1_2 1 x1_4 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_3 1 x1_0 1 x1_2 1 x1_4 >= 1"), [], None)
         .unwrap();
     let f = proof
-        .redundant(&c!("1 ~x9_4 1 x1_0 1 x1_3 1 x1_5 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_4 1 x1_0 1 x1_3 1 x1_5 >= 1"), [], None)
         .unwrap();
     let g = proof
-        .redundant(&c!("1 ~x9_5 1 x1_0 1 x1_4 1 x1_6 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_5 1 x1_0 1 x1_4 1 x1_6 >= 1"), [], None)
         .unwrap();
     let h = proof
-        .redundant(&c!("1 ~x9_6 1 x1_0 1 x1_5 1 x1_7 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_6 1 x1_0 1 x1_5 1 x1_7 >= 1"), [], None)
         .unwrap();
     let i = proof
-        .redundant(&c!("1 ~x9_7 1 x1_0 1 x1_6 1 x1_8 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_7 1 x1_0 1 x1_6 1 x1_8 >= 1"), [], None)
         .unwrap();
     let j = proof
-        .redundant(&c!("1 ~x9_8 1 x1_0 1 x1_7 1 x1_9 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_8 1 x1_0 1 x1_7 1 x1_9 >= 1"), [], None)
         .unwrap();
     let k = proof
-        .redundant(&c!("1 ~x9_9 1 x1_0 1 x1_8 1 x1_10 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_9 1 x1_0 1 x1_8 1 x1_10 >= 1"), [], None)
         .unwrap();
     let l = proof
-        .redundant(&c!("1 ~x9_10 1 x1_0 1 x1_1 1 x1_9 >= 1"), [], None)
+        .redundant::<&'static str, _, _, _>(&c!("1 ~x9_10 1 x1_0 1 x1_1 1 x1_9 >= 1"), [], None)
         .unwrap();
     proof.set_level(1).unwrap();
     let sum = proof
@@ -717,7 +721,7 @@ fn objective_update_diff() {
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     // obju diff 1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2 ;
     proof
-        .update_objective(&ObjectiveUpdate::<_, _, Constr>::diff(Obj::parse(
+        .update_objective::<&'static str, _, _>(&ObjectiveUpdate::<_, _, Constr>::diff(Obj::parse(
             "1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2",
         )))
         .unwrap();
@@ -772,7 +776,7 @@ fn objective_update() {
     proof.move_ids_to_core([Id::last(1)]).unwrap();
     // obju diff 1 y1 -1 ~x1 -1 ~x2 -1 ~x3 2 ;
     proof
-        .update_objective(&ObjectiveUpdate::<_, _, Constr>::new(
+        .update_objective::<&'static str, _, _>(&ObjectiveUpdate::<_, _, Constr>::new(
             Obj::parse("1 y1 2"),
             None,
         ))
@@ -857,9 +861,7 @@ fn delete_core_subproof_proofgoal() {
             )],
         )
         .unwrap();
-    proof
-        .is_deleted::<&'static str, Constr>(&c!("1 x1 1 x2 2 ~x3 >= 2"))
-        .unwrap();
+    proof.is_deleted(&c!("1 x1 1 x2 2 ~x3 >= 2")).unwrap();
     let proof_file = proof
         .conclude::<&'static str>(&OutputGuarantee::None, &Conclusion::None)
         .unwrap();
