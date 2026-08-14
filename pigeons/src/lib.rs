@@ -254,7 +254,7 @@ where
     ) -> std::io::Result<()>
     where
         V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         PI: Iterator<Item = SubproofElement<V, C>>,
     {
         if proof.peek().is_some() {
@@ -378,14 +378,13 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn reverse_unit_prop<V, C, I>(
+    pub fn reverse_unit_prop<C, I>(
         &mut self,
         constr: &C,
         hints: I,
     ) -> std::io::Result<AbsConstraintId>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         I: IntoIterator<Item = ConstraintId>,
     {
         let mut hints = hints.into_iter().peekable();
@@ -420,7 +419,7 @@ where
     pub fn delete_ids<V, C, II, PI>(&mut self, ids: II, proof: PI) -> std::io::Result<()>
     where
         V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         II: IntoIterator<Item = ConstraintId>,
         PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
@@ -442,10 +441,9 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_constr<V, C>(&mut self, constr: &C) -> std::io::Result<()>
+    pub fn delete_constr<C>(&mut self, constr: &C) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         writeln!(
             self.writer,
@@ -551,8 +549,8 @@ where
     ) -> std::io::Result<()>
     where
         V: VarLike,
-        O: ObjectiveLike<V>,
-        C: ConstraintLike<V>,
+        O: ObjectiveLike,
+        C: ConstraintLike,
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
         writeln!(self.writer, "{OBJ_UPDATE} {update}{RULE_TERM}")
@@ -574,7 +572,7 @@ where
     ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
         write!(self.writer, "{PBC} {}", ConstrFormatter::from(constr))?;
@@ -600,7 +598,7 @@ where
     ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         SI: IntoIterator<Item = Substitution<V>>,
         PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
@@ -632,7 +630,7 @@ where
     ) -> std::io::Result<AbsConstraintId>
     where
         V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         SI: IntoIterator<Item = Substitution<V>>,
         PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
@@ -849,14 +847,9 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn equals<V, C>(
-        &mut self,
-        constraint: &C,
-        equals: Option<ConstraintId>,
-    ) -> std::io::Result<()>
+    pub fn equals<C>(&mut self, constraint: &C, equals: Option<ConstraintId>) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         if let Some(id) = equals {
             writeln!(
@@ -886,10 +879,9 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn obj_equals<V, O>(&mut self, objective: &O) -> std::io::Result<()>
+    pub fn obj_equals<O>(&mut self, objective: &O) -> std::io::Result<()>
     where
-        V: VarLike,
-        O: ObjectiveLike<V>,
+        O: ObjectiveLike,
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
         writeln!(
@@ -908,14 +900,13 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn implied<V, C>(
+    pub fn implied<C>(
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
     ) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         if let Some(id) = implicant {
             writeln!(
@@ -941,14 +932,13 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn implied_add<V, C>(
+    pub fn implied_add<C>(
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
     ) -> std::io::Result<AbsConstraintId>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         if let Some(id) = implicant {
             writeln!(
@@ -1004,7 +994,7 @@ where
     pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> std::io::Result<()>
     where
         V: VarLike,
-        C: ConstraintLike<OrderVar<V>>,
+        C: ConstraintLike<Var = OrderVar<V>>,
     {
         writeln!(self.writer, "{order}{RULE_TERM}")
     }
@@ -1094,10 +1084,9 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn is_deleted<V, C>(&mut self, constr: &C) -> std::io::Result<()>
+    pub fn is_deleted<C>(&mut self, constr: &C) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         writeln!(
             self.writer,
@@ -1170,27 +1159,35 @@ impl VarLike for &str {
 }
 
 /// Trait that needs to be implemented for types used as constraints
-pub trait ConstraintLike<V: VarLike> {
+pub trait ConstraintLike {
+    /// The variable type of the constraint
+    type Var: VarLike;
+
     /// Gets the operator and right hand side of the constraint
     fn rhs(&self) -> isize;
 
     /// Gets an iterator over the coefficient literal pairs in the constraint
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)>;
 }
 
 /// Trait that needs to be implemented for types used as objectives
-pub trait ObjectiveLike<V: VarLike> {
+pub trait ObjectiveLike {
+    /// The variable type of the objective
+    type Var: VarLike;
+
     /// Gets an iterator over the coefficient literal pairs in the constraint
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)>;
     /// Gets the constant offset of the objective
     fn offset(&self) -> isize;
 }
 
-impl<V, Iter> ObjectiveLike<V> for Iter
+impl<V, Iter> ObjectiveLike for Iter
 where
     V: VarLike,
     Iter: IntoIterator<Item = (isize, V)> + Clone,
 {
+    type Var = V;
+
     fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)> {
         self.clone().into_iter().map(|(cf, v)| (cf, v.pos_axiom()))
     }
@@ -1284,12 +1281,14 @@ end pseudo-Boolean proof;
         rhs: isize,
     }
 
-    impl<'slf> super::ConstraintLike<&'slf str> for Constr {
+    impl super::ConstraintLike for Constr {
+        type Var = &'static str;
+
         fn rhs(&self) -> isize {
             self.rhs
         }
 
-        fn sum_iter(&self) -> impl Iterator<Item = (isize, super::Axiom<&'slf str>)> {
+        fn sum_iter(&self) -> impl Iterator<Item = (isize, super::Axiom<Self::Var>)> {
             self.terms
                 .iter()
                 .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))

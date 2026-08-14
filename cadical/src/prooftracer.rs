@@ -275,12 +275,14 @@ impl CaDiCaLClause<'_> {
 }
 
 #[cfg(feature = "pigeons")]
-impl pigeons::ConstraintLike<rustsat::types::Var> for CaDiCaLClause<'_> {
+impl pigeons::ConstraintLike for CaDiCaLClause<'_> {
+    type Var = rustsat::types::Var;
+
     fn rhs(&self) -> isize {
         1
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<rustsat::types::Var>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
         self.iter().map(|l| (1, pigeons::Axiom::from(l)))
     }
 }

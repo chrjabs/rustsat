@@ -269,7 +269,9 @@ impl<V: VarLike> std::fmt::Display for Axiom<V> {
     }
 }
 
-impl<V: VarLike> ConstraintLike<V> for Axiom<V> {
+impl<V: VarLike> ConstraintLike for Axiom<V> {
+    type Var = V;
+
     fn rhs(&self) -> isize {
         1
     }
@@ -361,7 +363,7 @@ impl<V: VarLike> std::fmt::Display for SubstituteWith<V> {
 /// An order in the proof
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
+pub struct Order<V: VarLike, C: ConstraintLike<Var = OrderVar<V>>> {
     name: String,
     used_vars: rustc_hash::FxHashSet<V>,
     definition: Vec<C>,
@@ -395,7 +397,7 @@ impl<V: VarLike> std::fmt::Display for OrderVar<V> {
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
+impl<V: VarLike, C: ConstraintLike<Var = OrderVar<V>>> Order<V, C> {
     /// Creates a new builder structure
     #[must_use]
     pub fn new(name: String) -> Self {
@@ -458,7 +460,7 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> std::fmt::Display for Order<V, C> {
+impl<V: VarLike, C: ConstraintLike<Var = OrderVar<V>>> std::fmt::Display for Order<V, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{ORDER_DEFINE} {}", self.name)?;
         // Variables
@@ -539,7 +541,7 @@ where
 impl<V, C> std::fmt::Display for Derivation<V, C>
 where
     V: VarLike,
-    C: ConstraintLike<V>,
+    C: ConstraintLike,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -588,13 +590,13 @@ pub struct ProofGoal<V: VarLike, C> {
     derivations: Vec<Derivation<V, C>>,
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> Extend<Derivation<V, C>> for ProofGoal<V, C> {
+impl<V: VarLike, C: ConstraintLike> Extend<Derivation<V, C>> for ProofGoal<V, C> {
     fn extend<T: IntoIterator<Item = Derivation<V, C>>>(&mut self, iter: T) {
         self.derivations.extend(iter);
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
+impl<V: VarLike, C: ConstraintLike> ProofGoal<V, C> {
     /// Creates a new proof goal
     #[must_use]
     pub fn empty(id: ProofGoalId) -> Self {
@@ -669,7 +671,7 @@ impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ProofGoal<V, C> {
+impl<V: VarLike, C: ConstraintLike> std::fmt::Display for ProofGoal<V, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.format_indented(f, 0)
     }
@@ -715,43 +717,39 @@ impl std::fmt::Display for ProofGoalId {
 /// An objective update step (`obju`)
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>, C> {
+pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike, C> {
     /// `new`
-    New(O, Vec<ProofGoal<V, C>>, std::marker::PhantomData<V>),
+    New(O, Vec<ProofGoal<V, C>>),
     /// `diff`
-    Diff(O, std::marker::PhantomData<V>),
+    Diff(O),
 }
 
 impl<V, O, C> ObjectiveUpdate<V, O, C>
 where
     V: VarLike,
-    O: ObjectiveLike<V>,
-    C: ConstraintLike<V>,
+    O: ObjectiveLike,
+    C: ConstraintLike,
 {
     /// Creates an explicit objective update by specifying the entire new objective
     pub fn new<I: IntoIterator<Item = ProofGoal<V, C>>>(objective: O, subproof: I) -> Self {
-        ObjectiveUpdate::New(
-            objective,
-            subproof.into_iter().collect(),
-            std::marker::PhantomData,
-        )
+        ObjectiveUpdate::New(objective, subproof.into_iter().collect())
     }
 
     /// Creates an objective update by specifying the difference to the old objective
     pub fn diff(diff: O) -> Self {
-        ObjectiveUpdate::Diff(diff, std::marker::PhantomData)
+        ObjectiveUpdate::Diff(diff)
     }
 }
 
 impl<V, O, C> std::fmt::Display for ObjectiveUpdate<V, O, C>
 where
     V: VarLike,
-    O: ObjectiveLike<V>,
-    C: ConstraintLike<V>,
+    O: ObjectiveLike,
+    C: ConstraintLike,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectiveUpdate::New(obj, subproof, _) => {
+            ObjectiveUpdate::New(obj, subproof) => {
                 write!(f, "{OBJ_UPDATE_NEW} {}", ObjFormatter::from(obj))?;
                 if !subproof.is_empty() {
                     writeln!(f, " {SEP_A} {SUBPROOF}")?;
@@ -763,7 +761,7 @@ where
                 }
                 Ok(())
             }
-            ObjectiveUpdate::Diff(obj, _) => {
+            ObjectiveUpdate::Diff(obj) => {
                 write!(f, "{OBJ_UPDATE_DIFF} {}", ObjFormatter::from(obj))
             }
         }
@@ -867,20 +865,20 @@ impl OutputType {
     /// Creates a `CONSTRAINTS` conclusion
     ///
     /// This counts the number of constraints and variables in the constraints automatically
-    pub fn constraints<V, C, O, I>(constraints: I, objective: Option<O>) -> Self
+    pub fn constraints<C, O, I>(constraints: I, objective: Option<O>) -> Self
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
-        O: ObjectiveLike<V>,
+        C: ConstraintLike,
+        O: ObjectiveLike,
         I: IntoIterator<Item = C>,
     {
         let mut vars = std::collections::HashSet::<String>::default();
         let objective = if let Some(objective) = objective {
-            vars.extend(
-                objective
-                    .sum_iter()
-                    .map(|(_, v)| format!("{}", V::Formatter::from(v.var()))),
-            );
+            vars.extend(objective.sum_iter().map(|(_, v)| {
+                format!(
+                    "{}",
+                    <<O as ObjectiveLike>::Var as VarLike>::Formatter::from(v.var())
+                )
+            }));
             Some(format!("{}", ObjFormatter::from(&objective)))
         } else {
             None
@@ -888,10 +886,12 @@ impl OutputType {
         let constraints: Vec<_> = constraints
             .into_iter()
             .map(|c| {
-                vars.extend(
-                    c.sum_iter()
-                        .map(|(_, v)| format!("{}", V::Formatter::from(v.var()))),
-                );
+                vars.extend(c.sum_iter().map(|(_, v)| {
+                    format!(
+                        "{}",
+                        <<C as ConstraintLike>::Var as VarLike>::Formatter::from(v.var())
+                    )
+                }));
                 format!("{}", ConstrFormatter::from(&c))
             })
             .collect();
@@ -962,21 +962,17 @@ impl<V: VarLike> std::fmt::Display for Conclusion<V> {
     }
 }
 
-pub struct ObjFormatter<'o, V: VarLike, O: ObjectiveLike<V>> {
+pub struct ObjFormatter<'o, O: ObjectiveLike> {
     obj: &'o O,
-    var: std::marker::PhantomData<V>,
 }
 
-impl<'o, V: VarLike, O: ObjectiveLike<V>> From<&'o O> for ObjFormatter<'o, V, O> {
+impl<'o, O: ObjectiveLike> From<&'o O> for ObjFormatter<'o, O> {
     fn from(value: &'o O) -> Self {
-        Self {
-            obj: value,
-            var: std::marker::PhantomData,
-        }
+        Self { obj: value }
     }
 }
 
-impl<V: VarLike, O: ObjectiveLike<V>> std::fmt::Display for ObjFormatter<'_, V, O> {
+impl<O: ObjectiveLike> std::fmt::Display for ObjFormatter<'_, O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -989,21 +985,17 @@ impl<V: VarLike, O: ObjectiveLike<V>> std::fmt::Display for ObjFormatter<'_, V, 
     }
 }
 
-pub struct ConstrFormatter<'c, V: VarLike, C: ConstraintLike<V>> {
+pub struct ConstrFormatter<'c, C: ConstraintLike> {
     constr: &'c C,
-    var: std::marker::PhantomData<V>,
 }
 
-impl<'c, V: VarLike, C: ConstraintLike<V>> From<&'c C> for ConstrFormatter<'c, V, C> {
+impl<'c, C: ConstraintLike> From<&'c C> for ConstrFormatter<'c, C> {
     fn from(value: &'c C) -> Self {
-        Self {
-            constr: value,
-            var: std::marker::PhantomData,
-        }
+        Self { constr: value }
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ConstrFormatter<'_, V, C> {
+impl<C: ConstraintLike> std::fmt::Display for ConstrFormatter<'_, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
