@@ -844,3 +844,33 @@ impl<C: ConstraintLike> std::fmt::Display for ConstrFormatter<'_, C> {
 /// A proof checker timer handle, helping to only stop timer that have been started
 #[derive(Debug)]
 pub struct TimerHandle(pub(crate) String);
+
+/// A helper type that allows for using different variable types together
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MixedVar<V1, V2> {
+    /// The first variable variant
+    A(V1),
+    /// The second variable variant
+    B(V2),
+}
+
+impl<V1, V2> VarLike for MixedVar<V1, V2>
+where
+    V1: VarLike,
+    V2: VarLike,
+{
+    type Formatter = Self;
+}
+
+impl<V1, V2> std::fmt::Display for MixedVar<V1, V2>
+where
+    V1: VarLike,
+    V2: VarLike,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MixedVar::A(v) => write!(f, "{}", V1::Formatter::from(*v)),
+            MixedVar::B(v) => write!(f, "{}", V2::Formatter::from(*v)),
+        }
+    }
+}
