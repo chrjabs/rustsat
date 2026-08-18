@@ -71,6 +71,7 @@ pub use types::AbsConstraintId;
 pub use types::Axiom;
 pub use types::Conclusion;
 pub use types::ConstraintId;
+pub use types::MixedVar;
 pub use types::ObjectiveUpdate;
 pub use types::Order;
 pub use types::OrderAuxVar;
