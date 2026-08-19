@@ -24,6 +24,8 @@ mod sealed {
 
         fn writer(&mut self) -> &mut Self::Writer;
 
+        fn next_id(&self) -> crate::AbsConstraintId;
+
         fn new_id(&mut self) -> crate::AbsConstraintId;
 
         fn increase_next_id(&mut self, num_constraints: usize);
@@ -50,6 +52,10 @@ where
 
     fn writer(&mut self) -> &mut Self::Writer {
         &mut self.writer
+    }
+
+    fn next_id(&self) -> AbsConstraintId {
+        self.next_id
     }
 
     fn new_id(&mut self) -> AbsConstraintId {
@@ -760,6 +766,10 @@ where
         self.wrapper.writer()
     }
 
+    fn next_id(&self) -> AbsConstraintId {
+        self.next_id
+    }
+
     fn new_id(&mut self) -> AbsConstraintId {
         let id = self.next_id;
         self.next_id += 1;
@@ -1081,6 +1091,54 @@ where
         3
     }
 
+    /// Gets the constraint ID of a specification constraint instantiated with a given set of input
+    /// variables
+    #[must_use]
+    pub fn specification_constraint_id(
+        &self,
+        spec_constr_idx: usize,
+        instantiation: crate::SpecificationInstantiation,
+    ) -> Option<AbsConstraintId> {
+        if spec_constr_idx >= self.order.num_spec_constraints() {
+            return None;
+        }
+        Some(match instantiation {
+            crate::SpecificationInstantiation::LeftAndRight => {
+                AbsConstraintId::new(spec_constr_idx + 1)
+            }
+            crate::SpecificationInstantiation::RightAndFreshRight => {
+                AbsConstraintId::new(self.order.num_spec_constraints() + spec_constr_idx + 1)
+            }
+            crate::SpecificationInstantiation::LeftAndFreshRight => {
+                AbsConstraintId::new(2 * self.order.num_spec_constraints() + spec_constr_idx + 1)
+            }
+        })
+    }
+
+    /// Gets the constraint ID of a definition constraint instantiated with a given set of input
+    /// variables
+    #[must_use]
+    pub fn definition_constraint_id(
+        &self,
+        def_constr_idx: usize,
+        instantiation: crate::DefinitionInstantiation,
+    ) -> Option<AbsConstraintId> {
+        if def_constr_idx >= self.order.num_def_constraints() {
+            return None;
+        }
+        Some(match instantiation {
+            crate::DefinitionInstantiation::LeftAndRight => {
+                AbsConstraintId::new(3 * self.order.num_spec_constraints() + def_constr_idx + 1)
+            }
+            crate::DefinitionInstantiation::RightAndFreshRight => AbsConstraintId::new(
+                3 * self.order.num_spec_constraints()
+                    + self.order.num_def_constraints()
+                    + def_constr_idx
+                    + 1,
+            ),
+        })
+    }
+
     crate::macros::implement!(forward from wrapper);
     crate::macros::implement!(operations with start);
     crate::macros::implement!(reverse_unit_prop with start);
@@ -1156,6 +1214,7 @@ where
 pub struct OrderReflexivityProof<'proof, Writer: std::io::Write> {
     wrapper: OrderProof<'proof, Writer>,
     order: crate::Order,
+    first_id: AbsConstraintId,
 }
 
 impl<'proof, Writer> OrderReflexivityProof<'proof, Writer>
@@ -1164,7 +1223,12 @@ where
 {
     fn new(mut wrapper: OrderProof<'proof, Writer>, order: crate::Order) -> Self {
         wrapper.used = false;
-        Self { wrapper, order }
+        let first_id = wrapper.next_id;
+        Self {
+            wrapper,
+            order,
+            first_id,
+        }
     }
 
     fn start(&mut self) -> std::io::Result<()> {
@@ -1187,6 +1251,25 @@ where
     #[expect(clippy::unused_self)]
     fn level(&self) -> usize {
         3
+    }
+
+    /// Gets the constraint ID of a specification constraint
+    #[must_use]
+    pub fn specification_constraint_id(&self, spec_constr_idx: usize) -> Option<AbsConstraintId> {
+        if spec_constr_idx >= self.order.num_spec_constraints() {
+            return None;
+        }
+        Some(self.first_id + spec_constr_idx)
+    }
+
+    /// Gets the constraint ID of a definition constraint instantiated with a given set of input
+    /// variables
+    #[must_use]
+    pub fn definition_constraint_id(&self, def_constr_idx: usize) -> Option<AbsConstraintId> {
+        if def_constr_idx >= self.order.num_def_constraints() {
+            return None;
+        }
+        Some(self.first_id + self.order.num_spec_constraints() + def_constr_idx)
     }
 
     crate::macros::implement!(forward from wrapper);
@@ -1268,6 +1351,10 @@ where
         self.wrapper.writer()
     }
 
+    fn next_id(&self) -> AbsConstraintId {
+        self.next_id
+    }
+
     fn new_id(&mut self) -> AbsConstraintId {
         let id = self.next_id;
         self.next_id += 1;
@@ -1345,6 +1432,7 @@ impl sealed::SubScopeType for LeqScope {
 pub struct SubScope<'scope, Scope: ProofScope, Type: SubScopeType> {
     scope: &'scope mut Scope,
     level: usize,
+    first_id: AbsConstraintId,
     _scope: std::marker::PhantomData<Type>,
 }
 
@@ -1362,16 +1450,27 @@ where
             scope = crate::keywords::SCOPE,
             typ = Type::ID,
         )?;
+        let first_id = scope.next_id();
         Type::prepare_scope(scope);
         Ok(Self {
             scope,
             level,
+            first_id,
             _scope: std::marker::PhantomData,
         })
     }
 
     fn level(&self) -> usize {
         self.level
+    }
+
+    /// Gets the constraint ID of a specification constraint
+    #[must_use]
+    pub fn specification_constraint_id(&self, spec_constr_idx: usize) -> Option<AbsConstraintId> {
+        if spec_constr_idx >= self.scope.num_order_spec_constraints() {
+            return None;
+        }
+        Some(self.first_id + spec_constr_idx)
     }
 
     crate::macros::implement!(forward from scope);
