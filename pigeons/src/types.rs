@@ -874,3 +874,32 @@ where
         }
     }
 }
+
+/// An instantiation of the specification constraints in the transitivity proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(clippy::enum_variant_names)]
+pub enum SpecificationInstantiation {
+    /// The order constraints instantiated with the left and right variables from the order
+    /// definition and the original auxiliary variables
+    LeftAndRight,
+    /// The order constraints instantiated with the right variables from the order definition, the
+    /// fresh right variables from the transitivity proof and the first set of fresh auxiliary
+    /// variables
+    RightAndFreshRight,
+    /// The order constraints instantiated with the left variables from the order definition, the
+    /// fresh right variables from the transitivity proof and the second set of fresh auxiliary
+    /// variables
+    LeftAndFreshRight,
+}
+
+/// An instantiation of the specification constraints in the transitivity proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinitionInstantiation {
+    /// The order constraints instantiated with the left and right variables from the order
+    /// definition and the original auxiliary variables
+    LeftAndRight,
+    /// The order constraints instantiated with the right variables from the order definition, the
+    /// fresh right variables from the transitivity proof and the first set of fresh auxiliary
+    /// variables
+    RightAndFreshRight,
+}
