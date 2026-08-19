@@ -71,6 +71,7 @@ pub use types::AbsConstraintId;
 pub use types::Axiom;
 pub use types::Conclusion;
 pub use types::ConstraintId;
+pub use types::DefinitionInstantiation;
 pub use types::MixedVar;
 pub use types::ObjectiveUpdate;
 pub use types::Order;
@@ -83,6 +84,7 @@ pub use types::OutputType;
 pub use types::ProblemType;
 pub use types::ProofGoalId;
 pub use types::ProofOnlyVar;
+pub use types::SpecificationInstantiation;
 pub use types::Substitution;
 pub use types::TimerHandle;
 
