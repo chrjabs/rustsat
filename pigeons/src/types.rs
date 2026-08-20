@@ -429,7 +429,11 @@ impl std::fmt::Display for OrderDefinitionProofGoalId {
 pub struct OrderInputVar<V: VarLike>(V);
 
 impl<V: VarLike> OrderInputVar<V> {
-    pub(crate) fn new(var: V) -> Self {
+    /// Creates an order input variables
+    ///
+    /// **Note**: when creating order input variables this way, the user has to ensure that the
+    /// variable has been added to the order first
+    pub fn new(var: V) -> Self {
         Self(var)
     }
 
@@ -456,7 +460,11 @@ impl<V: VarLike> OrderInputVar<V> {
 pub struct OrderAuxVar<V: VarLike>(V);
 
 impl<V: VarLike> OrderAuxVar<V> {
-    pub(crate) fn new(var: V) -> Self {
+    /// Creates an auxiliary order variables
+    ///
+    /// **Note**: when creating order auxiliary variables this way, the user has to ensure that the
+    /// variable has been added to the order first
+    pub fn new(var: V) -> Self {
         Self(var)
     }
 
