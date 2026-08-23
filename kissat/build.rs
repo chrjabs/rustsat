@@ -238,6 +238,7 @@ fn build(version: Version) -> std::path::PathBuf {
                 "#define VERSION \"{}\"\n#define COMPILER \"{} {}\"\n#define ID \"{}\"\n#define BUILD \"{}\"\n#define DIR \"{}\"",
                 kissat_version, compiler_desc, compiler_flags, version.reference(), chrono::Utc::now(), kissat_dir_str
             ).expect("Failed to write kissat build.h");
+    drop(build_header);
     // Build Kissat
     kissat_build
         .include(kissat_src_dir.join("src"))
