@@ -362,10 +362,15 @@ fn build(repo: &str, branch: &str, version: Version) {
     cadical_version.retain(|c| c != '\n');
     let (compiler_desc, compiler_flags) = get_compiler_description(&cadical_build.get_compiler());
     write!(
-                build_header,
-                "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
-                cadical_version, version.reference(), compiler_desc, compiler_flags, chrono::Utc::now()
-            ).expect("Failed to write CaDiCaL build.hpp");
+        build_header,
+        "#define VERSION \"{}\"\n#define IDENTIFIER \"{}\"\n#define COMPILER \"{}\"\n#define FLAGS \"{}\"\n#define DATE \"{}\"",
+        c_escape(&cadical_version),
+        c_escape(version.reference()),
+        c_escape(&compiler_desc),
+        c_escape(&compiler_flags),
+        c_escape(&chrono::Utc::now().to_string()),
+    )
+        .expect("Failed to write CaDiCaL build.hpp");
     // Build Kitten
     if version >= Version::V2_2 {
         let mut kitten_build = cadical_build.clone();
@@ -604,4 +609,27 @@ fn has_cpp_feature(feature: CppFeature, run: bool) -> bool {
     } else {
         true
     }
+}
+
+/// Escapes a string using C escape codes.
+fn c_escape(s: &str) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'"' => out.push_str("\\\""),
+            b'\\' => out.push_str("\\\\"),
+            b'\n' => out.push_str("\\n"),
+            b'\r' => out.push_str("\\r"),
+            b'\t' => out.push_str("\\t"),
+            b'?' => out.push_str("\\?"),        // No trigraphs please.
+            0x20..=0x7e => out.push(b as char), // Printable ASCII.
+            // Octal escape code instead of hex as hex is variable-width in C,
+            // e.g. foo\xFFbar would parse as \xffba. Octal is up to three
+            // characters, which we force by zero-padding.
+            _ => write!(&mut out, "\\{b:03o}").unwrap(),
+        }
+    }
+    out
 }
