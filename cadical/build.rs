@@ -371,6 +371,7 @@ fn build(repo: &str, branch: &str, version: Version) {
         c_escape(&chrono::Utc::now().to_string()),
     )
         .expect("Failed to write CaDiCaL build.hpp");
+    drop(build_header);
     // Build Kitten
     if version >= Version::V2_2 {
         let mut kitten_build = cadical_build.clone();

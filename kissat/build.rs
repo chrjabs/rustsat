@@ -244,6 +244,7 @@ fn build(version: Version) -> std::path::PathBuf {
         c_escape(kissat_dir_str)
     )
         .expect("Failed to write kissat build.h");
+    drop(build_header);
     // Build Kissat
     kissat_build
         .include(kissat_src_dir.join("src"))
