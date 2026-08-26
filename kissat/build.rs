@@ -234,10 +234,16 @@ fn build(version: Version) -> std::path::PathBuf {
     kissat_version.retain(|c| c != '\n');
     let (compiler_desc, compiler_flags) = get_compiler_description(&kissat_build.get_compiler());
     write!(
-                build_header,
-                "#define VERSION \"{}\"\n#define COMPILER \"{} {}\"\n#define ID \"{}\"\n#define BUILD \"{}\"\n#define DIR \"{}\"",
-                kissat_version, compiler_desc, compiler_flags, version.reference(), chrono::Utc::now(), kissat_dir_str
-            ).expect("Failed to write kissat build.h");
+        build_header,
+        "#define VERSION \"{}\"\n#define COMPILER \"{} {}\"\n#define ID \"{}\"\n#define BUILD \"{}\"\n#define DIR \"{}\"",
+        c_escape(&kissat_version),
+        c_escape(&compiler_desc),
+        c_escape(&compiler_flags),
+        c_escape(version.reference()),
+        c_escape(&chrono::Utc::now().to_string()),
+        c_escape(kissat_dir_str)
+    )
+        .expect("Failed to write kissat build.h");
     // Build Kissat
     kissat_build
         .include(kissat_src_dir.join("src"))
@@ -322,4 +328,27 @@ fn get_compiler_description(compiler: &cc::Tool) -> (String, String) {
         compiler_version,
         String::from(compiler_flags.to_str().unwrap()),
     )
+}
+
+/// Escapes a string using C escape codes.
+fn c_escape(s: &str) -> String {
+    use std::fmt::Write;
+
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'"' => out.push_str("\\\""),
+            b'\\' => out.push_str("\\\\"),
+            b'\n' => out.push_str("\\n"),
+            b'\r' => out.push_str("\\r"),
+            b'\t' => out.push_str("\\t"),
+            b'?' => out.push_str("\\?"),        // No trigraphs please.
+            0x20..=0x7e => out.push(b as char), // Printable ASCII.
+            // Octal escape code instead of hex as hex is variable-width in C,
+            // e.g. foo\xFFbar would parse as \xffba. Octal is up to three
+            // characters, which we force by zero-padding.
+            _ => write!(&mut out, "\\{b:03o}").unwrap(),
+        }
+    }
+    out
 }
