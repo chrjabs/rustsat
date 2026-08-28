@@ -90,6 +90,8 @@ keyword!(ORDER_VARS_RIGHT, "right");
 // Output & conclusion
 // keep-sorted start
 keyword!(CONCLUSION_BOUNDS, "BOUNDS");
+keyword!(CONCLUSION_ENUM_COMPLETE, "ENUMERATION_COMPLETE");
+keyword!(CONCLUSION_ENUM_PARTIAL, "ENUMERATION_PARTIAL");
 keyword!(CONCLUSION_NONE, "NONE");
 keyword!(CONCLUSION_SAT, "SAT");
 keyword!(CONCLUSION_UNSAT, "UNSAT");

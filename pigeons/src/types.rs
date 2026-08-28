@@ -757,6 +757,18 @@ pub enum Conclusion<V: VarLike> {
         /// Optional solution witnessing the upper bound
         ub_sol: Option<Vec<Axiom<V>>>,
     },
+    /// All projected solutions have been enumerated
+    EnumerationComplete {
+        /// The number of enumerated solutions
+        num_solutions: usize,
+        /// The constraint ID of the derived contradiction
+        contradiction_id: Option<ConstraintId>,
+    },
+    /// Some projected solutions have been enumerated
+    EnumerationPartial {
+        /// The number of enumerated solutions
+        num_solutions: usize,
+    },
 }
 
 impl<V: VarLike> std::fmt::Display for Conclusion<V> {
@@ -791,6 +803,19 @@ impl<V: VarLike> std::fmt::Display for Conclusion<V> {
                     write!(f, " {SEP_B} {}", sol.iter().format(" "))?;
                 }
                 Ok(())
+            }
+            Conclusion::EnumerationComplete {
+                num_solutions,
+                contradiction_id,
+            } => {
+                write!(f, "{CONCLUSION_ENUM_COMPLETE} {num_solutions}")?;
+                if let Some(id) = contradiction_id {
+                    write!(f, " {SEP_B} {id}")?;
+                }
+                Ok(())
+            }
+            Conclusion::EnumerationPartial { num_solutions } => {
+                write!(f, "{CONCLUSION_ENUM_PARTIAL} {num_solutions}")
             }
         }
     }
