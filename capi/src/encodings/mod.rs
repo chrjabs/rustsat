@@ -59,6 +59,7 @@ impl From<Result<(), rustsat::encodings::pb::dpw::PrecisionError>> for MaybeErro
 
 pub type CClauseCollector = extern "C" fn(lit: c_int, data: *mut c_void);
 pub type CAssumpCollector = extern "C" fn(lit: c_int, data: *mut c_void);
+pub type COutputCollector = extern "C" fn(val: usize, lit: c_int, data: *mut c_void);
 
 struct ClauseCollector {
     n_clauses: usize,
@@ -195,5 +196,8 @@ pub struct TwoProduct(rustsat::encodings::am1::TwoProduct);
 
 pub mod am1;
 pub mod card;
-pub mod dpw;
 pub mod pb;
+
+pub mod dpw;
+pub mod gte;
+pub mod tot;
