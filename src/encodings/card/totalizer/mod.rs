@@ -202,27 +202,29 @@ impl super::BoundUpper for Totalizer {
         if !self.lit_buffer.is_empty() {
             return Err(NotEncoded);
         }
-        if let Some(id) = self.root {
-            match &self.db[id] {
-                totdb::Node::Leaf(lit) => {
-                    debug_assert_eq!(ub, self.offset);
-                    return Ok(vec![!*lit]);
-                }
-                totdb::Node::Unit(node) => {
-                    if let totdb::LitData::Lit {
-                        lit,
-                        semantics: Some(semantics),
-                    } = node.lits[ub + self.offset]
-                    {
-                        if semantics.has_if() {
-                            return Ok(vec![!lit]);
-                        }
-                    }
-                }
-                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+        let Some(id) = self.root else {
+            return Err(NotEncoded);
+        };
+        match &self.db[id] {
+            totdb::Node::Leaf(lit) => {
+                debug_assert_eq!(ub, self.offset);
+                Ok(vec![!*lit])
             }
+            totdb::Node::Unit(node) => {
+                let totdb::LitData::Lit {
+                    lit,
+                    semantics: Some(semantics),
+                } = node.lits[ub + self.offset]
+                else {
+                    return Err(NotEncoded);
+                };
+                if !semantics.has_if() {
+                    return Err(NotEncoded);
+                }
+                Ok(vec![!lit])
+            }
+            totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
         }
-        Err(NotEncoded)
     }
 }
 
@@ -243,21 +245,22 @@ impl super::BoundUpperIncremental for Totalizer {
             return Ok(());
         }
         self.extend_tree();
-        if let Some(id) = self.root {
-            let n_vars_before = var_manager.n_used();
-            let n_clauses_before = collector.n_clauses();
-            for idx in range {
-                self.db.define_unweighted(
-                    id,
-                    idx + self.offset,
-                    totdb::Semantics::If,
-                    collector,
-                    var_manager,
-                )?;
-            }
-            self.n_clauses += collector.n_clauses() - n_clauses_before;
-            self.n_vars += var_manager.n_used() - n_vars_before;
+        let Some(id) = self.root else {
+            return Ok(());
+        };
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        for idx in range {
+            self.db.define_unweighted(
+                id,
+                idx + self.offset,
+                totdb::Semantics::If,
+                collector,
+                var_manager,
+            )?;
         }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
         Ok(())
     }
 }
@@ -287,27 +290,29 @@ impl super::BoundLower for Totalizer {
         if !self.lit_buffer.is_empty() {
             return Err(EnforceError::NotEncoded);
         }
-        if let Some(id) = self.root {
-            match &self.db[id] {
-                totdb::Node::Leaf(lit) => {
-                    debug_assert_eq!(lb, 1);
-                    return Ok(vec![*lit]);
-                }
-                totdb::Node::Unit(node) => {
-                    if let totdb::LitData::Lit {
-                        lit,
-                        semantics: Some(semantics),
-                    } = node.lits[lb - 1 + self.offset]
-                    {
-                        if semantics.has_only_if() {
-                            return Ok(vec![lit]);
-                        }
-                    }
-                }
-                totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
+        let Some(id) = self.root else {
+            return Err(EnforceError::NotEncoded);
+        };
+        match &self.db[id] {
+            totdb::Node::Leaf(lit) => {
+                debug_assert_eq!(lb, 1);
+                Ok(vec![*lit])
             }
+            totdb::Node::Unit(node) => {
+                let totdb::LitData::Lit {
+                    lit,
+                    semantics: Some(semantics),
+                } = node.lits[lb - 1 + self.offset]
+                else {
+                    return Err(EnforceError::NotEncoded);
+                };
+                if !semantics.has_only_if() {
+                    return Err(EnforceError::NotEncoded);
+                }
+                Ok(vec![lit])
+            }
+            totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
         }
-        Err(EnforceError::NotEncoded)
     }
 }
 
@@ -328,21 +333,22 @@ impl super::BoundLowerIncremental for Totalizer {
             return Ok(());
         }
         self.extend_tree();
-        if let Some(id) = self.root {
-            let n_vars_before = var_manager.n_used();
-            let n_clauses_before = collector.n_clauses();
-            for idx in range {
-                self.db.define_unweighted(
-                    id,
-                    idx - 1 + self.offset,
-                    totdb::Semantics::OnlyIf,
-                    collector,
-                    var_manager,
-                )?;
-            }
-            self.n_clauses += collector.n_clauses() - n_clauses_before;
-            self.n_vars += var_manager.n_used() - n_vars_before;
+        let Some(id) = self.root else {
+            return Ok(());
+        };
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        for idx in range {
+            self.db.define_unweighted(
+                id,
+                idx - 1 + self.offset,
+                totdb::Semantics::OnlyIf,
+                collector,
+                var_manager,
+            )?;
         }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
         Ok(())
     }
 }
@@ -494,25 +500,26 @@ impl super::cert::BoundUpperIncremental for Totalizer {
             return Ok(());
         }
         self.extend_tree();
-        if let Some(id) = self.root {
-            let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
-            let mut leaves_init = false;
-            let n_vars_before = var_manager.n_used();
-            let n_clauses_before = collector.n_clauses();
-            for idx in range {
-                (_, leaves_init) = self.db.define_unweighted_cert(
-                    id,
-                    idx + self.offset,
-                    totdb::Semantics::If,
-                    collector,
-                    var_manager,
-                    proof,
-                    (&mut leaves, leaves_init, false),
-                )?;
-            }
-            self.n_clauses += collector.n_clauses() - n_clauses_before;
-            self.n_vars += var_manager.n_used() - n_vars_before;
+        let Some(id) = self.root else {
+            return Ok(());
+        };
+        let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
+        let mut leaves_init = false;
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        for idx in range {
+            (_, leaves_init) = self.db.define_unweighted_cert(
+                id,
+                idx + self.offset,
+                totdb::Semantics::If,
+                collector,
+                var_manager,
+                proof,
+                (&mut leaves, leaves_init, false),
+            )?;
         }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
         Ok(())
     }
 }
@@ -599,25 +606,26 @@ impl super::cert::BoundLowerIncremental for Totalizer {
             return Ok(());
         }
         self.extend_tree();
-        if let Some(id) = self.root {
-            let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
-            let mut leaves_init = false;
-            let n_vars_before = var_manager.n_used();
-            let n_clauses_before = collector.n_clauses();
-            for idx in range {
-                (_, leaves_init) = self.db.define_unweighted_cert(
-                    id,
-                    idx - 1 + self.offset,
-                    totdb::Semantics::OnlyIf,
-                    collector,
-                    var_manager,
-                    proof,
-                    (&mut leaves, leaves_init, false),
-                )?;
-            }
-            self.n_clauses += collector.n_clauses() - n_clauses_before;
-            self.n_vars += var_manager.n_used() - n_vars_before;
+        let Some(id) = self.root else {
+            return Ok(());
+        };
+        let mut leaves = vec![crate::lit![0]; self.db[id].n_leaves()];
+        let mut leaves_init = false;
+        let n_vars_before = var_manager.n_used();
+        let n_clauses_before = collector.n_clauses();
+        for idx in range {
+            (_, leaves_init) = self.db.define_unweighted_cert(
+                id,
+                idx - 1 + self.offset,
+                totdb::Semantics::OnlyIf,
+                collector,
+                var_manager,
+                proof,
+                (&mut leaves, leaves_init, false),
+            )?;
         }
+        self.n_clauses += collector.n_clauses() - n_clauses_before;
+        self.n_vars += var_manager.n_used() - n_vars_before;
         Ok(())
     }
 }

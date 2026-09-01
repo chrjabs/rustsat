@@ -157,42 +157,42 @@ impl crate::encodings::pb::BoundUpper for Gte<'_> {
 
         let mut assumps = vec![];
         // Enforce bound on internal tree
-        self.db[self.root.id]
+        for val in self.db[self.root.id]
             .vals(self.root.rev_map_round_up(ub + 1)..=self.root.rev_map(ub + self.max_leaf_weight))
-            .try_for_each(|val| {
-                match &self.db[self.root.id] {
-                    totdb::Node::Leaf(lit) => {
-                        assumps.push(!*lit);
-                        return Ok(());
-                    }
-                    totdb::Node::Unit(node) => {
-                        if let totdb::LitData::Lit {
-                            lit,
-                            semantics: Some(semantics),
-                        } = node.lits[val - 1]
-                        {
-                            if semantics.has_if() {
-                                assumps.push(!lit);
-                                return Ok(());
-                            }
-                        }
-                    }
-                    totdb::Node::General(node) => {
-                        if let Some(totdb::LitData::Lit {
-                            lit,
-                            semantics: Some(semantics),
-                        }) = node.lit_data(val)
-                        {
-                            if semantics.has_if() {
-                                assumps.push(!lit);
-                                return Ok(());
-                            }
-                        }
-                    }
-                    totdb::Node::Dummy => panic!(),
+        {
+            match &self.db[self.root.id] {
+                totdb::Node::Leaf(lit) => {
+                    assumps.push(!*lit);
                 }
-                Err(EnforceError::NotEncoded)
-            })?;
+                totdb::Node::Unit(node) => {
+                    let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[val - 1]
+                    else {
+                        return Err(EnforceError::NotEncoded);
+                    };
+                    if !semantics.has_if() {
+                        return Err(EnforceError::NotEncoded);
+                    }
+                    assumps.push(!lit);
+                }
+                totdb::Node::General(node) => {
+                    let Some(totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    }) = node.lit_data(val)
+                    else {
+                        return Err(EnforceError::NotEncoded);
+                    };
+                    if !semantics.has_if() {
+                        return Err(EnforceError::NotEncoded);
+                    }
+                    assumps.push(!lit);
+                }
+                totdb::Node::Dummy => panic!(),
+            }
+        }
         Ok(assumps)
     }
 }
@@ -219,42 +219,42 @@ impl crate::encodings::pb::BoundUpper for GteCell<'_> {
 
         let mut assumps = vec![];
         // Enforce bound on internal tree
-        self.db.borrow()[self.root.id]
+        for val in self.db.borrow()[self.root.id]
             .vals(self.root.rev_map_round_up(ub + 1)..=self.root.rev_map(ub + self.max_leaf_weight))
-            .try_for_each(|val| {
-                match &self.db.borrow()[self.root.id] {
-                    totdb::Node::Leaf(lit) => {
-                        assumps.push(!*lit);
-                        return Ok(());
-                    }
-                    totdb::Node::Unit(node) => {
-                        if let totdb::LitData::Lit {
-                            lit,
-                            semantics: Some(semantics),
-                        } = node.lits[val - 1]
-                        {
-                            if semantics.has_if() {
-                                assumps.push(!lit);
-                                return Ok(());
-                            }
-                        }
-                    }
-                    totdb::Node::General(node) => {
-                        if let Some(totdb::LitData::Lit {
-                            lit,
-                            semantics: Some(semantics),
-                        }) = node.lit_data(val)
-                        {
-                            if semantics.has_if() {
-                                assumps.push(!lit);
-                                return Ok(());
-                            }
-                        }
-                    }
-                    totdb::Node::Dummy => unreachable!(),
+        {
+            match &self.db.borrow()[self.root.id] {
+                totdb::Node::Leaf(lit) => {
+                    assumps.push(!*lit);
                 }
-                Err(EnforceError::NotEncoded)
-            })?;
+                totdb::Node::Unit(node) => {
+                    let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[val - 1]
+                    else {
+                        return Err(EnforceError::NotEncoded);
+                    };
+                    if !semantics.has_if() {
+                        return Err(EnforceError::NotEncoded);
+                    }
+                    assumps.push(!lit);
+                }
+                totdb::Node::General(node) => {
+                    let Some(totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    }) = node.lit_data(val)
+                    else {
+                        return Err(EnforceError::NotEncoded);
+                    };
+                    if !semantics.has_if() {
+                        return Err(EnforceError::NotEncoded);
+                    }
+                    assumps.push(!lit);
+                }
+                totdb::Node::Dummy => panic!(),
+            }
+        }
         Ok(assumps)
     }
 }

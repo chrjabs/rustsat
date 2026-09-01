@@ -266,43 +266,44 @@ impl super::BoundUpper for GeneralizedTotalizer {
             }
         })?;
         // Enforce bound on internal tree
-        if let Some(con) = self.root {
-            self.db[con.id]
-                .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
-                .try_for_each(|val| {
-                    match &self.db[con.id] {
-                        totdb::Node::Leaf(lit) => {
-                            assumps.push(!*lit);
-                            return Ok(());
-                        }
-                        totdb::Node::Unit(node) => {
-                            if let totdb::LitData::Lit {
-                                lit,
-                                semantics: Some(semantics),
-                            } = node.lits[val - 1]
-                            {
-                                if semantics.has_if() {
-                                    assumps.push(!lit);
-                                    return Ok(());
-                                }
-                            }
-                        }
-                        totdb::Node::General(node) => {
-                            if let Some(totdb::LitData::Lit {
-                                lit,
-                                semantics: Some(semantics),
-                            }) = node.lit_data(val)
-                            {
-                                if semantics.has_if() {
-                                    assumps.push(!lit);
-                                    return Ok(());
-                                }
-                            }
-                        }
-                        totdb::Node::Dummy => unreachable!(),
+        let Some(con) = self.root else {
+            return Ok(assumps);
+        };
+        for val in self.db[con.id]
+            .vals(con.rev_map_round_up(ub + 1)..=con.rev_map(ub + self.max_leaf_weight))
+        {
+            match &self.db[con.id] {
+                totdb::Node::Leaf(lit) => {
+                    assumps.push(!*lit);
+                }
+                totdb::Node::Unit(node) => {
+                    let totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    } = node.lits[val - 1]
+                    else {
+                        return Err(EnforceError::NotEncoded);
+                    };
+                    if !semantics.has_if() {
+                        return Err(EnforceError::NotEncoded);
                     }
-                    Err(EnforceError::NotEncoded)
-                })?;
+                    assumps.push(!lit);
+                }
+                totdb::Node::General(node) => {
+                    let Some(totdb::LitData::Lit {
+                        lit,
+                        semantics: Some(semantics),
+                    }) = node.lit_data(val)
+                    else {
+                        return Err(EnforceError::NotEncoded);
+                    };
+                    if !semantics.has_if() {
+                        return Err(EnforceError::NotEncoded);
+                    }
+                    assumps.push(!lit);
+                }
+                totdb::Node::Dummy => unreachable!(),
+            }
         }
         Ok(assumps)
     }
@@ -326,19 +327,20 @@ impl super::BoundUpperIncremental for GeneralizedTotalizer {
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
         self.extend_tree(range.end - 1);
-        if let Some(con) = self.root {
-            self.db[con.id]
-                .vals(
-                    con.rev_map_round_up(range.start + 1)
-                        ..=con.rev_map(range.end + self.max_leaf_weight),
-                )
-                .try_for_each(|val| {
-                    self.db
-                        .define_weighted(con.id, val, collector, var_manager)?
-                        .unwrap();
-                    Ok::<(), crate::OutOfMemory>(())
-                })?;
-        }
+        let Some(con) = self.root else {
+            return Ok(());
+        };
+        self.db[con.id]
+            .vals(
+                con.rev_map_round_up(range.start + 1)
+                    ..=con.rev_map(range.end + self.max_leaf_weight),
+            )
+            .try_for_each(|val| {
+                self.db
+                    .define_weighted(con.id, val, collector, var_manager)?
+                    .unwrap();
+                Ok::<(), crate::OutOfMemory>(())
+            })?;
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
         Ok(())
@@ -502,29 +504,30 @@ impl super::cert::BoundUpperIncremental for GeneralizedTotalizer {
         let n_vars_before = var_manager.n_used();
         let n_clauses_before = collector.n_clauses();
         self.extend_tree(range.end - 1);
-        if let Some(con) = self.root {
-            let mut leaves = vec![(crate::lit![0], 0); self.db[con.id].n_leaves()];
-            let mut leaves_init = false;
-            self.db[con.id]
-                .vals(
-                    con.rev_map_round_up(range.start + 1)
-                        ..=con.rev_map(range.end + self.max_leaf_weight),
-                )
-                .try_for_each(|val| {
-                    (_, leaves_init) = self
-                        .db
-                        .define_weighted_cert(
-                            con.id,
-                            val,
-                            collector,
-                            var_manager,
-                            proof,
-                            (&mut leaves, leaves_init, false),
-                        )?
-                        .unwrap();
-                    Ok::<(), crate::encodings::cert::EncodingError>(())
-                })?;
-        }
+        let Some(con) = self.root else {
+            return Ok(());
+        };
+        let mut leaves = vec![(crate::lit![0], 0); self.db[con.id].n_leaves()];
+        let mut leaves_init = false;
+        self.db[con.id]
+            .vals(
+                con.rev_map_round_up(range.start + 1)
+                    ..=con.rev_map(range.end + self.max_leaf_weight),
+            )
+            .try_for_each(|val| {
+                (_, leaves_init) = self
+                    .db
+                    .define_weighted_cert(
+                        con.id,
+                        val,
+                        collector,
+                        var_manager,
+                        proof,
+                        (&mut leaves, leaves_init, false),
+                    )?
+                    .unwrap();
+                Ok::<(), crate::encodings::cert::EncodingError>(())
+            })?;
         self.n_clauses += collector.n_clauses() - n_clauses_before;
         self.n_vars += var_manager.n_used() - n_vars_before;
         Ok(())

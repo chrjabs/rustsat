@@ -120,22 +120,23 @@ impl crate::encodings::card::BoundUpper for Tot<'_> {
         match &self.db[self.root] {
             totdb::Node::Leaf(lit) => {
                 debug_assert_eq!(ub, 0);
-                return Ok(vec![!*lit]);
+                Ok(vec![!*lit])
             }
             totdb::Node::Unit(node) => {
-                if let totdb::LitData::Lit {
+                let totdb::LitData::Lit {
                     lit,
                     semantics: Some(semantics),
                 } = node.lits[ub]
-                {
-                    if semantics.has_if() {
-                        return Ok(vec![!lit]);
-                    }
+                else {
+                    return Err(NotEncoded);
+                };
+                if !semantics.has_if() {
+                    return Err(NotEncoded);
                 }
+                Ok(vec![!lit])
             }
             totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
         }
-        Err(NotEncoded)
     }
 }
 
@@ -161,22 +162,23 @@ impl crate::encodings::card::BoundUpper for TotCell<'_> {
         match &self.db.borrow()[self.root] {
             totdb::Node::Leaf(lit) => {
                 debug_assert_eq!(ub, 0);
-                return Ok(vec![!*lit]);
+                Ok(vec![!*lit])
             }
             totdb::Node::Unit(node) => {
-                if let totdb::LitData::Lit {
+                let totdb::LitData::Lit {
                     lit,
                     semantics: Some(semantics),
                 } = node.lits[ub]
-                {
-                    if semantics.has_if() {
-                        return Ok(vec![!lit]);
-                    }
+                else {
+                    return Err(NotEncoded);
+                };
+                if !semantics.has_if() {
+                    return Err(NotEncoded);
                 }
+                Ok(vec![!lit])
             }
             totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
         }
-        Err(NotEncoded)
     }
 }
 
@@ -202,22 +204,23 @@ impl crate::encodings::card::BoundLower for Tot<'_> {
         match &self.db[self.root] {
             totdb::Node::Leaf(lit) => {
                 debug_assert_eq!(lb, 1);
-                return Ok(vec![*lit]);
+                Ok(vec![*lit])
             }
             totdb::Node::Unit(node) => {
-                if let totdb::LitData::Lit {
+                let totdb::LitData::Lit {
                     lit,
                     semantics: Some(semantics),
                 } = node.lits[lb - 1]
-                {
-                    if semantics.has_only_if() {
-                        return Ok(vec![lit]);
-                    }
+                else {
+                    return Err(EnforceError::NotEncoded);
+                };
+                if !semantics.has_only_if() {
+                    return Err(EnforceError::NotEncoded);
                 }
+                Ok(vec![lit])
             }
             totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
         }
-        Err(EnforceError::NotEncoded)
     }
 }
 
@@ -243,22 +246,23 @@ impl crate::encodings::card::BoundLower for TotCell<'_> {
         match &self.db.borrow()[self.root] {
             totdb::Node::Leaf(lit) => {
                 debug_assert_eq!(lb, 1);
-                return Ok(vec![*lit]);
+                Ok(vec![*lit])
             }
             totdb::Node::Unit(node) => {
-                if let totdb::LitData::Lit {
+                let totdb::LitData::Lit {
                     lit,
                     semantics: Some(semantics),
                 } = node.lits[lb - 1]
-                {
-                    if semantics.has_only_if() {
-                        return Ok(vec![lit]);
-                    }
+                else {
+                    return Err(EnforceError::NotEncoded);
+                };
+                if !semantics.has_only_if() {
+                    return Err(EnforceError::NotEncoded);
                 }
+                Ok(vec![lit])
             }
             totdb::Node::General(_) | totdb::Node::Dummy => unreachable!(),
         }
-        Err(EnforceError::NotEncoded)
     }
 }
 

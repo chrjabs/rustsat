@@ -178,18 +178,17 @@ impl Db {
             }
             Node::General(node) => {
                 // Check if already encoded
-                if let Some(lit_data) = node.lit_data(val) {
-                    if let LitData::Lit {
-                        lit,
-                        semantics: Some(semantics),
-                    } = lit_data
-                    {
-                        if semantics.has_if() {
-                            return Ok(Some(lit));
-                        }
-                    }
-                } else {
+                let Some(lit_data) = node.lit_data(val) else {
                     return Ok(None);
+                };
+                if let LitData::Lit {
+                    lit,
+                    semantics: Some(semantics),
+                } = lit_data
+                {
+                    if semantics.has_if() {
+                        return Ok(Some(lit));
+                    }
                 }
 
                 debug_assert!(node.lit_data(val).is_some());
