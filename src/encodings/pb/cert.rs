@@ -5,8 +5,8 @@ use crate::encodings::cert::CollectClauses;
 use crate::encodings::cert::ConstraintEncodingError;
 use crate::encodings::cert::EncodingError;
 use crate::instances::ManageVars;
-use crate::types::constraints::PbConstraint;
 use crate::types::Lit;
+use crate::types::constraints::PbConstraint;
 
 /// Trait for certified PB encodings that allow upper bounding of the form `sum of lits <=
 /// ub`

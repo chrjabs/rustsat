@@ -16,9 +16,9 @@ use super::pb::dpw_new;
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize) -> usize {
-    (*dpw).coarse_ub(ub)
+    unsafe { (*dpw).coarse_ub(ub) }
 }
 
 /// Set the precision at which to build the encoding at. With `divisor = 8` the encoding will
@@ -36,12 +36,12 @@ pub unsafe extern "C" fn dpw_coarse_ub(dpw: *mut DynamicPolyWatchdog, ub: usize)
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_set_precision(
     dpw: *mut DynamicPolyWatchdog,
     divisor: usize,
 ) -> super::MaybeError {
-    (*dpw).set_precision(divisor).into()
+    unsafe { (*dpw).set_precision(divisor).into() }
 }
 
 /// Gets the next possible precision divisor value
@@ -54,9 +54,9 @@ pub unsafe extern "C" fn dpw_set_precision(
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_next_precision(dpw: *mut DynamicPolyWatchdog) -> usize {
-    (*dpw).next_precision()
+    unsafe { (*dpw).next_precision() }
 }
 
 /// Checks whether the encoding is already at the maximum precision
@@ -64,9 +64,9 @@ pub unsafe extern "C" fn dpw_next_precision(dpw: *mut DynamicPolyWatchdog) -> us
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_is_max_precision(dpw: *mut DynamicPolyWatchdog) -> bool {
-    (*dpw).is_max_precision()
+    unsafe { (*dpw).is_max_precision() }
 }
 
 /// Given a range of output values to limit the encoding to, returns additional clauses that
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn dpw_is_max_precision(dpw: *mut DynamicPolyWatchdog) -> 
 /// # Panics
 ///
 /// If `min_bound <= max_bound`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_limit_range(
     dpw: *mut DynamicPolyWatchdog,
     min_value: usize,
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn dpw_limit_range(
 ) {
     assert!(min_value <= max_value);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
-    (*dpw)
+    unsafe { &mut *dpw }
         .limit_range(min_value..=max_value, &mut collector)
         .expect("CClauseCollector cannot report out of memory");
 }

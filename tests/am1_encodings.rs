@@ -1,6 +1,6 @@
-use rustsat::encodings::am1;
 use rustsat::encodings::EncodeStats;
 use rustsat::encodings::IterInputs;
+use rustsat::encodings::am1;
 use rustsat::instances::BasicVarManager;
 use rustsat::instances::Cnf;
 use rustsat::instances::ManageVars;

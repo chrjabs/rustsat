@@ -3,9 +3,9 @@ use rustsat::lit;
 use rustsat::solvers::Solve;
 use rustsat::solvers::SolveIncremental;
 use rustsat::solvers::SolverResult;
+use rustsat::types::RsHashMap;
 use rustsat::types::constraints::CardConstraint;
 use rustsat::types::constraints::PbConstraint;
-use rustsat::types::RsHashMap;
 
 macro_rules! test_card {
     ( $constr:expr, $sat_assump:expr, $unsat_assump:expr ) => {{

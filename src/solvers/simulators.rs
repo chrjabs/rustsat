@@ -96,7 +96,7 @@ where
         match &self.state {
             InternalSolverState::Sat => return Ok(super::SolverResult::Sat),
             InternalSolverState::Unsat(lits) if lits.is_empty() => {
-                return Ok(super::SolverResult::Unsat)
+                return Ok(super::SolverResult::Unsat);
             }
             InternalSolverState::Unknown | InternalSolverState::Unsat(_) => {
                 self.solver = Init::init();

@@ -458,7 +458,7 @@ impl Lit {
     #[inline]
     #[must_use]
     pub const unsafe fn positive_unchecked(idx: u32) -> Lit {
-        Lit::new_unchecked(idx, false)
+        unsafe { Lit::new_unchecked(idx, false) }
     }
 
     /// Creates a new negated literal with a given index.
@@ -471,7 +471,7 @@ impl Lit {
     #[inline]
     #[must_use]
     pub const unsafe fn negative_unchecked(idx: u32) -> Lit {
-        Lit::new_unchecked(idx, true)
+        unsafe { Lit::new_unchecked(idx, true) }
     }
 
     /// Create a literal from an
@@ -566,11 +566,7 @@ impl Lit {
         let idx: c_int = (self.vidx32() + 1)
             .try_into()
             .expect("variable index too high to fit in c_int");
-        if negated {
-            -idx
-        } else {
-            idx
-        }
+        if negated { -idx } else { idx }
     }
 
     /// Converts the literal to an integer as accepted by

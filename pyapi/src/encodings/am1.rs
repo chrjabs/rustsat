@@ -1,8 +1,8 @@
 //! # Python API for RustSAT At-Most-One Encodings
 
 use pyo3::prelude::*;
-use rustsat::encodings::am1::Encode;
 use rustsat::encodings::EncodeStats;
+use rustsat::encodings::am1::Encode;
 
 macro_rules! implement_pyapi {
     ($type:ty, $rstype:ty) => {

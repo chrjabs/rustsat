@@ -8,9 +8,9 @@
 //!   correlation clustering via weighted partial Maximum Satisfiability_, AIJ
 //!   2017.
 
-use rustsat::instances::fio::dimacs;
-use rustsat::instances::fio::ParsingError;
 use rustsat::instances::ManageVars;
+use rustsat::instances::fio::ParsingError;
+use rustsat::instances::fio::dimacs;
 use rustsat::types::RsHashMap;
 use rustsat::types::Var;
 use rustsat::utils;
@@ -368,10 +368,9 @@ impl Iterator for Encoding {
                         self.similarities[Self::sim_idx(idx1, idx2, self.n)]
                     {
                         return Some(dimacs::McnfLine::Soft(
-                            rustsat::clause![self
-                                .var_manager
-                                .id(VarId::Same(idx1, idx2))
-                                .pos_lit()],
+                            rustsat::clause![
+                                self.var_manager.id(VarId::Same(idx1, idx2)).pos_lit()
+                            ],
                             weight,
                             0,
                         ));
@@ -390,10 +389,9 @@ impl Iterator for Encoding {
                         self.similarities[Self::sim_idx(idx1, idx2, self.n)]
                     {
                         return Some(dimacs::McnfLine::Soft(
-                            rustsat::clause![!self
-                                .var_manager
-                                .id(VarId::Same(idx1, idx2))
-                                .pos_lit()],
+                            rustsat::clause![
+                                !self.var_manager.id(VarId::Same(idx1, idx2)).pos_lit()
+                            ],
                             weight,
                             1,
                         ));

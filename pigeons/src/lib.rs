@@ -732,16 +732,16 @@ where
         // wrap self in ManuallyDrop to avoid calling Drop on it
         let mut nodrop = std::mem::ManuallyDrop::new(self);
         // manually drop everything but the writer, after this never use any of these fields in
-        // nnodrop
+        // nodrop
         unsafe {
-            std::ptr::drop_in_place(&mut nodrop.next_id);
-            std::ptr::drop_in_place(&mut nodrop.next_pv);
-            std::ptr::drop_in_place(&mut nodrop.problem_type);
-            std::ptr::drop_in_place(&mut nodrop.first_proof_id);
-            std::ptr::drop_in_place(&mut nodrop.default_conclusion);
+            std::ptr::drop_in_place(&raw mut nodrop.next_id);
+            std::ptr::drop_in_place(&raw mut nodrop.next_pv);
+            std::ptr::drop_in_place(&raw mut nodrop.problem_type);
+            std::ptr::drop_in_place(&raw mut nodrop.first_proof_id);
+            std::ptr::drop_in_place(&raw mut nodrop.default_conclusion);
         }
         // unsafely move writer out, after this never use writer in nodrop anymore
-        let writer = unsafe { std::ptr::read(&nodrop.writer) };
+        let writer = unsafe { std::ptr::read(&raw const nodrop.writer) };
         Ok(writer)
     }
 

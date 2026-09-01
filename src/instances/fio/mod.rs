@@ -256,7 +256,7 @@ pub fn parse_sat_solver_output<R: BufRead>(
             match line {
                 line if line.starts_with("UNSATISFIABLE") => return Ok(SolverOutput::Unsat),
                 line if line.starts_with("UNKNOWN") || line.starts_with("INDETERMINATE") => {
-                    return Ok(SolverOutput::Unknown)
+                    return Ok(SolverOutput::Unknown);
                 }
                 line if line.starts_with("SATISFIABLE") => {
                     is_sat = true;
@@ -290,9 +290,9 @@ pub fn parse_sat_solver_output<R: BufRead>(
 mod tests {
     use crate::types::TernaryVal;
 
-    use super::parse_sat_solver_output;
     use super::SatSolverOutputError;
     use super::SolverOutput;
+    use super::parse_sat_solver_output;
 
     #[test]
     fn parse_solver_output_sat() {

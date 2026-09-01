@@ -12,9 +12,9 @@ use crate::encodings::nodedb::NodeCon;
 use crate::encodings::nodedb::NodeId;
 use crate::encodings::nodedb::NodeLike;
 use crate::instances::ManageVars;
-use crate::types::constraints::PbConstraint;
 use crate::types::Lit;
 use crate::types::Var;
+use crate::types::constraints::PbConstraint;
 
 use super::Node;
 use super::Semantics;
@@ -174,14 +174,16 @@ impl super::Db {
         // Check that the rewritten sum matches what we were passed as leaves
         {
             let mut sum = offset;
-            debug_assert!(leaves.clone().eq(self[id]
-                .vals(offset + 1..)
-                .take(len_limit.map_or(usize::MAX, NonZeroUsize::get))
-                .map(|val| {
-                    let cf = val - sum;
-                    sum = val;
-                    (self[id][val], cf)
-                })));
+            debug_assert!(
+                leaves.clone().eq(self[id]
+                    .vals(offset + 1..)
+                    .take(len_limit.map_or(usize::MAX, NonZeroUsize::get))
+                    .map(|val| {
+                        let cf = val - sum;
+                        sum = val;
+                        (self[id][val], cf)
+                    }))
+            );
         }
 
         #[cfg(feature = "verbose-proofs")]
@@ -380,10 +382,9 @@ impl super::Db {
         }
         // NOTE: doesn't matter which type we specify here, since both will be introduced anyway
         self.define_semantics(id, offset, None, value, SemDefType::If, leaves, proof)?;
-        Ok(crate::utils::unreachable_none!(self
-            .semantic_defs
-            .get(&def_id)
-            .copied()))
+        Ok(crate::utils::unreachable_none!(
+            self.semantic_defs.get(&def_id).copied()
+        ))
     }
 
     /// Deletes all semantic definitions from the proof
@@ -556,15 +557,16 @@ impl super::Db {
                                 debug_assert!(
                                     lcon.len_limit.is_none() || lcon.offset() + 1 == lval
                                 );
-                                let llit = crate::utils::unreachable_none!(self
-                                    .define_weighted_treat_pseudo_leaves(
+                                let llit = crate::utils::unreachable_none!(
+                                    self.define_weighted_treat_pseudo_leaves(
                                         lcon,
                                         lval,
                                         collector,
                                         var_manager,
                                         proof,
                                         (left_leaves, left_leaves_populated)
-                                    )?);
+                                    )?
+                                );
                                 left_leaves_populated = true;
                                 let left_def = self.define_semantics(
                                     lcon.id,

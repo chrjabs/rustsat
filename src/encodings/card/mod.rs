@@ -29,12 +29,12 @@
 //! recommended to import only the modules or rename the traits, e.g., `use
 //! card::Encode as EncodeCard`.
 
+use crate::types::Clause;
+use crate::types::Lit;
 use crate::types::constraints::CardConstraint;
 use crate::types::constraints::CardEqConstr;
 use crate::types::constraints::CardLbConstr;
 use crate::types::constraints::CardUbConstr;
-use crate::types::Clause;
-use crate::types::Lit;
 
 use super::CollectClauses;
 use super::ConstraintEncodingError;

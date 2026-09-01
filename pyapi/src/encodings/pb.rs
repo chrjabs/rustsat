@@ -2,6 +2,7 @@
 
 use pyo3::prelude::*;
 
+use rustsat::encodings::EncodeStats;
 use rustsat::encodings::pb::BoundBoth;
 use rustsat::encodings::pb::BoundBothIncremental;
 use rustsat::encodings::pb::BoundLower;
@@ -9,7 +10,6 @@ use rustsat::encodings::pb::BoundLowerIncremental;
 use rustsat::encodings::pb::BoundUpper;
 use rustsat::encodings::pb::BoundUpperIncremental;
 use rustsat::encodings::pb::Encode;
-use rustsat::encodings::EncodeStats;
 
 macro_rules! shared_pyapi {
     (derive_from, $type:ty, $rstype:ty) => {
@@ -74,9 +74,10 @@ macro_rules! shared_pyapi {
             ) -> PyResult<crate::instances::Cnf> {
                 let mut cnf = rustsat::instances::Cnf::new();
                 let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
-                crate::handle_oom!(self
-                    .0
-                    .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager));
+                crate::handle_oom!(
+                    self.0
+                        .encode_ub_change(min_ub..=max_ub, &mut cnf, var_manager)
+                );
                 Ok(cnf.into())
             }
 
@@ -107,9 +108,10 @@ macro_rules! shared_pyapi {
             ) -> PyResult<crate::instances::Cnf> {
                 let mut cnf = rustsat::instances::Cnf::new();
                 let var_manager: &mut rustsat::instances::BasicVarManager = var_manager.into();
-                crate::handle_oom!(self
-                    .0
-                    .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager));
+                crate::handle_oom!(
+                    self.0
+                        .encode_lb_change(min_lb..=max_lb, &mut cnf, var_manager)
+                );
                 Ok(cnf.into())
             }
 

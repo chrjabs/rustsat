@@ -26,8 +26,8 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
-use batsat::intmap::AsIndex;
 use batsat::SolverInterface;
+use batsat::intmap::AsIndex;
 use rustsat::solvers::SolverResult;
 use rustsat::types::Cl;
 use rustsat::types::Clause;

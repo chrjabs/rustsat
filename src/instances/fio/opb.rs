@@ -8,6 +8,8 @@
 //!
 //! - [OPB](https://www.cril.univ-artois.fr/PB12/format.pdf)
 
+use winnow::ModalResult;
+use winnow::Parser as _;
 use winnow::ascii::dec_int;
 use winnow::ascii::digit0;
 use winnow::ascii::line_ending;
@@ -28,17 +30,15 @@ use winnow::error::ErrMode;
 use winnow::error::StrContext;
 use winnow::token::one_of;
 use winnow::token::rest;
-use winnow::ModalResult;
-use winnow::Parser as _;
 
 use crate::instances::ManageVars;
 use crate::instances::SatInstance;
-use crate::types::constraints::CardConstraint;
-use crate::types::constraints::PbConstraint;
 use crate::types::Cl;
 use crate::types::Clause;
 use crate::types::Lit;
 use crate::types::Var;
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::PbConstraint;
 use crate::utils;
 
 use super::ParsingError;
@@ -924,16 +924,20 @@ fn write_objective<W: std::io::Write, LI: crate::types::WLitIter>(
 mod test {
     use std::io::Seek;
 
-    use winnow::error::ContextError;
     use winnow::Parser as _;
+    use winnow::error::ContextError;
 
     use crate::instances::SatInstance;
     use crate::lit;
+    use crate::types::Var;
     use crate::types::constraints::CardConstraint;
     use crate::types::constraints::PbConstraint;
-    use crate::types::Var;
     use crate::var;
 
+    use super::OpbOperator;
+    use super::Options;
+    use super::Parser;
+    use super::VarParser;
     use super::coeff;
     use super::comment;
     use super::constraint;
@@ -945,10 +949,6 @@ mod test {
     use super::term_sum;
     use super::write_clause;
     use super::write_sat;
-    use super::OpbOperator;
-    use super::Options;
-    use super::Parser;
-    use super::VarParser;
 
     #[test]
     fn match_comment() {
@@ -1110,28 +1110,27 @@ mod test {
 
     #[test]
     fn parse_constraint() {
-        if let Ok((rest, PbConstraint::Ub(constr))) =
+        let Ok((rest, PbConstraint::Ub(constr))) =
             constraint(Options::default()).parse_peek("3 x1 -2 ~x2 <= 4;")
-        {
-            assert_eq!(rest, "");
-            let (lits, b) = constr.decompose();
-            let should_be_lits = vec![(lit![0], 3), (lit![1], 2)];
-            assert_eq!(lits, should_be_lits);
-            assert_eq!(b, 6);
-        } else {
+        else {
             panic!();
-        }
-        if let Ok((rest, PbConstraint::Ub(constr))) =
+        };
+        assert_eq!(rest, "");
+        let (lits, b) = constr.decompose();
+        let should_be_lits = vec![(lit![0], 3), (lit![1], 2)];
+        assert_eq!(lits, should_be_lits);
+        assert_eq!(b, 6);
+
+        let Ok((rest, PbConstraint::Ub(constr))) =
             constraint(Options::default()).parse_peek(" <= 0;")
-        {
-            assert_eq!(rest, "");
-            let (lits, b) = constr.decompose();
-            let should_be_lits = vec![];
-            assert_eq!(lits, should_be_lits);
-            assert_eq!(b, 0);
-        } else {
+        else {
             panic!();
-        }
+        };
+        assert_eq!(rest, "");
+        let (lits, b) = constr.decompose();
+        let should_be_lits = vec![];
+        assert_eq!(lits, should_be_lits);
+        assert_eq!(b, 0);
     }
 
     #[cfg(feature = "optimization")]
@@ -1159,9 +1158,11 @@ mod test {
         };
         assert_eq!(obj, should_be_obj);
 
-        assert!(objective(Options::default())
-            .parse_peek("min: x0;")
-            .is_err());
+        assert!(
+            objective(Options::default())
+                .parse_peek("min: x0;")
+                .is_err()
+        );
 
         let (rest, obj) = objective(Options::default()).parse_peek("min:;").unwrap();
         assert_eq!(rest, "");
@@ -1198,9 +1199,11 @@ mod test {
                 super::opb_data(Options::default()).parse_peek("min: -3 x1 4 x2;"),
                 Ok(("", super::Data::Obj(obj)))
             );
-            assert!(super::opb_data(Options::default())
-                .parse_peek("min: x1;")
-                .is_err());
+            assert!(
+                super::opb_data(Options::default())
+                    .parse_peek("min: x1;")
+                    .is_err()
+            );
         }
     }
 

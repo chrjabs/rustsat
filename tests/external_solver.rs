@@ -1,6 +1,6 @@
 mod file_file {
-    use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
+    use rustsat::solvers::external;
 
     rustsat_solvertests::integration!(base:
         {
@@ -23,8 +23,8 @@ mod file_file {
 }
 
 mod file_pipe {
-    use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
+    use rustsat::solvers::external;
 
     rustsat_solvertests::integration!(base:
         {
@@ -46,8 +46,8 @@ mod file_pipe {
 }
 
 mod tempfile_pipe {
-    use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
+    use rustsat::solvers::external;
 
     rustsat_solvertests::integration!(base:
         {
@@ -68,8 +68,8 @@ mod tempfile_pipe {
 }
 
 mod pipe_pipe {
-    use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
+    use rustsat::solvers::external;
 
     rustsat_solvertests::integration!(base:
         {
@@ -90,8 +90,8 @@ mod pipe_pipe {
 }
 
 mod pipe_file {
-    use rustsat::solvers::external;
     use rustsat::solvers::ExternalSolver;
+    use rustsat::solvers::external;
 
     rustsat_solvertests::integration!(base:
         {
@@ -113,10 +113,10 @@ mod pipe_file {
 }
 
 mod simulator {
-    use rustsat::solvers::external;
-    use rustsat::solvers::simulators;
     use rustsat::solvers::ExternalSolver;
     use rustsat::solvers::Initialize;
+    use rustsat::solvers::external;
+    use rustsat::solvers::simulators;
 
     struct Init;
 

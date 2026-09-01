@@ -3,8 +3,8 @@
 //! Interface to the [Glucose](https://www.labri.fr/perso/lsimon/research/glucose/#glucose-4.2.1)
 //! incremental SAT solver.
 
-use core::ffi::c_int;
 use core::ffi::CStr;
+use core::ffi::c_int;
 
 use rustsat::solvers::SolverResult;
 use rustsat::types::Cl;

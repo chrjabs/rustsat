@@ -2,10 +2,10 @@
 //!
 //! A small tool for checking solutions to SAT and optimization instances.
 
-use rustsat::instances::fio;
 use rustsat::instances::MultiOptInstance;
 use rustsat::instances::OptInstance;
 use rustsat::instances::SatInstance;
+use rustsat::instances::fio;
 
 #[derive(Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 pub enum FileFormat {

@@ -39,9 +39,9 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
+use core::ffi::CStr;
 use core::ffi::c_int;
 use core::ffi::c_void;
-use core::ffi::CStr;
 
 use rustsat::solvers::SolverResult;
 use rustsat::types::Cl;
@@ -146,7 +146,7 @@ impl IpasirSolver<'_, '_> {
                     return Err(InvalidApiReturn {
                         api_call: "ipasir_failed",
                         value,
-                    })
+                    });
                 }
             }
         }

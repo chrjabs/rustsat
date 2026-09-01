@@ -16,17 +16,20 @@ use super::card::tot_new;
 ///
 /// # Safety
 ///
-/// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+/// - `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on
+/// - it must be safe for this function to write to `lit`
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_get_output(
     tot: *mut Totalizer,
     value: usize,
     lit: *mut c_int,
 ) -> super::MaybeError {
-    let Ok(ret) = (*tot).output(value) else {
+    let Ok(ret) = unsafe { &mut *tot }.output(value) else {
         return super::MaybeError::NotEncoded;
     };
-    *lit = ret.map_or(0, rustsat::types::Lit::to_ipasir);
+    unsafe {
+        *lit = ret.map_or(0, rustsat::types::Lit::to_ipasir);
+    }
     super::MaybeError::Ok
 }
 
@@ -37,13 +40,13 @@ pub unsafe extern "C" fn tot_get_output(
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_get_outputs(
     tot: *mut Totalizer,
     collector: super::COutputCollector,
     collector_data: *mut c_void,
 ) -> super::MaybeError {
-    let Ok(iter) = (*tot).outputs() else {
+    let Ok(iter) = unsafe { &mut *tot }.outputs() else {
         return super::MaybeError::NotEncoded;
     };
     for (val, lit) in iter {

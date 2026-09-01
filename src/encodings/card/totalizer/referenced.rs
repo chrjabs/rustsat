@@ -1,6 +1,9 @@
 //! Totalizer encoding types that do not own but reference their [`totdb::Db`]
 #![cfg(feature = "_internals")]
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::encodings::NotEncoded;
 use crate::encodings::card::BoundLowerIncremental;
 use crate::encodings::card::BoundUpperIncremental;
 use crate::encodings::card::Encode;
@@ -8,9 +11,6 @@ use crate::encodings::nodedb::NodeCon;
 use crate::encodings::nodedb::NodeId;
 use crate::encodings::nodedb::NodeLike;
 use crate::encodings::totdb;
-use crate::encodings::CollectClauses;
-use crate::encodings::EnforceError;
-use crate::encodings::NotEncoded;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 

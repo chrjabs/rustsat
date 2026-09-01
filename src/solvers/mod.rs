@@ -463,7 +463,7 @@ pub trait Propagate {
     ///
     /// A solver may return any error.
     fn propagate(&mut self, assumps: &[Lit], phase_saving: bool)
-        -> anyhow::Result<PropagateResult>;
+    -> anyhow::Result<PropagateResult>;
 }
 
 /// A result returned from the [`Propagate`] trait

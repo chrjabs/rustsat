@@ -63,11 +63,7 @@ impl Lit {
         let idx: c_int = (self.0.vidx() + 1)
             .try_into()
             .expect("variable index too high to fit in c_int");
-        if negated {
-            -idx
-        } else {
-            idx
-        }
+        if negated { -idx } else { idx }
     }
 }
 

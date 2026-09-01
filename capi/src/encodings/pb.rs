@@ -13,7 +13,7 @@ use rustsat::encodings::pb::GeneralizedTotalizer;
 use rustsat::types::Lit;
 
 /// Creates a new [`GeneralizedTotalizer`] pseudo-Boolean encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn gte_new() -> *mut GeneralizedTotalizer {
     Box::into_raw(Box::default())
@@ -24,9 +24,9 @@ pub unsafe extern "C" fn gte_new() -> *mut GeneralizedTotalizer {
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gte_drop(gte: *mut GeneralizedTotalizer) {
-    drop(Box::from_raw(gte));
+    drop(unsafe { Box::from_raw(gte) });
 }
 
 /// Reserves all auxiliary variables that the encoding might need
@@ -37,10 +37,10 @@ pub unsafe extern "C" fn gte_drop(gte: *mut GeneralizedTotalizer) {
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gte_reserve(gte: *mut GeneralizedTotalizer, n_vars_used: &mut u32) {
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*gte).reserve(&mut var_manager);
+    unsafe { &mut *gte }.reserve(&mut var_manager);
 }
 
 /// Adds a new input literal to a [`GeneralizedTotalizer`] encoding
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn gte_reserve(gte: *mut GeneralizedTotalizer, n_vars_used
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gte_add(
     gte: *mut GeneralizedTotalizer,
     lit: c_int,
@@ -62,7 +62,7 @@ pub unsafe extern "C" fn gte_add(
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*gte).extend([(lit, weight)]);
+    unsafe { &mut *gte }.extend([(lit, weight)]);
     super::MaybeError::Ok
 }
 
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn gte_add(
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gte_encode_ub(
     gte: *mut GeneralizedTotalizer,
     min_bound: usize,
@@ -98,7 +98,7 @@ pub unsafe extern "C" fn gte_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*gte)
+    unsafe { &mut *gte }
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -113,14 +113,14 @@ pub unsafe extern "C" fn gte_encode_ub(
 /// # Safety
 ///
 /// `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn gte_enforce_ub(
     gte: *mut GeneralizedTotalizer,
     ub: usize,
     collector: super::CAssumpCollector,
     collector_data: *mut c_void,
 ) -> super::MaybeError {
-    match (*gte).enforce_ub(ub) {
+    match unsafe { &mut *gte }.enforce_ub(ub) {
         Ok(assumps) => {
             for a in assumps {
                 collector(a.to_ipasir(), collector_data);
@@ -132,7 +132,7 @@ pub unsafe extern "C" fn gte_enforce_ub(
 }
 
 /// Creates a new [`BinaryAdder`] pseudo-Boolean encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn bin_adder_new() -> *mut BinaryAdder {
     Box::into_raw(Box::default())
@@ -143,9 +143,9 @@ pub unsafe extern "C" fn bin_adder_new() -> *mut BinaryAdder {
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_drop(bin_adder: *mut BinaryAdder) {
-    drop(Box::from_raw(bin_adder));
+    drop(unsafe { Box::from_raw(bin_adder) });
 }
 
 /// Reserves all auxiliary variables that the encoding might need
@@ -156,10 +156,10 @@ pub unsafe extern "C" fn bin_adder_drop(bin_adder: *mut BinaryAdder) {
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_reserve(bin_adder: *mut BinaryAdder, n_vars_used: &mut u32) {
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*bin_adder).reserve(&mut var_manager);
+    unsafe { &mut *bin_adder }.reserve(&mut var_manager);
 }
 
 /// Adds a new input literal to a [`BinaryAdder`] encoding
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn bin_adder_reserve(bin_adder: *mut BinaryAdder, n_vars_u
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_add(
     bin_adder: *mut BinaryAdder,
     lit: c_int,
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn bin_adder_add(
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*bin_adder).extend([(lit, weight)]);
+    unsafe { &mut *bin_adder }.extend([(lit, weight)]);
     super::MaybeError::Ok
 }
 
@@ -205,7 +205,7 @@ pub unsafe extern "C" fn bin_adder_add(
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_encode_ub(
     bin_adder: *mut BinaryAdder,
     min_bound: usize,
@@ -217,7 +217,7 @@ pub unsafe extern "C" fn bin_adder_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*bin_adder)
+    unsafe { &mut *bin_adder }
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -232,14 +232,14 @@ pub unsafe extern "C" fn bin_adder_encode_ub(
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_enforce_ub(
     bin_adder: *mut BinaryAdder,
     ub: usize,
     collector: super::CAssumpCollector,
     collector_data: *mut c_void,
 ) -> super::MaybeError {
-    match (*bin_adder).enforce_ub(ub) {
+    match unsafe { &mut *bin_adder }.enforce_ub(ub) {
         Ok(assumps) => {
             for a in assumps {
                 collector(a.to_ipasir(), collector_data);
@@ -270,7 +270,7 @@ pub unsafe extern "C" fn bin_adder_enforce_ub(
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_encode_lb(
     bin_adder: *mut BinaryAdder,
     min_bound: usize,
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn bin_adder_encode_lb(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*bin_adder)
+    unsafe { &mut *bin_adder }
         .encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -297,14 +297,14 @@ pub unsafe extern "C" fn bin_adder_encode_lb(
 /// # Safety
 ///
 /// `bin_adder` must be a return value of [`bin_adder_new`] that [`bin_adder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bin_adder_enforce_lb(
     bin_adder: *mut BinaryAdder,
     lb: usize,
     collector: super::CAssumpCollector,
     collector_data: *mut c_void,
 ) -> super::MaybeError {
-    match (*bin_adder).enforce_lb(lb) {
+    match unsafe { &mut *bin_adder }.enforce_lb(lb) {
         Ok(assumps) => {
             for a in assumps {
                 collector(a.to_ipasir(), collector_data);
@@ -316,7 +316,7 @@ pub unsafe extern "C" fn bin_adder_enforce_lb(
 }
 
 /// Creates a new [`DynamicPolyWatchdog`] pseudo-Boolean encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn dpw_new() -> *mut DynamicPolyWatchdog {
     Box::into_raw(Box::default())
@@ -327,9 +327,9 @@ pub unsafe extern "C" fn dpw_new() -> *mut DynamicPolyWatchdog {
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
-    drop(Box::from_raw(dpw));
+    drop(unsafe { Box::from_raw(dpw) });
 }
 
 /// Reserves all auxiliary variables that the encoding might need
@@ -340,10 +340,10 @@ pub unsafe extern "C" fn dpw_drop(dpw: *mut DynamicPolyWatchdog) {
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_reserve(dpw: *mut DynamicPolyWatchdog, n_vars_used: &mut u32) {
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*dpw).reserve(&mut var_manager);
+    unsafe { &mut *dpw }.reserve(&mut var_manager);
 }
 
 /// Adds a new input literal to a [`DynamicPolyWatchdog`] encoding
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn dpw_reserve(dpw: *mut DynamicPolyWatchdog, n_vars_used:
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_add(
     dpw: *mut DynamicPolyWatchdog,
     lit: c_int,
@@ -365,7 +365,7 @@ pub unsafe extern "C" fn dpw_add(
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    if (*dpw).add_input(lit, weight).is_ok() {
+    if unsafe { &mut *dpw }.add_input(lit, weight).is_ok() {
         super::MaybeError::Ok
     } else {
         super::MaybeError::InvalidState
@@ -392,7 +392,7 @@ pub unsafe extern "C" fn dpw_add(
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_encode_ub(
     dpw: *mut DynamicPolyWatchdog,
     min_bound: usize,
@@ -404,7 +404,7 @@ pub unsafe extern "C" fn dpw_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*dpw)
+    unsafe { &mut *dpw }
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -419,14 +419,14 @@ pub unsafe extern "C" fn dpw_encode_ub(
 /// # Safety
 ///
 /// `dpw` must be a return value of [`dpw_new`] that [`dpw_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn dpw_enforce_ub(
     dpw: *mut DynamicPolyWatchdog,
     ub: usize,
     collector: super::CAssumpCollector,
     collector_data: *mut c_void,
 ) -> super::MaybeError {
-    match (*dpw).enforce_ub(ub) {
+    match unsafe { &mut *dpw }.enforce_ub(ub) {
         Ok(assumps) => {
             for a in assumps {
                 collector(a.to_ipasir(), collector_data);

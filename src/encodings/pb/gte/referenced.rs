@@ -1,13 +1,13 @@
 //! Generalized totalizer encoding types that do not own but reference their [`totdb::Db`]
 #![cfg(feature = "_internals")]
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
 use crate::encodings::nodedb::NodeCon;
 use crate::encodings::nodedb::NodeLike;
 use crate::encodings::pb::BoundUpperIncremental;
 use crate::encodings::pb::Encode;
 use crate::encodings::totdb;
-use crate::encodings::CollectClauses;
-use crate::encodings::EnforceError;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 

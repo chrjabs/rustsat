@@ -3,8 +3,8 @@
 //! Interface to the [Minisat](https://github.com/niklasso/minisat) incremental
 //! SAT solver.
 
-use core::ffi::c_int;
 use core::ffi::CStr;
+use core::ffi::c_int;
 
 use rustsat::solvers::SolverResult;
 use rustsat::types::Cl;

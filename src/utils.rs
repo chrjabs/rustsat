@@ -49,7 +49,7 @@ pub unsafe fn from_raw_parts_maybe_null<'a, T>(ptr: *const T, cnt: usize) -> &'a
     if cnt == 0 {
         &[]
     } else {
-        std::slice::from_raw_parts(ptr, cnt)
+        unsafe { std::slice::from_raw_parts(ptr, cnt) }
     }
 }
 

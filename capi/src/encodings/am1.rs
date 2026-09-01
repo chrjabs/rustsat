@@ -13,7 +13,7 @@ use rustsat::encodings::am1::Pairwise;
 use rustsat::types::Lit;
 
 /// Creates a new [`Pairwise`] at-most-one encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn pairwise_new() -> *mut Pairwise {
     Box::into_raw(Box::default())
@@ -24,9 +24,9 @@ pub unsafe extern "C" fn pairwise_new() -> *mut Pairwise {
 /// # Safety
 ///
 /// `pairwise` must be a return value of [`pairwise_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pairwise_drop(pairwise: *mut Pairwise) {
-    drop(Box::from_raw(pairwise));
+    drop(unsafe { Box::from_raw(pairwise) });
 }
 
 /// Adds a new input literal to a [`Pairwise`] encoding
@@ -39,12 +39,12 @@ pub unsafe extern "C" fn pairwise_drop(pairwise: *mut Pairwise) {
 /// # Safety
 ///
 /// `pairwise` must be a return value of [`pairwise_new`] that [`pairwise_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pairwise_add(pairwise: *mut Pairwise, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*pairwise).extend([lit]);
+    unsafe { &mut *pairwise }.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -61,7 +61,7 @@ pub unsafe extern "C" fn pairwise_add(pairwise: *mut Pairwise, lit: c_int) -> su
 ///
 /// `pairwise` must be a return value of [`pairwise_new`] that [`pairwise_drop`] has not yet been called on.
 #[expect(clippy::missing_panics_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn pairwise_encode(
     pairwise: *mut Pairwise,
     n_vars_used: &mut u32,
@@ -70,13 +70,13 @@ pub unsafe extern "C" fn pairwise_encode(
 ) {
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*pairwise)
+    unsafe { &mut *pairwise }
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
 
 /// Creates a new [`Ladder`] at-most-one encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn ladder_new() -> *mut Ladder {
     Box::into_raw(Box::default())
@@ -87,9 +87,9 @@ pub unsafe extern "C" fn ladder_new() -> *mut Ladder {
 /// # Safety
 ///
 /// `ladder` must be a return value of [`ladder_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ladder_drop(ladder: *mut Ladder) {
-    drop(Box::from_raw(ladder));
+    drop(unsafe { Box::from_raw(ladder) });
 }
 
 /// Adds a new input literal to a [`Ladder`] encoding
@@ -102,12 +102,12 @@ pub unsafe extern "C" fn ladder_drop(ladder: *mut Ladder) {
 /// # Safety
 ///
 /// `ladder` must be a return value of [`ladder_new`] that [`ladder_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ladder_add(ladder: *mut Ladder, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*ladder).extend([lit]);
+    unsafe { &mut *ladder }.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn ladder_add(ladder: *mut Ladder, lit: c_int) -> super::M
 ///
 /// `ladder` must be a return value of [`ladder_new`] that [`ladder_drop`] has not yet been called on.
 #[expect(clippy::missing_panics_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ladder_encode(
     ladder: *mut Ladder,
     n_vars_used: &mut u32,
@@ -133,13 +133,13 @@ pub unsafe extern "C" fn ladder_encode(
 ) {
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*ladder)
+    unsafe { &mut *ladder }
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
 
 /// Creates a new [`Bitwise`] at-most-one encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn bitwise_new() -> *mut Bitwise {
     Box::into_raw(Box::default())
@@ -150,9 +150,9 @@ pub unsafe extern "C" fn bitwise_new() -> *mut Bitwise {
 /// # Safety
 ///
 /// `bitwise` must be a return value of [`bitwise_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bitwise_drop(bitwise: *mut Bitwise) {
-    drop(Box::from_raw(bitwise));
+    drop(unsafe { Box::from_raw(bitwise) });
 }
 
 /// Adds a new input literal to a [`Bitwise`] encoding
@@ -165,12 +165,12 @@ pub unsafe extern "C" fn bitwise_drop(bitwise: *mut Bitwise) {
 /// # Safety
 ///
 /// `bitwise` must be a return value of [`bitwise_new`] that [`bitwise_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bitwise_add(bitwise: *mut Bitwise, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*bitwise).extend([lit]);
+    unsafe { &mut *bitwise }.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn bitwise_add(bitwise: *mut Bitwise, lit: c_int) -> super
 ///
 /// `bitwise` must be a return value of [`bitwise_new`] that [`bitwise_drop`] has not yet been called on.
 #[expect(clippy::missing_panics_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bitwise_encode(
     bitwise: *mut Bitwise,
     n_vars_used: &mut u32,
@@ -196,13 +196,13 @@ pub unsafe extern "C" fn bitwise_encode(
 ) {
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*bitwise)
+    unsafe { &mut *bitwise }
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
 
 /// Creates a new [`Commander`] at-most-one encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn commander_new() -> *mut Commander {
     Box::into_raw(Box::default())
@@ -213,9 +213,9 @@ pub unsafe extern "C" fn commander_new() -> *mut Commander {
 /// # Safety
 ///
 /// `commander` must be a return value of [`commander_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn commander_drop(commander: *mut Commander) {
-    drop(Box::from_raw(commander));
+    drop(unsafe { Box::from_raw(commander) });
 }
 
 /// Adds a new input literal to a [`Commander`] encoding
@@ -228,12 +228,12 @@ pub unsafe extern "C" fn commander_drop(commander: *mut Commander) {
 /// # Safety
 ///
 /// `commander` must be a return value of [`commander_new`] that [`commander_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn commander_add(commander: *mut Commander, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*commander).0.extend([lit]);
+    unsafe { &mut *commander }.0.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn commander_add(commander: *mut Commander, lit: c_int) ->
 ///
 /// `commander` must be a return value of [`commander_new`] that [`commander_drop`] has not yet been called on.
 #[expect(clippy::missing_panics_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn commander_encode(
     commander: *mut Commander,
     n_vars_used: &mut u32,
@@ -259,14 +259,14 @@ pub unsafe extern "C" fn commander_encode(
 ) {
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*commander)
+    unsafe { &mut *commander }
         .0
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
 
 /// Creates a new [`Bimander`] at-most-one encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn bimander_new() -> *mut Bimander {
     Box::into_raw(Box::default())
@@ -277,9 +277,9 @@ pub unsafe extern "C" fn bimander_new() -> *mut Bimander {
 /// # Safety
 ///
 /// `bimander` must be a return value of [`bimander_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bimander_drop(bimander: *mut Bimander) {
-    drop(Box::from_raw(bimander));
+    drop(unsafe { Box::from_raw(bimander) });
 }
 
 /// Adds a new input literal to a [`Bimander`] encoding
@@ -292,12 +292,12 @@ pub unsafe extern "C" fn bimander_drop(bimander: *mut Bimander) {
 /// # Safety
 ///
 /// `bimander` must be a return value of [`bimander_new`] that [`bimander_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bimander_add(bimander: *mut Bimander, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*bimander).0.extend([lit]);
+    unsafe { &mut *bimander }.0.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -314,7 +314,7 @@ pub unsafe extern "C" fn bimander_add(bimander: *mut Bimander, lit: c_int) -> su
 ///
 /// `bimander` must be a return value of [`bimander_new`] that [`bimander_drop`] has not yet been called on.
 #[expect(clippy::missing_panics_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn bimander_encode(
     bimander: *mut Bimander,
     n_vars_used: &mut u32,
@@ -323,14 +323,14 @@ pub unsafe extern "C" fn bimander_encode(
 ) {
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*bimander)
+    unsafe { &mut *bimander }
         .0
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
 
 /// Creates a new [`TwoProduct`] at-most-one encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn twoproduct_new() -> *mut TwoProduct {
     Box::into_raw(Box::default())
@@ -341,9 +341,9 @@ pub unsafe extern "C" fn twoproduct_new() -> *mut TwoProduct {
 /// # Safety
 ///
 /// `twoproduct` must be a return value of [`twoproduct_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn twoproduct_drop(twoproduct: *mut TwoProduct) {
-    drop(Box::from_raw(twoproduct));
+    drop(unsafe { Box::from_raw(twoproduct) });
 }
 
 /// Adds a new input literal to a [`TwoProduct`] encoding
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn twoproduct_drop(twoproduct: *mut TwoProduct) {
 /// # Safety
 ///
 /// `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn twoproduct_add(
     twoproduct: *mut TwoProduct,
     lit: c_int,
@@ -364,7 +364,7 @@ pub unsafe extern "C" fn twoproduct_add(
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*twoproduct).0.extend([lit]);
+    unsafe { &mut *twoproduct }.0.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -381,7 +381,7 @@ pub unsafe extern "C" fn twoproduct_add(
 ///
 /// `twoproduct` must be a return value of [`twoproduct_new`] that [`twoproduct_drop`] has not yet been called on.
 #[expect(clippy::missing_panics_doc)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn twoproduct_encode(
     twoproduct: *mut TwoProduct,
     n_vars_used: &mut u32,
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn twoproduct_encode(
 ) {
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*twoproduct)
+    unsafe { &mut *twoproduct }
         .0
         .encode(&mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");

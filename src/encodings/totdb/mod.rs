@@ -7,12 +7,12 @@ use crate::types::Assignment;
 use crate::types::Lit;
 use crate::utils::unreachable_none;
 
+use super::CollectClauses;
 use super::nodedb::DrainError;
 use super::nodedb::NodeById;
 use super::nodedb::NodeCon;
 use super::nodedb::NodeId;
 use super::nodedb::NodeLike;
-use super::CollectClauses;
 
 #[cfg(feature = "proof-logging")]
 #[path = "cert.rs"]
@@ -1951,9 +1951,10 @@ mod tests {
             ..Db::default()
         };
         let node = &db[super::NodeId(1)];
-        assert!(node
-            .vals(..)
-            .eq([6, 8, 9, 12, 13, 14, 15, 17, 18, 19, 21, 25]));
+        assert!(
+            node.vals(..)
+                .eq([6, 8, 9, 12, 13, 14, 15, 17, 18, 19, 21, 25])
+        );
         assert!(node.vals(0..6).next().is_none());
         assert!(node.vals(0..=5).next().is_none());
         assert!(node.vals(9..17).eq([9, 12, 13, 14, 15]));
