@@ -112,6 +112,41 @@ impl Totalizer {
         self.root.map_or(0, |root| self.db[root].depth())
     }
 
+    /// Gets a specific output of the totalizer
+    ///
+    /// # Errors
+    ///
+    /// If no literals are in the encoding, or literals have been added since last building the
+    /// encoding
+    pub fn output(&self, value: usize) -> Result<Option<Lit>, NotEncoded> {
+        if !self.lit_buffer.is_empty() {
+            return Err(NotEncoded);
+        }
+        let Some(root) = self.root else {
+            return Err(NotEncoded);
+        };
+        Ok(self.db[root].lit(value).copied())
+    }
+
+    /// Gets an iterator over the output literals of the totalizer
+    ///
+    /// The first parameter holds the corresponding value of the output, which is guaranteed to be
+    /// monotonically increasing from 1 without gaps.
+    ///
+    /// # Errors
+    ///
+    /// If no literals are in the encoding, or literals have been added since last building the
+    /// encoding
+    pub fn outputs(&self) -> Result<impl Iterator<Item = (usize, Option<Lit>)> + '_, NotEncoded> {
+        if !self.lit_buffer.is_empty() {
+            return Err(NotEncoded);
+        }
+        let Some(root) = self.root else {
+            return Err(NotEncoded);
+        };
+        Ok(self.db[root].outputs())
+    }
+
     /// Gets the details of a totalizer output related to proof logging
     ///
     /// # Errors
@@ -824,6 +859,19 @@ mod tests {
         let mut cnf = Cnf::new();
         tot.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 12);
+    }
+
+    #[test]
+    fn outputs() {
+        let mut tot = Totalizer::default();
+        tot.extend(vec![lit![0], lit![1]]);
+        let mut var_manager = BasicVarManager::from_next_free(var![2]);
+        let mut cnf = Cnf::new();
+        tot.encode_ub(0..=2, &mut cnf, &mut var_manager).unwrap();
+        assert!(tot.output(1).unwrap().is_some());
+        for (_, lit) in tot.outputs().unwrap() {
+            assert!(lit.is_some());
+        }
     }
 
     #[cfg(feature = "proof-logging")]

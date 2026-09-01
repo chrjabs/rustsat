@@ -944,6 +944,11 @@ impl Node {
         }
     }
 
+    /// Gets an iterator over the outputs of the node
+    pub fn outputs(&self) -> impl Iterator<Item = (usize, Option<Lit>)> + '_ {
+        self.vals(..).map(|val| (val, self.lit(val).copied()))
+    }
+
     /// Checks if a given output value has "if" semantics encoded
     #[cfg(feature = "_internals")]
     #[must_use]

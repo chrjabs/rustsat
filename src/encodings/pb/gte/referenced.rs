@@ -60,6 +60,20 @@ impl<'totdb> Gte<'totdb> {
     pub fn depth(&self) -> usize {
         self.db[self.root.id].depth()
     }
+
+    /// Gets a specific output of the totalizer
+    #[must_use]
+    pub fn output(&self, value: usize) -> Option<Lit> {
+        self.db[self.root.id].lit(value).copied()
+    }
+
+    /// Gets an iterator over the output literals of the totalizer
+    ///
+    /// The first parameter holds the corresponding value of the output. The literals are guaranteed
+    /// to be returned in order of increasing value.
+    pub fn outputs(&self) -> impl Iterator<Item = (usize, Option<Lit>)> + '_ {
+        self.db[self.root.id].outputs()
+    }
 }
 
 impl<'totdb> GteCell<'totdb> {
@@ -80,6 +94,12 @@ impl<'totdb> GteCell<'totdb> {
     #[must_use]
     pub fn depth(&self) -> usize {
         self.db.borrow()[self.root.id].depth()
+    }
+
+    /// Gets a specific output of the totalizer
+    #[must_use]
+    pub fn output(&self, value: usize) -> Option<Lit> {
+        self.db.borrow()[self.root.id].lit(value).copied()
     }
 }
 

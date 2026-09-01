@@ -57,6 +57,20 @@ impl<'totdb> Tot<'totdb> {
     pub fn depth(&self) -> usize {
         self.db[self.root].depth()
     }
+
+    /// Gets an iterator over the output literals of the totalizer
+    ///
+    /// The first parameter holds the corresponding value of the output, which is guaranteed to be
+    /// monotonically increasing from 1 without gaps.
+    pub fn outputs(&self) -> impl Iterator<Item = (usize, Option<Lit>)> + '_ {
+        self.db[self.root].outputs()
+    }
+
+    /// Gets a specific output of the totalizer
+    #[must_use]
+    pub fn output(&self, value: usize) -> Option<Lit> {
+        self.db[self.root].lit(value).copied()
+    }
 }
 
 impl<'totdb> TotCell<'totdb> {
@@ -69,6 +83,12 @@ impl<'totdb> TotCell<'totdb> {
     #[must_use]
     pub fn depth(&self) -> usize {
         self.db.borrow()[self.root].depth()
+    }
+
+    /// Gets a specific output of the totalizer
+    #[must_use]
+    pub fn output(&self, value: usize) -> Option<Lit> {
+        self.db.borrow()[self.root].lit(value).copied()
     }
 }
 

@@ -132,6 +132,43 @@ impl GeneralizedTotalizer {
         self.root.map_or(0, |con| self.db[con.id].depth())
     }
 
+    /// Gets a specific output of the totalizer
+    ///
+    /// # Errors
+    ///
+    /// If no literals are in the encoding, or literals have been added since last building the
+    /// encoding
+    pub fn output(&self, value: usize) -> Result<Option<Lit>, crate::encodings::NotEncoded> {
+        if !self.lit_buffer.is_empty() {
+            return Err(crate::encodings::NotEncoded);
+        }
+        let Some(root) = self.root else {
+            return Err(crate::encodings::NotEncoded);
+        };
+        Ok(self.db[root.id].lit(value).copied())
+    }
+
+    /// Gets an iterator over the output literals of the generalized totalizer
+    ///
+    /// The first parameter holds the corresponding value of the output. The literals are guaranteed
+    /// to be returned in order of increasing value.
+    ///
+    /// # Errors
+    ///
+    /// If no literals are in the encoding, or literals have been added since last building the
+    /// encoding
+    pub fn outputs(
+        &self,
+    ) -> Result<impl Iterator<Item = (usize, Option<Lit>)> + '_, crate::encodings::NotEncoded> {
+        if !self.lit_buffer.is_empty() {
+            return Err(crate::encodings::NotEncoded);
+        }
+        let Some(root) = self.root else {
+            return Err(crate::encodings::NotEncoded);
+        };
+        Ok(self.db[root.id].outputs())
+    }
+
     /// Gets the details of a generalized totalizer output related to proof logging
     ///
     /// # Errors
@@ -685,6 +722,19 @@ mod tests {
         let mut cnf = Cnf::new();
         gte.encode_ub(0..3, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(var_manager.n_used(), 24);
+    }
+
+    #[test]
+    fn outputs() {
+        let mut gte = GeneralizedTotalizer::default();
+        gte.extend(vec![(lit![0], 1), (lit![1], 2)]);
+        let mut var_manager = BasicVarManager::from_next_free(var![2]);
+        let mut cnf = Cnf::new();
+        gte.encode_ub(0..=3, &mut cnf, &mut var_manager).unwrap();
+        assert!(gte.output(1).unwrap().is_some());
+        for (_, lit) in gte.outputs().unwrap() {
+            assert!(lit.is_some());
+        }
     }
 
     #[cfg(feature = "proof-logging")]
