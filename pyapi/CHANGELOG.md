@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## rustsat-v0.8.0 - 2026-09-02
+
+[457d6d7](457d6d7bf27998947edc45fa2200d6a5fef6c389)...[9bf5e42](9bf5e42a3651314e103f5535e37c2b95985833da)
+
+### <!-- 0 -->Features
+
+- Operators for generating formulas ([310029b](310029bde60abb5b7beb12a44aff32380cea42b2))
+
+### <!-- 1 -->Bug Fixes
+
+- Update patch updates to 0.28.1 (#601) ([ea369d0](ea369d084d576b0de0bc0ef3664fbcbf0ffb9dfb)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Update patch updates (#606) ([140802d](140802d5f982460a381b09acff12d9f83f3dab9f)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Correctly specify default arguments for `__new__` methods ([9a5354d](9a5354df5ed795b392be1aaa85903e6ad3d167fa))
+- Update patch updates (#641) ([437b854](437b854498f872dc2fad43940c34e3381c8e24d0)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+- Update pyo3 to fix security advisory ([9706648](9706648217f4c6a5bb34e47510b1fe8ed561ecc2)), https://github.com/advisories/GHSA-36hh-v3qg-5jq4
+- Update patch updates (#734) ([a74ae24](a74ae24794d884824b43ef630322b33cffa84bcf)), Co-authored-by:renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+
+### <!-- 5 -->Refactor
+
+- Make flake dendritic (#659) ([7ad01c7](7ad01c76e73feccf926d02ac6aa51c8c8d905598))
+- Switch to `mod.rs` for root modules ([257bfb6](257bfb6c2490c1f1347e6cb2521bcca3376f41b4))
+- [**breaking**] Migrate all crates to rust edition 2024 (#747) ([9bf5e42](9bf5e42a3651314e103f5535e37c2b95985833da))
+
+### <!-- 8 -->Miscellaneous Tasks
+
+- Update `pyo3` to 0.28.0 ([27a7d93](27a7d93aaefc3e7b649c772244c95ab209d859da)), closes #591, closes #593
+- Convert `allow` to `expect` for lints (#596) ([69b046d](69b046d090c4c51407278848a9f3de2926c6ed3c))
+- Use fewer and individual `use` statements ([4b63725](4b637252834f3beb1f9b761d7b2806cf7e801864))
+
 ## rustsat-v0.7.5 - 2026-01-30
 
 [1188126](1188126e06716b082859aa169d5e985cc75b37a6)...[7be4b8b](7be4b8b939241a262ac36fee22e9eb83c80f738d)
