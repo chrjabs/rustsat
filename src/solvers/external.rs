@@ -2,9 +2,9 @@
 
 use std::io::BufRead;
 
+use crate::instances::Cnf;
 use crate::instances::fio;
 use crate::instances::fio::SolverOutput;
-use crate::instances::Cnf;
 use crate::types::Assignment;
 use crate::types::Cl;
 use crate::types::Clause;

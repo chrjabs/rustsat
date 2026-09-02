@@ -125,7 +125,9 @@ fn main() {
 fn get_kissat_src(version: Version) -> std::path::PathBuf {
     if let Some(src_dir) = check_env_var!("KISSAT_SRC_DIR") {
         if version_set_manually!() {
-            println!("cargo:warning=Both version feature and KISSAT_SRC_DIR. Will ignore version feature");
+            println!(
+                "cargo:warning=Both version feature and KISSAT_SRC_DIR. Will ignore version feature"
+            );
         }
         return std::path::PathBuf::from(src_dir);
     }

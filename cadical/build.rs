@@ -151,7 +151,9 @@ impl Version {
 
     /// Sets custom `rustc` `--cfg` arguments for features only present in some version
     fn set_cfgs(self) {
-        println!("cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5\", \"v1.7\", \"v1.9\", \"v2.0\", \"v2.1\", \"v2.2\"))");
+        println!(
+            "cargo:rustc-check-cfg=cfg(cadical_version, values(\"v1.5\", \"v1.7\", \"v1.9\", \"v2.0\", \"v2.1\", \"v2.2\"))"
+        );
         if self >= Version::V1_5 {
             println!("cargo:rustc-cfg=cadical_version=\"v1.5\"");
         }
@@ -280,7 +282,9 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
 fn get_cadical_dir(version: Version, _remote: Option<(&str, &str)>) -> String {
     if let Some(src_dir) = check_env_var!("CADICAL_SRC_DIR") {
         if version_set_manually!() {
-            println!("cargo:warning=Both version feature and CADICAL_SRC_DIR. It is your responsibility to ensure that they make sense together.");
+            println!(
+                "cargo:warning=Both version feature and CADICAL_SRC_DIR. It is your responsibility to ensure that they make sense together."
+            );
         }
         return src_dir;
     }

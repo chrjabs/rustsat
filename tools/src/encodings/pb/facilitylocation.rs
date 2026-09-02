@@ -1,8 +1,8 @@
 //! # PB (Multi-Criteria) Uncapacitated Facility Location Problem Encoding
 
 use rustsat::instances::fio::opb;
-use rustsat::types::constraints::CardConstraint;
 use rustsat::types::Lit;
+use rustsat::types::constraints::CardConstraint;
 
 use crate::encodings::facilitylocation::FacilityLocation;
 

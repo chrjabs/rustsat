@@ -4,11 +4,11 @@ use crate::encodings::cert::CollectClauses;
 use crate::encodings::cert::ConstraintEncodingError;
 use crate::encodings::cert::EncodingError;
 use crate::instances::ManageVars;
+use crate::types::Lit;
 use crate::types::constraints::CardConstraint;
 use crate::types::constraints::CardEqConstr;
 use crate::types::constraints::CardLbConstr;
 use crate::types::constraints::CardUbConstr;
-use crate::types::Lit;
 
 /// Trait for certified cardinality encodings that allow upper bounding of the form `sum of lits <=
 /// ub`

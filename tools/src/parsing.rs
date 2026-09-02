@@ -1,5 +1,6 @@
 //! # Shared Parsing Functionality
 
+use winnow::Parser;
 use winnow::ascii::line_ending;
 use winnow::ascii::space0;
 use winnow::ascii::space1;
@@ -9,7 +10,6 @@ use winnow::error::ContextError;
 use winnow::error::ParserError;
 use winnow::error::StrContext;
 use winnow::error::StrContextValue;
-use winnow::Parser;
 
 pub fn single_value<'i, P, O, E>(
     mut parser: P,

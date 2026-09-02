@@ -3,8 +3,8 @@
 //! (Unit-)propagate assumptions in constraint files
 
 use anyhow::Context;
-use rustsat::instances::fio;
 use rustsat::instances::SatInstance;
+use rustsat::instances::fio;
 use rustsat::types::Lit;
 
 #[derive(clap::Parser)]

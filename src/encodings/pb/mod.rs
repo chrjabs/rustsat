@@ -36,18 +36,18 @@
 
 use crate::clause;
 use crate::instances::ManageVars;
+use crate::types::Clause;
+use crate::types::Lit;
 use crate::types::constraints::PbConstraint;
 use crate::types::constraints::PbEqConstr;
 use crate::types::constraints::PbLbConstr;
 use crate::types::constraints::PbUbConstr;
-use crate::types::Clause;
-use crate::types::Lit;
 use crate::utils::unreachable_err;
 
-use super::card;
 use super::CollectClauses;
 use super::ConstraintEncodingError;
 use super::EnforceError;
+use super::card;
 
 pub mod gte;
 pub use gte::GeneralizedTotalizer;

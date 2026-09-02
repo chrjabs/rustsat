@@ -7,10 +7,10 @@
 //! pseudo-boolean encoding can also be simulated by a cardinality encoding
 //! where literals are added multiple times.
 
-use crate::encodings::card;
 use crate::encodings::CollectClauses;
 use crate::encodings::EncodeStats;
 use crate::encodings::EnforceError;
+use crate::encodings::card;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 use crate::types::RsHashMap;

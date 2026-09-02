@@ -1,6 +1,5 @@
 use rustsat::clause;
 use rustsat::encodings::card::Totalizer;
-use rustsat::encodings::pb::simulators::Card;
 use rustsat::encodings::pb::BinaryAdder;
 use rustsat::encodings::pb::BoundBothIncremental;
 use rustsat::encodings::pb::BoundLower;
@@ -10,6 +9,7 @@ use rustsat::encodings::pb::DoubleGeneralizedTotalizer;
 use rustsat::encodings::pb::DynamicPolyWatchdog;
 use rustsat::encodings::pb::GeneralizedTotalizer;
 use rustsat::encodings::pb::InvertedGeneralizedTotalizer;
+use rustsat::encodings::pb::simulators::Card;
 use rustsat::instances::BasicVarManager;
 use rustsat::instances::ManageVars;
 use rustsat::lit;
@@ -441,9 +441,9 @@ generate_exhaustive!(
 generate_exhaustive!(adder, BinaryAdder);
 
 mod dpw_inc_prec {
-    use rustsat::encodings::pb::dpw::DynamicPolyWatchdog;
     use rustsat::encodings::pb::BoundUpper;
     use rustsat::encodings::pb::BoundUpperIncremental;
+    use rustsat::encodings::pb::dpw::DynamicPolyWatchdog;
     use rustsat::instances::BasicVarManager;
     use rustsat::instances::Cnf;
     use rustsat::instances::ManageVars;
@@ -669,8 +669,8 @@ mod cert {
     use std::io::BufRead;
 
     use rustsat::clause;
-    use rustsat::encodings::pb::cert::BoundUpperIncremental;
     use rustsat::encodings::pb::GeneralizedTotalizer;
+    use rustsat::encodings::pb::cert::BoundUpperIncremental;
     use rustsat::instances::BasicVarManager;
     use rustsat::instances::Cnf;
     use rustsat::instances::ManageVars;

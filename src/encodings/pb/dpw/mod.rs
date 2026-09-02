@@ -16,6 +16,9 @@
 use std::num::NonZeroU8;
 use std::num::NonZeroUsize;
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::encodings::IterWeightedInputs;
 use crate::encodings::nodedb::NodeById;
 use crate::encodings::nodedb::NodeCon;
 use crate::encodings::nodedb::NodeId;
@@ -23,9 +26,6 @@ use crate::encodings::nodedb::NodeLike;
 use crate::encodings::pb::BoundUpperIncremental;
 use crate::encodings::pb::Encode;
 use crate::encodings::totdb;
-use crate::encodings::CollectClauses;
-use crate::encodings::EnforceError;
-use crate::encodings::IterWeightedInputs;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 use crate::types::RsHashMap;
@@ -861,10 +861,10 @@ fn enforce_ub(dpw: &Structure, ub: usize, tot_db: &totdb::Db) -> Result<Vec<Lit>
 
 #[cfg(test)]
 mod tests {
+    use crate::encodings::EncodeStats;
     use crate::encodings::pb::BoundUpper;
     use crate::encodings::pb::BoundUpperIncremental;
     use crate::encodings::pb::EncodeIncremental;
-    use crate::encodings::EncodeStats;
     use crate::instances::BasicVarManager;
     use crate::instances::Cnf;
     use crate::instances::ManageVars;

@@ -4,11 +4,11 @@
 
 use anyhow::Context;
 use itertools::Itertools;
-use rustsat::instances::fio;
 use rustsat::instances::ManageVars;
 use rustsat::instances::MultiOptInstance;
-use rustsat::types::constraints::PbConstraint;
+use rustsat::instances::fio;
 use rustsat::types::Var;
+use rustsat::types::constraints::PbConstraint;
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]

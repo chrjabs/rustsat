@@ -55,10 +55,10 @@
 #![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
+use core::ffi::CStr;
 use core::ffi::c_int;
 use core::ffi::c_uint;
 use core::ffi::c_void;
-use core::ffi::CStr;
 
 use rustsat::solvers::SolverResult;
 use rustsat::types::Cl;
@@ -586,13 +586,13 @@ mod test {
         solver.set_configuration(Config::Sat).unwrap();
         solver.set_configuration(Config::Unsat).unwrap();
         solver.add_unit(rustsat::lit![0]).unwrap();
-        assert!(solver.set_configuration(Config::Default).is_err_and(|e| e
-            .downcast::<StateError>()
-            .unwrap()
-            == StateError {
-                required_state: SolverState::Configuring,
-                actual_state: SolverState::Input
-            }));
+        assert!(solver.set_configuration(Config::Default).is_err_and(|e| {
+            e.downcast::<StateError>().unwrap()
+                == StateError {
+                    required_state: SolverState::Configuring,
+                    actual_state: SolverState::Input,
+                }
+        }));
     }
 
     #[test]

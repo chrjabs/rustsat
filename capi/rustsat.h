@@ -986,7 +986,8 @@ void dpw_limit_range(struct DynamicPolyWatchdog *dpw,
  *
  * # Safety
  *
- * `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ * - `gte` must be a return value of [`gte_new`] that [`gte_drop`] has not yet been called on.
+ * - it must be safe for this function to write to `lit`
  */
 enum MaybeError gte_get_output(struct GeneralizedTotalizer *gte, size_t value, int *lit);
 
@@ -1010,7 +1011,8 @@ enum MaybeError gte_get_outputs(struct GeneralizedTotalizer *gte,
  *
  * # Safety
  *
- * `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
+ * - `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on
+ * - it must be safe for this function to write to `lit`
  */
 enum MaybeError tot_get_output(struct Totalizer *tot, size_t value, int *lit);
 

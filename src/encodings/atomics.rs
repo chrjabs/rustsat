@@ -1,9 +1,9 @@
 //! # "Atomic"/"Trivial" Encodings
 
-use crate::types::constraints::CardConstraint;
-use crate::types::constraints::PbConstraint;
 use crate::types::Clause;
 use crate::types::Lit;
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::PbConstraint;
 
 /// Implication of form `a -> b`
 #[must_use]

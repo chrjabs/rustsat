@@ -157,11 +157,9 @@ impl Objective {
     #[must_use]
     pub fn max_lit_weight(&self) -> usize {
         match &self.0 {
-            IntObj::Weighted { soft_lits, .. } => {
-                soft_lits
-                    .iter()
-                    .fold(0, |s, (_, w)| if *w > s { *w } else { s })
-            }
+            IntObj::Weighted { soft_lits, .. } => soft_lits
+                .iter()
+                .fold(0, |s, (_, w)| if *w > s { *w } else { s }),
             IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
         }
     }
@@ -170,11 +168,9 @@ impl Objective {
     #[must_use]
     pub fn max_clause_weight(&self) -> usize {
         match &self.0 {
-            IntObj::Weighted { soft_clauses, .. } => {
-                soft_clauses
-                    .iter()
-                    .fold(0, |s, (_, w)| if *w > s { *w } else { s })
-            }
+            IntObj::Weighted { soft_clauses, .. } => soft_clauses
+                .iter()
+                .fold(0, |s, (_, w)| if *w > s { *w } else { s }),
             IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
         }
     }
@@ -189,11 +185,9 @@ impl Objective {
     #[must_use]
     pub fn min_lit_weight(&self) -> usize {
         match &self.0 {
-            IntObj::Weighted { soft_lits, .. } => {
-                soft_lits
-                    .iter()
-                    .fold(usize::MAX, |s, (_, w)| if *w < s { *w } else { s })
-            }
+            IntObj::Weighted { soft_lits, .. } => soft_lits
+                .iter()
+                .fold(usize::MAX, |s, (_, w)| if *w < s { *w } else { s }),
             IntObj::Unweighted { unit_weight, .. } => unit_weight.unwrap_or(0),
         }
     }
@@ -708,7 +702,7 @@ impl Objective {
     pub fn into_soft_lits<VM>(
         mut self,
         var_manager: &mut VM,
-    ) -> (super::Cnf, (impl crate::types::WLitIter, isize))
+    ) -> (super::Cnf, (impl crate::types::WLitIter + use<VM>, isize))
     where
         VM: super::ManageVars,
     {
@@ -733,7 +727,12 @@ impl Objective {
     pub fn into_unweighted_soft_lits<VM>(
         mut self,
         var_manager: &mut VM,
-    ) -> (super::Cnf, impl crate::types::LitIter, usize, isize)
+    ) -> (
+        super::Cnf,
+        impl crate::types::LitIter + use<VM>,
+        usize,
+        isize,
+    )
     where
         VM: super::ManageVars,
     {
@@ -772,11 +771,7 @@ impl Objective {
     pub fn max_var(&self) -> Option<Var> {
         let find_max = |mv, v| {
             if let Some(mv) = mv {
-                if mv < v {
-                    Some(v)
-                } else {
-                    Some(mv)
-                }
+                if mv < v { Some(v) } else { Some(mv) }
             } else {
                 Some(v)
             }

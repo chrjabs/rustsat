@@ -11,7 +11,7 @@ use rustsat::encodings::card::Totalizer;
 use rustsat::types::Lit;
 
 /// Creates a new [`Totalizer`] cardinality encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn tot_new() -> *mut Totalizer {
     Box::into_raw(Box::default())
@@ -22,9 +22,9 @@ pub unsafe extern "C" fn tot_new() -> *mut Totalizer {
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] and cannot be used afterwards again.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_drop(tot: *mut Totalizer) {
-    drop(Box::from_raw(tot));
+    drop(unsafe { Box::from_raw(tot) });
 }
 
 /// Reserves all auxiliary variables that the encoding might need
@@ -35,10 +35,10 @@ pub unsafe extern "C" fn tot_drop(tot: *mut Totalizer) {
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_reserve(tot: *mut Totalizer, n_vars_used: &mut u32) {
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*tot).reserve(&mut var_manager);
+    unsafe { &mut *tot }.reserve(&mut var_manager);
 }
 
 /// Adds a new input literal to a [`Totalizer`] encoding
@@ -51,12 +51,12 @@ pub unsafe extern "C" fn tot_reserve(tot: *mut Totalizer, n_vars_used: &mut u32)
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_add(tot: *mut Totalizer, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*tot).extend([lit]);
+    unsafe { &mut *tot }.extend([lit]);
     super::MaybeError::Ok
 }
 /// Lazily builds the _change in_ cardinality encoding to enable upper bounds in a given range.
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn tot_add(tot: *mut Totalizer, lit: c_int) -> super::Mayb
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_encode_ub(
     tot: *mut Totalizer,
     min_bound: usize,
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn tot_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*tot)
+    unsafe { &mut *tot }
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -103,13 +103,13 @@ pub unsafe extern "C" fn tot_encode_ub(
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_enforce_ub(
     tot: *mut Totalizer,
     ub: usize,
     assump: &mut c_int,
 ) -> super::MaybeError {
-    match (*tot).enforce_ub(ub) {
+    match unsafe { &mut *tot }.enforce_ub(ub) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();
@@ -138,7 +138,7 @@ pub unsafe extern "C" fn tot_enforce_ub(
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_encode_lb(
     tot: *mut Totalizer,
     min_bound: usize,
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn tot_encode_lb(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*tot)
+    unsafe { &mut *tot }
         .encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -162,13 +162,13 @@ pub unsafe extern "C" fn tot_encode_lb(
 /// # Safety
 ///
 /// `tot` must be a return value of [`tot_new`] that [`tot_drop`] has not yet been called on.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn tot_enforce_lb(
     tot: *mut Totalizer,
     lb: usize,
     assump: &mut c_int,
 ) -> super::MaybeError {
-    match (*tot).enforce_lb(lb) {
+    match unsafe { &mut *tot }.enforce_lb(lb) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();

@@ -1,8 +1,8 @@
 //! # PB (Multi-Criteria) Assignment Problem Encoding
 
 use rustsat::instances::fio::opb;
-use rustsat::types::constraints::CardConstraint;
 use rustsat::types::Lit;
+use rustsat::types::constraints::CardConstraint;
 
 use crate::encodings::assignment::Assignment;
 

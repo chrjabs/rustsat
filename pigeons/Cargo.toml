@@ -9,7 +9,7 @@ keywords = ["sat", "satisfiability", "encodings", "proof-logging"]
 repository = "https://github.com/chrjabs/rustsat"
 readme = "README.md"
 include = ["CHANGELOG.md", "README.md", "/src/"]
-rust-version = "1.75.0"
+rust-version = "1.85.0"
 
 [dependencies]
 # keep-sorted start

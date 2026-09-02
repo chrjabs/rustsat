@@ -10,6 +10,8 @@
 //! - [DIMACS WCNF pre-22](https://maxsat-evaluations.github.io/2017/rules.html#input)
 //! - [DIMACS WCNF post-22](https://maxsat-evaluations.github.io/2022/rules.html#input)
 
+use winnow::ModalResult;
+use winnow::Parser as _;
 use winnow::ascii::dec_int;
 use winnow::ascii::dec_uint;
 use winnow::ascii::line_ending;
@@ -24,8 +26,6 @@ use winnow::combinator::separated;
 use winnow::combinator::seq;
 use winnow::combinator::terminated;
 use winnow::error::StrContext;
-use winnow::ModalResult;
-use winnow::Parser as _;
 
 use crate::instances::Cnf;
 use crate::types::Cl;
@@ -222,7 +222,7 @@ where
                     utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
                     self.line_num,
                 )
-                .into()))
+                .into()));
             }
             Ok(data) => data,
         };
@@ -282,7 +282,7 @@ where
                     utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
                     self.line_num,
                 )
-                .into()))
+                .into()));
             }
             Ok(data) => data,
         };
@@ -493,7 +493,7 @@ where
                     utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
                     self.line_num,
                 )
-                .into()))
+                .into()));
             }
             Ok(data) => data,
         };
@@ -589,7 +589,7 @@ where
                     utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
                     self.line_num,
                 )
-                .into()))
+                .into()));
             }
             Ok(data) => data,
         };
@@ -637,7 +637,7 @@ where
                     utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
                     self.line_num,
                 )
-                .into()))
+                .into()));
             }
             Ok(data) => data,
         };
@@ -709,7 +709,7 @@ where
                     utils::substr_offset(&self.buffer, trimmed_line).unwrap(),
                     self.line_num,
                 )
-                .into()))
+                .into()));
             }
             Ok(data) => data,
         };
@@ -1059,15 +1059,15 @@ mod tests {
     use crate::instances::SatInstance;
     use crate::ipasir_lit;
 
-    use super::clause_ending;
-    use super::cnf_p_line;
-    use super::lit;
-    use super::write_cnf_annotated;
     use super::CnfBody;
     use super::CnfData;
     use super::CnfHeader;
     use super::CnfHeaderData;
     use super::Parser;
+    use super::clause_ending;
+    use super::cnf_p_line;
+    use super::lit;
+    use super::write_cnf_annotated;
 
     #[test]
     fn parse_lit_pass() {
@@ -1116,21 +1116,25 @@ mod tests {
 
     #[test]
     fn parse_cnf_line_pass() {
-        assert!(Parser::<CnfBody, _>::new(std::io::Cursor::new("c test"))
-            .next()
-            .is_some_and(
-                |res| res.is_ok_and(|parsed| parsed == CnfData::Comment(String::from("c test")))
-            ));
+        assert!(
+            Parser::<CnfBody, _>::new(std::io::Cursor::new("c test"))
+                .next()
+                .is_some_and(|res| res
+                    .is_ok_and(|parsed| parsed == CnfData::Comment(String::from("c test"))))
+        );
         assert!(
             Parser::<CnfBody, _>::new(std::io::Cursor::new("42 34 -16 0"))
                 .next()
                 .is_some_and(|res| res.is_ok_and(|parsed| parsed
                     == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34] | ipasir_lit![-16])))
         );
-        assert!(Parser::<CnfBody, _>::new(std::io::Cursor::new(" 42 34"))
-            .next()
-            .is_some_and(|res| res
-                .is_ok_and(|parsed| parsed == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34]))));
+        assert!(
+            Parser::<CnfBody, _>::new(std::io::Cursor::new(" 42 34"))
+                .next()
+                .is_some_and(|res| res.is_ok_and(
+                    |parsed| parsed == CnfData::Clause(ipasir_lit![42] | ipasir_lit![34])
+                ))
+        );
     }
 
     #[test]
@@ -1287,16 +1291,16 @@ mod tests {
         use crate::instances::SatInstance;
         use crate::ipasir_lit;
 
-        use super::super::obj_idx;
-        use super::super::wcnf_p_line;
-        use super::super::weight;
-        use super::super::write_wcnf_annotated;
         use super::super::Parser;
         use super::super::WcnfData;
         use super::super::WcnfHeader;
         use super::super::WcnfHeaderData;
         use super::super::WcnfPost22;
         use super::super::WcnfPre22Body;
+        use super::super::obj_idx;
+        use super::super::wcnf_p_line;
+        use super::super::weight;
+        use super::super::write_wcnf_annotated;
 
         #[test]
         fn parse_obj_idx_pass() {
@@ -1345,46 +1349,53 @@ mod tests {
 
         #[test]
         fn parse_wcnf_pre22_line_pass() {
-            assert!((Parser {
-                variant: WcnfPre22Body { top: 100 },
-                reader: std::io::Cursor::new("c test"),
-                buffer: String::new(),
-                line_num: 0,
-            })
-            .next()
-            .is_some_and(
-                |res| res.is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test")))
-            ));
-            assert!((Parser {
-                variant: WcnfPre22Body { top: 100 },
-                reader: std::io::Cursor::new("42 34 -16 0"),
-                buffer: String::new(),
-                line_num: 0,
-            })
-            .next()
-            .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                == WcnfData::SoftClause {
-                    weight: 42,
-                    clause: ipasir_lit![34] | ipasir_lit![-16]
-                })));
-            assert!((Parser {
-                variant: WcnfPre22Body { top: 100 },
-                reader: std::io::Cursor::new("100 34 -16 0"),
-                buffer: String::new(),
-                line_num: 0,
-            })
-            .next()
-            .is_some_and(|res| res.is_ok_and(
-                |parsed| parsed == WcnfData::HardClause(ipasir_lit![34] | ipasir_lit![-16])
-            )));
+            assert!(
+                (Parser {
+                    variant: WcnfPre22Body { top: 100 },
+                    reader: std::io::Cursor::new("c test"),
+                    buffer: String::new(),
+                    line_num: 0,
+                })
+                .next()
+                .is_some_and(|res| res
+                    .is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test"))))
+            );
+            assert!(
+                (Parser {
+                    variant: WcnfPre22Body { top: 100 },
+                    reader: std::io::Cursor::new("42 34 -16 0"),
+                    buffer: String::new(),
+                    line_num: 0,
+                })
+                .next()
+                .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                    == WcnfData::SoftClause {
+                        weight: 42,
+                        clause: ipasir_lit![34] | ipasir_lit![-16]
+                    }))
+            );
+            assert!(
+                (Parser {
+                    variant: WcnfPre22Body { top: 100 },
+                    reader: std::io::Cursor::new("100 34 -16 0"),
+                    buffer: String::new(),
+                    line_num: 0,
+                })
+                .next()
+                .is_some_and(|res| res.is_ok_and(
+                    |parsed| parsed == WcnfData::HardClause(ipasir_lit![34] | ipasir_lit![-16])
+                ))
+            );
         }
 
         #[test]
         fn parse_wcnf_post22_line_pass() {
-            assert!(Parser::<WcnfPost22, _>::new(std::io::Cursor::new("c test"))
-                .next()
-                .is_some_and(|res| res
-                    .is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test")))));
+            assert!(
+                Parser::<WcnfPost22, _>::new(std::io::Cursor::new("c test"))
+                    .next()
+                    .is_some_and(|res| res
+                        .is_ok_and(|parsed| parsed == WcnfData::Comment(String::from("c test"))))
+            );
             assert!(
                 Parser::<WcnfPost22, _>::new(std::io::Cursor::new("42 34 -16 0"))
                     .next()
@@ -1656,17 +1667,19 @@ mod tests {
         use crate::instances::SatInstance;
         use crate::ipasir_lit;
 
-        use super::super::write_mcnf_annotated;
         use super::super::Mcnf;
         use super::super::McnfData;
         use super::super::Parser;
+        use super::super::write_mcnf_annotated;
 
         #[test]
         fn parse_mcnf_line_pass() {
-            assert!(Parser::<Mcnf, _>::new(std::io::Cursor::new("c test"))
-                .next()
-                .is_some_and(|res| res
-                    .is_ok_and(|parsed| parsed == McnfData::Comment(String::from("c test")))));
+            assert!(
+                Parser::<Mcnf, _>::new(std::io::Cursor::new("c test"))
+                    .next()
+                    .is_some_and(|res| res
+                        .is_ok_and(|parsed| parsed == McnfData::Comment(String::from("c test"))))
+            );
             assert!(
                 Parser::<Mcnf, _>::new(std::io::Cursor::new("o 42 34 -16 0"))
                     .next()
@@ -1678,14 +1691,16 @@ mod tests {
                         }))
             );
             // old format for backwards compatibility
-            assert!(Parser::<Mcnf, _>::new(std::io::Cursor::new("o42 34 -16 0"))
-                .next()
-                .is_some_and(|res| res.is_ok_and(|parsed| parsed
-                    == McnfData::SoftClause {
-                        obj_idx: 42,
-                        weight: 34,
-                        clause: clause![ipasir_lit![-16]]
-                    })));
+            assert!(
+                Parser::<Mcnf, _>::new(std::io::Cursor::new("o42 34 -16 0"))
+                    .next()
+                    .is_some_and(|res| res.is_ok_and(|parsed| parsed
+                        == McnfData::SoftClause {
+                            obj_idx: 42,
+                            weight: 34,
+                            clause: clause![ipasir_lit![-16]]
+                        }))
+            );
             assert!(
                 Parser::<Mcnf, _>::new(std::io::Cursor::new("h 42 34 -16 0"))
                     .next()

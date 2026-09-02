@@ -1,14 +1,14 @@
 //! # Satisfiability Instance Representations
 
 use crate::encodings::CollectClauses;
-use crate::types::constraints::CardConstraint;
-use crate::types::constraints::ConstraintRef;
-use crate::types::constraints::PbConstraint;
 use crate::types::Assignment;
 use crate::types::Clause;
 use crate::types::Lit;
 use crate::types::TernaryVal;
 use crate::types::Var;
+use crate::types::constraints::CardConstraint;
+use crate::types::constraints::ConstraintRef;
+use crate::types::constraints::PbConstraint;
 
 /// Simple type representing a CNF formula. Other than [`Instance<VM>`], this
 /// type only supports clauses and does have an internal variable manager.

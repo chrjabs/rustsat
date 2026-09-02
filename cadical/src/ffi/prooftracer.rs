@@ -35,7 +35,7 @@ unsafe extern "C" fn rustsat_ccadical_add_original_clause(
     cl_data: *const c_int,
     restored: bool,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     tracer.add_original_clause(ClauseId(id), redundant, &clause, restored);
 }
@@ -49,7 +49,7 @@ unsafe extern "C" fn rustsat_ccadical_add_derived_clause(
     an_len: usize,
     an_data: *const i64,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     let antecedents =
         unsafe { rustsat::utils::from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len) };
@@ -63,7 +63,7 @@ unsafe extern "C" fn rustsat_ccadical_delete_clause(
     cl_len: usize,
     cl_data: *const c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     tracer.delete_clause(ClauseId(id), redundant, &clause);
 }
@@ -74,18 +74,18 @@ unsafe extern "C" fn rustsat_ccadical_weaken_minus(
     cl_len: usize,
     cl_data: *const c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     tracer.weaken_minus(ClauseId(id), &clause);
 }
 
 unsafe extern "C" fn rustsat_ccadical_strengthen(tracer: *mut c_void, id: i64) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     tracer.strengthen(ClauseId(id));
 }
 
 unsafe extern "C" fn rustsat_ccadical_report_status(tracer: *mut c_void, status: c_int, id: i64) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let status = match status {
         0 => rustsat::solvers::SolverResult::Interrupted,
         10 => rustsat::solvers::SolverResult::Sat,
@@ -103,23 +103,23 @@ unsafe extern "C" fn rustsat_ccadical_finalize_clause(
     cl_len: usize,
     cl_data: *const c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     tracer.finalize_clause(ClauseId(id), &clause);
 }
 
 unsafe extern "C" fn rustsat_ccadical_begin_proof(tracer: *mut c_void, id: i64) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     tracer.begin_proof(ClauseId(id));
 }
 
 unsafe extern "C" fn rustsat_ccadical_solve_query(tracer: *mut c_void) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     tracer.solve_query();
 }
 
 unsafe extern "C" fn rustsat_ccadical_add_assumption(tracer: *mut c_void, assump: c_int) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     tracer.add_assumption(
         Lit::from_ipasir(assump).expect("proof tracer got invalid literal from CaDiCaL"),
     );
@@ -130,13 +130,13 @@ unsafe extern "C" fn rustsat_ccadical_add_constraint(
     cl_len: usize,
     cl_data: *const c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     tracer.add_constraint(&clause);
 }
 
 unsafe extern "C" fn rustsat_ccadical_reset_assumptions(tracer: *mut c_void) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     tracer.reset_assumptions();
 }
 
@@ -148,7 +148,7 @@ unsafe extern "C" fn rustsat_ccadical_add_assumption_clause(
     an_len: usize,
     an_data: *const i64,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let clause = crate::CaDiCaLClause::new(cl_len, cl_data);
     let antecedents =
         unsafe { rustsat::utils::from_raw_parts_maybe_null(an_data.cast::<ClauseId>(), an_len) };
@@ -161,14 +161,18 @@ unsafe extern "C" fn rustsat_ccadical_conclude_unsat(
     fail_len: usize,
     fail_data: *const i64,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
-    let failing = rustsat::utils::from_raw_parts_maybe_null(fail_data.cast::<ClauseId>(), fail_len);
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
+    let failing = unsafe {
+        rustsat::utils::from_raw_parts_maybe_null(fail_data.cast::<ClauseId>(), fail_len)
+    };
     let concl = match concl {
-            super::CCaDiCaLConclusionType_CONFLICT => crate::Conclusion::Conflict,
-            super::CCaDiCaLConclusionType_ASSUMPTIONS => crate::Conclusion::Assumptions,
-            super::CCaDiCaLConclusionType_CONSTRAINT => crate::Conclusion::Constraint,
-            _ => panic!("proof tracer (`conclude_unsat`) received unexpected conclusion type from CaDiCaL: {concl}")
-        };
+        super::CCaDiCaLConclusionType_CONFLICT => crate::Conclusion::Conflict,
+        super::CCaDiCaLConclusionType_ASSUMPTIONS => crate::Conclusion::Assumptions,
+        super::CCaDiCaLConclusionType_CONSTRAINT => crate::Conclusion::Constraint,
+        _ => panic!(
+            "proof tracer (`conclude_unsat`) received unexpected conclusion type from CaDiCaL: {concl}"
+        ),
+    };
     tracer.conclude_unsat(concl, failing);
 }
 
@@ -177,7 +181,7 @@ unsafe extern "C" fn rustsat_ccadical_conclude_sat(
     sol_len: usize,
     sol_data: *const c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let assignment = crate::CaDiCaLAssignment::new(sol_len, sol_data);
     tracer.conclude_sat(&assignment);
 }
@@ -187,7 +191,7 @@ unsafe extern "C" fn rustsat_ccadical_conclude_unknown(
     trail_len: usize,
     trail_data: *const c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let assignment = crate::CaDiCaLAssignment::new(trail_len, trail_data);
     tracer.conclude_unknown(&assignment);
 }
@@ -197,7 +201,7 @@ unsafe extern "C" fn rustsat_ccadical_notify_equivalence(
     first: c_int,
     second: c_int,
 ) {
-    let tracer = &mut **tracer.cast::<*mut dyn TraceProof>();
+    let tracer = unsafe { &mut **tracer.cast::<*mut dyn TraceProof>() };
     let first =
         Lit::from_ipasir(first).expect("Invalid literal in `notify_equivalent` from CaDiCaL");
     let second =

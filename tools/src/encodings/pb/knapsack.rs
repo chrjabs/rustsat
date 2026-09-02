@@ -1,8 +1,8 @@
 //! # PB (Multi-Criteria) Knapsack Encoding
 
 use rustsat::instances::fio::opb;
-use rustsat::types::constraints::PbConstraint;
 use rustsat::types::Lit;
+use rustsat::types::constraints::PbConstraint;
 
 use crate::encodings::knapsack::Knapsack;
 

@@ -12,14 +12,14 @@
 //! - \[2\] Ruben Martins and Saurabh Joshi and Vasco Manquinho and Ines Lynce: _Incremental
 //!   Cardinality Constraints for MaxSAT_, CP 2014.
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
+use crate::encodings::NotEncoded;
 use crate::encodings::nodedb::NodeById;
 use crate::encodings::nodedb::NodeCon;
 use crate::encodings::nodedb::NodeId;
 use crate::encodings::nodedb::NodeLike;
 use crate::encodings::totdb;
-use crate::encodings::CollectClauses;
-use crate::encodings::EnforceError;
-use crate::encodings::NotEncoded;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 
@@ -747,14 +747,14 @@ impl super::cert::BoundBothIncremental for Totalizer {}
 
 #[cfg(test)]
 mod tests {
+    use crate::encodings::EncodeStats;
+    use crate::encodings::EnforceError;
+    use crate::encodings::NotEncoded;
     use crate::encodings::card::BoundLower;
     use crate::encodings::card::BoundLowerIncremental;
     use crate::encodings::card::BoundUpper;
     use crate::encodings::card::BoundUpperIncremental;
     use crate::encodings::card::EncodeIncremental;
-    use crate::encodings::EncodeStats;
-    use crate::encodings::EnforceError;
-    use crate::encodings::NotEncoded;
     use crate::instances::BasicVarManager;
     use crate::instances::Cnf;
     use crate::instances::ManageVars;
@@ -881,8 +881,8 @@ mod tests {
         use crate::encodings::card::cert::BoundBoth;
         use crate::instances::Cnf;
         use crate::instances::SatInstance;
-        use crate::types::constraints::CardConstraint;
         use crate::types::Var;
+        use crate::types::constraints::CardConstraint;
 
         fn print_file<P: AsRef<std::path::Path>>(path: P) {
             println!();

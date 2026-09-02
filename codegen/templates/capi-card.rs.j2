@@ -22,7 +22,7 @@ use rustsat::types::Lit;
 {% for enc in encodings %}
 
 /// Creates a new [`{{ enc.name }}`] cardinality encoding
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[expect(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn {{ enc.id }}_new() -> *mut {{ enc.name }} {
     Box::into_raw(Box::default())
@@ -38,12 +38,12 @@ pub unsafe extern "C" fn {{ enc.id }}_new() -> *mut {{ enc.name }} {
 ///
 {% include 'capi-ipasir-lit.j2' %}
 {% include 'capi-safety.j2' %}
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ enc.id }}_add({{ enc.id }}: *mut {{ enc.name }}, lit: c_int) -> super::MaybeError {
     let Ok(lit) = Lit::from_ipasir(lit) else {
         return super::MaybeError::InvalidLiteral;
     };
-    (*{{ enc.id }}).extend([lit]);
+    unsafe { &mut *{{ enc.id }} }.extend([lit]);
     super::MaybeError::Ok
 }
 
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn {{ enc.id }}_add({{ enc.id }}: *mut {{ enc.name }}, lit
 ///
 {% include 'capi-bound-panic.j2' %}
 {% include 'capi-safety.j2' %}
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ enc.id }}_encode_ub(
     {{ enc.id }}: *mut {{ enc.name }},
     min_bound: usize,
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_ub(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*{{ enc.id }})
+    unsafe { &mut *{{ enc.id }} }
         .encode_ub_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -80,13 +80,13 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_ub(
 /// [`{{ enc.id }}_encode_ub`] has been called adequately and nothing has been called afterwards, otherwise
 /// [`super::MaybeError::NotEncoded`] will be returned.
 {% include 'capi-safety.j2' %}
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ enc.id }}_enforce_ub(
     {{ enc.id }}: *mut {{ enc.name }},
     ub: usize,
     assump: &mut c_int,
 ) -> super::MaybeError {
-    match (*{{ enc.id }}).enforce_ub(ub) {
+    match unsafe { &mut *{{ enc.id }} }.enforce_ub(ub) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn {{ enc.id }}_enforce_ub(
 ///
 {% include 'capi-bound-panic.j2' %}
 {% include 'capi-safety.j2' %}
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ enc.id }}_encode_lb(
     {{ enc.id }}: *mut {{ enc.name }},
     min_bound: usize,
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_lb(
     assert!(min_bound <= max_bound);
     let mut collector = super::ClauseCollector::new(collector, collector_data);
     let mut var_manager = super::VarManager::new(n_vars_used);
-    (*{{ enc.id }})
+    unsafe { &mut *{{ enc.id }} }
         .encode_lb_change(min_bound..=max_bound, &mut collector, &mut var_manager)
         .expect("CClauseCollector cannot report out of memory");
 }
@@ -131,13 +131,13 @@ pub unsafe extern "C" fn {{ enc.id }}_encode_lb(
 /// [`{{ enc.id }}_encode_lb`] has been called adequately and nothing has been called afterwards, otherwise
 /// [`super::MaybeError::NotEncoded`] will be returned.
 {% include 'capi-safety.j2' %}
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn {{ enc.id }}_enforce_lb(
     {{ enc.id }}: *mut {{ enc.name }},
     lb: usize,
     assump: &mut c_int,
 ) -> super::MaybeError {
-    match (*{{ enc.id }}).enforce_lb(lb) {
+    match unsafe { &mut *{{ enc.id }} }.enforce_lb(lb) {
         Ok(assumps) => {
             debug_assert_eq!(assumps.len(), 1);
             *assump = assumps[0].to_ipasir();

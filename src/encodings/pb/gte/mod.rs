@@ -12,14 +12,14 @@
 //! - \[1\] Saurabh Joshi and Ruben Martins and Vasco Manquinho: _Generalized
 //!   Totalizer Encoding for Pseudo-Boolean Constraints_, CP 2015.
 
+use crate::encodings::CollectClauses;
+use crate::encodings::EnforceError;
 use crate::encodings::nodedb::NodeById;
 use crate::encodings::nodedb::NodeCon;
 use crate::encodings::nodedb::NodeLike;
 use crate::encodings::pb::BoundUpperIncremental;
 use crate::encodings::pb::Encode;
 use crate::encodings::totdb;
-use crate::encodings::CollectClauses;
-use crate::encodings::EnforceError;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 use crate::types::RsHashMap;
@@ -573,12 +573,12 @@ impl super::cert::BoundUpperIncremental for GeneralizedTotalizer {
 
 #[cfg(test)]
 mod tests {
+    use crate::encodings::EncodeStats;
+    use crate::encodings::EnforceError;
     use crate::encodings::card;
     use crate::encodings::pb::BoundUpper;
     use crate::encodings::pb::BoundUpperIncremental;
     use crate::encodings::pb::EncodeIncremental;
-    use crate::encodings::EncodeStats;
-    use crate::encodings::EnforceError;
     use crate::instances::BasicVarManager;
     use crate::instances::Cnf;
     use crate::instances::ManageVars;
@@ -744,8 +744,8 @@ mod tests {
         use crate::encodings::pb::cert::BoundUpper;
         use crate::instances::Cnf;
         use crate::instances::SatInstance;
-        use crate::types::constraints::PbConstraint;
         use crate::types::Var;
+        use crate::types::constraints::PbConstraint;
 
         fn print_file<P: AsRef<std::path::Path>>(path: P) {
             println!();

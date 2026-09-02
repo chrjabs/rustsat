@@ -13,10 +13,10 @@
 use std::io::IsTerminal;
 use std::io::Write;
 
-use rustsat::instances::fio;
 use rustsat::instances::MultiOptInstance;
 use rustsat::instances::Objective;
 use rustsat::instances::OptInstance;
+use rustsat::instances::fio;
 use rustsat::types::Clause;
 use termcolor::Buffer;
 use termcolor::Color;

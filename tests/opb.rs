@@ -1,8 +1,8 @@
-use rustsat::instances::fio::opb::Options;
 use rustsat::instances::MultiOptInstance;
 use rustsat::instances::Objective;
 use rustsat::instances::OptInstance;
 use rustsat::instances::SatInstance;
+use rustsat::instances::fio::opb::Options;
 use rustsat::lit;
 use rustsat::solvers::Solve;
 use rustsat::solvers::SolverResult;

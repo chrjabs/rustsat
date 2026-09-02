@@ -1,12 +1,11 @@
 //! # Multi-Objective Optimization Instance Representations
 
+use crate::RequiresSoftLits;
 use crate::types::Assignment;
 use crate::types::Lit;
 use crate::types::TernaryVal;
 use crate::types::Var;
-use crate::RequiresSoftLits;
 
-use super::fio;
 use super::BasicVarManager;
 use super::Cnf;
 use super::ManageVars;
@@ -15,6 +14,7 @@ use super::ReindexVars;
 use super::SatInstance;
 use super::WriteDimacsError;
 use super::WriteOpbError;
+use super::fio;
 
 /// Type representing a multi-objective optimization instance.
 /// The constraints are represented as a [`SatInstance`] struct.

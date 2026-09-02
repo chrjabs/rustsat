@@ -4,9 +4,9 @@
 //! want to use CaDiCaL from the CLI, compile the binary from the Cpp source directly.
 
 use anyhow::Context;
-use rustsat::instances::fio::opb;
 use rustsat::instances::ManageVars;
 use rustsat::instances::SatInstance;
+use rustsat::instances::fio::opb;
 use rustsat::solvers::Interrupt;
 use rustsat::solvers::InterruptSolver;
 use rustsat::solvers::Solve;

@@ -1,9 +1,9 @@
 //! # CNF (Multi-Criteria) Knapsack Encoding
 
-use rustsat::instances::fio::dimacs;
 use rustsat::instances::BasicVarManager;
 use rustsat::instances::Cnf;
 use rustsat::instances::ManageVars;
+use rustsat::instances::fio::dimacs;
 use rustsat::types::Lit;
 
 use crate::encodings::knapsack::Knapsack;

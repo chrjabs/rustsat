@@ -1,10 +1,10 @@
 use rustsat::clause;
-use rustsat::encodings::card::simulators::Double;
-use rustsat::encodings::card::simulators::Inverted;
 use rustsat::encodings::card::BoundBoth;
 use rustsat::encodings::card::BoundBothIncremental;
 use rustsat::encodings::card::BoundUpperIncremental;
 use rustsat::encodings::card::Totalizer;
+use rustsat::encodings::card::simulators::Double;
+use rustsat::encodings::card::simulators::Inverted;
 use rustsat::instances::BasicVarManager;
 use rustsat::instances::ManageVars;
 use rustsat::lit;
@@ -560,8 +560,8 @@ mod cert {
     use std::io::BufRead;
 
     use rustsat::clause;
-    use rustsat::encodings::card::cert::BoundBothIncremental;
     use rustsat::encodings::card::Totalizer;
+    use rustsat::encodings::card::cert::BoundBothIncremental;
     use rustsat::instances::BasicVarManager;
     use rustsat::instances::Cnf;
     use rustsat::instances::ManageVars;

@@ -55,14 +55,14 @@ impl FacilityLocation {
 mod parsing {
     use anyhow::Context;
     use rustsat::instances::fio::ParsingError;
+    use winnow::Parser;
     use winnow::ascii::dec_uint;
     use winnow::error::ContextError;
     use winnow::error::StrContext;
     use winnow::error::StrContextValue;
-    use winnow::Parser;
 
-    use crate::parsing::single_value;
     use crate::parsing::SeparatedCallbackParser;
+    use crate::parsing::single_value;
 
     macro_rules! next_line {
         ($reader:expr, $lineno:expr) => {{
