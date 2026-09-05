@@ -17,6 +17,7 @@
             "*.gz"
             "*.mk"
             "*.png"
+            "Cargo.lock.minimal"
             "cadical/vendor/**"
             "glucose/vendor/Changelog"
             "glucose/vendor/LICENCE"

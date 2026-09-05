@@ -13,6 +13,7 @@
         .overrideToolchain
           (_: self'.packages.rust-toolchain);
       commonArgs = config.flake.shared.commonCraneArgs pkgs;
+      commonArgsMinimalDeps = config.flake.shared.commonCraneArgsMinimalDeps pkgs;
       nextestRecordingArgs = config.flake.shared.nextestRecordingArgs pkgs;
 
       externalSolverTest =
@@ -44,6 +45,15 @@
             cargoLlvmCovExtraArgs = "--lcov --output-path $out/coverage.lcov --exclude-from-report rustsat-codegen";
             preCheck = config.flake.shared.setupAsan + nextestRecordingArgs.preCheck;
             VERIPB_CHECKER = lib.getExe pkgs.veripb;
+          }
+        );
+
+        testsMinimalDeps = craneLib.cargoNextest (
+          commonArgsMinimalDeps
+          // {
+            cargoArtifacts = self'.packages.cargoDevArtifactsMinimalDeps;
+            cargoNextestExtraArgs = " --exclude rustsat-pyapi";
+            nativeBuildInputs = commonArgs.nativeBuildInputs ++ (with pkgs; [ jq ]);
           }
         );
 

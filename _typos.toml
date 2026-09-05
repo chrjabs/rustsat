@@ -17,4 +17,9 @@ lits = "lits"
 # keep-sorted end
 
 [files]
-extend-exclude = ["data/**", "*/vendor/**", "cadical/patches/**"]
+extend-exclude = [
+  "data/**",
+  "*/vendor/**",
+  "cadical/patches/**",
+  "Cargo.lock.minimal",
+]

@@ -34,6 +34,27 @@
         name = "source";
       };
 
+    minimalCargoLock =
+      pkgs:
+      pkgs.stdenvNoCC.mkDerivation {
+        name = "minimal-deps-cargo-lock";
+        src = ../Cargo.lock.minimal;
+        unpackPhase = ''
+          runHook preUnpack
+          runHook postUnpack
+        '';
+        buildPhase = ''
+          runHook preBuild
+          runHook postBuild
+        '';
+        installPhase = ''
+          runHook preInstall
+          mkdir -p $out
+          cp $src $out/Cargo.lock
+          runHook postInstall
+        '';
+      };
+
     commonCraneArgs = pkgs: {
       src = config.flake.shared.cleanedSrc pkgs;
       strictDeps = true;
@@ -55,6 +76,25 @@
       CI = "true";
       CARGO_RDME_RUSTDOC_TOOLCHAIN = "default";
     };
+
+    commonCraneArgsMinimalDeps =
+      pkgs:
+      let
+        minimalCargoLock = config.flake.shared.minimalCargoLock pkgs;
+        craneLib = (inputs.crane.mkLib pkgs).overrideScope (_: _: { stdenvSelector = ps: ps.clangStdenv; });
+      in
+      (
+        (config.flake.shared.commonCraneArgs pkgs)
+        // {
+          cargoVendorDir = craneLib.vendorCargoDeps {
+            src = minimalCargoLock;
+          };
+          # Check with minimal dependencies
+          prePatch = ''
+            cp ${minimalCargoLock}/Cargo.lock Cargo.lock
+          '';
+        }
+      );
 
     nextestRecordingArgs = pkgs: {
       buildInputs = with pkgs; [ writableTmpDirAsHomeHook ];

@@ -23,6 +23,7 @@ jobs:
       - doc
       - cadical-each-feature
       - kissat-each-feature
+      - minimal-dependencies
     if: ${{ always() }} # Run this job even if a dependency has failed.
     steps:
       - name: Job outcomes
@@ -35,6 +36,7 @@ jobs:
           echo "📑 Check documentation: ${{ needs.doc.result }}"
           echo "🧪 CaDiCaL test each feature: ${{ needs.cadical-each-feature.result }}"
           echo "🧪 Kissat test each feature: ${{ needs.kissat-each-feature.result }}"
+          echo "🪫 Minimal dependencies: ${{ needs.minimal-dependencies.result }}"
       # Fail this required job if any of its dependent jobs have failed.
       #
       # Do not attempt to consolidate these steps into one step, it won't work.
@@ -54,6 +56,8 @@ jobs:
       - if: ${{ needs.cadical-each-feature.result == 'failure' }}
         run: exit 1
       - if: ${{ needs.kissat-each-feature.result == 'failure' }}
+        run: exit 1
+      - if: ${{ needs.minimal-dependencies.result != 'success' }}
         run: exit 1
   dev-deps:
     name: 🏗️ Dev dependencies
@@ -190,3 +194,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: 🧪 Test each feature
         run: nix develop ".#ci" --command cargo hack --each-feature --clean-per-run nextest run -p rustsat-kissat
+  minimal-dependencies:
+    name: 🪫 Minimal dependencies
+    runs-on: [self-hosted, nix]
+    if: "!github.event.pull_request.draft"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: 🧪 Test with minimal dependencies
+        run: nix build ".#checks.$(nix eval --impure --expr 'builtins.currentSystem').testsMinimalDeps"

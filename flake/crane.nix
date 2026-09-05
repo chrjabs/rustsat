@@ -16,6 +16,7 @@
         .overrideToolchain
           (_: self'.packages.rust-toolchain);
       commonArgs = config.flake.shared.commonCraneArgs pkgs;
+      commonArgsMinimalDeps = config.flake.shared.commonCraneArgsMinimalDeps pkgs;
     in
     {
       packages.cargoDevArtifacts = craneLib.buildDepsOnly (
@@ -30,6 +31,15 @@
             source <(cargo llvm-cov show-env --sh)
             cargo test --locked --workspace --features=_test,_internals --no-run --exclude rustsat-pyapi
             ln -s "." "''${CARGO_TARGET_DIR:-target}/llvm-cov-target"
+          '';
+        }
+      );
+
+      packages.cargoDevArtifactsMinimalDeps = craneLib.buildDepsOnly (
+        commonArgsMinimalDeps
+        // {
+          checkPhaseCargoCommand = ''
+            cargo test --locked --workspace --features=_test,_internals --no-run --exclude rustsat-pyapi
           '';
         }
       );
