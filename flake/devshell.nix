@@ -42,6 +42,7 @@ flake-args: {
               cargo-insta
               cargo-llvm-cov
               cargo-machete
+              cargo-minimal-versions
               cargo-nextest
               cargo-rdme
               cargo-show-asm
