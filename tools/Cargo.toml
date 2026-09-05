@@ -16,7 +16,7 @@ rust-version.workspace = true
 [dependencies]
 # keep-sorted start block=yes
 anyhow.workspace = true
-chacha20.workspace = true
+chacha20 = { workspace = true, features = ["rng"] }
 clap.workspace = true
 concolor-clap.workspace = true
 itertools.workspace = true
