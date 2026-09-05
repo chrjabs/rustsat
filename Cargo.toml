@@ -31,14 +31,14 @@ bindgen = { version = "0.72.1", default-features = false, features = [
   "runtime",
 ] }
 bzip2 = "0.6.1"
-cc = { version = "1.4.4", features = ["parallel"] }
+cc = { version = "1.4.5", features = ["parallel"] }
 chacha20 = "0.10.1"
 chrono = "0.4.45"
 clap = { version = "4.6.6", features = ["derive", "cargo"] }
 cmake = "0.1.58"
 concolor-clap = "0.1.0"
 cpu-time = "1.0.0"
-flate2 = { version = "1.1.9", features = ["zlib-ng"], default-features = false }
+flate2 = { version = "1.1.10", features = ["zlib-ng"], default-features = false }
 git2 = "0.21.0"
 glob = "0.3.4"
 gungraun = "0.19.4"
