@@ -76,6 +76,13 @@ fn run_test(path: &std::path::Path) -> Result<(), libtest_mimic::Failed> {
                 "-L{}",
                 std::env::var("CAPI_LIB_DIR").expect("should be set by cargo nextest setup script")
             ),
+            "-lgcc_s",
+            "-lutil",
+            "-lrt",
+            "-lpthread",
+            "-lm",
+            "-ldl",
+            "-lc",
             "-lrustsat_capi",
         ]);
     };
