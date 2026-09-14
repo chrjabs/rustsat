@@ -1065,7 +1065,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "pigeons"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "itertools 0.15.0",
  "rustc-hash",
@@ -1289,7 +1289,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "annotate-snippets",
  "anyhow",
@@ -1320,7 +1320,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-batsat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "batsat",
@@ -1330,7 +1330,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-cadical"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1348,7 +1348,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-capi"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "cc",
  "libtest-mimic",
@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-codegen"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "cbindgen",
  "minijinja",
@@ -1369,7 +1369,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-glucose"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1381,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-ipasir"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "rustsat",
@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-kissat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1407,7 +1407,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-minisat"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -1421,7 +1421,7 @@ dependencies = [
 
 [[package]]
 name = "rustsat-pyapi"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "pyo3",
  "pyo3-build-config",
@@ -1430,14 +1430,14 @@ dependencies = [
 
 [[package]]
 name = "rustsat-solvertests"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "rustsat",
 ]
 
 [[package]]
 name = "rustsat-tools"
-version = "0.7.5"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "chacha20",
