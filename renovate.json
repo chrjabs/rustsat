@@ -24,24 +24,15 @@
   ],
   "packageRules": [
     {
-      "matchUpdateTypes": [
-        "patch"
+      "matchDatasources": [
+        "crate"
       ],
-      "groupName": "patch updates",
-      "automerge": true
-    },
-    {
       "matchUpdateTypes": [
-        "pin",
-        "pinDigest"
-      ],
-      "automerge": true
-    },
-    {
-      "matchUpdateTypes": [
+        "patch",
         "minor",
         "major"
       ],
+      "groupName": "extend allowed rust dependencies",
       "automerge": false
     },
     {
@@ -49,25 +40,6 @@
         "action"
       ],
       "automerge": false
-    },
-    {
-      "matchDatasources": [
-        "crate"
-      ],
-      "rangeStrategy": "bump"
-    },
-    {
-      "matchDatasources": [
-        "crate"
-      ],
-      "matchCurrentValue": "/^\\d+(\\.\\d+)?$/",
-      "rangeStrategy": "update-lockfile"
-    },
-    {
-      "matchManagers": [
-        "dockerfile"
-      ],
-      "enabled": false
     },
     {
       "matchManagers": [
@@ -80,6 +52,6 @@
     }
   ],
   "lockFileMaintenance": {
-    "enabled": false
+    "enabled": true
   }
 }
