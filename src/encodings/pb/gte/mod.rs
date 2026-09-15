@@ -212,6 +212,12 @@ impl GeneralizedTotalizer {
         self.lit_buffer.is_empty()
     }
 
+    /// Ensures that from now on all input literals are always included in the encoding structure,
+    /// even if their weight is larger than the bound
+    pub fn build_structure(&mut self) {
+        self.extend_tree(usize::MAX);
+    }
+
     /// From an assignment to the input literals, generates an assignment over the totalizer
     /// variables following strict semantics, i.e., `sum >= k <-> olit`
     ///
