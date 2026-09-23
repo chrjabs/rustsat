@@ -42,7 +42,6 @@
           # Rust
           rustfmt = {
             enable = true;
-            edition = "2024";
             package = self'.packages.rust-toolchain;
           };
           # Cpp
