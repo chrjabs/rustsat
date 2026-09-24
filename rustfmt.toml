@@ -1,0 +1,3 @@
+unstable_features = true
+imports_granularity = "Item"
+edition = "2024"
