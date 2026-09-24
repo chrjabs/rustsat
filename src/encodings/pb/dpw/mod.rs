@@ -545,7 +545,7 @@ fn build_structure(
         debug_assert_eq!(top_buckets[0][0].offset(), 0);
         debug_assert_eq!(top_buckets[0][0].multiplier(), 1);
         debug_assert_eq!(top_buckets[0][0].divisor(), 1);
-        debug_assert!(structure.bottom_buckets.is_empty());
+        debug_assert_eq!(structure.bottom_buckets, []);
         return Structure {
             bottom_buckets: vec![top_buckets[0][0].id],
             tares: vec![],
@@ -653,8 +653,13 @@ where
         Lit::new(0, false),
     );
     bot_struct.tares[..].copy_within(..n_old_tares, top_struct.tares.len() + skipped_between);
-    for tare_idx in top_struct.tares.len()..top_struct.tares.len() + skipped_between {
-        bot_struct.tares[tare_idx] = var_manager.new_var().pos_lit();
+    for tare in &mut bot_struct
+        .tares
+        .iter_mut()
+        .skip(top_struct.tares.len())
+        .take(skipped_between)
+    {
+        *tare = var_manager.new_var().pos_lit();
     }
     bot_struct.tares[..top_struct.tares.len()].copy_from_slice(&top_struct.tares);
     // step 2: add tares that were previously unnecessary in bot_struct and additional tares that
@@ -900,7 +905,7 @@ mod tests {
         dpw.encode_ub(0..=6, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(dpw.n_vars(), 0);
         assert_eq!(cnf.len(), 0);
-        debug_assert!(dpw.enforce_ub(4).unwrap().is_empty());
+        debug_assert_eq!(dpw.enforce_ub(4).unwrap(), []);
         let assumps = dpw.enforce_ub(2).unwrap();
         debug_assert_eq!(assumps.len(), 1);
         debug_assert_eq!(assumps[0], -lit![0]);
@@ -915,8 +920,8 @@ mod tests {
         dpw.encode_ub(0..=6, &mut cnf, &mut var_manager).unwrap();
         assert_eq!(dpw.n_vars(), 0);
         assert_eq!(cnf.len(), 0);
-        debug_assert!(dpw.enforce_ub(4).unwrap().is_empty());
-        debug_assert!(dpw.enforce_ub(0).unwrap().is_empty());
+        debug_assert_eq!(dpw.enforce_ub(4).unwrap(), []);
+        debug_assert_eq!(dpw.enforce_ub(0).unwrap(), []);
     }
 
     #[test]
@@ -1101,10 +1106,10 @@ mod tests {
         println!("{cnf:?}");
         n_inc_clauses += cnf.len();
         let assumps = dpw.enforce_ub(1).unwrap();
-        debug_assert!(!assumps.is_empty());
+        debug_assert_ne!(assumps, []);
         println!("{cnf:?}");
         let assumps = dpw.enforce_ub(0).unwrap();
-        debug_assert!(!assumps.is_empty());
+        debug_assert_ne!(assumps, []);
         println!("{cnf:?}");
 
         dpw.set_precision(1).unwrap();
@@ -1115,10 +1120,10 @@ mod tests {
         println!("{cnf:?}");
         n_inc_clauses += cnf.len();
         let assumps = dpw.enforce_ub(8).unwrap();
-        debug_assert!(!assumps.is_empty());
+        debug_assert_ne!(assumps, []);
         println!("{assumps:?}");
         let assumps = dpw.enforce_ub(7).unwrap();
-        debug_assert!(!assumps.is_empty());
+        debug_assert_ne!(assumps, []);
         println!("{assumps:?}");
 
         let mut lits = RsHashMap::default();
@@ -1152,7 +1157,7 @@ mod tests {
         debug_assert!(!cnf.is_empty());
         println!("{cnf:?}");
         let assumps = dpw.enforce_ub(1).unwrap();
-        debug_assert!(!assumps.is_empty());
+        debug_assert_ne!(assumps, []);
         println!("{assumps:?}");
 
         dpw.set_precision(1).unwrap();
@@ -1162,7 +1167,7 @@ mod tests {
         debug_assert!(cnf.is_empty());
         println!("{cnf:?}");
         let assumps = dpw.enforce_ub(133).unwrap();
-        debug_assert!(assumps.is_empty());
+        debug_assert_eq!(assumps, []);
         println!("{assumps:?}");
 
         let mut cnf = Cnf::new();
@@ -1171,7 +1176,7 @@ mod tests {
         debug_assert!(!cnf.is_empty());
         println!("{cnf:?}");
         let assumps = dpw.enforce_ub(69).unwrap();
-        debug_assert!(!assumps.is_empty());
+        debug_assert_ne!(assumps, []);
         println!("{assumps:?}");
     }
 
