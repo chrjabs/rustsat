@@ -75,7 +75,7 @@ impl<Variant, R> Parser<Variant, R> {
     where
         R: std::io::BufRead,
     {
-        debug_assert!(self.buffer.is_empty());
+        debug_assert_eq!(self.buffer, "");
         loop {
             let read = self.reader.read_line(&mut self.buffer)?;
             if read == 0 {
@@ -127,7 +127,7 @@ where
     /// encountered.
     #[expect(clippy::missing_panics_doc)]
     pub fn forward_to_body(mut self) -> Result<CnfHeaderData<R>, super::Error> {
-        debug_assert!(self.buffer.is_empty());
+        debug_assert_eq!(self.buffer, "");
         if let Some((n_vars, n_clauses)) = self.variant.header_data {
             return Ok(CnfHeaderData {
                 n_vars,
@@ -361,7 +361,7 @@ where
     /// encountered.
     #[expect(clippy::missing_panics_doc)]
     pub fn forward_to_body(mut self) -> Result<WcnfHeaderData<R>, super::Error> {
-        debug_assert!(self.buffer.is_empty());
+        debug_assert_eq!(self.buffer, "");
         if let Some(header_data) = self.variant.header_data {
             return Ok(match header_data {
                 WcnfInternalHeaderData::Pre22 {

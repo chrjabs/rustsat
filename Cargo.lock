@@ -1431,9 +1431,6 @@ dependencies = [
 [[package]]
 name = "rustsat-solvertests"
 version = "0.7.5"
-dependencies = [
- "rustsat",
-]
 
 [[package]]
 name = "rustsat-tools"
