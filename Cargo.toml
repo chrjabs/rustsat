@@ -27,7 +27,7 @@ rust-version = "1.87.0" # update the crate documentation if you change this
 # keep-sorted start block=yes
 annotate-snippets = "0.12.3"
 anyhow = "1.0.46"
-bindgen = { version = ">=0.71,<=0.72", default-features = false, features = [
+bindgen = { version = ">=0.71, <=0.73", default-features = false, features = [
   "runtime",
 ] }
 bzip2 = ">=0.4,<=0.6"
@@ -43,7 +43,7 @@ flate2 = { version = "1.0.31", features = [
 ], default-features = false }
 git2 = ">=0.14,<=0.21"
 glob = "0.3"
-gungraun = "0.19"
+gungraun = "0.20"
 insta = { version = "1.36", features = ["yaml"] }
 itertools = ">=0.5,<=0.15"
 libtest-mimic = "0.8"
