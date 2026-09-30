@@ -14,14 +14,14 @@
               mypy,
             }:
             let
-              manifest = (lib.importTOML ../pyapi/Cargo.toml).package;
+              python-manifest = (lib.importTOML ../pyapi/pyproject.toml).project;
               workspace-manifest = (lib.importTOML ../Cargo.toml).workspace.package;
               libs = [
                 openssl
               ];
             in
             buildPythonPackage {
-              pname = manifest.name;
+              pname = python-manifest.name;
               version = workspace-manifest.version;
 
               src =
