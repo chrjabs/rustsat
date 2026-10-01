@@ -165,7 +165,7 @@ impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
     }
 
     fn normalized_form_division(mut self, div: usize) -> OperationSequence<V> {
-        if !self.is_empty() {
+        if !self.is_empty() && div != 1 {
             self.push(Operation::NormDiv(
                 div.try_into().expect("cannot divide by zero"),
             ));
@@ -174,7 +174,7 @@ impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
     }
 
     fn variable_form_division(mut self, div: usize) -> OperationSequence<V> {
-        if !self.is_empty() {
+        if !self.is_empty() && div != 1 {
             self.push(Operation::VarDiv(
                 div.try_into().expect("cannot divide by zero"),
             ));
@@ -206,7 +206,7 @@ impl<V: VarLike> std::ops::Mul<usize> for OperationSequence<V> {
         if rhs == 0 {
             return OperationSequence::empty();
         }
-        if !self.is_empty() && rhs > 1 {
+        if !self.is_empty() && rhs != 1 {
             self.push(Operation::Mult(
                 rhs.try_into().expect("cannot multiply by zero"),
             ));
@@ -247,7 +247,7 @@ impl<V: VarLike> std::ops::Div<usize> for OperationSequence<V> {
 
 impl<V: VarLike> std::ops::DivAssign<usize> for OperationSequence<V> {
     fn div_assign(&mut self, rhs: usize) {
-        if !self.is_empty() {
+        if !self.is_empty() && rhs != 1 {
             self.push(Operation::NormDiv(
                 rhs.try_into().expect("cannot divide by zero"),
             ));
