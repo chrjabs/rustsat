@@ -348,24 +348,54 @@ impl std::fmt::Debug for Clause {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pigeons::ConstraintLike<crate::types::Var> for Clause {
+impl pigeons::ConstraintLike for Clause {
+    type Var = crate::types::Var;
+
     fn rhs(&self) -> isize {
         1
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
-        self.lits.iter().map(|l| (1, pigeons::Axiom::from(*l)))
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
+        self.iter().map(|l| (1, pigeons::Axiom::from(*l)))
     }
 }
 
 #[cfg(feature = "proof-logging")]
-impl pigeons::ConstraintLike<crate::types::Var> for Cl {
+impl pigeons::ConstraintLike for &Clause {
+    type Var = crate::types::Var;
+
+    fn rhs(&self) -> isize {
+        1
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
+        self.iter().map(|l| (1, pigeons::Axiom::from(*l)))
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike for Cl {
+    type Var = crate::types::Var;
+
+    fn rhs(&self) -> isize {
+        1
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
+        self.iter().map(|l| (1, pigeons::Axiom::from(*l)))
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike for &Cl {
+    type Var = crate::types::Var;
+
     fn rhs(&self) -> isize {
         1
     }
 
     fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
-        self.lits.iter().map(|l| (1, pigeons::Axiom::from(*l)))
+        self.iter().map(|l| (1, pigeons::Axiom::from(*l)))
     }
 }
 
@@ -925,7 +955,9 @@ impl From<Clause> for CardConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pigeons::ConstraintLike<crate::types::Var> for CardConstraint {
+impl pigeons::ConstraintLike for CardConstraint {
+    type Var = crate::types::Var;
+
     fn rhs(&self) -> isize {
         match self {
             CardConstraint::Ub(c) => {
@@ -942,7 +974,42 @@ impl pigeons::ConstraintLike<crate::types::Var> for CardConstraint {
         }
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
+        match self {
+            CardConstraint::Ub(CardUbConstr { lits, .. }) => PigeonLitIter {
+                lits: lits.iter(),
+                negate: true,
+            },
+            CardConstraint::Lb(CardLbConstr { lits, .. })
+            | CardConstraint::Eq(CardEqConstr { lits, .. }) => PigeonLitIter {
+                lits: lits.iter(),
+                negate: false,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike for &CardConstraint {
+    type Var = crate::types::Var;
+
+    fn rhs(&self) -> isize {
+        match self {
+            CardConstraint::Ub(c) => {
+                isize::try_from(c.lits.len())
+                    .expect("cannot handle more than `isize::MAX` literals")
+                    - isize::try_from(c.b).expect("cannot handle bounds larger than `isize::MAX`")
+            }
+            CardConstraint::Lb(c) => {
+                isize::try_from(c.b).expect("cannot handle bounds larger than `isize::MAX`")
+            }
+            CardConstraint::Eq(_) => {
+                panic!("VeriPB does not support equality constraints in the proof")
+            }
+        }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
         match self {
             CardConstraint::Ub(CardUbConstr { lits, .. }) => PigeonLitIter {
                 lits: lits.iter(),
@@ -1654,7 +1721,9 @@ impl PbConstraint {
 }
 
 #[cfg(feature = "proof-logging")]
-impl pigeons::ConstraintLike<crate::types::Var> for PbConstraint {
+impl pigeons::ConstraintLike for PbConstraint {
+    type Var = crate::types::Var;
+
     fn rhs(&self) -> isize {
         match self {
             PbConstraint::Ub(c) => {
@@ -1668,7 +1737,39 @@ impl pigeons::ConstraintLike<crate::types::Var> for PbConstraint {
         }
     }
 
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<crate::types::Var>)> {
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
+        match self {
+            PbConstraint::Ub(PbUbConstr { lits, .. }) => PigeonWLitIter {
+                lits: lits.iter(),
+                negate: true,
+            },
+            PbConstraint::Lb(PbLbConstr { lits, .. })
+            | PbConstraint::Eq(PbEqConstr { lits, .. }) => PigeonWLitIter {
+                lits: lits.iter(),
+                negate: false,
+            },
+        }
+    }
+}
+
+#[cfg(feature = "proof-logging")]
+impl pigeons::ConstraintLike for &PbConstraint {
+    type Var = crate::types::Var;
+
+    fn rhs(&self) -> isize {
+        match self {
+            PbConstraint::Ub(c) => {
+                isize::try_from(c.weight_sum).expect("can handle at most `isize::MAX` weight sum")
+                    - c.b
+            }
+            PbConstraint::Lb(c) => c.b,
+            PbConstraint::Eq(_) => {
+                panic!("VeriPB does not support equality constraints in the proof")
+            }
+        }
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, pigeons::Axiom<Self::Var>)> {
         match self {
             PbConstraint::Ub(PbUbConstr { lits, .. }) => PigeonWLitIter {
                 lits: lits.iter(),

@@ -1,4 +1,4 @@
-48
+50
 accessor
 al
 AllDifferent
@@ -25,6 +25,7 @@ hasher
 incrementing
 initializer/S
 inprocessing
+instantiation/S
 irredundant
 learnt
 localsearch
@@ -37,6 +38,7 @@ recurse/S
 redundance
 reflexivity
 reification/S
+reified
 satisfiability
 satisfiable
 struct/S

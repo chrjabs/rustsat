@@ -6,8 +6,9 @@ use itertools::Itertools;
 
 use crate::ConstraintLike;
 use crate::ObjectiveLike;
-use crate::OperationSequence;
 use crate::VarLike;
+#[allow(clippy::wildcard_imports)]
+use crate::keywords::*;
 
 /// The proof problem type
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -267,7 +268,9 @@ impl<V: VarLike> std::fmt::Display for Axiom<V> {
     }
 }
 
-impl<V: VarLike> ConstraintLike<V> for Axiom<V> {
+impl<V: VarLike> ConstraintLike for Axiom<V> {
+    type Var = V;
+
     fn rhs(&self) -> isize {
         1
     }
@@ -320,7 +323,7 @@ impl<V: VarLike> Substitution<V> {
 
 impl<V: VarLike> std::fmt::Display for Substitution<V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} -> {}", V::Formatter::from(self.var), self.sub)
+        write!(f, "{} {MAP_TO} {}", V::Formatter::from(self.var), self.sub)
     }
 }
 
@@ -349,60 +352,28 @@ impl<V: VarLike> From<bool> for SubstituteWith<V> {
 impl<V: VarLike> std::fmt::Display for SubstituteWith<V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SubstituteWith::True => write!(f, "1"),
-            SubstituteWith::False => write!(f, "0"),
+            SubstituteWith::True => write!(f, "{TRUE}"),
+            SubstituteWith::False => write!(f, "{FALSE}"),
             SubstituteWith::Lit(lit) => write!(f, "{lit}"),
         }
     }
 }
 
-/// An order in the proof
-#[derive(Debug)]
+/// An order that has been defined can be loaded in the proof
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Order<V: VarLike, C: ConstraintLike<OrderVar<V>>> {
+pub struct Order {
     name: String,
-    used_vars: rustc_hash::FxHashSet<V>,
-    definition: Vec<C>,
-    trans_proof: Vec<ProofGoal<OrderVar<V>, C>>,
-    refl_proof: Option<Vec<ProofGoal<OrderVar<V>, C>>>,
+    num_def_constraints: usize,
+    num_spec_constraints: usize,
 }
 
-/// A variable to be used in an order definition
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum OrderVar<V: VarLike> {
-    /// A variable of the left side of the order definition
-    Left(V),
-    /// A variable of the right side of the order definition
-    Right(V),
-    /// A fresh right variable used in a transitivity proof
-    FreshRight(V),
-}
-
-impl<V: VarLike> VarLike for OrderVar<V> {
-    type Formatter = Self;
-}
-
-impl<V: VarLike> std::fmt::Display for OrderVar<V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(*v)),
-            OrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(*v)),
-            OrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(*v)),
-        }
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
-    /// Creates a new builder structure
-    #[must_use]
-    pub fn new(name: String) -> Self {
-        Order {
+impl Order {
+    pub(crate) fn new(name: String) -> Self {
+        Self {
             name,
-            used_vars: rustc_hash::FxHashSet::default(),
-            definition: vec![],
-            trans_proof: vec![],
-            refl_proof: None,
+            num_def_constraints: 0,
+            num_spec_constraints: 0,
         }
     }
 
@@ -412,279 +383,149 @@ impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> Order<V, C> {
         &self.name
     }
 
-    /// Gets an iterator over the used variables
-    pub fn used_vars(&self) -> impl Iterator<Item = V> + '_ {
-        self.used_vars.iter().copied()
+    pub(crate) fn new_def_constraint(&mut self) {
+        self.num_def_constraints += 1;
     }
 
-    /// Marks a variable as used in the order and gets its left and right variants to be used in
-    /// the definitions
-    pub fn use_var(&mut self, v: V) -> (OrderVar<V>, OrderVar<V>) {
-        self.used_vars.insert(v);
-        (OrderVar::Left(v), OrderVar::Right(v))
-    }
-
-    /// Adds a constraint to the order definition
-    ///
-    /// The constraint must only use left and right variables that have been marked as used
-    // Since we push `constr` into the definitions, `self.definition.len()` is never zero
-    #[expect(clippy::missing_panics_doc)]
-    pub fn add_definition_constraint(
-        &mut self,
-        constr: C,
-        trans_proof: Vec<Derivation<OrderVar<V>, C>>,
-        refl_proof: Option<Vec<Derivation<OrderVar<V>, C>>>,
-    ) {
-        self.definition.push(constr);
-        self.trans_proof.push(ProofGoal {
-            id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-            derivations: trans_proof,
-        });
-        if let Some(new_goal) = refl_proof {
-            if let Some(proof) = &mut self.refl_proof {
-                proof.push(ProofGoal {
-                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-                    derivations: new_goal,
-                });
-            } else {
-                self.refl_proof = Some(vec![ProofGoal {
-                    id: ProofGoalId::Specific(NonZeroUsize::new(self.definition.len()).unwrap()),
-                    derivations: new_goal,
-                }]);
-            }
-        }
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike<OrderVar<V>>> std::fmt::Display for Order<V, C> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "def_order {}", self.name)?;
-        // Variables
-        writeln!(f, "  vars")?;
-        writeln!(
-            f,
-            "    left {}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("u_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(
-            f,
-            "    right {}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("v_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(f, "    aux")?;
-        writeln!(f, "  end")?;
-        // Order definition
-        writeln!(f, "  def")?;
-        for def in &self.definition {
-            writeln!(f, "    {} ;", ConstrFormatter::from(def))?;
-        }
-        writeln!(f, "  end")?;
-        // Proofs
-        writeln!(f, "  transitivity")?;
-        writeln!(f, "    vars")?;
-        writeln!(
-            f,
-            "      fresh_right {}",
-            self.used_vars
-                .iter()
-                .format_with(" ", |v, f| f(&format_args!("w_{}", V::Formatter::from(*v))))
-        )?;
-        writeln!(f, "    end")?;
-        writeln!(f, "    proof")?;
-        for goal in &self.trans_proof {
-            goal.format_indented(f, 6)?;
-            writeln!(f)?;
-        }
-        writeln!(f, "    qed")?;
-        writeln!(f, "  end")?;
-        if let Some(proof) = &self.refl_proof {
-            writeln!(f, "  reflexivity")?;
-            writeln!(f, "    proof")?;
-            for goal in proof {
-                goal.format_indented(f, 6)?;
-                writeln!(f)?;
-            }
-            writeln!(f, "    qed")?;
-            writeln!(f, "  end")?;
-        }
-        write!(f, "end")
-    }
-}
-
-/// A derivation step
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum Derivation<V: VarLike, C> {
-    /// A constraint added by reverse unit propagation, including hints
-    Rup(C, Vec<ConstraintId>),
-    /// A constraint derived by a sequence of operations
-    Operations(OperationSequence<V>),
-}
-
-impl<V, C> From<OperationSequence<V>> for Derivation<V, C>
-where
-    V: VarLike,
-{
-    fn from(value: OperationSequence<V>) -> Self {
-        Derivation::Operations(value)
-    }
-}
-
-impl<V, C> std::fmt::Display for Derivation<V, C>
-where
-    V: VarLike,
-    C: ConstraintLike<V>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let rup = if cfg!(feature = "short-keywords") {
-            "u"
-        } else {
-            "rup"
-        };
-        let pol = if cfg!(feature = "short-keywords") {
-            "p"
-        } else {
-            "pol"
-        };
-        match self {
-            Derivation::Rup(constr, hints) => write!(
-                f,
-                "{rup} {} ; {}",
-                ConstrFormatter::from(constr),
-                hints.iter().format(" ")
-            ),
-            Derivation::Operations(ops) => write!(f, "{pol} {ops}"),
-        }
-    }
-}
-
-/// An element of a sub-proof
-///
-/// Sub-proofs are a sequence of [`Derivation`]s and [`ProofGoal`]s
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum SubproofElement<V: VarLike, C> {
-    /// A derivation outside a proof goal
-    Derivation(Derivation<V, C>),
-    /// A proof goal in the sub proof
-    Goal(ProofGoal<V, C>),
-}
-
-impl<V: VarLike, C> From<Derivation<V, C>> for SubproofElement<V, C> {
-    fn from(value: Derivation<V, C>) -> Self {
-        SubproofElement::Derivation(value)
-    }
-}
-
-impl<V: VarLike, C> From<ProofGoal<V, C>> for SubproofElement<V, C> {
-    fn from(value: ProofGoal<V, C>) -> Self {
-        SubproofElement::Goal(value)
-    }
-}
-
-/// A proof target of a sub-proof
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ProofGoal<V: VarLike, C> {
-    /// The goal id
-    id: ProofGoalId,
-    /// For now only operation derivations are supported
-    derivations: Vec<Derivation<V, C>>,
-}
-
-impl<V: VarLike, C: ConstraintLike<V>> Extend<Derivation<V, C>> for ProofGoal<V, C> {
-    fn extend<T: IntoIterator<Item = Derivation<V, C>>>(&mut self, iter: T) {
-        self.derivations.extend(iter);
-    }
-}
-
-impl<V: VarLike, C: ConstraintLike<V>> ProofGoal<V, C> {
-    /// Creates a new proof goal
     #[must_use]
-    pub fn empty(id: ProofGoalId) -> Self {
-        ProofGoal {
-            id,
-            derivations: vec![],
-        }
+    pub(crate) fn num_def_constraints(&self) -> usize {
+        self.num_def_constraints
     }
 
-    /// Creates a new proof goal
+    pub(crate) fn new_spec_constraint(&mut self) {
+        self.num_spec_constraints += 1;
+    }
+
     #[must_use]
-    pub fn new<I>(id: ProofGoalId, derivations: I) -> Self
-    where
-        I: IntoIterator<Item = Derivation<V, C>>,
-    {
-        ProofGoal {
-            id,
-            derivations: derivations.into_iter().collect(),
-        }
-    }
-
-    /// Gets the number of derivation steps in the proof goal
-    #[must_use]
-    pub fn n_derivations(&self) -> usize {
-        self.derivations.len()
-    }
-
-    /// Writes the proof goal to a writer, indented by a number of spaces
-    ///
-    /// # Errors
-    ///
-    /// If writing fails, returns an error
-    pub fn write_indented<W: std::io::Write>(
-        &self,
-        writer: &mut W,
-        indent: usize,
-    ) -> std::io::Result<()> {
-        writeln!(
-            writer,
-            "{:indent$}proofgoal {}",
-            "",
-            self.id,
-            indent = indent
-        )?;
-        for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
-        }
-        write!(writer, "{:indent$}qed -1", "", indent = indent)
-    }
-
-    /// Formats the proof goal, indented by a number of spaces
-    ///
-    /// # Errors
-    ///
-    /// If formatting fails, returns an error
-    pub fn format_indented<W: std::fmt::Write>(
-        &self,
-        writer: &mut W,
-        indent: usize,
-    ) -> std::fmt::Result {
-        writeln!(
-            writer,
-            "{:indent$}proofgoal {}",
-            "",
-            self.id,
-            indent = indent
-        )?;
-        for der in &self.derivations {
-            writeln!(writer, "{:indent$}  {der}", "", indent = indent)?;
-        }
-        write!(writer, "{:indent$}qed -1", "", indent = indent)
+    pub(crate) fn num_spec_constraints(&self) -> usize {
+        self.num_spec_constraints
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ProofGoal<V, C> {
+/// A proof goal for the transitivity and reflexivity proofs in an order definition
+#[derive(Debug, Copy, Clone)]
+pub struct OrderDefinitionProofGoalId(NonZeroUsize);
+
+impl OrderDefinitionProofGoalId {
+    pub(crate) fn new(id: usize) -> Self {
+        Self(NonZeroUsize::new(id).expect("ID needs to be non-zero"))
+    }
+
+    pub(crate) fn as_proof_goal_id(self) -> ProofGoalId {
+        ProofGoalId::Specific(self.0)
+    }
+}
+
+impl std::fmt::Display for OrderDefinitionProofGoalId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.format_indented(f, 0)
+        write!(f, "{GOAL_ID}{}", self.0)
+    }
+}
+
+/// A input variable to an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderInputVar<V: VarLike>(V);
+
+impl<V: VarLike> OrderInputVar<V> {
+    /// Creates an order input variables
+    ///
+    /// **Note**: when creating order input variables this way, the user has to ensure that the
+    /// variable has been added to the order first
+    pub fn new(var: V) -> Self {
+        Self(var)
+    }
+
+    /// Gets the "left" variable variant
+    pub fn left(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::Left(self.0))
+    }
+
+    /// Gets the "right" variable variant
+    pub fn right(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::Right(self.0))
+    }
+
+    /// Gets the "fresh right" variable variant to be used in the transitivity proof
+    pub fn fresh_right(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::FreshRight(self.0))
+    }
+}
+
+/// A auxiliary variable of an order, allows for getting the corresponding variables used in the
+/// specification, definition, and proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrderAuxVar<V: VarLike>(V);
+
+impl<V: VarLike> OrderAuxVar<V> {
+    /// Creates an auxiliary order variables
+    ///
+    /// **Note**: when creating order auxiliary variables this way, the user has to ensure that the
+    /// variable has been added to the order first
+    pub fn new(var: V) -> Self {
+        Self(var)
+    }
+
+    /// Gets the usable auxiliary variable
+    #[must_use]
+    pub fn aux(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::Aux(self.0))
+    }
+
+    /// Gets the first fresh variable variant to be used in the transitivity proof
+    #[must_use]
+    pub fn fresh_1(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::FreshAux1(self.0))
+    }
+
+    /// Gets the second fresh variable variant to be used in the transitivity proof
+    #[must_use]
+    pub fn fresh_2(self) -> OrderVar<V> {
+        OrderVar(IntOrderVar::FreshAux2(self.0))
+    }
+}
+
+/// A variable to be used in an order definition
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OrderVar<V: VarLike>(IntOrderVar<V>);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum IntOrderVar<V: VarLike> {
+    /// A variable of the left side of the order definition
+    Left(V),
+    /// A variable of the right side of the order definition
+    Right(V),
+    /// A fresh right variable used in a transitivity proof
+    FreshRight(V),
+    /// An auxiliary variable
+    Aux(V),
+    /// A fresh auxiliary variable of set 1
+    FreshAux1(V),
+    /// A fresh auxiliary variable of set 2
+    FreshAux2(V),
+}
+
+impl<V: VarLike> VarLike for OrderVar<V> {
+    type Formatter = Self;
+}
+
+impl<V: VarLike> std::fmt::Display for OrderVar<V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            IntOrderVar::Left(v) => write!(f, "u_{}", V::Formatter::from(v)),
+            IntOrderVar::Right(v) => write!(f, "v_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshRight(v) => write!(f, "w_{}", V::Formatter::from(v)),
+            IntOrderVar::Aux(v) => write!(f, "$uv_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshAux1(v) => write!(f, "$vw_{}", V::Formatter::from(v)),
+            IntOrderVar::FreshAux2(v) => write!(f, "$uw_{}", V::Formatter::from(v)),
+        }
     }
 }
 
 /// A [`ProofGoal`] ID
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProofGoalId {
     /// A [`ProofGoal`] for a constraint
@@ -715,7 +556,7 @@ impl std::fmt::Display for ProofGoalId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProofGoalId::Constraint(id) => write!(f, "{id}"),
-            ProofGoalId::Specific(id) => write!(f, "#{id}"),
+            ProofGoalId::Specific(id) => write!(f, "{GOAL_ID}{id}"),
         }
     }
 }
@@ -723,63 +564,46 @@ impl std::fmt::Display for ProofGoalId {
 /// An objective update step (`obju`)
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum ObjectiveUpdate<V: VarLike, O: ObjectiveLike<V>, C> {
+pub enum ObjectiveUpdate<O> {
     /// `new`
-    New(O, Vec<ProofGoal<V, C>>, std::marker::PhantomData<V>),
+    New(O),
     /// `diff`
-    Diff(O, std::marker::PhantomData<V>),
+    Diff(O),
 }
 
-impl<V, O, C> ObjectiveUpdate<V, O, C>
+impl<O> ObjectiveUpdate<O>
 where
-    V: VarLike,
-    O: ObjectiveLike<V>,
-    C: ConstraintLike<V>,
+    O: ObjectiveLike,
 {
     /// Creates an explicit objective update by specifying the entire new objective
-    pub fn new<I: IntoIterator<Item = ProofGoal<V, C>>>(objective: O, subproof: I) -> Self {
-        ObjectiveUpdate::New(
-            objective,
-            subproof.into_iter().collect(),
-            std::marker::PhantomData,
-        )
+    pub fn new(objective: O) -> Self {
+        ObjectiveUpdate::New(objective)
     }
 
     /// Creates an objective update by specifying the difference to the old objective
     pub fn diff(diff: O) -> Self {
-        ObjectiveUpdate::Diff(diff, std::marker::PhantomData)
+        ObjectiveUpdate::Diff(diff)
     }
 }
 
-impl<V, O, C> std::fmt::Display for ObjectiveUpdate<V, O, C>
+impl<O> std::fmt::Display for ObjectiveUpdate<O>
 where
-    V: VarLike,
-    O: ObjectiveLike<V>,
-    C: ConstraintLike<V>,
+    O: ObjectiveLike,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectiveUpdate::New(obj, subproof, _) => {
-                write!(f, "new {} ;", ObjFormatter::from(obj))?;
-                if subproof.is_empty() {
-                    writeln!(f)?;
-                } else {
-                    writeln!(f, " begin")?;
-                    for goal in subproof {
-                        goal.format_indented(f, 2)?;
-                        writeln!(f)?;
-                    }
-                    writeln!(f, "end")?;
-                }
-                Ok(())
+            ObjectiveUpdate::New(obj) => {
+                write!(f, "{OBJ_UPDATE_NEW} {}", ObjFormatter::from(obj))
             }
-            ObjectiveUpdate::Diff(obj, _) => write!(f, "diff {} ;", ObjFormatter::from(obj)),
+            ObjectiveUpdate::Diff(obj) => {
+                write!(f, "{OBJ_UPDATE_DIFF} {}", ObjFormatter::from(obj))
+            }
         }
     }
 }
 
 /// Possible output guarantees for the output section
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutputGuarantee {
     /// No guarantee
@@ -795,29 +619,121 @@ pub enum OutputGuarantee {
 impl std::fmt::Display for OutputGuarantee {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OutputGuarantee::None => write!(f, "NONE"),
-            OutputGuarantee::Derivable(t) => write!(f, "DERIVABLE {t}"),
-            OutputGuarantee::Equisatisfiable(t) => write!(f, "EQUISATISFIABLE {t}"),
-            OutputGuarantee::Equioptimal(t) => write!(f, "EQUIOPTIMAL {t}"),
+            OutputGuarantee::None => write!(f, "{OUTPUT_GUARANTEE_NONE}"),
+            OutputGuarantee::Derivable(t) => write!(f, "{OUTPUT_GUARANTEE_DERIVABLE} {t}"),
+            OutputGuarantee::Equisatisfiable(t) => {
+                write!(f, "{OUTPUT_GUARANTEE_EQUISATISFIABLE} {t}")
+            }
+            OutputGuarantee::Equioptimal(t) => write!(f, "{OUTPUT_GUARANTEE_EQUIOPTIMAL} {t}"),
         }
     }
 }
 
 /// Possible output types for the output section
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutputType {
     /// Implicit output
     Implicit,
     /// File output
     File,
+    /// The output is a permutation of the core constraints
+    ///
+    /// **Note**: while this output type is defined in the proof specification, the proof checker
+    /// does currently not implement it.
+    Permutation(Vec<ConstraintId>),
+    /// The output are constraints that are explicitly given
+    ///
+    /// **Note**: while this output type is defined in the proof specification, the proof checker
+    /// does currently not implement it.
+    Constraints {
+        /// The number of variables in the constraints that are output
+        n_vars: usize,
+        /// The number of output constraints
+        n_constraints: usize,
+        /// An optional objective in the output
+        objective: Option<String>,
+        /// The constraints to be output
+        constraints: Vec<String>,
+    },
 }
 
 impl std::fmt::Display for OutputType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OutputType::Implicit => write!(f, "IMPLICIT"),
-            OutputType::File => write!(f, "FILE"),
+            OutputType::Implicit => write!(f, "{OUTPUT_TYPE_IMPLICIT}"),
+            OutputType::File => write!(f, "{OUTPUT_TYPE_FILE}"),
+            OutputType::Permutation(ids) => {
+                write!(f, "{OUTPUT_TYPE_PERMUTATION} {}", ids.iter().format(" "))
+            }
+            OutputType::Constraints {
+                n_vars,
+                n_constraints,
+                objective,
+                constraints,
+            } => {
+                writeln!(f, "{OUTPUT_TYPE_CONSTRAINTS} {OPB}")?;
+                writeln!(f, "  * #variable= {n_vars} #constraint= {n_constraints}")?;
+                if let Some(objective) = objective {
+                    writeln!(f, "  {objective}{RULE_TERM}")?;
+                }
+                for constraint in constraints {
+                    writeln!(f, "  {constraint}{RULE_TERM}")?;
+                }
+                write!(f, "{END} {OPB}")?;
+                Ok(())
+            }
+        }
+    }
+}
+
+impl OutputType {
+    /// Creates a permutation output type from an iterator of core IDs
+    pub fn permutation<I>(ids: I) -> Self
+    where
+        I: IntoIterator<Item = ConstraintId>,
+    {
+        OutputType::Permutation(ids.into_iter().collect())
+    }
+
+    /// Creates a `CONSTRAINTS` conclusion
+    ///
+    /// This counts the number of constraints and variables in the constraints automatically
+    pub fn constraints<C, O, I>(constraints: I, objective: Option<O>) -> Self
+    where
+        C: ConstraintLike,
+        O: ObjectiveLike,
+        I: IntoIterator<Item = C>,
+    {
+        let mut vars = std::collections::HashSet::<String>::default();
+        let objective = if let Some(objective) = objective {
+            vars.extend(objective.sum_iter().map(|(_, v)| {
+                format!(
+                    "{}",
+                    <<O as ObjectiveLike>::Var as VarLike>::Formatter::from(v.var())
+                )
+            }));
+            Some(format!("{}", ObjFormatter::from(&objective)))
+        } else {
+            None
+        };
+        let constraints: Vec<_> = constraints
+            .into_iter()
+            .map(|c| {
+                vars.extend(c.sum_iter().map(|(_, v)| {
+                    format!(
+                        "{}",
+                        <<C as ConstraintLike>::Var as VarLike>::Formatter::from(v.var())
+                    )
+                }));
+                format!("{}", ConstrFormatter::from(&c))
+            })
+            .collect();
+        Self::Constraints {
+            n_vars: vars.len(),
+            n_constraints: constraints.len(),
+            objective,
+            constraints,
         }
     }
 }
@@ -841,24 +757,36 @@ pub enum Conclusion<V: VarLike> {
         /// Optional solution witnessing the upper bound
         ub_sol: Option<Vec<Axiom<V>>>,
     },
+    /// All projected solutions have been enumerated
+    EnumerationComplete {
+        /// The number of enumerated solutions
+        num_solutions: usize,
+        /// The constraint ID of the derived contradiction
+        contradiction_id: Option<ConstraintId>,
+    },
+    /// Some projected solutions have been enumerated
+    EnumerationPartial {
+        /// The number of enumerated solutions
+        num_solutions: usize,
+    },
 }
 
 impl<V: VarLike> std::fmt::Display for Conclusion<V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Conclusion::None => write!(f, "NONE"),
+            Conclusion::None => write!(f, "{CONCLUSION_NONE}"),
             Conclusion::Sat(sol) => {
                 if let Some(sol) = sol {
-                    write!(f, "SAT : {}", sol.iter().format(" "))
+                    write!(f, "{CONCLUSION_SAT} {SEP_B} {}", sol.iter().format(" "))
                 } else {
-                    write!(f, "SAT")
+                    write!(f, "{CONCLUSION_SAT}")
                 }
             }
             Conclusion::Unsat(id) => {
                 if let Some(id) = id {
-                    write!(f, "UNSAT : {id}")
+                    write!(f, "{CONCLUSION_UNSAT} {SEP_B} {id}")
                 } else {
-                    write!(f, "UNSAT")
+                    write!(f, "{CONCLUSION_UNSAT}")
                 }
             }
             Conclusion::Bounds {
@@ -866,62 +794,75 @@ impl<V: VarLike> std::fmt::Display for Conclusion<V> {
                 lb_id,
                 ub_sol,
             } => {
-                write!(f, "BOUNDS {}", range.start)?;
+                write!(f, "{CONCLUSION_BOUNDS} {}", range.start)?;
                 if let Some(id) = lb_id {
-                    write!(f, " : {id}")?;
+                    write!(f, " {SEP_B} {id}")?;
                 }
                 write!(f, " {}", range.end - 1)?;
                 if let Some(sol) = &ub_sol {
-                    write!(f, " : {}", sol.iter().format(" "))?;
+                    write!(f, " {SEP_B} {}", sol.iter().format(" "))?;
                 }
                 Ok(())
+            }
+            Conclusion::EnumerationComplete {
+                num_solutions,
+                contradiction_id,
+            } => {
+                write!(f, "{CONCLUSION_ENUM_COMPLETE} {num_solutions}")?;
+                if let Some(id) = contradiction_id {
+                    write!(f, " {SEP_B} {id}")?;
+                }
+                Ok(())
+            }
+            Conclusion::EnumerationPartial { num_solutions } => {
+                write!(f, "{CONCLUSION_ENUM_PARTIAL} {num_solutions}")
             }
         }
     }
 }
 
-pub struct ObjFormatter<'o, V: VarLike, O: ObjectiveLike<V>> {
+pub struct ObjFormatter<'o, O: ObjectiveLike> {
     obj: &'o O,
-    var: std::marker::PhantomData<V>,
 }
 
-impl<'o, V: VarLike, O: ObjectiveLike<V>> From<&'o O> for ObjFormatter<'o, V, O> {
+impl<'o, O: ObjectiveLike> From<&'o O> for ObjFormatter<'o, O> {
     fn from(value: &'o O) -> Self {
-        Self {
-            obj: value,
-            var: std::marker::PhantomData,
-        }
+        Self { obj: value }
     }
 }
 
-impl<V: VarLike, O: ObjectiveLike<V>> std::fmt::Display for ObjFormatter<'_, V, O> {
+impl<O: ObjectiveLike> std::fmt::Display for ObjFormatter<'_, O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}",
+            "{} {}",
             self.obj
                 .sum_iter()
-                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}")))
+                .format_with(" ", |(cf, ax), f| f(&format_args!("{cf} {ax}"))),
+            self.obj.offset()
         )
     }
 }
 
-pub struct ConstrFormatter<'c, V: VarLike, C: ConstraintLike<V>> {
+pub struct ConstrFormatter<'c, C: ConstraintLike> {
     constr: &'c C,
-    var: std::marker::PhantomData<V>,
 }
 
-impl<'c, V: VarLike, C: ConstraintLike<V>> From<&'c C> for ConstrFormatter<'c, V, C> {
+impl<'c, C: ConstraintLike> From<&'c C> for ConstrFormatter<'c, C> {
     fn from(value: &'c C) -> Self {
-        Self {
-            constr: value,
-            var: std::marker::PhantomData,
-        }
+        Self { constr: value }
     }
 }
 
-impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ConstrFormatter<'_, V, C> {
+impl<C: ConstraintLike> std::fmt::Display for ConstrFormatter<'_, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.constr.reification(crate::private::Token) {
+            crate::Reification::None => Ok(()),
+            crate::Reification::LitsImplyConstraint(axioms) => {
+                write!(f, "{} {REIFY_RIGHT} ", axioms.iter().format(" "))
+            }
+            crate::Reification::ConstraintImpliesLit(axiom) => write!(f, "{axiom} {REIFY_LEFT} "),
+        }?;
         write!(
             f,
             "{} >= {}",
@@ -931,4 +872,67 @@ impl<V: VarLike, C: ConstraintLike<V>> std::fmt::Display for ConstrFormatter<'_,
             self.constr.rhs(),
         )
     }
+}
+
+/// A proof checker timer handle, helping to only stop timer that have been started
+#[derive(Debug)]
+pub struct TimerHandle(pub(crate) String);
+
+/// A helper type that allows for using different variable types together
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MixedVar<V1, V2> {
+    /// The first variable variant
+    A(V1),
+    /// The second variable variant
+    B(V2),
+}
+
+impl<V1, V2> VarLike for MixedVar<V1, V2>
+where
+    V1: VarLike,
+    V2: VarLike,
+{
+    type Formatter = Self;
+}
+
+impl<V1, V2> std::fmt::Display for MixedVar<V1, V2>
+where
+    V1: VarLike,
+    V2: VarLike,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MixedVar::A(v) => write!(f, "{}", V1::Formatter::from(*v)),
+            MixedVar::B(v) => write!(f, "{}", V2::Formatter::from(*v)),
+        }
+    }
+}
+
+/// An instantiation of the specification constraints in the transitivity proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[expect(clippy::enum_variant_names)]
+pub enum SpecificationInstantiation {
+    /// The order constraints instantiated with the left and right variables from the order
+    /// definition and the original auxiliary variables
+    LeftAndRight,
+    /// The order constraints instantiated with the right variables from the order definition, the
+    /// fresh right variables from the transitivity proof and the first set of fresh auxiliary
+    /// variables
+    RightAndFreshRight,
+    /// The order constraints instantiated with the left variables from the order definition, the
+    /// fresh right variables from the transitivity proof and the second set of fresh auxiliary
+    /// variables
+    LeftAndFreshRight,
+}
+
+/// An instantiation of the specification constraints in the transitivity proof
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinitionInstantiation {
+    /// The order constraints instantiated with the left and right variables from the order
+    /// definition and the original auxiliary variables
+    LeftAndRight,
+    /// The order constraints instantiated with the right variables from the order definition, the
+    /// fresh right variables from the transitivity proof and the first set of fresh auxiliary
+    /// variables
+    RightAndFreshRight,
 }
