@@ -131,21 +131,6 @@
         inherit system;
         overlays = [
           inputs.nur-packages.overlays.default
-          # Remove once https://github.com/orium/cargo-rdme/pull/283 is merged
-          (final: _: {
-            cargo-rdme = final.rustPlatform.buildRustPackage (_finalAttrs: {
-              pname = "cargo-rdme";
-              version = "2.1.1-pre";
-              src = final.fetchFromGitHub {
-                owner = "chrjabs";
-                repo = "cargo-rdme";
-                rev = "72daf387aec627a2b637bcb784ac903a1a6fac1b";
-                hash = "sha256-kD4IyeJrWJStezhvpC2mlHr2JZy0ejSWMDnn/yzz/zE=";
-              };
-              cargoHash = "sha256-MhtPaVWao90CyIjd4LQbjl7XugvGGlA6UE4A9DJ2KkU=";
-              doCheck = false;
-            });
-          })
         ];
       };
     };

@@ -454,7 +454,7 @@ pub trait NodeById: std::ops::IndexMut<NodeId, Output = Self::Node> {
     where
         Self: Sized,
     {
-        debug_assert!(!lits.is_empty());
+        debug_assert_ne!(lits, []);
 
         // Detect sequences of literals of equal weight and merge them
         let mut seg_begin = 0;
@@ -686,7 +686,7 @@ fn merge_balanced_recursive<NDb>(
 where
     NDb: NodeById,
 {
-    debug_assert!(!cons.is_empty());
+    debug_assert_ne!(cons, []);
 
     if cons.len() == 1 {
         return cons[0];

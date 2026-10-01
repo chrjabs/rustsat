@@ -774,9 +774,8 @@ mod tests {
                     return;
                 }
                 panic!("verification failed: {out:?}")
-            } else {
-                println!("`$VERIPB_CHECKER` not set, omitting proof checking");
             }
+            println!("`$VERIPB_CHECKER` not set, omitting proof checking");
         }
 
         fn new_proof(

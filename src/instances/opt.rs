@@ -756,7 +756,7 @@ impl Objective {
                 soft_lits,
                 soft_clauses,
             } => {
-                debug_assert!(soft_clauses.is_empty());
+                debug_assert_eq!(soft_clauses.as_slice(), []);
                 if let Some(unit_weight) = unit_weight {
                     (cnf, soft_lits, unit_weight, offset)
                 } else {
@@ -972,8 +972,8 @@ impl Objective {
                 unit_weight: self_unit_weight,
             } => {
                 let Some(unit_weight) = *self_unit_weight else {
-                    debug_assert!(soft_lits.is_empty());
-                    debug_assert!(soft_clauses.is_empty());
+                    debug_assert_eq!(soft_lits.as_slice(), []);
+                    debug_assert_eq!(soft_clauses.as_slice(), []);
                     return self;
                 };
                 let mut next = 0;

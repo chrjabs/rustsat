@@ -954,12 +954,7 @@ impl Node {
     #[must_use]
     pub fn semantics_if(&self, val: usize) -> bool {
         match &self {
-            Node::Leaf(..) => {
-                if val != 1 {
-                    return false;
-                }
-                true
-            }
+            Node::Leaf(..) => val == 1,
             Node::Unit(node) => node.semantics_if(val),
             Node::General(node) => node.semantics_if(val),
             Node::Dummy => true,
@@ -971,12 +966,7 @@ impl Node {
     #[must_use]
     pub fn semantics_only_if(&self, val: usize) -> bool {
         match &self {
-            Node::Leaf(..) => {
-                if val != 1 {
-                    return false;
-                }
-                true
-            }
+            Node::Leaf(..) => val == 1,
             Node::Unit(node) => node.semantics_only_if(val),
             Node::General(node) => node.semantics_only_if(val),
             Node::Dummy => true,

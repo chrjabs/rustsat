@@ -15,6 +15,8 @@
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
 #![expect(clippy::trivially_copy_pass_by_ref)]
+// Triggers on proc-macro generated code for from_py_object
+#![allow(clippy::clone_on_copy)]
 
 use pyo3::prelude::*;
 

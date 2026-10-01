@@ -285,7 +285,7 @@ mod parsing {
             capacity: 0,
         };
         for obj_idx in 0..n_obj {
-            for item_idx in 0..n_items {
+            for (item_idx, item) in inst.items.iter_mut().enumerate().take(n_items) {
                 let line = next_non_comment_line!(reader, line_num).with_context(|| {
                     format!("file ended before {item_idx} value of objective {obj_idx}")
                 })?;
@@ -295,17 +295,17 @@ mod parsing {
                     )))
                     .parse(&line)
                     .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
-                inst.items[item_idx].values.push(value);
+                item.values.push(value);
             }
         }
-        for item_idx in 0..n_items {
+        for (item_idx, item) in inst.items.iter_mut().enumerate().take(n_items) {
             let line = next_non_comment_line!(reader, line_num)
                 .with_context(|| format!("file ended before weight of item {item_idx}"))?;
             let weight = single_value(dec_uint::<_, usize, ContextError>, "#")
                 .context(StrContext::Expected(StrContextValue::Description("weight")))
                 .parse(&line)
                 .map_err(|e| ParsingError::from_parse(&e, &line, 0, line_num))?;
-            inst.items[item_idx].weight = weight;
+            item.weight = weight;
         }
         Ok(inst)
     }
