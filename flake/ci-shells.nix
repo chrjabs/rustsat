@@ -17,6 +17,7 @@
               # use the stable toolchain here for compatibility with semver-checks
               cargo
               cargo-semver-checks
+              rustc
             ]);
         });
 
@@ -28,6 +29,7 @@
               cargo
               cargo-semver-checks
               release-plz
+              rustc
             ]);
         });
 
