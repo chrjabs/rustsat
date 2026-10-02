@@ -87,7 +87,7 @@ jobs:
       - name: Build sdist
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
         with:
-          maturin-version: '1.6.0'
+          maturin-version: '1.15.0'
           command: sdist
           args: --out dist --manifest-path pyapi/Cargo.toml
       - name: Upload sdist
