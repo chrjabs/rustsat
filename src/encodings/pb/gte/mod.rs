@@ -212,6 +212,12 @@ impl GeneralizedTotalizer {
         self.lit_buffer.is_empty()
     }
 
+    /// Ensures that from now on all input literals are always included in the encoding structure,
+    /// even if their weight is larger than the bound
+    pub fn build_structure(&mut self) {
+        self.extend_tree(usize::MAX);
+    }
+
     /// From an assignment to the input literals, generates an assignment over the totalizer
     /// variables following strict semantics, i.e., `sum >= k <-> olit`
     ///
@@ -459,8 +465,6 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
         W: std::io::Write,
         Self: FromIterator<(Lit, usize)> + Sized,
     {
-        use pigeons::VarLike;
-
         use crate::encodings::pb::BoundUpper;
         use crate::types::Var;
 
@@ -494,9 +498,7 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
                 #[cfg(feature = "verbose-proofs")]
                 proof.comment(&"rewritten main constraint")?;
                 id = proof.operations(
-                    &(pigeons::OperationSequence::<Var>::from(unit.var().axiom(!unit.is_neg()))
-                        * weight
-                        + id),
+                    &pigeons::derivation!(vartype Var: {pigeons::Axiom::from(!unit)} * weight + id),
                 )?;
                 unit_id
             } else {
@@ -504,9 +506,7 @@ impl super::cert::BoundUpper for GeneralizedTotalizer {
                 // NOTE: by the time we're here, all buffered literals have been removed from `id`
                 debug_assert_eq!(!unit, olit);
                 let unit_id = proof.operations(
-                    &((pigeons::OperationSequence::<Var>::from(id)
-                        + sem_defs.only_if_def.unwrap())
-                        / val),
+                    &pigeons::derivation!(vartype Var: (id + {sem_defs.only_if_def.unwrap()}) d val)
                 )?;
                 #[cfg(feature = "verbose-proofs")]
                 proof.equals(&unit_cl, Some(unit_id.into()))?;
@@ -812,7 +812,7 @@ mod tests {
             )
             .unwrap();
             let proof_file = proof
-                .conclude::<Var>(pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
+                .conclude::<Var>(&pigeons::OutputGuarantee::None, &pigeons::Conclusion::None)
                 .unwrap();
             verify_proof(&inst_path, proof_file.path());
         }

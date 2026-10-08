@@ -6,7 +6,6 @@
 //!
 //! ## Features
 //!
-//! - `short-keywords`: use short rule keywords, e.g., `p` instead of `pol`
 //! - `serde`: add implementations for
 //!   [`serde::Serialize`](https://docs.rs/serde/latest/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/latest/serde/trait.Deserialize.html) for library
@@ -28,19 +27,37 @@
 //! - [x] `solx`: [`Proof::exclude_solution`]
 //! - [x] `soli`: [`Proof::improve_solution`]
 //! - [x] `output`: [`Proof::output`], [`Proof::conclude`]
+//!     - Guarantees:
+//!         - [x] `NONE`
+//!         - [x] `DERIVABLE`
+//!         - [x] `EQUISATISFIABLE`
+//!         - [x] `EQUIOPTIMAL`
+//!         - [ ] `EQUIENUMERABLE` (documented but not yet implemented in VeriPB)
+//!     - Types:
+//!         - [x] none
+//!         - [x] `FILE`
+//!         - [x] `IMPLICIT`
+//!         - [x] `CONSTRAINTS` (documented but not yet implemented in VeriPB)
+//!         - [x] `PERMUTATION` (documented but not yet implemented in VeriPB)
 //! - [x] `conclusion`: [`Proof::conclude`], [`Proof::new_with_conclusion`],
 //!   [`Proof::update_default_conclusion`]
 //! - [x] Sub-proofs
+//!     - [x] `scope leq` and `scope geq` in `red` and `dom` rules
 //! - [x] `e`: [`Proof::equals`]
-//! - [x] `ea`: [`Proof::equals_add`]
 //! - [x] `eobj`: [`Proof::obj_equals`]
 //! - [x] `i`: [`Proof::implied`]
 //! - [x] `ia`: [`Proof::implied_add`]
-//! - [x] `#`: [`Proof::set_level`]
-//! - [x] `w`: [`Proof::wipe_level`]
+//! - [x] `setlvl` (previously `#`): [`Proof::set_level`]
+//! - [x] `wiplvl` (previously `w`): [`Proof::wipe_level`]
 //! - [x] `strengthening_to_core`: [`Proof::strengthening_to_core`]
 //! - [x] `def_order`
 //! - [x] `load_order`
+//! - [x] `pbc`
+//! - [ ] `@` constraint labels
+//! - [x] `start_time` and `end_time`: [`Proof::start_checker_timer`] and [`Proof::end_checker_timer`]
+//! - [x] `is_deleted`: [`Proof::is_deleted`]
+//! - [x] `fail`: [`Proof::fail_checking`]
+//! - [x] Reified constraints: [`ConstraintLike::reification`]
 
 #![warn(clippy::pedantic)]
 #![warn(missing_docs)]
@@ -54,18 +71,22 @@ pub use types::AbsConstraintId;
 pub use types::Axiom;
 pub use types::Conclusion;
 pub use types::ConstraintId;
-pub use types::Derivation;
+pub use types::DefinitionInstantiation;
+pub use types::MixedVar;
 pub use types::ObjectiveUpdate;
 pub use types::Order;
+pub use types::OrderAuxVar;
+pub use types::OrderDefinitionProofGoalId;
+pub use types::OrderInputVar;
 pub use types::OrderVar;
 pub use types::OutputGuarantee;
 pub use types::OutputType;
 pub use types::ProblemType;
-pub use types::ProofGoal;
 pub use types::ProofGoalId;
 pub use types::ProofOnlyVar;
-pub use types::SubproofElement;
+pub use types::SpecificationInstantiation;
 pub use types::Substitution;
+pub use types::TimerHandle;
 
 use types::ConstrFormatter;
 use types::ObjFormatter;
@@ -74,6 +95,13 @@ mod ops;
 
 pub use ops::OperationLike;
 pub use ops::OperationSequence;
+
+mod keywords;
+#[allow(clippy::wildcard_imports)]
+use keywords::*;
+
+pub mod guards;
+mod macros;
 
 macro_rules! unreachable_err {
     ($res:expr) => {{
@@ -107,15 +135,25 @@ pub struct Proof<Writer: std::io::Write> {
     first_proof_id: AbsConstraintId,
     /// The default conclusion that will be written when the proof is dropped
     default_conclusion: (OutputGuarantee, String),
+    /// The number of specification constraints of the currently active order
+    num_order_spec_constrs: usize,
 }
 
 impl<Writer: std::io::Write> Drop for Proof<Writer> {
     fn drop(&mut self) {
-        writeln!(self.writer, "output {}", self.default_conclusion.0)
-            .expect("could not finish writing proof");
-        writeln!(self.writer, "conclusion {}", self.default_conclusion.1)
-            .expect("could not finish writing proof");
-        writeln!(self.writer, "end pseudo-Boolean proof").expect("could not finish writing proof");
+        writeln!(
+            self.writer,
+            "output {}{RULE_TERM}",
+            self.default_conclusion.0
+        )
+        .expect("could not finish writing proof");
+        writeln!(
+            self.writer,
+            "conclusion {}{RULE_TERM}",
+            self.default_conclusion.1
+        )
+        .expect("could not finish writing proof");
+        writeln!(self.writer, "{FOOTER}{RULE_TERM}").expect("could not finish writing proof");
     }
 }
 
@@ -141,7 +179,7 @@ where
         num_constraints: usize,
         optimization: bool,
     ) -> std::io::Result<Self> {
-        writeln!(writer, "pseudo-Boolean proof version 2.0")?;
+        writeln!(writer, "{HEADER}")?;
         let next_id = AbsConstraintId(unreachable_err!((num_constraints + 1).try_into()));
         let mut this = Self {
             writer,
@@ -153,6 +191,7 @@ where
                 OutputGuarantee::None,
                 format!("{}", Conclusion::<&'static str>::None),
             ),
+            num_order_spec_constrs: 0,
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
@@ -184,7 +223,7 @@ where
         output_guarantee: OutputGuarantee,
         conclusion: &Conclusion<V>,
     ) -> std::io::Result<Self> {
-        writeln!(writer, "pseudo-Boolean proof version 2.0")?;
+        writeln!(writer, "{HEADER}")?;
         let next_id = AbsConstraintId(unreachable_err!((num_constraints + 1).try_into()));
         let mut this = Self {
             writer,
@@ -193,6 +232,7 @@ where
             problem_type: ProblemType::default(),
             first_proof_id: next_id,
             default_conclusion: (output_guarantee, format!("{conclusion}")),
+            num_order_spec_constrs: 0,
         };
         if optimization {
             this.problem_type = ProblemType::Optimization;
@@ -210,44 +250,22 @@ where
         self.default_conclusion = (output_guarantee, format!("{conclusion}"));
     }
 
+    fn writer(&mut self) -> &mut Writer {
+        &mut self.writer
+    }
+
+    // required with this signature for macro implementations
+    #[expect(clippy::unused_self)]
+    fn level(&self) -> usize {
+        0
+    }
+
     /// Gets a new [`AbsConstraintId`] and increments the counter
     #[must_use]
     fn new_id(&mut self) -> AbsConstraintId {
         let id = self.next_id;
         self.next_id += 1;
         id
-    }
-
-    /// Writes a sub-proof, if the iterator is not empty
-    fn write_subproof<V, C, PI>(&mut self, proof: PI) -> std::io::Result<()>
-    where
-        V: VarLike,
-        C: ConstraintLike<V>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
-    {
-        let mut proof = proof.into_iter().peekable();
-        if proof.peek().is_some() {
-            self.next_id += 1; // negated `constr`
-            writeln!(self.writer, " ; begin")?;
-            for element in proof {
-                let bump_ids = match element {
-                    SubproofElement::Derivation(derivation) => {
-                        writeln!(self.writer, "  {derivation}")?;
-                        1
-                    }
-                    SubproofElement::Goal(goal) => {
-                        goal.write_indented(&mut self.writer, 2)?;
-                        writeln!(self.writer)?;
-                        // negated proof goal + 1 for each derivation
-                        1 + goal.n_derivations()
-                    }
-                };
-                self.next_id += bump_ids;
-            }
-            writeln!(self.writer, "end")
-        } else {
-            writeln!(self.writer)
-        }
     }
 
     /// Gets a new [`ProofOnlyVar`] and increments the counter
@@ -282,7 +300,10 @@ where
     ///
     /// If writing the proof fails.
     pub fn verify_num_constraints(&mut self, num_constraints: usize) -> std::io::Result<()> {
-        writeln!(self.writer, "f {num_constraints}")
+        writeln!(
+            self.writer,
+            "{NUM_CONSTRAINTS} {num_constraints}{RULE_TERM}"
+        )
     }
 
     /// Adds an arbitrary single-line comment to the proof
@@ -298,7 +319,7 @@ where
     ///
     /// If writing the proof fails.
     pub fn comment<C: std::fmt::Display>(&mut self, comment: &C) -> std::io::Result<()> {
-        writeln!(self.writer, "* {comment}")?;
+        writeln!(self.writer, "{COMMENT} {comment}")?;
         Ok(())
     }
 
@@ -313,71 +334,13 @@ where
     /// If writing the proof fails.
     pub fn multiline_comment(&mut self, comment: &str) -> std::io::Result<()> {
         for line in comment.lines() {
-            writeln!(self.writer, "* {line}")?;
+            writeln!(self.writer, "{COMMENT} {line}")?;
         }
         Ok(())
     }
 
-    /// Adds a new constraint that is derived via a sequence of operations and returns its
-    /// [`AbsConstraintId`]
-    ///
-    /// # Proof Log
-    ///
-    /// Adds a `pol`-rule line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails.
-    pub fn operations<V: VarLike>(
-        &mut self,
-        operations: &OperationSequence<V>,
-    ) -> std::io::Result<AbsConstraintId> {
-        let keyword = if cfg!(feature = "short-keywords") {
-            "p"
-        } else {
-            "pol"
-        };
-        writeln!(self.writer, "{keyword} {operations}")?;
-        Ok(self.new_id())
-    }
-
-    /// Adds a constraint implied by reverse unit propagation and returns its [`AbsConstraintId`]
-    ///
-    /// # Proof Log
-    ///
-    /// Adds a `rup`-rule line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails.
-    pub fn reverse_unit_prop<V, C, I>(
-        &mut self,
-        constr: &C,
-        hints: I,
-    ) -> std::io::Result<AbsConstraintId>
-    where
-        V: VarLike,
-        C: ConstraintLike<V>,
-        I: IntoIterator<Item = ConstraintId>,
-    {
-        let keyword = if cfg!(feature = "short-keywords") {
-            "u"
-        } else {
-            "rup"
-        };
-        let mut hints = hints.into_iter().peekable();
-        if hints.peek().is_some() {
-            writeln!(
-                self.writer,
-                "{keyword} {} ; {}",
-                ConstrFormatter::from(constr),
-                hints.format(" ")
-            )?;
-        } else {
-            writeln!(self.writer, "{keyword} {} ;", ConstrFormatter::from(constr))?;
-        }
-        Ok(self.new_id())
-    }
+    macros::implement!(operations);
+    macros::implement!(reverse_unit_prop);
 
     /// Deletes a set of constraint by their [`ConstraintId`]s
     ///
@@ -390,15 +353,13 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_ids<V, C, II, PI>(&mut self, ids: II, proof: PI) -> std::io::Result<()>
+    pub fn delete_ids<II>(&mut self, ids: II) -> std::io::Result<guards::SubProof<'_, Self, ()>>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
         II: IntoIterator<Item = ConstraintId>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
-        write!(self.writer, "del id {} ;", ids.into_iter().format(" "))?;
-        self.write_subproof(proof)
+        write!(self.writer, "{DEL_ID} {} ", ids.into_iter().format(" "))?;
+        let guard = guards::SubProof::new_with_prefix(self, SEP_A, 1);
+        Ok(guard)
     }
 
     /// Deletes an explicitly specified constraint
@@ -410,12 +371,15 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_constr<V, C>(&mut self, constr: &C) -> std::io::Result<()>
+    pub fn delete_constr<C>(&mut self, constr: &C) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
-        writeln!(self.writer, "del spec {} ;", ConstrFormatter::from(constr))
+        writeln!(
+            self.writer,
+            "{DEL_SPEC} {} {RULE_TERM}",
+            ConstrFormatter::from(constr)
+        )
     }
 
     /// Deletes a a [`ConstraintId`] range
@@ -446,7 +410,10 @@ where
             std::ops::Bound::Unbounded => self.next_id.into(),
         };
         assert!(range_start.less(range_end, self.next_id));
-        writeln!(self.writer, "del range {range_start} {range_end}")
+        writeln!(
+            self.writer,
+            "{DEL_RANGE} {range_start} {range_end}{RULE_TERM}"
+        )
     }
 
     /// Deletes a set of core constraint by their [`ConstraintId`]s
@@ -460,11 +427,16 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn delete_core_ids<I>(&mut self, ids: I) -> std::io::Result<()>
+    pub fn delete_core_ids<II>(
+        &mut self,
+        ids: II,
+    ) -> std::io::Result<guards::SubProof<'_, Self, ()>>
     where
-        I: IntoIterator<Item = ConstraintId>,
+        II: IntoIterator<Item = ConstraintId>,
     {
-        writeln!(self.writer, "delc {}", ids.into_iter().format(" "))
+        write!(self.writer, "{DEL_CORE} {} ", ids.into_iter().format(" "))?;
+        let guard = guards::SubProof::new_with_prefix(self, SEP_A, 1);
+        Ok(guard)
     }
 
     /// Deletes a set of derived constraint by their [`ConstraintId`]s
@@ -482,7 +454,11 @@ where
     where
         I: IntoIterator<Item = ConstraintId>,
     {
-        writeln!(self.writer, "deld {}", ids.into_iter().format(" "))
+        writeln!(
+            self.writer,
+            "{DEL_DERIVED} {}{RULE_TERM}",
+            ids.into_iter().format(" ")
+        )
     }
 
     /// Updates the objective in the proof
@@ -498,34 +474,36 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn update_objective<V, O, C>(
+    pub fn update_objective<O>(
         &mut self,
-        update: &ObjectiveUpdate<V, O, C>,
-    ) -> std::io::Result<()>
+        update: &ObjectiveUpdate<O>,
+    ) -> std::io::Result<guards::SubProof<'_, Self, ()>>
     where
-        V: VarLike,
-        O: ObjectiveLike<V>,
-        C: ConstraintLike<V>,
+        O: ObjectiveLike,
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
-        writeln!(self.writer, "obju {update}")
+        writeln!(self.writer, "{OBJ_UPDATE} {update}")?;
+        Ok(guards::SubProof::new(self, 1))
     }
 
-    /// Adds a set of substitutions
+    /// Adds a proof by contradiction rule
     ///
     /// # Proof Log
     ///
-    /// Adds a substitution line.
+    /// Adds a `pbc`-rule line.
     ///
     /// # Errors
     ///
-    /// If writing the proof fails
-    pub fn substitute<V, I>(&mut self, subs: I) -> std::io::Result<()>
+    /// If writing the proof fails.
+    pub fn proof_by_contradiction<C>(
+        &mut self,
+        constr: &C,
+    ) -> std::io::Result<guards::SubProof<'_, Self>>
     where
-        V: VarLike,
-        I: IntoIterator<Item = Substitution<V>>,
+        C: ConstraintLike,
     {
-        writeln!(self.writer, "{}", subs.into_iter().format(" "))
+        write!(self.writer, "{PBC} {}", ConstrFormatter::from(constr))?;
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Adds a constraint that is redundant, checked via redundance based strengthening
@@ -537,26 +515,22 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn redundant<V, C, SI, PI>(
+    pub fn redundant<C, SI>(
         &mut self,
         constr: &C,
         subs: SI,
-        proof: PI,
-    ) -> std::io::Result<AbsConstraintId>
+    ) -> std::io::Result<guards::SubProof<'_, Self, AbsConstraintId, true>>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
-        SI: IntoIterator<Item = Substitution<V>>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
+        C: ConstraintLike,
+        SI: IntoIterator<Item = Substitution<C::Var>>,
     {
         write!(
             self.writer,
-            "red {} ; {}",
+            "{REDUNDANT} {} {SEP_A} {}",
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
-        Ok(self.new_id())
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Adds a constraint that is redundant, checked via dominance
@@ -568,26 +542,23 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn dominated<V, C, SI, PI>(
+    pub fn dominated<V, C, SI>(
         &mut self,
         constr: &C,
         subs: SI,
-        proof: PI,
-    ) -> std::io::Result<AbsConstraintId>
+    ) -> std::io::Result<guards::SubProof<'_, Self, AbsConstraintId, true>>
     where
         V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
         SI: IntoIterator<Item = Substitution<V>>,
-        PI: IntoIterator<Item = SubproofElement<V, C>>,
     {
         write!(
             self.writer,
-            "dom {} ; {}",
+            "{DOMINATED} {} {SEP_A} {}",
             ConstrFormatter::from(constr),
             subs.into_iter().format(" ")
         )?;
-        self.write_subproof(proof)?;
-        Ok(self.new_id())
+        Ok(guards::SubProof::new(self, 1))
     }
 
     /// Moves constraints to the core set by [`ConstraintId`]
@@ -605,7 +576,11 @@ where
     where
         I: IntoIterator<Item = ConstraintId>,
     {
-        writeln!(self.writer, "core id {}", ids.into_iter().format(" "))
+        writeln!(
+            self.writer,
+            "{CORE_ID} {}{RULE_TERM}",
+            ids.into_iter().format(" ")
+        )
     }
 
     /// Moves a range of constraints to the core set
@@ -636,7 +611,10 @@ where
             std::ops::Bound::Unbounded => self.next_id.into(),
         };
         assert!(range_start.less(range_end, self.next_id));
-        writeln!(self.writer, "core range {range_start} {range_end}")
+        writeln!(
+            self.writer,
+            "{CORE_RANGE} {range_start} {range_end}{RULE_TERM}"
+        )
     }
 
     /// Logs a solution in the proof
@@ -653,7 +631,11 @@ where
         V: VarLike,
         I: IntoIterator<Item = Axiom<V>>,
     {
-        writeln!(self.writer, "sol {}", solution.into_iter().format(" "))
+        writeln!(
+            self.writer,
+            "{SOLUTION} {}{RULE_TERM}",
+            solution.into_iter().format(" ")
+        )
     }
 
     /// Logs a solution with a solution-excluding constraint in the proof
@@ -670,7 +652,11 @@ where
         V: VarLike,
         I: IntoIterator<Item = Axiom<V>>,
     {
-        writeln!(self.writer, "solx {}", solution.into_iter().format(" "))?;
+        writeln!(
+            self.writer,
+            "{SOLUTION_EXCLUDE} {}{RULE_TERM}",
+            solution.into_iter().format(" ")
+        )?;
         Ok(self.new_id())
     }
 
@@ -688,7 +674,11 @@ where
         V: VarLike,
         I: IntoIterator<Item = Axiom<V>>,
     {
-        writeln!(self.writer, "soli {}", solution.into_iter().format(" "))?;
+        writeln!(
+            self.writer,
+            "{SOLUTION_IMPROVE} {}{RULE_TERM}",
+            solution.into_iter().format(" ")
+        )?;
         Ok(self.new_id())
     }
 
@@ -701,8 +691,8 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn output(&mut self, guarantee: OutputGuarantee) -> std::io::Result<()> {
-        writeln!(self.writer, "output {guarantee}")
+    pub fn output(&mut self, guarantee: &OutputGuarantee) -> std::io::Result<()> {
+        writeln!(self.writer, "{OUTPUT} {guarantee}{RULE_TERM}")
     }
 
     /// Adds a conclusion section to the proof
@@ -715,7 +705,7 @@ where
     ///
     /// If writing the proof fails.
     fn conclusion<V: VarLike>(&mut self, conclusion: &Conclusion<V>) -> std::io::Result<()> {
-        writeln!(self.writer, "conclusion {conclusion}")
+        writeln!(self.writer, "{CONCLUSION} {conclusion}{RULE_TERM}")
     }
 
     /// Ends the proof and returns the writer
@@ -728,7 +718,7 @@ where
     ///
     /// If writing the proof fails.
     fn end(mut self) -> std::io::Result<Writer> {
-        writeln!(self.writer, "end pseudo-Boolean proof")?;
+        writeln!(self.writer, "{FOOTER}{RULE_TERM}")?;
         // wrap self in ManuallyDrop to avoid calling Drop on it
         let mut nodrop = std::mem::ManuallyDrop::new(self);
         // manually drop everything but the writer, after this never use any of these fields in
@@ -750,7 +740,7 @@ where
     /// If writing the proof fails.
     pub fn conclude<V: VarLike>(
         mut self,
-        guarantee: OutputGuarantee,
+        guarantee: &OutputGuarantee,
         conclusion: &Conclusion<V>,
     ) -> std::io::Result<Writer> {
         self.output(guarantee)?;
@@ -767,55 +757,23 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn equals<V, C>(
-        &mut self,
-        constraint: &C,
-        equals: Option<ConstraintId>,
-    ) -> std::io::Result<()>
+    pub fn equals<C>(&mut self, constraint: &C, equals: Option<ConstraintId>) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         if let Some(id) = equals {
             writeln!(
                 self.writer,
-                "e {} ; {id}",
+                "{EQUALS} {} {SEP_A} {id}{RULE_TERM}",
                 ConstrFormatter::from(constraint)
             )
         } else {
-            writeln!(self.writer, "e {} ;", ConstrFormatter::from(constraint))
-        }
-    }
-
-    /// Checks whether a constraint is equal to a constraint that is already in the database and
-    /// adds the constraint
-    ///
-    /// # Proof Log
-    ///
-    /// Writes a `ea`-rule line.
-    ///
-    /// # Errors
-    ///
-    /// If writing the proof fails.
-    pub fn equals_add<V, C>(
-        &mut self,
-        constraint: &C,
-        equals: Option<ConstraintId>,
-    ) -> std::io::Result<AbsConstraintId>
-    where
-        V: VarLike,
-        C: ConstraintLike<V>,
-    {
-        if let Some(id) = equals {
             writeln!(
                 self.writer,
-                "ea {} ; {id}",
+                "{EQUALS} {} {RULE_TERM}",
                 ConstrFormatter::from(constraint)
-            )?;
-        } else {
-            writeln!(self.writer, "ea {} ;", ConstrFormatter::from(constraint))?;
+            )
         }
-        Ok(self.new_id())
     }
 
     /// Checks whether the given objective is equal to the current objective
@@ -831,13 +789,16 @@ where
     /// # Panics
     ///
     /// If the problem is not an optimization problem.
-    pub fn obj_equals<V, O>(&mut self, objective: &O) -> std::io::Result<()>
+    pub fn obj_equals<O>(&mut self, objective: &O) -> std::io::Result<()>
     where
-        V: VarLike,
-        O: ObjectiveLike<V>,
+        O: ObjectiveLike,
     {
         assert!(matches!(self.problem_type, ProblemType::Optimization));
-        writeln!(self.writer, "eobj {} ;", ObjFormatter::from(objective))
+        writeln!(
+            self.writer,
+            "{OBJ_EQUAL} {} {RULE_TERM}",
+            ObjFormatter::from(objective)
+        )
     }
 
     /// Checks whether the given constraint is implied
@@ -849,23 +810,26 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn implied<V, C>(
+    pub fn implied<C>(
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
     ) -> std::io::Result<()>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         if let Some(id) = implicant {
             writeln!(
                 self.writer,
-                "i {} ; {id}",
+                "{IMPLIED} {} {SEP_A} {id}{RULE_TERM}",
                 ConstrFormatter::from(constraint)
             )
         } else {
-            writeln!(self.writer, "i {} ;", ConstrFormatter::from(constraint))
+            writeln!(
+                self.writer,
+                "{IMPLIED} {} {RULE_TERM}",
+                ConstrFormatter::from(constraint)
+            )
         }
     }
 
@@ -878,23 +842,26 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn implied_add<V, C>(
+    pub fn implied_add<C>(
         &mut self,
         constraint: &C,
         implicant: Option<ConstraintId>,
     ) -> std::io::Result<AbsConstraintId>
     where
-        V: VarLike,
-        C: ConstraintLike<V>,
+        C: ConstraintLike,
     {
         if let Some(id) = implicant {
             writeln!(
                 self.writer,
-                "ia {} ; {id}",
+                "{IMPLIED_ADD} {} {SEP_A} {id}{RULE_TERM}",
                 ConstrFormatter::from(constraint)
             )?;
         } else {
-            writeln!(self.writer, "ia {} ;", ConstrFormatter::from(constraint))?;
+            writeln!(
+                self.writer,
+                "{IMPLIED_ADD} {} {RULE_TERM}",
+                ConstrFormatter::from(constraint)
+            )?;
         }
         Ok(self.new_id())
     }
@@ -909,7 +876,7 @@ where
     ///
     /// If writing the proof fails.
     pub fn set_level(&mut self, level: usize) -> std::io::Result<()> {
-        writeln!(self.writer, "# {level}")
+        writeln!(self.writer, "{LEVEL_SET} {level}{RULE_TERM}")
     }
 
     /// Wipes out constraints from the given `level` or higher
@@ -922,7 +889,7 @@ where
     ///
     /// If writing the proof fails.
     pub fn wipe_level(&mut self, level: usize) -> std::io::Result<()> {
-        writeln!(self.writer, "w {level}")
+        writeln!(self.writer, "{LEVEL_WIPE} {level}{RULE_TERM}")
     }
 
     /// Defines a new order with a given name and a transitivity and optional reflexivity proof
@@ -934,12 +901,11 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn define_order<V, C>(&mut self, order: &Order<V, C>) -> std::io::Result<()>
+    pub fn define_order<S>(&mut self, name: S) -> std::io::Result<guards::Order<'_, Writer>>
     where
-        V: VarLike,
-        C: ConstraintLike<OrderVar<V>>,
+        S: Into<String>,
     {
-        writeln!(self.writer, "{order}")
+        guards::Order::new(self, name)
     }
 
     /// Loads an order that needs to be previously defined
@@ -951,17 +917,33 @@ where
     /// # Errors
     ///
     /// If writing the proof fails.
-    pub fn load_order<V, I>(&mut self, name: &str, vars: I) -> std::io::Result<()>
+    pub fn load_order<V, I>(&mut self, order: &Order, vars: I) -> std::io::Result<()>
     where
         V: VarLike,
         I: IntoIterator<Item = V>,
     {
+        self.num_order_spec_constrs = order.num_spec_constraints();
         writeln!(
             self.writer,
-            "load_order {name} {}",
+            "{ORDER_LOAD} {} {}{RULE_TERM}",
+            order.name(),
             vars.into_iter()
                 .format_with(" ", |v, f| f(&V::Formatter::from(v)))
         )
+    }
+
+    /// Unloads the currently active order
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `load_order` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn unload_order(&mut self) -> std::io::Result<()> {
+        self.num_order_spec_constrs = 0;
+        writeln!(self.writer, "{ORDER_LOAD} {RULE_TERM}")
     }
 
     /// Sets the strengthening to core mode
@@ -976,9 +958,79 @@ where
     pub fn strengthening_to_core(&mut self, value: bool) -> std::io::Result<()> {
         writeln!(
             self.writer,
-            "strengthening_to_core {}",
-            if value { "on" } else { "off" }
+            "{STRENGTHENING_TO_CORE} {}{RULE_TERM}",
+            if value { ON } else { OFF }
         )
+    }
+
+    /// Starts a new performance timer at this point in the proof when checking it
+    ///
+    /// **Note**: while this rule is defined in the proof specification, the proof checker does
+    /// currently not implement it.
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `start_time <timer>` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn start_checker_timer<S>(&mut self, name: S) -> std::io::Result<TimerHandle>
+    where
+        S: AsRef<str>,
+    {
+        writeln!(self.writer, "{TIMER_START} {}{RULE_TERM}", name.as_ref())?;
+        Ok(TimerHandle(String::from(name.as_ref())))
+    }
+
+    /// Ends a previously started performance timer at this point in the proof when checking it
+    ///
+    /// **Note**: while this rule is defined in the proof specification, the proof checker does
+    /// currently not implement it.
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `end_time <timer>` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn end_checker_timer(&mut self, handle: TimerHandle) -> std::io::Result<()> {
+        let name = handle.0;
+        writeln!(self.writer, "{TIMER_END} {name}{RULE_TERM}")
+    }
+
+    /// Checks that a given constraint has been deleted from the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `is_deleted` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn is_deleted<C>(&mut self, constr: &C) -> std::io::Result<()>
+    where
+        C: ConstraintLike,
+    {
+        writeln!(
+            self.writer,
+            "{IS_DELETED} {} {RULE_TERM}",
+            ConstrFormatter::from(constr)
+        )
+    }
+
+    /// Causes an intentional failure of proof checking at this point in the proof
+    ///
+    /// # Proof Log
+    ///
+    /// Writes a `fail` line.
+    ///
+    /// # Errors
+    ///
+    /// If writing the proof fails.
+    pub fn fail_checking(&mut self) -> std::io::Result<()> {
+        writeln!(self.writer, "{FAIL} {RULE_TERM}")
     }
 }
 
@@ -1032,27 +1084,120 @@ impl VarLike for &str {
 }
 
 /// Trait that needs to be implemented for types used as constraints
-pub trait ConstraintLike<V: VarLike> {
+pub trait ConstraintLike {
+    /// The variable type of the constraint
+    type Var: VarLike;
+
     /// Gets the operator and right hand side of the constraint
     fn rhs(&self) -> isize;
 
     /// Gets an iterator over the coefficient literal pairs in the constraint
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)>;
+
+    /// The potential reification of the constraint
+    ///
+    /// This method is sealed to only be allowed to be overridden in this crate. For downstream
+    /// users, use the [`ReifiedConstraint`] type
+    fn reification(&self, _: private::Token) -> Reification<'_, Self::Var> {
+        Reification::None
+    }
+}
+
+/// Potential reification of a constraint
+#[derive(Debug, Copy, Clone)]
+pub enum Reification<'a, V: VarLike> {
+    /// A simple constraint without reification
+    None,
+    /// A set of literals that all together (as a conjunction) imply the constraint
+    LitsImplyConstraint(&'a [Axiom<V>]),
+    /// A literal implied by the constraint
+    ConstraintImpliesLit(Axiom<V>),
+}
+
+mod private {
+    /// Private type for partially sealing traits
+    // https://predr.ag/blog/definitive-guide-to-sealed-traits-in-rust/#partially-sealed-traits
+    #[derive(Debug)]
+    pub struct Token;
+}
+
+/// Helper type to easily create reified constraints
+#[derive(Debug, Clone)]
+pub struct ReifiedConstraint<C: ConstraintLike> {
+    constr: C,
+    reification: ReificationData<C::Var>,
+}
+
+impl<C> ReifiedConstraint<C>
+where
+    C: ConstraintLike,
+{
+    /// Creates a new reified (`l1 l2 ==> Constr`) constraint
+    pub fn lits_imply_constraint<I>(lits: I, constr: C) -> Self
+    where
+        I: IntoIterator<Item = Axiom<C::Var>>,
+    {
+        Self {
+            constr,
+            reification: ReificationData::LitsImplyConstraint(lits.into_iter().collect()),
+        }
+    }
+
+    /// Creates a new reified (`l <== Constr`) constraint
+    pub fn constraint_implies_lit(constr: C, lit: Axiom<C::Var>) -> Self {
+        Self {
+            constr,
+            reification: ReificationData::ConstraintImpliesLit(lit),
+        }
+    }
+}
+
+impl<C> ConstraintLike for ReifiedConstraint<C>
+where
+    C: ConstraintLike,
+{
+    type Var = C::Var;
+
+    fn rhs(&self) -> isize {
+        self.constr.rhs()
+    }
+
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)> {
+        self.constr.sum_iter()
+    }
+
+    fn reification(&self, _: private::Token) -> Reification<'_, Self::Var> {
+        match &self.reification {
+            ReificationData::LitsImplyConstraint(lits) => Reification::LitsImplyConstraint(lits),
+            ReificationData::ConstraintImpliesLit(lit) => Reification::ConstraintImpliesLit(*lit),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ReificationData<V: VarLike> {
+    LitsImplyConstraint(Vec<Axiom<V>>),
+    ConstraintImpliesLit(Axiom<V>),
 }
 
 /// Trait that needs to be implemented for types used as objectives
-pub trait ObjectiveLike<V: VarLike> {
+pub trait ObjectiveLike {
+    /// The variable type of the objective
+    type Var: VarLike;
+
     /// Gets an iterator over the coefficient literal pairs in the constraint
-    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)>;
+    fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<Self::Var>)>;
     /// Gets the constant offset of the objective
     fn offset(&self) -> isize;
 }
 
-impl<V, Iter> ObjectiveLike<V> for Iter
+impl<V, Iter> ObjectiveLike for Iter
 where
     V: VarLike,
     Iter: IntoIterator<Item = (isize, V)> + Clone,
 {
+    type Var = V;
+
     fn sum_iter(&self) -> impl Iterator<Item = (isize, Axiom<V>)> {
         self.clone().into_iter().map(|(cf, v)| (cf, v.pos_axiom()))
     }
@@ -1064,7 +1209,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::VarLike;
+    use crate::VarLike;
+    #[allow(clippy::wildcard_imports)]
+    use crate::keywords::*;
 
     #[test]
     fn new_with_conclusion() {
@@ -1083,11 +1230,11 @@ mod tests {
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
             output,
-            r"pseudo-Boolean proof version 2.0
-f 0
-output NONE
-conclusion UNSAT : -1
-end pseudo-Boolean proof
+            r"pseudo-Boolean proof version 3.0
+f 0;
+output NONE;
+conclusion UNSAT : -1;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1106,11 +1253,11 @@ end pseudo-Boolean proof
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
             output,
-            r"pseudo-Boolean proof version 2.0
-f 0
-output NONE
-conclusion UNSAT : -1
-end pseudo-Boolean proof
+            r"pseudo-Boolean proof version 3.0
+f 0;
+output NONE;
+conclusion UNSAT : -1;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1128,13 +1275,13 @@ end pseudo-Boolean proof
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
         assert_eq!(
             output,
-            r"pseudo-Boolean proof version 2.0
-f 0
-* this is a
-* multiline comment
-output NONE
-conclusion NONE
-end pseudo-Boolean proof
+            r"pseudo-Boolean proof version 3.0
+f 0;
+% this is a
+% multiline comment
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
 "
         );
     }
@@ -1144,12 +1291,14 @@ end pseudo-Boolean proof
         rhs: isize,
     }
 
-    impl<'slf> super::ConstraintLike<&'slf str> for Constr {
+    impl super::ConstraintLike for Constr {
+        type Var = &'static str;
+
         fn rhs(&self) -> isize {
             self.rhs
         }
 
-        fn sum_iter(&self) -> impl Iterator<Item = (isize, super::Axiom<&'slf str>)> {
+        fn sum_iter(&self) -> impl Iterator<Item = (isize, super::Axiom<Self::Var>)> {
             self.terms
                 .iter()
                 .map(|(cf, neg, v)| (*cf, (*v).axiom(*neg)))
@@ -1180,23 +1329,38 @@ end pseudo-Boolean proof
                 [super::ConstraintId::last(1), super::ConstraintId::abs(42)],
             )
             .unwrap();
+        proof
+            .reverse_unit_prop(
+                &crate::reified!({"x42".pos_axiom()}, {"x12".neg_axiom()} ==> Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                }),
+                None,
+            )
+            .unwrap();
+        proof
+            .reverse_unit_prop(
+                &crate::reified!({"x42".neg_axiom()} <== Constr {
+                    terms: vec![(5, false, "x3"), (-12, true, "x4")],
+                    rhs: 3,
+                }),
+                None,
+            )
+            .unwrap();
         drop(proof);
         let output = std::fs::read_to_string(proof_file).expect("failed to read proof");
-        let keyword = if cfg!(feature = "short-keywords") {
-            "u"
-        } else {
-            "rup"
-        };
         assert_eq!(
             output,
             format!(
-                "pseudo-Boolean proof version 2.0
-f 0
-{keyword} 3 x1 -42 ~x2 >= 2 ;
-{keyword} 5 x3 -12 ~x4 >= 3 ; -1 42
-output NONE
-conclusion NONE
-end pseudo-Boolean proof
+                "pseudo-Boolean proof version 3.0
+f 0;
+{RUP} 3 x1 -42 ~x2 >= 2;
+{RUP} 5 x3 -12 ~x4 >= 3 : -1 42;
+{RUP} x42 ~x12 ==> 5 x3 -12 ~x4 >= 3;
+{RUP} ~x42 <== 5 x3 -12 ~x4 >= 3;
+output NONE;
+conclusion NONE;
+end pseudo-Boolean proof;
 "
             )
         );

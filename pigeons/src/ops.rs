@@ -8,6 +8,8 @@ use crate::AbsConstraintId;
 use crate::Axiom;
 use crate::ConstraintId;
 use crate::VarLike;
+#[allow(clippy::wildcard_imports)]
+use crate::keywords::*;
 
 /// A sequence of operations to be added to the proof in reverse polish notation
 #[derive(Clone, Debug)]
@@ -137,9 +139,45 @@ impl<V: VarLike> OperationLike<V> for OperationSequence<V> {
         self
     }
 
-    fn weaken(mut self) -> Self {
+    fn weaken(mut self, variable: V) -> Self {
         if !self.is_empty() {
-            self.push(Operation::Weak);
+            self.push(Operation::Weak(variable));
+        }
+        self
+    }
+
+    fn normalized_form_mir_cut(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() {
+            self.push(Operation::NormMir(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
+
+    fn variable_form_mir_cut(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() {
+            self.push(Operation::VarMir(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
+
+    fn normalized_form_division(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() && div != 1 {
+            self.push(Operation::NormDiv(
+                div.try_into().expect("cannot divide by zero"),
+            ));
+        }
+        self
+    }
+
+    fn variable_form_division(mut self, div: usize) -> OperationSequence<V> {
+        if !self.is_empty() && div != 1 {
+            self.push(Operation::VarDiv(
+                div.try_into().expect("cannot divide by zero"),
+            ));
         }
         self
     }
@@ -168,7 +206,7 @@ impl<V: VarLike> std::ops::Mul<usize> for OperationSequence<V> {
         if rhs == 0 {
             return OperationSequence::empty();
         }
-        if !self.is_empty() && rhs > 1 {
+        if !self.is_empty() && rhs != 1 {
             self.push(Operation::Mult(
                 rhs.try_into().expect("cannot multiply by zero"),
             ));
@@ -202,20 +240,15 @@ impl<V: VarLike> std::ops::Mul<OperationSequence<V>> for usize {
 impl<V: VarLike> std::ops::Div<usize> for OperationSequence<V> {
     type Output = OperationSequence<V>;
 
-    fn div(mut self, rhs: usize) -> Self::Output {
-        if !self.is_empty() {
-            self.push(Operation::Div(
-                rhs.try_into().expect("cannot divide by zero"),
-            ));
-        }
-        self
+    fn div(self, rhs: usize) -> Self::Output {
+        self.normalized_form_division(rhs)
     }
 }
 
 impl<V: VarLike> std::ops::DivAssign<usize> for OperationSequence<V> {
     fn div_assign(&mut self, rhs: usize) {
-        if !self.is_empty() {
-            self.push(Operation::Div(
+        if !self.is_empty() && rhs != 1 {
+            self.push(Operation::NormDiv(
                 rhs.try_into().expect("cannot divide by zero"),
             ));
         }
@@ -230,17 +263,24 @@ pub(crate) enum Operation<V: VarLike> {
     Id(ConstraintId),
     /// A (possibly negated) literal axiom
     Axiom(Axiom<V>),
-    /// A negative literal axiom
     /// An addition operation over two constraints
     Add,
     /// A constant multiplication operation
     Mult(std::num::NonZeroUsize),
-    /// A constant division operation
-    Div(std::num::NonZeroUsize),
+    /// A constant division operation in normalized constraint form
+    NormDiv(std::num::NonZeroUsize),
+    /// A constant division operation in variable constraint form
+    VarDiv(std::num::NonZeroUsize),
     /// A boolean saturation operation
     Sat,
     /// A weakening operation
-    Weak,
+    Weak(V),
+    /// A subtraction operation for the right-hand side
+    Sub(usize),
+    /// Mixed integer rounding cut in normalized constraint form
+    NormMir(std::num::NonZeroUsize),
+    /// Mixed integer rounding cut in variable constraint form
+    VarMir(std::num::NonZeroUsize),
 }
 
 impl<V: VarLike> From<ConstraintId> for Operation<V> {
@@ -260,11 +300,15 @@ impl<V: VarLike> std::fmt::Display for Operation<V> {
         match self {
             Operation::Id(id) => write!(f, "{id}"),
             Operation::Axiom(ax) => write!(f, "{ax}"),
-            Operation::Add => write!(f, "+"),
-            Operation::Mult(fact) => write!(f, "{fact} *"),
-            Operation::Div(div) => write!(f, "{div} d"),
-            Operation::Sat => write!(f, "s"),
-            Operation::Weak => write!(f, "w"),
+            Operation::Add => write!(f, "{ADD}"),
+            Operation::Mult(fact) => write!(f, "{fact} {MULT}"),
+            Operation::NormDiv(div) => write!(f, "{div} {NORM_DIV}"),
+            Operation::VarDiv(div) => write!(f, "{div} {VAR_DIV}"),
+            Operation::Sat => write!(f, "{SATURATE}"),
+            Operation::Weak(v) => write!(f, "{} {WEAKEN}", V::Formatter::from(*v)),
+            Operation::Sub(sub) => write!(f, "{sub} {SUB}"),
+            Operation::NormMir(div) => write!(f, "{div} {NORM_MIR}"),
+            Operation::VarMir(div) => write!(f, "{div} {VAR_MIR}"),
         }
     }
 }
@@ -278,6 +322,7 @@ pub trait OperationLike<V: VarLike>:
     + std::ops::Add<Axiom<V>, Output = OperationSequence<V>>
     + std::ops::Mul<usize, Output = OperationSequence<V>>
     + std::ops::Div<usize, Output = OperationSequence<V>>
+    + std::ops::Sub<usize, Output = OperationSequence<V>>
 {
     /// Applies saturation
     #[must_use]
@@ -286,8 +331,44 @@ pub trait OperationLike<V: VarLike>:
     }
     /// Applies weakening
     #[must_use]
-    fn weaken(self) -> OperationSequence<V> {
-        Into::<OperationSequence<V>>::into(self).weaken()
+    fn weaken(self, variable: V) -> OperationSequence<V> {
+        Into::<OperationSequence<V>>::into(self).weaken(variable)
+    }
+    /// Derives a mixed-integer rounding cut in normalized constraint form
+    ///
+    /// # Panics
+    ///
+    /// If `div` is zero.
+    #[must_use]
+    fn normalized_form_mir_cut(self, div: usize) -> OperationSequence<V> {
+        Into::<OperationSequence<V>>::into(self).normalized_form_mir_cut(div)
+    }
+    /// Derives a mixed-integer rounding cut in variable constraint form
+    ///
+    /// # Panics
+    ///
+    /// If `div` is zero.
+    #[must_use]
+    fn variable_form_mir_cut(self, div: usize) -> OperationSequence<V> {
+        Into::<OperationSequence<V>>::into(self).variable_form_mir_cut(div)
+    }
+    /// Applies division in normalized constraint form
+    ///
+    /// # Panics
+    ///
+    /// If `div` is zero.
+    #[must_use]
+    fn normalized_form_division(self, div: usize) -> OperationSequence<V> {
+        Into::<OperationSequence<V>>::into(self).normalized_form_division(div)
+    }
+    /// Applies division in variable constraint form
+    ///
+    /// # Panics
+    ///
+    /// If `div` is zero.
+    #[must_use]
+    fn variable_form_division(self, div: usize) -> OperationSequence<V> {
+        Into::<OperationSequence<V>>::into(self).variable_form_division(div)
     }
 }
 
@@ -320,6 +401,25 @@ impl<V: VarLike, O: Into<OperationSequence<V>>> std::ops::AddAssign<O> for Opera
             return;
         }
         self.push(Operation::Add);
+    }
+}
+
+impl<V: VarLike> std::ops::Sub<usize> for OperationSequence<V> {
+    type Output = OperationSequence<V>;
+
+    fn sub(mut self, rhs: usize) -> Self::Output {
+        if !self.is_empty() {
+            self.push(Operation::Sub(rhs));
+        }
+        self
+    }
+}
+
+impl<V: VarLike> std::ops::SubAssign<usize> for OperationSequence<V> {
+    fn sub_assign(&mut self, rhs: usize) {
+        if !self.is_empty() {
+            self.push(Operation::Sub(rhs));
+        }
     }
 }
 
@@ -423,6 +523,14 @@ impl<V: VarLike> std::ops::Div<usize> for Axiom<V> {
     }
 }
 
+impl<V: VarLike> std::ops::Sub<usize> for Axiom<V> {
+    type Output = OperationSequence<V>;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Into::<OperationSequence<V>>::into(self) - rhs
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::OperationLike;
@@ -449,9 +557,15 @@ mod tests {
     }
 
     #[test]
-    fn constr_div() {
+    fn constr_norm_div() {
         let mult = seq!(Id::abs(42)) / 5;
         assert_eq!(&format!("{mult}"), "42 5 d");
+    }
+
+    #[test]
+    fn constr_var_div() {
+        let mult = seq!(Id::abs(42)).variable_form_division(5);
+        assert_eq!(&format!("{mult}"), "42 5 c");
     }
 
     #[test]
@@ -462,8 +576,8 @@ mod tests {
 
     #[test]
     fn constr_weaken() {
-        let mult = seq!(Id::abs(42)).weaken();
-        assert_eq!(&format!("{mult}"), "42 w");
+        let mult = seq!(Id::abs(42)).weaken("x1");
+        assert_eq!(&format!("{mult}"), "42 x1 w");
     }
 
     #[test]
@@ -479,5 +593,23 @@ mod tests {
     fn sequence() {
         let seq = (seq!(Id::abs(42)) * 3 + Id::abs(43)).saturate() / 2;
         assert_eq!(&format!("{seq}"), "42 3 * 43 + s 2 d");
+    }
+
+    #[test]
+    fn constr_sub() {
+        let sub = seq!(Id::abs(42)) - 5;
+        assert_eq!(&format!("{sub}"), "42 5 -");
+    }
+
+    #[test]
+    fn constr_norm_mir() {
+        let sub = seq!(Id::abs(42)).normalized_form_mir_cut(2);
+        assert_eq!(&format!("{sub}"), "42 2 n");
+    }
+
+    #[test]
+    fn constr_var_mir() {
+        let sub = seq!(Id::abs(42)).variable_form_mir_cut(2);
+        assert_eq!(&format!("{sub}"), "42 2 m");
     }
 }
