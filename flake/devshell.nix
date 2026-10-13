@@ -35,34 +35,44 @@ flake-args: {
         default = self'.devShells.base.overrideAttrs (prevAttrs: {
           nativeBuildInputs =
             prevAttrs.nativeBuildInputs
-            ++ (with pkgs; [
-              # keep-sorted start
-              cargo-deny
-              cargo-hack
-              cargo-insta
-              cargo-llvm-cov
-              cargo-machete
-              cargo-minimal-versions
-              cargo-nextest
-              cargo-rdme
-              cargo-show-asm
-              cargo-spellcheck
-              cargo-udeps
-              cargo-valgrind
-              config.treefmt.build.wrapper
-              git-cliff
-              gungraun-runner
-              just
-              kani
-              maturin
-              release-plz
-              rust-cbindgen
-              self'.packages.rust-toolchain
-              typos
-              valgrind
-              veripb
-              # keep-sorted end
-            ]);
+            ++ (
+              with pkgs;
+              [
+                # keep-sorted start
+                cargo-deny
+                cargo-hack
+                cargo-insta
+                cargo-llvm-cov
+                cargo-machete
+                cargo-minimal-versions
+                cargo-nextest
+                cargo-rdme
+                cargo-show-asm
+                cargo-spellcheck
+                cargo-udeps
+                config.treefmt.build.wrapper
+                git-cliff
+                gungraun-runner
+                just
+                kani
+                maturin
+                release-plz
+                rust-cbindgen
+                self'.packages.rust-toolchain
+                typos
+                veripb
+                # keep-sorted end
+              ]
+              ++ lib.optionals (!pkgs.stdenv.hostPlatform.isDarwin) (
+                with pkgs;
+                [
+                  # keep-sorted start
+                  cargo-valgrind
+                  valgrind
+                  # keep-sorted end
+                ]
+              )
+            );
           VERIPB_CHECKER = lib.getExe pkgs.veripb;
           RS_EXT_SOLVER = lib.getExe' pkgs.cadical "cadical";
           JJ_PRE_PUSH_CHECKER = lib.getExe pkgs.prek;
