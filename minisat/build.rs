@@ -32,6 +32,7 @@ fn main() {
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
         .rust_target("1.87.0".parse().unwrap()) // Set MSRV
+        .clang_args(emscripten_bindgen_args())
         .header("vendor/minisat/cminisat.h")
         .allowlist_file("vendor/minisat/cminisat.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
@@ -54,4 +55,32 @@ fn build() {
     #[cfg(not(feature = "debug"))]
     conf.profile("Release");
     conf.build();
+}
+
+/// Extra clang arguments for bindgen when targeting emscripten
+///
+/// Clang defaults to hidden visibility on wasm targets and bindgen skips hidden functions, so
+/// without `-fvisibility=default` the bindings contain no functions at all. libclang also does
+/// not know the emscripten sysroot, so the compile flags are queried from `emcc`.
+fn emscripten_bindgen_args() -> Vec<String> {
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() != "emscripten" {
+        return vec![];
+    }
+    let output = std::process::Command::new("emcc")
+        .arg("--cflags")
+        .output()
+        .expect("failed to run `emcc --cflags`, is emscripten installed?");
+    assert!(
+        output.status.success(),
+        "`emcc --cflags` failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let cflags = String::from_utf8(output.stdout).expect("`emcc --cflags` output is not UTF-8");
+    assert!(
+        !cflags.contains(['"', '\'', '\\']),
+        "cannot split quoted `emcc --cflags` output: {cflags}"
+    );
+    let mut args: Vec<String> = cflags.split_whitespace().map(String::from).collect();
+    args.push(String::from("-fvisibility=default"));
+    args
 }
