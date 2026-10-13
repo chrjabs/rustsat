@@ -13,7 +13,7 @@ For the API itself, see `rustsat.h`. To use RustSAT from an external project, bu
 with the following command in the root of this repository:
 
 ```bash
-RUSTFLAGS="--print=native-static-libs" cargo --release -p rustsat-capi
+RUSTFLAGS="--print=native-static-libs" cargo build --release -p rustsat-capi
 ```
 
 Then link against `librustsat_capi.a` (produced by `cargo` in `target/release`).
