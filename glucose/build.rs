@@ -22,10 +22,12 @@ fn main() {
 
     // Link c++ std lib
     // Note: this should be _after_ linking the solver itself so that it is actually pulled in
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-link-lib=dylib=c++");
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    println!("cargo:rustc-link-lib=dylib=stdc++");
+    // Note: `cfg!(target_os)` in a build script refers to the host, so read the target from cargo
+    match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
+        "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
+        "windows" => {}
+        _ => println!("cargo:rustc-link-lib=dylib=stdc++"),
+    }
 
     // Generate Rust FFI bindings
     let bindings = bindgen::Builder::default()
