@@ -19,6 +19,10 @@
           pkg-config
           # keep-sorted end
         ];
+        # The stdenv sets `CC`/`CXX` to the host compiler, which the `cc` crate would otherwise use
+        CC_wasm32_unknown_emscripten = "emcc";
+        CXX_wasm32_unknown_emscripten = "em++";
+        AR_wasm32_unknown_emscripten = "emar";
         CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_RUNNER = "node";
         CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_RUSTFLAGS = emscriptenLinkArgs;
         RUSTDOCFLAGS = emscriptenLinkArgs;
