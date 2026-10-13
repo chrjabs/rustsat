@@ -99,6 +99,16 @@
 //! example you can look at this [multi-objective optimization
 //! solver](https://github.com/chrjabs/scuttle).
 //!
+//! ## WebAssembly
+//!
+//! The `rustsat` and `rustsat-batsat` crates are pure Rust and can be built for
+//! `wasm32-unknown-unknown`. The interfaces to the C and C++ solvers (`rustsat-cadical`,
+//! `rustsat-glucose`, `rustsat-kissat`, and `rustsat-minisat`) can be built for
+//! `wasm32-unknown-emscripten` instead, which requires emscripten (`emcc`, `em-config`, and
+//! `emcmake`) to be on the `PATH`. When emscripten assertions are enabled, as they are for
+//! unoptimized builds, linking the C++ solvers additionally requires passing
+//! `-C link-arg=-sDEFAULT_TO_CXX` to `rustc`, e.g., via `RUSTFLAGS`.
+//!
 //! ## Minimum Supported Rust Version (MSRV)
 //!
 //! Currently, the MSRV of RustSAT is 1.87.0, the plan is to always support an MSRV that is at
