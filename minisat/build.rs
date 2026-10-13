@@ -59,6 +59,12 @@ fn build() {
     // disables by default. Use the same exception model as Rust's emscripten target.
     if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "emscripten" {
         conf.cxxflag("-fwasm-exceptions");
+        // `emcmake` adds emscripten's toolchain file, but unless the `cmake` crate knows about it,
+        // it also passes `CMAKE_<LANG>_COMPILER`. That differs from the toolchain file's value and
+        // makes CMake delete its cache, and with it the toolchain, when reconfiguring.
+        if !cmake_toolchain_file_in_env() {
+            conf.define("CMAKE_TOOLCHAIN_FILE", emscripten_toolchain_file());
+        }
     }
     #[cfg(feature = "quiet")]
     conf.define("QUIET", "ON");
@@ -93,4 +99,38 @@ fn emscripten_bindgen_args() -> Vec<String> {
     let mut args: Vec<String> = cflags.split_whitespace().map(String::from).collect();
     args.push(String::from("-fvisibility=default"));
     args
+}
+
+/// Path to emscripten's toolchain file, as added by `emcmake`
+fn emscripten_toolchain_file() -> std::path::PathBuf {
+    let output = std::process::Command::new("em-config")
+        .arg("EMSCRIPTEN_ROOT")
+        .output()
+        .expect("failed to run `em-config EMSCRIPTEN_ROOT`, is emscripten installed?");
+    assert!(
+        output.status.success(),
+        "`em-config EMSCRIPTEN_ROOT` failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let root = String::from_utf8(output.stdout).expect("`em-config` output is not UTF-8");
+    let path = std::path::Path::new(root.trim()).join("cmake/Modules/Platform/Emscripten.cmake");
+    assert!(
+        path.is_file(),
+        "emscripten toolchain file {} does not exist",
+        path.display()
+    );
+    path
+}
+
+/// Whether a toolchain file is set via the environment variables that the `cmake` crate checks
+fn cmake_toolchain_file_in_env() -> bool {
+    let target = std::env::var("TARGET").unwrap();
+    [
+        format!("CMAKE_TOOLCHAIN_FILE_{target}"),
+        format!("CMAKE_TOOLCHAIN_FILE_{}", target.replace('-', "_")),
+        String::from("TARGET_CMAKE_TOOLCHAIN_FILE"),
+        String::from("CMAKE_TOOLCHAIN_FILE"),
+    ]
+    .iter()
+    .any(|var| std::env::var_os(var).is_some())
 }
