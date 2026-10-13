@@ -26,6 +26,11 @@ fn main() {
     match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
         "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
         "windows" => {}
+        "emscripten" => {
+            // rustc links with `emcc`, which unlike `em++` does not add the C++ ABI library
+            println!("cargo:rustc-link-lib=dylib=c++");
+            println!("cargo:rustc-link-lib=dylib=c++abi");
+        }
         _ => println!("cargo:rustc-link-lib=dylib=stdc++"),
     }
 
@@ -51,6 +56,11 @@ fn build() {
     let mut conf = cmake::Config::new(glucose_dir);
     conf.define("BUILD_SYRUP", "OFF")
         .define("BUILD_EXECUTABLES", "OFF");
+    // The solver wrapper catches C++ exceptions (e.g., `std::bad_alloc`), which emscripten
+    // disables by default. Use the same exception model as Rust's emscripten target.
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "emscripten" {
+        conf.cxxflag("-fwasm-exceptions");
+    }
     #[cfg(feature = "quiet")]
     conf.define("QUIET", "ON");
     #[cfg(not(feature = "debug"))]

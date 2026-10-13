@@ -204,6 +204,11 @@ fn main() {
     match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
         "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
         "windows" => {}
+        "emscripten" => {
+            // rustc links with `emcc`, which unlike `em++` does not add the C++ ABI library
+            println!("cargo:rustc-link-lib=dylib=c++");
+            println!("cargo:rustc-link-lib=dylib=c++abi");
+        }
         _ => println!("cargo:rustc-link-lib=dylib=stdc++"),
     }
 
@@ -337,6 +342,11 @@ fn build(repo: &str, branch: &str, version: Version) {
         });
     // Setup build configuration
     let mut cadical_build = default_build();
+    // The solver wrapper catches C++ exceptions (e.g., `std::bad_alloc`), which emscripten
+    // disables by default. Use the same exception model as Rust's emscripten target.
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "emscripten" {
+        cadical_build.flag("-fwasm-exceptions");
+    }
     if cfg!(feature = "debug") && std::env::var("PROFILE").unwrap() == "debug" {
         cadical_build
             .opt_level(0)
