@@ -99,14 +99,17 @@ impl Version {
     }
 
     fn set_defines(self, build: &mut cc::Build) {
-        let run_cpp_tests = check_env_var!("CADICAL_RUN_CPP_TESTS").map_or(true, |val| {
-            let val_lower = val.to_lowercase();
-            match val_lower.trim() {
-                "1" | "true" => true,
-                "0" | "false" => false,
-                _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {val}"),
-            }
-        });
+        // Binaries compiled for a different target generally cannot be executed on the host
+        let cross_compiling = std::env::var("TARGET").unwrap() != std::env::var("HOST").unwrap();
+        let run_cpp_tests =
+            check_env_var!("CADICAL_RUN_CPP_TESTS").map_or(!cross_compiling, |val| {
+                let val_lower = val.to_lowercase();
+                match val_lower.trim() {
+                    "1" | "true" => true,
+                    "0" | "false" => false,
+                    _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {val}"),
+                }
+            });
         if !has_cpp_feature(CppFeature::FlexibleArrayMembers, run_cpp_tests) {
             build.define("NFLEXIBLE", None);
         }
