@@ -54,7 +54,10 @@ fn build() {
     minisat_dir_str.push_str("/vendor");
     let minisat_dir = std::path::Path::new(&minisat_dir_str);
     let mut conf = cmake::Config::new(minisat_dir);
-    conf.define("BUILD_BINARIES", "OFF");
+    conf.define("BUILD_BINARIES", "OFF")
+        // Only the static library is linked. If the shared library exists next to it, linkers that
+        // prefer shared libraries (e.g., on macOS and emscripten) pick it for the unit tests.
+        .define("BUILD_SHARED_LIB", "OFF");
     // The solver wrapper catches C++ exceptions (e.g., `std::bad_alloc`), which emscripten
     // disables by default. Use the same exception model as Rust's emscripten target.
     if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "emscripten" {
