@@ -9,7 +9,7 @@ option(BUILD_EXECUTABLES "True for building executables and not just libraries"
        ON)
 option(QUIET "Disable all output to stdout" OFF)
 
-set(CMAKE_CXX_FLAGS "-std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Dependencies {{{
