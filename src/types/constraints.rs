@@ -1998,6 +1998,18 @@ impl PbUbConstr {
     }
 }
 
+impl From<CardUbConstr> for PbUbConstr {
+    fn from(value: CardUbConstr) -> Self {
+        let (lits, bound) = value.decompose();
+        let weight_sum = lits.len();
+        Self {
+            lits: lits.into_iter().map(|lit| (lit, 1)).collect(),
+            weight_sum,
+            b: isize::try_from(bound).expect("cannot handle bound larger than `isize::MAX`"),
+        }
+    }
+}
+
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 #[cfg_attr(
@@ -2157,6 +2169,18 @@ impl PbLbConstr {
     }
 }
 
+impl From<CardLbConstr> for PbLbConstr {
+    fn from(value: CardLbConstr) -> Self {
+        let (lits, bound) = value.decompose();
+        let weight_sum = lits.len();
+        Self {
+            lits: lits.into_iter().map(|lit| (lit, 1)).collect(),
+            weight_sum,
+            b: isize::try_from(bound).expect("cannot handle bound larger than `isize::MAX`"),
+        }
+    }
+}
+
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
 #[derive(Eq, PartialEq, Clone, Debug)]
 #[cfg_attr(
@@ -2295,6 +2319,18 @@ impl PbEqConstr {
     #[must_use]
     pub fn weight_sum(&self) -> usize {
         self.weight_sum
+    }
+}
+
+impl From<CardEqConstr> for PbEqConstr {
+    fn from(value: CardEqConstr) -> Self {
+        let (lits, bound) = value.decompose();
+        let weight_sum = lits.len();
+        Self {
+            lits: lits.into_iter().map(|lit| (lit, 1)).collect(),
+            weight_sum,
+            b: isize::try_from(bound).expect("cannot handle bound larger than `isize::MAX`"),
+        }
     }
 }
 
