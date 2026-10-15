@@ -154,26 +154,8 @@ pub fn card_impl_lit(card: &CardConstraint, lit: Lit) -> PbConstraint {
         "the constraint must be satisfiable to reify it: {card}"
     );
     match card {
-        CardConstraint::Ub(c) => {
-            let (lits, bound) = c.decompose_ref();
-            let bound = 2 * lits.len() - bound - 1;
-            let mut lits: Vec<_> = lits.iter().map(|lit| (!*lit, 1)).collect();
-            lits.push((!lit, lits.len()));
-            PbConstraint::new_ub_unsigned(
-                lits,
-                isize::try_from(bound).expect("cannot handle bounds larger than `isize::MAX`"),
-            )
-        }
-        CardConstraint::Lb(c) => {
-            let (lits, bound) = c.decompose_ref();
-            let bound = lits.len() - bound + 1;
-            let mut lits: Vec<_> = lits.iter().map(|lit| (!*lit, 1)).collect();
-            lits.push((lit, bound));
-            PbConstraint::new_lb_unsigned(
-                lits,
-                isize::try_from(bound).expect("cannot handle bounds larger than `isize::MAX`"),
-            )
-        }
+        CardConstraint::Ub(c) => PbConstraint::Ub(card_ub_impl_lit(c, lit)),
+        CardConstraint::Lb(c) => PbConstraint::Lb(card_lb_impl_lit(c, lit)),
         CardConstraint::Eq(_) => {
             panic!("equality constraint cannot be trivially reified")
         }
@@ -189,7 +171,7 @@ pub fn card_impl_lit(card: &CardConstraint, lit: Lit) -> PbConstraint {
 /// - If the constraint is unsatisfiable
 /// - If the number of literals or the bound exceeds [`isize::MAX`]
 #[must_use]
-pub fn card_impl_lit_ub(card: &CardUbConstr, lit: Lit) -> PbUbConstr {
+pub fn card_ub_impl_lit(card: &CardUbConstr, lit: Lit) -> PbUbConstr {
     let (lits, bound) = card.decompose_ref();
     let bound = 2 * lits.len() - bound - 1;
     let mut lits: Vec<_> = lits.iter().map(|lit| (!*lit, 1)).collect();
@@ -209,7 +191,7 @@ pub fn card_impl_lit_ub(card: &CardUbConstr, lit: Lit) -> PbUbConstr {
 /// - If the constraint is unsatisfiable
 /// - If the number of literals or the bound exceeds [`isize::MAX`]
 #[must_use]
-pub fn card_impl_lit_lb(card: &CardLbConstr, lit: Lit) -> PbLbConstr {
+pub fn card_lb_impl_lit(card: &CardLbConstr, lit: Lit) -> PbLbConstr {
     assert!(
         !card.is_unsat(),
         "the constraint must be satisfiable to reify it: {card}"
@@ -367,4 +349,237 @@ pub fn pb_lb_impl_lit(pb: &PbLbConstr, lit: Lit) -> PbLbConstr {
         .collect();
     lits.push((lit, bound));
     PbLbConstr::new(lits, bound)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::lit;
+
+    #[test]
+    fn card_impl() {
+        let card =
+            crate::types::constraints::CardUbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Ub(super::lit_impl_card_ub(lit![0], &card)),
+            super::lit_impl_card(
+                lit![0],
+                &crate::types::constraints::CardConstraint::Ub(card)
+            )
+        );
+        let card =
+            crate::types::constraints::CardLbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Lb(super::lit_impl_card_lb(lit![0], &card)),
+            super::lit_impl_card(
+                lit![0],
+                &crate::types::constraints::CardConstraint::Lb(card)
+            )
+        );
+        let card =
+            crate::types::constraints::CardUbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Ub(super::card_ub_impl_lit(&card, lit![0])),
+            super::card_impl_lit(
+                &crate::types::constraints::CardConstraint::Ub(card),
+                lit![0],
+            )
+        );
+        let card =
+            crate::types::constraints::CardLbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Lb(super::card_lb_impl_lit(&card, lit![0])),
+            super::card_impl_lit(
+                &crate::types::constraints::CardConstraint::Lb(card),
+                lit![0],
+            )
+        );
+    }
+
+    #[test]
+    fn lit_impl_card_ub() {
+        let card =
+            crate::types::constraints::CardUbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        let reified = super::lit_impl_card_ub(lit![0], &card);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if assign.lit_value(lit![0]) == true.into() {
+                assert_eq!(reified.evaluate(&assign), card.evaluate(&assign));
+            } else {
+                assert_eq!(reified.evaluate(&assign), true.into());
+            }
+        }
+    }
+
+    #[test]
+    fn lit_impl_card_lb() {
+        let card =
+            crate::types::constraints::CardLbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        let reified = super::lit_impl_card_lb(lit![0], &card);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if assign.lit_value(lit![0]) == true.into() {
+                assert_eq!(reified.evaluate(&assign), card.evaluate(&assign));
+            } else {
+                assert_eq!(reified.evaluate(&assign), true.into());
+            }
+        }
+    }
+
+    #[test]
+    fn card_ub_impl_lit() {
+        let card =
+            crate::types::constraints::CardUbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        let reified = super::card_ub_impl_lit(&card, lit![0]);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if card.evaluate(&assign) == true.into() {
+                assert_eq!(reified.evaluate(&assign), assign.lit_value(lit![0]));
+            }
+        }
+    }
+
+    #[test]
+    fn card_lb_impl_lit() {
+        let card =
+            crate::types::constraints::CardLbConstr::new([lit![1], lit![2], lit![3], lit![4]], 2);
+        let reified = super::card_lb_impl_lit(&card, lit![0]);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if card.evaluate(&assign) == true.into() {
+                assert_eq!(reified.evaluate(&assign), assign.lit_value(lit![0]));
+            }
+        }
+    }
+
+    #[test]
+    fn pb_impl() {
+        let pb = crate::types::constraints::PbUbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Ub(super::lit_impl_pb_ub(lit![0], &pb)),
+            super::lit_impl_pb(lit![0], &crate::types::constraints::PbConstraint::Ub(pb))
+        );
+        let pb = crate::types::constraints::PbLbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Lb(super::lit_impl_pb_lb(lit![0], &pb)),
+            super::lit_impl_pb(lit![0], &crate::types::constraints::PbConstraint::Lb(pb))
+        );
+        let pb = crate::types::constraints::PbUbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Ub(super::pb_ub_impl_lit(&pb, lit![0])),
+            super::pb_impl_lit(&crate::types::constraints::PbConstraint::Ub(pb), lit![0],)
+        );
+        let pb = crate::types::constraints::PbLbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        assert_eq!(
+            crate::types::constraints::PbConstraint::Lb(super::pb_lb_impl_lit(&pb, lit![0])),
+            super::pb_impl_lit(&crate::types::constraints::PbConstraint::Lb(pb), lit![0],)
+        );
+    }
+
+    #[test]
+    fn lit_impl_pb_ub() {
+        let pb = crate::types::constraints::PbUbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        let reified = super::lit_impl_pb_ub(lit![0], &pb);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if assign.lit_value(lit![0]) == true.into() {
+                assert_eq!(reified.evaluate(&assign), pb.evaluate(&assign));
+            } else {
+                assert_eq!(reified.evaluate(&assign), true.into());
+            }
+        }
+    }
+
+    #[test]
+    fn lit_impl_pb_lb() {
+        let pb = crate::types::constraints::PbLbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        let reified = super::lit_impl_pb_lb(lit![0], &pb);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if assign.lit_value(lit![0]) == true.into() {
+                assert_eq!(reified.evaluate(&assign), pb.evaluate(&assign));
+            } else {
+                assert_eq!(reified.evaluate(&assign), true.into());
+            }
+        }
+    }
+
+    #[test]
+    fn pb_ub_impl_lit() {
+        let pb = crate::types::constraints::PbUbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        let reified = super::pb_ub_impl_lit(&pb, lit![0]);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if pb.evaluate(&assign) == true.into() {
+                assert_eq!(reified.evaluate(&assign), assign.lit_value(lit![0]));
+            }
+        }
+    }
+
+    #[test]
+    fn pb_lb_impl_lit() {
+        let pb = crate::types::constraints::PbLbConstr::new(
+            [(lit![1], 2), (lit![2], 4), (lit![3], 3), (lit![4], 2)],
+            4,
+        );
+        let reified = super::pb_lb_impl_lit(&pb, lit![0]);
+        let n_vars = 5;
+        for assign in 0..(1u32 << n_vars) {
+            let assign: crate::types::Assignment = (0..n_vars)
+                .map(|idx| crate::types::Lit::new(idx, assign & (1u32 << idx) == 0))
+                .collect();
+            println!("{assign}");
+            if pb.evaluate(&assign) == true.into() {
+                assert_eq!(reified.evaluate(&assign), assign.lit_value(lit![0]));
+            }
+        }
+    }
 }
