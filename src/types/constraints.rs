@@ -712,26 +712,17 @@ impl CardConstraint {
 
     /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
     pub fn new_ub<LI: super::LitIter>(lits: LI, b: usize) -> Self {
-        CardConstraint::Ub(CardUbConstr {
-            lits: lits.into_iter().collect(),
-            b,
-        })
+        CardConstraint::Ub(CardUbConstr::new(lits, b))
     }
 
     /// Constructs a new lower bound cardinality constraint (`sum of lits >= b`)
     pub fn new_lb<LI: super::LitIter>(lits: LI, b: usize) -> Self {
-        CardConstraint::Lb(CardLbConstr {
-            lits: lits.into_iter().collect(),
-            b,
-        })
+        CardConstraint::Lb(CardLbConstr::new(lits, b))
     }
 
     /// Constructs a new equality cardinality constraint (`sum of lits = b`)
     pub fn new_eq<LI: super::LitIter>(lits: LI, b: usize) -> Self {
-        CardConstraint::Eq(CardEqConstr {
-            lits: lits.into_iter().collect(),
-            b,
-        })
+        CardConstraint::Eq(CardEqConstr::new(lits, b))
     }
 
     /// Adds literals to the cardinality constraint
@@ -1067,6 +1058,14 @@ impl std::fmt::Display for CardUbConstr {
 }
 
 impl CardUbConstr {
+    /// Constructs a new upper bound cardinality constraint (`sum of lits <= b`)
+    pub fn new<LI: super::LitIter>(lits: LI, b: usize) -> Self {
+        Self {
+            lits: lits.into_iter().collect(),
+            b,
+        }
+    }
+
     /// Decomposes the constraint to a set of input literals and an upper bound
     #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -1129,6 +1128,14 @@ impl std::fmt::Display for CardLbConstr {
 }
 
 impl CardLbConstr {
+    /// Constructs a new lower bound cardinality constraint (`sum of lits >= b`)
+    pub fn new<LI: super::LitIter>(lits: LI, b: usize) -> Self {
+        Self {
+            lits: lits.into_iter().collect(),
+            b,
+        }
+    }
+
     /// Decomposes the constraint to a set of input literals and a lower bound
     #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -1197,6 +1204,14 @@ impl std::fmt::Display for CardEqConstr {
 }
 
 impl CardEqConstr {
+    /// Constructs a new equality cardinality constraint (`sum of lits = b`)
+    pub fn new<LI: super::LitIter>(lits: LI, b: usize) -> Self {
+        Self {
+            lits: lits.into_iter().collect(),
+            b,
+        }
+    }
+
     /// Decomposes the constraint to a set of input literals and an equality bound
     #[must_use]
     pub fn decompose(self) -> (Vec<Lit>, usize) {
@@ -1328,65 +1343,32 @@ impl PbConstraint {
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
     pub fn new_ub<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
-        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
-        PbConstraint::Ub(PbUbConstr {
-            lits: lits.into_iter().collect(),
-            weight_sum,
-            b: b + b_add,
-        })
+        PbConstraint::Ub(PbUbConstr::new(lits, b))
     }
 
     /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
     pub fn new_ub_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
-        let lits: Vec<_> = lits.into_iter().collect();
-        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
-        PbConstraint::Ub(PbUbConstr {
-            lits,
-            weight_sum,
-            b,
-        })
+        PbConstraint::Ub(PbUbConstr::new_unsigned(lits, b))
     }
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
     pub fn new_lb<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
-        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
-        PbConstraint::Lb(PbLbConstr {
-            lits: lits.into_iter().collect(),
-            weight_sum,
-            b: b + b_add,
-        })
+        PbConstraint::Lb(PbLbConstr::new(lits, b))
     }
 
     /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
     pub fn new_lb_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
-        let lits: Vec<_> = lits.into_iter().collect();
-        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
-        PbConstraint::Lb(PbLbConstr {
-            lits,
-            weight_sum,
-            b,
-        })
+        PbConstraint::Lb(PbLbConstr::new_unsigned(lits, b))
     }
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
     pub fn new_eq<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
-        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
-        PbConstraint::Eq(PbEqConstr {
-            lits: lits.into_iter().collect(),
-            weight_sum,
-            b: b + b_add,
-        })
+        PbConstraint::Eq(PbEqConstr::new(lits, b))
     }
 
     /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
     pub fn new_eq_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
-        let lits: Vec<_> = lits.into_iter().collect();
-        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
-        PbConstraint::Eq(PbEqConstr {
-            lits,
-            weight_sum,
-            b,
-        })
+        PbConstraint::Eq(PbEqConstr::new_unsigned(lits, b))
     }
 
     /// Gets the sum of weights of the constraint
@@ -1873,6 +1855,27 @@ impl std::fmt::Display for PbUbConstr {
 }
 
 impl PbUbConstr {
+    /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
+    pub fn new<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
+        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
+        Self {
+            lits: lits.into_iter().collect(),
+            weight_sum,
+            b: b + b_add,
+        }
+    }
+
+    /// Constructs a new upper bound pseudo-boolean constraint (`weighted sum of lits <= b`)
+    pub fn new_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        Self {
+            lits,
+            weight_sum,
+            b,
+        }
+    }
+
     /// Decomposes the constraint to a set of input literals and an upper bound
     #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
@@ -2005,6 +2008,27 @@ impl std::fmt::Display for PbLbConstr {
 }
 
 impl PbLbConstr {
+    /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
+    pub fn new<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
+        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
+        Self {
+            lits: lits.into_iter().collect(),
+            weight_sum,
+            b: b + b_add,
+        }
+    }
+
+    /// Constructs a new lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
+    pub fn new_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        Self {
+            lits,
+            weight_sum,
+            b,
+        }
+    }
+
     /// Decomposes the constraint to a set of input literals and a lower bound
     #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
@@ -2136,6 +2160,27 @@ impl std::fmt::Display for PbEqConstr {
 }
 
 impl PbEqConstr {
+    /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
+    pub fn new<LI: super::IWLitIter>(lits: LI, b: isize) -> Self {
+        let (lits, weight_sum, b_add) = PbConstraint::convert_input_lits(lits);
+        Self {
+            lits: lits.into_iter().collect(),
+            weight_sum,
+            b: b + b_add,
+        }
+    }
+
+    /// Constructs a new equality pseudo-boolean constraint (`weighted sum of lits = b`)
+    pub fn new_unsigned<LI: super::WLitIter>(lits: LI, b: isize) -> Self {
+        let lits: Vec<_> = lits.into_iter().collect();
+        let weight_sum = lits.iter().fold(0, |sum, (_, w)| sum + w);
+        Self {
+            lits,
+            weight_sum,
+            b,
+        }
+    }
+
     /// Decomposes the constraint to a set of input literals and an equality bound
     #[must_use]
     pub fn decompose(self) -> (Vec<(Lit, usize)>, isize) {
