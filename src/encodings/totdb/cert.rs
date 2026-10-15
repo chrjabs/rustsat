@@ -14,7 +14,6 @@ use crate::encodings::nodedb::NodeLike;
 use crate::instances::ManageVars;
 use crate::types::Lit;
 use crate::types::Var;
-use crate::types::constraints::PbConstraint;
 use crate::types::constraints::PbLbConstr;
 
 use super::Node;
@@ -121,7 +120,7 @@ impl super::Db {
             len_limit: None,
         };
 
-        let sum = PbConstraint::new_lb_unsigned(
+        let sum = PbLbConstr::new_unsigned(
             leaves.clone(),
             isize::try_from(value).expect("cannot handle values larger than `isize::MAX`"),
         );
@@ -135,7 +134,7 @@ impl super::Db {
         let defs = if value == 0 {
             SemDefs::new(None, Some(proof.redundant(&sum, [])?.finish()?))
         } else if value > self[id].max_val() {
-            let sum = PbConstraint::new_lb_unsigned(leaves.map(|(l, w)| (!l, w)), 0);
+            let sum = PbLbConstr::new_unsigned(leaves.map(|(l, w)| (!l, w)), 0);
             SemDefs::new(Some(proof.redundant(&sum, [])?.finish()?), None)
         } else {
             let olit = self[id][value];
@@ -202,7 +201,7 @@ impl super::Db {
             None,
             Some(
                 proof
-                    .redundant(&PbConstraint::new_lb_unsigned(leaves.clone(), 0), [])?
+                    .redundant(&PbLbConstr::new_unsigned(leaves.clone(), 0), [])?
                     .finish()?,
             ),
         );
@@ -321,7 +320,7 @@ impl super::Db {
             // NOTE: these semantics are only needed to encode the "only if" direction, and
             // therefore only for unweighteed nodes. For weighted nodes, determining what `max_cost
             // + 1` is is not so trivial.
-            let sum = PbConstraint::new_lb_unsigned(leaves.map(|(l, w)| (!l, w)), 0);
+            let sum = PbLbConstr::new_unsigned(leaves.map(|(l, w)| (!l, w)), 0);
             #[cfg(feature = "verbose-proofs")]
             proof.comment(&"value > max")?;
             let defs = SemDefs::new(Some(proof.redundant(&sum, [])?.finish()?), None);
