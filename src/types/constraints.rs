@@ -1073,7 +1073,8 @@ impl CardUbConstr {
     }
 
     /// Get references to the constraints internals
-    pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
+    #[must_use]
+    pub fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
     }
 
@@ -1143,7 +1144,8 @@ impl CardLbConstr {
     }
 
     /// Get references to the constraints internals
-    pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
+    #[must_use]
+    pub fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
     }
 
@@ -1219,7 +1221,8 @@ impl CardEqConstr {
     }
 
     /// Get references to the constraints internals
-    pub(crate) fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
+    #[must_use]
+    pub fn decompose_ref(&self) -> (&Vec<Lit>, &usize) {
         (&self.lits, &self.b)
     }
 
@@ -1883,7 +1886,8 @@ impl PbUbConstr {
     }
 
     /// Gets references to the constraints internals
-    pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
+    #[must_use]
+    pub fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
         (&self.lits, &self.b)
     }
 
@@ -2042,7 +2046,8 @@ impl PbLbConstr {
     }
 
     /// Gets references to the constraints internals
-    pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
+    #[must_use]
+    pub fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
         (&self.lits, &self.b)
     }
 
@@ -2200,7 +2205,8 @@ impl PbEqConstr {
     }
 
     /// Gets references to the constraints internals
-    pub(crate) fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
+    #[must_use]
+    pub fn decompose_ref(&self) -> (&Vec<(Lit, usize)>, &isize) {
         (&self.lits, &self.b)
     }
 
