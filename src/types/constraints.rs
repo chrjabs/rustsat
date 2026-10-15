@@ -901,20 +901,10 @@ impl CardConstraint {
     /// Checks whether the cardinality constraint is satisfied by the given assignment
     #[must_use]
     pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
-        let range = self
-            .iter()
-            .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
-                TernaryVal::True => rng.start + 1..rng.end + 1,
-                TernaryVal::False => rng,
-                TernaryVal::DontCare => rng.start..rng.end + 1,
-            });
-        if range.contains(&self.bound()) {
-            return TernaryVal::DontCare;
-        }
         match self {
-            CardConstraint::Ub(CardUbConstr { b, .. }) => (range.start <= *b).into(),
-            CardConstraint::Lb(CardLbConstr { b, .. }) => (range.start >= *b).into(),
-            CardConstraint::Eq(CardEqConstr { b, .. }) => (range.start == *b).into(),
+            CardConstraint::Ub(c) => c.evaluate(assign),
+            CardConstraint::Lb(c) => c.evaluate(assign),
+            CardConstraint::Eq(c) => c.evaluate(assign),
         }
     }
 }
@@ -1038,6 +1028,23 @@ impl CardUbConstr {
     pub fn is_clause(&self) -> bool {
         self.b + 1 == self.lits.len()
     }
+
+    /// Checks whether the cardinality constraint is satisfied by the given assignment
+    #[must_use]
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
+        let range = self
+            .lits
+            .iter()
+            .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + 1..rng.end + 1,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + 1,
+            });
+        if range.contains(&self.b) {
+            return TernaryVal::DontCare;
+        }
+        (range.start <= self.b).into()
+    }
 }
 
 #[cfg(feature = "proof-logging")]
@@ -1149,6 +1156,23 @@ impl CardLbConstr {
     pub fn is_clause(&self) -> bool {
         self.b == 1
     }
+
+    /// Checks whether the cardinality constraint is satisfied by the given assignment
+    #[must_use]
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
+        let range = self
+            .lits
+            .iter()
+            .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + 1..rng.end + 1,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + 1,
+            });
+        if range.contains(&self.b) {
+            return TernaryVal::DontCare;
+        }
+        (range.start >= self.b).into()
+    }
 }
 
 #[cfg(feature = "proof-logging")]
@@ -1253,6 +1277,23 @@ impl CardEqConstr {
     #[must_use]
     pub fn is_negative_assignment(&self) -> bool {
         self.b == 0
+    }
+
+    /// Checks whether the cardinality constraint is satisfied by the given assignment
+    #[must_use]
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
+        let range = self
+            .lits
+            .iter()
+            .fold(0..0, |rng, &lit| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + 1..rng.end + 1,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + 1,
+            });
+        if range.contains(&self.b) {
+            return TernaryVal::DontCare;
+        }
+        (range.start == self.b).into()
     }
 }
 
@@ -1663,40 +1704,10 @@ impl PbConstraint {
     /// Checks whether the PB constraint is satisfied by the given assignment
     #[must_use]
     pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
-        let range = self
-            .iter()
-            .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
-                TernaryVal::True => rng.start + coeff..rng.end + coeff,
-                TernaryVal::False => rng,
-                TernaryVal::DontCare => rng.start..rng.end + coeff,
-            });
-        match (isize::try_from(range.start), isize::try_from(range.end)) {
-            (Ok(start), Ok(end)) => {
-                if (start..end).contains(&self.bound()) {
-                    return TernaryVal::DontCare;
-                }
-                match self {
-                    PbConstraint::Ub(PbUbConstr { b, .. }) => (start <= *b).into(),
-                    PbConstraint::Lb(PbLbConstr { b, .. }) => (start >= *b).into(),
-                    PbConstraint::Eq(PbEqConstr { b, .. }) => (start == *b).into(),
-                }
-            }
-            (Ok(start), Err(_)) => match self {
-                PbConstraint::Ub(PbUbConstr { b, .. }) => {
-                    if (start..).contains(b) {
-                        return TernaryVal::DontCare;
-                    }
-                    TernaryVal::True
-                }
-                PbConstraint::Lb(PbLbConstr { b, .. }) | PbConstraint::Eq(PbEqConstr { b, .. }) => {
-                    if (start..).contains(b) {
-                        return TernaryVal::DontCare;
-                    }
-                    TernaryVal::False
-                }
-            },
-            (Err(_), Err(_)) => matches!(self, PbConstraint::Lb(_)).into(),
-            (Err(_), Ok(_)) => unreachable!(), // since end >= start
+        match self {
+            PbConstraint::Ub(c) => c.evaluate(assign),
+            PbConstraint::Lb(c) => c.evaluate(assign),
+            PbConstraint::Eq(c) => c.evaluate(assign),
         }
     }
 }
@@ -1928,6 +1939,35 @@ impl PbUbConstr {
     pub fn weight_sum(&self) -> usize {
         self.weight_sum
     }
+
+    /// Checks whether the PB constraint is satisfied by the given assignment
+    #[must_use]
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
+        let range = self
+            .lits
+            .iter()
+            .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + coeff..rng.end + coeff,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + coeff,
+            });
+        match (isize::try_from(range.start), isize::try_from(range.end)) {
+            (Ok(start), Ok(end)) => {
+                if (start..end).contains(&self.b) {
+                    return TernaryVal::DontCare;
+                }
+                (start <= self.b).into()
+            }
+            (Ok(start), Err(_)) => {
+                if (start..).contains(&self.b) {
+                    return TernaryVal::DontCare;
+                }
+                TernaryVal::True
+            }
+            (Err(_), Err(_)) => false.into(),
+            (Err(_), Ok(_)) => unreachable!(), // since end >= start
+        }
+    }
 }
 
 impl From<CardUbConstr> for PbUbConstr {
@@ -2133,6 +2173,35 @@ impl PbLbConstr {
     pub fn weight_sum(&self) -> usize {
         self.weight_sum
     }
+
+    /// Checks whether the PB constraint is satisfied by the given assignment
+    #[must_use]
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
+        let range = self
+            .lits
+            .iter()
+            .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + coeff..rng.end + coeff,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + coeff,
+            });
+        match (isize::try_from(range.start), isize::try_from(range.end)) {
+            (Ok(start), Ok(end)) => {
+                if (start..end).contains(&self.b) {
+                    return TernaryVal::DontCare;
+                }
+                (start >= self.b).into()
+            }
+            (Ok(start), Err(_)) => {
+                if (start..).contains(&self.b) {
+                    return TernaryVal::DontCare;
+                }
+                TernaryVal::False
+            }
+            (Err(_), Err(_)) => true.into(),
+            (Err(_), Ok(_)) => unreachable!(), // since end >= start
+        }
+    }
 }
 
 impl From<CardLbConstr> for PbLbConstr {
@@ -2317,6 +2386,35 @@ impl PbEqConstr {
     #[must_use]
     pub fn weight_sum(&self) -> usize {
         self.weight_sum
+    }
+
+    /// Checks whether the PB constraint is satisfied by the given assignment
+    #[must_use]
+    pub fn evaluate(&self, assign: &super::Assignment) -> TernaryVal {
+        let range = self
+            .lits
+            .iter()
+            .fold(0..0, |rng, &(lit, coeff)| match assign.lit_value(lit) {
+                TernaryVal::True => rng.start + coeff..rng.end + coeff,
+                TernaryVal::False => rng,
+                TernaryVal::DontCare => rng.start..rng.end + coeff,
+            });
+        match (isize::try_from(range.start), isize::try_from(range.end)) {
+            (Ok(start), Ok(end)) => {
+                if (start..end).contains(&self.b) {
+                    return TernaryVal::DontCare;
+                }
+                (start == self.b).into()
+            }
+            (Ok(start), Err(_)) => {
+                if (start..).contains(&self.b) {
+                    return TernaryVal::DontCare;
+                }
+                TernaryVal::False
+            }
+            (Err(_), Err(_)) => false.into(),
+            (Err(_), Ok(_)) => unreachable!(), // since end >= start
+        }
     }
 }
 
