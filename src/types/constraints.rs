@@ -1986,6 +1986,12 @@ impl PbUbConstr {
         self.weight_sum <= self.b.unsigned_abs() + min_coeff
             && self.weight_sum > self.b.unsigned_abs()
     }
+
+    /// Gets the sum of weights of the constraint
+    #[must_use]
+    pub fn weight_sum(&self) -> usize {
+        self.weight_sum
+    }
 }
 
 /// A lower bound pseudo-boolean constraint (`weighted sum of lits >= b`)
@@ -2138,6 +2144,12 @@ impl PbLbConstr {
         // self.b > 0 because is not tautology
         self.b.unsigned_abs() <= min_coeff
     }
+
+    /// Gets the sum of weights of the constraint
+    #[must_use]
+    pub fn weight_sum(&self) -> usize {
+        self.weight_sum
+    }
 }
 
 /// An equality pseudo-boolean constraint (`weighted sum of lits = b`)
@@ -2271,6 +2283,12 @@ impl PbEqConstr {
             }
         }
         unit_weight
+    }
+
+    /// Gets the sum of weights of the constraint
+    #[must_use]
+    pub fn weight_sum(&self) -> usize {
+        self.weight_sum
     }
 }
 
