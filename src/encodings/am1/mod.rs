@@ -22,6 +22,9 @@
 //! enc.encode(&mut encoding, &mut var_manager).unwrap();
 //! ```
 
+#[cfg(feature = "proof-logging")]
+pub mod cert;
+
 mod pairwise;
 pub use pairwise::Pairwise;
 
