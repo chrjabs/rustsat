@@ -15,6 +15,7 @@ use crate::instances::ManageVars;
 use crate::types::Lit;
 use crate::types::Var;
 use crate::types::constraints::PbConstraint;
+use crate::types::constraints::PbLbConstr;
 
 use super::Node;
 use super::Semantics;
@@ -286,18 +287,18 @@ impl super::Db {
             let only_if_def = proof.operations::<Var>(&only_if_def)?;
             #[cfg(feature = "verbose-proofs")]
             {
-                let sum = PbConstraint::new_lb_unsigned(
+                let sum = PbLbConstr::new_unsigned(
                     leaves.clone(),
                     isize::try_from(main_val - offset)
                         .expect("cannot handle values larger than `isize::MAX`"),
                 );
                 let olit = self[id][main_val];
                 proof.equals(
-                    &crate::encodings::atomics::pb_impl_lit(&sum, olit),
+                    &crate::encodings::atomics::pb_lb_impl_lit(&sum, olit),
                     Some(if_def.into()),
                 )?;
                 proof.equals(
-                    &crate::encodings::atomics::lit_impl_pb(olit, &sum),
+                    &crate::encodings::atomics::lit_impl_pb_lb(olit, &sum),
                     Some(only_if_def.into()),
                 )?;
             }
