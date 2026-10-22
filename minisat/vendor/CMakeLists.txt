@@ -7,6 +7,7 @@ project(minisat)
 
 option(BUILD_BINARIES "Build the solver binary" ON)
 option(STATIC_BINARIES "Link binaries statically." ON)
+option(BUILD_SHARED_LIB "Build the shared library" ON)
 option(USE_SORELEASE "Use SORELEASE in shared library filename." ON)
 option(QUIET "Disable all output to stdout" OFF)
 
@@ -52,7 +53,9 @@ set(MINISAT_LIB_SOURCES
     minisat/simp/SimpSolver.cc minisat/cminisat.cc)
 
 add_library(minisat-lib-static STATIC ${MINISAT_LIB_SOURCES})
-add_library(minisat-lib-shared SHARED ${MINISAT_LIB_SOURCES})
+if(BUILD_SHARED_LIB)
+  add_library(minisat-lib-shared SHARED ${MINISAT_LIB_SOURCES})
+endif()
 
 if(BUILD_BINARIES)
   add_executable(minisat_core minisat/core/Main.cc)
@@ -71,11 +74,13 @@ if(BUILD_BINARIES)
 endif()
 
 set_target_properties(minisat-lib-static PROPERTIES OUTPUT_NAME "minisat")
-set_target_properties(
-  minisat-lib-shared
-  PROPERTIES OUTPUT_NAME "minisat"
-             VERSION ${MINISAT_VERSION}
-             SOVERSION ${MINISAT_SOVERSION})
+if(BUILD_SHARED_LIB)
+  set_target_properties(
+    minisat-lib-shared
+    PROPERTIES OUTPUT_NAME "minisat"
+               VERSION ${MINISAT_VERSION}
+               SOVERSION ${MINISAT_SOVERSION})
+endif()
 
 if(BUILD_BINARIES)
   set_target_properties(minisat_simp PROPERTIES OUTPUT_NAME "minisat")
@@ -84,10 +89,13 @@ endif()
 # --------------------------------------------------------------------------------------------------
 # Installation targets:
 
-install(
-  TARGETS minisat-lib-static minisat-lib-shared
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib)
+install(TARGETS minisat-lib-static ARCHIVE DESTINATION lib)
+if(BUILD_SHARED_LIB)
+  install(
+    TARGETS minisat-lib-shared
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib)
+endif()
 
 if(BUILD_BINARIES)
   install(TARGETS minisat_core minisat_simp RUNTIME DESTINATION bin)

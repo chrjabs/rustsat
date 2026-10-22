@@ -58,8 +58,8 @@
 //!   the test compiles _and runs_.
 //!   With this environment variable set to `0` or `false` a feature is considered available if the
 //!   test compiles correctly, without trying to execute it.
-//!   This is useful for cross-compilation settings where executing the compiled binary is not
-//!   possible.
+//!   When cross compiling (i.e., the target differs from the host), the default is to not execute
+//!   the tests, since the compiled binaries generally cannot run on the host.
 //! - `CADICAL_FLEXIBLE_ARRAY_MEMBERS` enables (`1` or `true`) or disables (`0` or `false`) or
 //!   automatically checks (`auto`) the availability of the flexible array members compiler
 //!   feature.
@@ -94,8 +94,8 @@
 //!
 //! Cross compilation for Windows can be achieved with the help of [`cargo
 //! zigbuild`](https://github.com/rust-cross/cargo-zigbuild).
-//! During cross compilation, make sure to set `CADICAL_RUN_CPP_TESTS=0`, since compiler tests
-//! (compiled for Windows) can't be run on the non-Windows host system.
+//! During cross compilation, the compiler tests (compiled for Windows) are only compiled and not
+//! run, since they can't be run on the non-Windows host system.
 //! For a working Windows cross compilation setup example, see [this CI
 //! configuration](https://github.com/marceline-cramer/saturn-v/blob/f8bcdc24857bce232981518bb4bec2c8cfcc6acf/.github/workflows/release.yml).
 

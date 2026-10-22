@@ -99,14 +99,17 @@ impl Version {
     }
 
     fn set_defines(self, build: &mut cc::Build) {
-        let run_cpp_tests = check_env_var!("CADICAL_RUN_CPP_TESTS").map_or(true, |val| {
-            let val_lower = val.to_lowercase();
-            match val_lower.trim() {
-                "1" | "true" => true,
-                "0" | "false" => false,
-                _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {val}"),
-            }
-        });
+        // Binaries compiled for a different target generally cannot be executed on the host
+        let cross_compiling = std::env::var("TARGET").unwrap() != std::env::var("HOST").unwrap();
+        let run_cpp_tests =
+            check_env_var!("CADICAL_RUN_CPP_TESTS").map_or(!cross_compiling, |val| {
+                let val_lower = val.to_lowercase();
+                match val_lower.trim() {
+                    "1" | "true" => true,
+                    "0" | "false" => false,
+                    _ => panic!("`CADICAL_RUN_CPP_TESTS` variable invalid value: {val}"),
+                }
+            });
         if !has_cpp_feature(CppFeature::FlexibleArrayMembers, run_cpp_tests) {
             build.define("NFLEXIBLE", None);
         }
@@ -200,10 +203,17 @@ fn main() {
 
     // Link c++ std lib
     // Note: this should be _after_ linking the solver itself so that it is actually pulled in
-    #[cfg(target_os = "macos")]
-    println!("cargo:rustc-link-lib=dylib=c++");
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    println!("cargo:rustc-link-lib=dylib=stdc++");
+    // Note: `cfg!(target_os)` in a build script refers to the host, so read the target from cargo
+    match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
+        "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
+        "windows" => {}
+        "emscripten" => {
+            // rustc links with `emcc`, which unlike `em++` does not add the C++ ABI library
+            println!("cargo:rustc-link-lib=dylib=c++");
+            println!("cargo:rustc-link-lib=dylib=c++abi");
+        }
+        _ => println!("cargo:rustc-link-lib=dylib=stdc++"),
+    }
 
     let cadical_dir = get_cadical_dir(version, None);
 
@@ -234,6 +244,7 @@ fn generate_bindings(cadical_dir: &str, version: Version, out_dir: &str) {
 
     let bindings = bindgen::Builder::default()
         .rust_target("1.87.0".parse().unwrap()) // Set MSRV
+        .clang_args(emscripten_bindgen_args())
         .clang_arg(format!("-I{cadical_dir}/src"))
         .clang_arg("-Icpp-extension")
         .allowlist_file(&header_path)
@@ -334,6 +345,11 @@ fn build(repo: &str, branch: &str, version: Version) {
         });
     // Setup build configuration
     let mut cadical_build = default_build();
+    // The solver wrapper catches C++ exceptions (e.g., `std::bad_alloc`), which emscripten
+    // disables by default. Use the same exception model as Rust's emscripten target.
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "emscripten" {
+        cadical_build.flag("-fwasm-exceptions");
+    }
     if cfg!(feature = "debug") && std::env::var("PROFILE").unwrap() == "debug" {
         cadical_build
             .opt_level(0)
@@ -637,4 +653,32 @@ fn c_escape(s: &str) -> String {
         }
     }
     out
+}
+
+/// Extra clang arguments for bindgen when targeting emscripten
+///
+/// Clang defaults to hidden visibility on wasm targets and bindgen skips hidden functions, so
+/// without `-fvisibility=default` the bindings contain no functions at all. libclang also does
+/// not know the emscripten sysroot, so the compile flags are queried from `emcc`.
+fn emscripten_bindgen_args() -> Vec<String> {
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() != "emscripten" {
+        return vec![];
+    }
+    let output = std::process::Command::new("emcc")
+        .arg("--cflags")
+        .output()
+        .expect("failed to run `emcc --cflags`, is emscripten installed?");
+    assert!(
+        output.status.success(),
+        "`emcc --cflags` failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let cflags = String::from_utf8(output.stdout).expect("`emcc --cflags` output is not UTF-8");
+    assert!(
+        !cflags.contains(['"', '\'', '\\']),
+        "cannot split quoted `emcc --cflags` output: {cflags}"
+    );
+    let mut args: Vec<String> = cflags.split_whitespace().map(String::from).collect();
+    args.push(String::from("-fvisibility=default"));
+    args
 }
